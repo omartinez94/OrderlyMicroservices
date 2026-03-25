@@ -5,7 +5,7 @@ builder.Services.AddCarter();
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 builder.Services.AddMarten(opt =>
 {
-    opt.Connection(builder.Configuration.GetConnectionString("PostgresConnection"));
+    opt.Connection(builder.Configuration.GetConnectionString("CatalogDB")!);
 }).UseLightweightSessions();
 
 var app = builder.Build();

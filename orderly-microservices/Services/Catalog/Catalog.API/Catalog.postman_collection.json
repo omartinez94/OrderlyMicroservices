@@ -1,0 +1,42 @@
+{
+	"info": {
+		"name": "Orderly Catalog API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create Restaurant",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"brandId\": 1,\n    \"name\": \"Test Restaurant\",\n    \"address\": \"123 Test St, Test City\",\n    \"phoneNumber\": \"+1234567890\",\n    \"email\": \"test@testrestaurant.com\",\n    \"taxRate\": 0.08,\n    \"currency\": \"USD\",\n    \"timeZone\": \"America/New_York\",\n    \"autoConfirmOrders\": true,\n    \"autoConfirmReservations\": true,\n    \"allowAutoSubstitute\": false,\n    \"estimatedTurnoverMinutes\": 45\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:5000/restaurants",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "5000",
+					"path": [
+						"restaurants"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

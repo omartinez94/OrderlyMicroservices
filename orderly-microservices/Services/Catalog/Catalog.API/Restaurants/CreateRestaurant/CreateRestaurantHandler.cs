@@ -1,7 +1,4 @@
-﻿using BuildingBlocks.CQRS;
-using Catalog.API.Models;
-
-namespace Catalog.API.Restaurants.CreateRestaurant;
+﻿namespace Catalog.API.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantCommand(
     int BrandId,
@@ -19,7 +16,7 @@ public record CreateRestaurantCommand(
 
 public record CreateRestaurantResult(Guid Id);
 
-internal class CreateRestaurantCommandHandler : ICommandHandler<CreateRestaurantCommand, CreateRestaurantResult>
+internal class CreateRestaurantCommandHandler(IDocumentSession session) : ICommandHandler<CreateRestaurantCommand, CreateRestaurantResult>
 {
     public async Task<CreateRestaurantResult> Handle(CreateRestaurantCommand command, CancellationToken cancellationToken)
     {
@@ -43,6 +40,8 @@ internal class CreateRestaurantCommandHandler : ICommandHandler<CreateRestaurant
         };
 
         // TODO: Save the restaurant to the database
+        session.Store(restaurant);
+        await session.SaveChangesAsync(cancellationToken);
 
         return new CreateRestaurantResult(restaurant.Id);
     }

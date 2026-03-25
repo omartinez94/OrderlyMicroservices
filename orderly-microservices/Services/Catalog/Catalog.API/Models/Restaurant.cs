@@ -2,7 +2,7 @@
 
 namespace Catalog.API.Models;
 
-public class Restaurant : AuditableEntity<Guid>
+public class Restaurant : Entity<Guid>
 {
     public int BrandId { get; set; }
     public string Name { get; set; } = string.Empty;

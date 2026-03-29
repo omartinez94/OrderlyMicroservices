@@ -2,7 +2,7 @@ namespace Catalog.API.Restaurants.GetRestaurantById;
 
 public record GetRestaurantByIdResponse(Restaurant Restaurant);
 
-internal class GetRestaurantByIdEndpoint : ICarterModule
+public class GetRestaurantByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {

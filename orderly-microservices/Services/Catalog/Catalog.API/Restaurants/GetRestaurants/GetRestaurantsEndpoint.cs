@@ -4,7 +4,7 @@ public record GetRestaurantsRequest(int? PageNumber = 1, int? PageSize = 10);
 
 public record GetRestaurantsResponse(IEnumerable<Restaurant> Restaurants);
 
-internal class GetRestaurantsEndpoint : ICarterModule
+public class GetRestaurantsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {

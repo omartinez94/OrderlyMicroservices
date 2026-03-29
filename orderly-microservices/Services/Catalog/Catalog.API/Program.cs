@@ -6,6 +6,7 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Progr
 builder.Services.AddMarten(opt =>
 {
     opt.Connection(builder.Configuration.GetConnectionString("CatalogDB")!);
+    opt.Schema.For<Restaurant>().SoftDeleted();
 }).UseLightweightSessions();
 
 var app = builder.Build();

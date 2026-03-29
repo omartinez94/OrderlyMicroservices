@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace BuildingBlocks.Entities.Contracts;
 
-public abstract class AuditableEntity<TId> : IAuditableEntity<TId>, IDeletableEntity
+public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
 {
     public TId Id { get; set; }
     public string CreatedBy { get; protected set; }
@@ -30,13 +30,6 @@ public abstract class AuditableEntity<TId> : IAuditableEntity<TId>, IDeletableEn
         LastModifiedOn = lastModifiedOn;
         IsActive = isActive;
     }
-
-    public void Delete() => IsActive = false;
-
-    /// <summary>
-    /// Undo soft delete of entity.
-    /// </summary>
-    public void Undelete() => IsActive = true;
 
     void IAuditableEntity.CreatedFrom(string userId, Instant timestamp)
     {

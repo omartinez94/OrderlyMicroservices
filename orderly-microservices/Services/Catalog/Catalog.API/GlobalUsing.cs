@@ -1,7 +1,9 @@
+global using BuildingBlocks.CQRS;
+global using BuildingBlocks.Entities.Interfaces;
 global using Carter;
+global using Catalog.API.Exceptions;
+global using Catalog.API.Models;
 global using Mapster;
 global using Marten;
 global using MediatR;
-global using BuildingBlocks.CQRS;
-global using Catalog.API.Models;
-global using Catalog.API.Exceptions;
+global using NodaTime;

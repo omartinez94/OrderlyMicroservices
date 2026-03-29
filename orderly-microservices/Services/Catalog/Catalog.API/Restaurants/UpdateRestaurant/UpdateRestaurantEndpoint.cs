@@ -2,7 +2,7 @@ namespace Catalog.API.Restaurants.UpdateRestaurant;
 
 public record UpdateRestaurantRequest(
     Guid Id,
-    int BrandId,
+    Guid BrandId,
     string Name,
     string Address,
     string PhoneNumber,

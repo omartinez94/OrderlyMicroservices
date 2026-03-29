@@ -1,7 +1,7 @@
 ﻿namespace Catalog.API.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantCommand(
-    int BrandId,
+    Guid BrandId,
     string Name,
     string Address,
     string PhoneNumber,
@@ -39,7 +39,11 @@ internal class CreateRestaurantCommandHandler(IDocumentSession session) : IComma
             EstimatedTurnoverMinutes = command.EstimatedTurnoverMinutes
         };
 
-        // TODO: Save the restaurant to the database
+        if (restaurant is IAuditableEntity auditableEntity)
+        {
+            auditableEntity.CreatedFrom("system", SystemClock.Instance.GetCurrentInstant());
+        }
+
         session.Store(restaurant);
         await session.SaveChangesAsync(cancellationToken);
 

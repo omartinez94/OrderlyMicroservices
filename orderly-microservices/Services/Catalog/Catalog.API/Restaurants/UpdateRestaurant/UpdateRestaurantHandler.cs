@@ -2,7 +2,7 @@ namespace Catalog.API.Restaurants.UpdateRestaurant;
 
 public record UpdateRestaurantCommand(
     Guid Id,
-    int BrandId,
+    Guid BrandId,
     string Name,
     string Address,
     string PhoneNumber,
@@ -44,6 +44,11 @@ internal class UpdateRestaurantCommandHandler(IDocumentSession session, ILogger<
         restaurant.AutoConfirmReservations = command.AutoConfirmReservations;
         restaurant.AllowAutoSubstitute = command.AllowAutoSubstitute;
         restaurant.EstimatedTurnoverMinutes = command.EstimatedTurnoverMinutes;
+
+        if (restaurant is IAuditableEntity auditableRest)
+        {
+            auditableRest.ModifiedFrom("system", SystemClock.Instance.GetCurrentInstant());
+        }
 
         session.Update(restaurant);
         await session.SaveChangesAsync(cancellationToken);

@@ -1,0 +1,405 @@
+erDiagram
+    Users ||--o{ Orders : creates
+    Users ||--o{ Reservations : creates
+    Users ||--o{ OrderModificationLog : modifies
+    Users ||--o{ BulkOrderUploads : uploads
+    
+    Restaurants ||--o{ Users : employs
+    Restaurants ||--o{ Tables : contains
+    Restaurants ||--o{ MenuCategories : has
+    Restaurants ||--o{ MenuItems : offers
+    Restaurants ||--o{ Ingredients : stocks
+    Restaurants ||--o{ Orders : processes
+    Restaurants ||--o{ Reservations : accepts
+    Restaurants ||--o{ WalkInQueue : manages
+    
+    Tables ||--o{ Orders : "assigned to"
+    Tables ||--o{ Reservations : "reserved for"
+    Tables ||--o{ MergedTables : "parent of"
+    Tables ||--o{ MergedTables : "child of"
+    Tables ||--o{ WalkInQueue : "seated at"
+    
+    MenuCategories ||--o{ MenuSubCategories : contains
+    MenuSubCategories ||--o{ MenuItems : includes
+    
+    MenuItems ||--o{ OrderItems : "ordered as"
+    MenuItems ||--o{ MenuItemVariations : "has variations"
+    MenuItems ||--o{ ComboItems : "combo parent"
+    MenuItems ||--o{ ComboItems : "included in combo"
+    MenuItems ||--o{ MenuItemIngredients : requires
+    MenuItems ||--o{ MenuItemAnalytics : tracked
+    
+    Ingredients ||--o{ MenuItemIngredients : "used in"
+    Ingredients ||--o{ IngredientAlternatives : "original ingredient"
+    Ingredients ||--o{ IngredientAlternatives : "alternative for"
+    
+    Orders ||--o{ OrderItems : contains
+    Orders ||--o{ OrderBills : "split into"
+    Orders ||--o{ OrderModificationLog : "tracked by"
+    Orders ||--o{ CustomerFeedback : "receives feedback"
+    Orders ||--o{ NotificationLog : triggers
+    Orders ||--o{ OrderTimingAnalytics : analyzed
+    
+    OrderItems ||--o{ MenuItemIngredients : "uses ingredients"
+    
+    Reservations ||--o{ NotificationLog : triggers
+    
+    CustomerFeedback ||--o{ Orders : "redeems reward in"
+    
+    Users {
+        uuid Id PK
+        string Email UK
+        string PasswordHash
+        string FirstName
+        string LastName
+        string PhoneNumber
+        enum Role "Admin,Manager,Waiter,KitchenStaff"
+        uuid RestaurantId FK
+        boolean IsActive
+        timestamp CreatedAt
+        timestamp UpdatedAt
+    }
+    
+    Restaurants {
+        uuid Id PK
+        uuid BrandId
+        string Name
+        text Address
+        string PhoneNumber
+        string Email
+        decimal TaxRate
+        string Currency
+        string TimeZone
+        boolean AutoConfirmOrders
+        boolean AutoConfirmReservations
+        boolean AllowAutoSubstitute
+        int EstimatedTurnoverMinutes
+        boolean IsActive
+        timestamp CreatedOn
+        timestamp LastModifiedOn
+    }
+    
+    Tables {
+        int Id PK
+        uuid RestaurantId FK
+        string TableNumber UK
+        int Capacity
+        int PositionX
+        int PositionY
+        string Shape
+        enum Status "available,occupied,reserved,cleaning,needs_attention"
+        int CurrentOrderId FK
+        boolean IsActive
+        timestamp CreatedAt
+        timestamp UpdatedAt
+    }
+    
+    MergedTables {
+        int Id PK
+        int ParentTableId FK
+        int ChildTableId FK
+        timestamp MergedAt
+        timestamp SplitAt
+        boolean IsActive
+    }
+    
+    MenuCategories {
+        int Id PK
+        uuid RestaurantId FK
+        string Name
+        text Description
+        int DisplayOrder
+        boolean IsActive
+        timestamp CreatedAt
+    }
+    
+    MenuSubCategories {
+        int Id PK
+        int CategoryId FK
+        string Name
+        text Description
+        int DisplayOrder
+        boolean IsActive
+    }
+    
+    MenuItems {
+        int Id PK
+        uuid RestaurantId FK
+        int SubCategoryId FK
+        string Name
+        text Description
+        decimal BasePrice
+        string ImageUrl "Mandatory"
+        int PrepTimeMinutes
+        int PrepTimeMaxMinutes
+        enum ItemType "regular,combo,promo,seasonal"
+        boolean IsAvailable
+        enum AvailabilityStatus "available,limited,unavailable"
+        date SeasonStartDate
+        date SeasonEndDate
+        decimal PromoPrice
+        timestamp PromoStartDate
+        timestamp PromoEndDate
+        int DisplayOrder
+        boolean IsActive
+        timestamp CreatedAt
+        timestamp UpdatedAt
+    }
+    
+    MenuItemVariations {
+        int Id PK
+        int MenuItemId FK
+        string Name "e.g. Size, Spice"
+        string VariationValue "e.g. Large, Extra Spicy"
+        decimal PriceModifier
+        boolean IsDefault
+        int DisplayOrder
+    }
+    
+    ComboItems {
+        int Id PK
+        int ComboMenuItemId FK
+        int IncludedMenuItemId FK
+        int Quantity
+        boolean IsOptional
+    }
+    
+    Ingredients {
+        int Id PK
+        uuid RestaurantId FK
+        string Name UK
+        string Unit "kg,liters,units"
+        decimal CurrentStock
+        decimal MinimumStock
+        boolean IsAvailable
+        timestamp LastUpdated
+    }
+    
+    MenuItemIngredients {
+        int Id PK
+        int MenuItemId FK
+        int IngredientId FK
+        decimal QuantityRequired
+        boolean IsOptional
+    }
+    
+    IngredientAlternatives {
+        int Id PK
+        int OriginalIngredientId FK
+        int AlternativeIngredientId FK
+        decimal PriceModifier
+        boolean AutoSubstitute
+        uuid RestaurantId FK
+    }
+    
+    Orders {
+        int Id PK
+        uuid RestaurantId FK
+        string OrderNumber UK "R1-20231015-001"
+        enum OrderType "dine-in,takeout,delivery"
+        int TableId FK
+        text DeliveryAddress
+        decimal DeliveryLatitude
+        decimal DeliveryLongitude
+        text DeliveryNotes
+        enum DeliveryStatus "pending,dispatched,delivered"
+        string CustomerName
+        string CustomerPhone
+        string CustomerEmail
+        enum Status "ordering,pending,confirmed,preparing,ready,delivered,completed,cancelled,on_hold"
+        decimal Subtotal
+        decimal TaxAmount
+        decimal TaxRate
+        decimal TotalAmount
+        decimal DiscountAmount
+        boolean IsModified
+        boolean RequiresAdminApproval
+        uuid ApprovedByAdminId FK
+        timestamp ApprovedAt
+        int EstimatedPrepTimeMinutes
+        int ActualPrepTimeMinutes
+        uuid CreatedByUserId FK
+        uuid ConfirmedByUserId FK
+        uuid CompletedByUserId FK
+        text Notes
+        timestamp CreatedAt
+        timestamp ConfirmedAt
+        timestamp PreparingStartedAt
+        timestamp ReadyAt
+        timestamp DeliveredAt
+        timestamp CompletedAt
+        timestamp CancelledAt
+        timestamp UpdatedAt
+    }
+    
+    OrderItems {
+        int Id PK
+        int OrderId FK
+        int MenuItemId FK
+        int Quantity
+        decimal UnitPrice
+        decimal TotalPrice
+        jsonb SelectedVariations "Size,Spice selections"
+        jsonb Customizations "Add/Remove ingredients"
+        int SeatNumber "For bill splitting"
+        enum PrepStatus "pending,preparing,ready"
+        timestamp PrepStartedAt
+        timestamp PrepCompletedAt
+        text SpecialInstructions
+        timestamp CreatedAt
+    }
+    
+    OrderModificationLog {
+        int Id PK
+        int OrderId FK
+        uuid ModifiedByUserId FK
+        string PreviousStatus
+        string NewStatus
+        string ModificationType "status_change,item_added,price_change"
+        jsonb Details
+        boolean RequiresApproval
+        uuid ApprovedByUserId FK
+        timestamp ApprovedAt
+        timestamp CreatedAt
+    }
+    
+    OrderBills {
+        int Id PK
+        int OrderId FK
+        int BillNumber UK "1,2,3"
+        enum SplitType "equal,custom"
+        decimal Amount
+        decimal TaxAmount
+        decimal TotalAmount
+        enum PaymentStatus "pending,paid,void"
+        string PaymentMethod "cash,card,transfer"
+        timestamp PaidAt
+        text Notes
+        timestamp CreatedAt
+    }
+    
+    Reservations {
+        int Id PK
+        uuid RestaurantId FK
+        string ReservationNumber UK
+        string CustomerName
+        string CustomerPhone
+        string CustomerEmail
+        int PartySize
+        date ReservationDate
+        time ReservationTime
+        int TableId FK
+        enum Status "pending,confirmed,seated,completed,cancelled,no_show"
+        boolean RequiresApproval
+        uuid ApprovedByUserId FK
+        timestamp ApprovedAt
+        text SpecialRequests
+        text Notes
+        boolean ReminderSent
+        timestamp ReminderSentAt
+        uuid CreatedByUserId FK
+        timestamp CreatedAt
+        timestamp ConfirmedAt
+        timestamp SeatedAt
+        timestamp CompletedAt
+        timestamp CancelledAt
+    }
+    
+    WalkInQueue {
+        int Id PK
+        uuid RestaurantId FK
+        string CustomerName
+        string CustomerPhone
+        int PartySize
+        enum Status "waiting,notified,seated,cancelled,no_show"
+        int EstimatedWaitMinutes
+        timestamp NotifiedAt
+        timestamp SeatedAt
+        int TableId FK
+        timestamp CreatedAt
+        timestamp UpdatedAt
+    }
+    
+    CustomerFeedback {
+        int Id PK
+        int OrderId FK
+        uuid RestaurantId FK
+        int FoodQualityRating "1-5"
+        int ServiceSpeedRating "1-5"
+        int WaiterFriendlinessRating "1-5"
+        int OverallRating "1-5"
+        text Comments
+        string RewardCode UK
+        string RewardType "percentage,free_item,points"
+        decimal RewardValue
+        text RewardDescription
+        boolean RewardRedeemed
+        timestamp RedeemedAt
+        int RedeemedInOrderId FK
+        timestamp SubmittedAt
+    }
+    
+    OrderTimingAnalytics {
+        int Id PK
+        int OrderId FK
+        uuid RestaurantId FK
+        int OrderingToPendingSeconds
+        int PendingToConfirmedSeconds
+        int ConfirmedToPreparingSeconds
+        int PreparingToReadySeconds
+        int ReadyToDeliveredSeconds
+        int TotalTimeSeconds
+        int EstimatedPrepMinutes
+        int ActualPrepMinutes
+        int PrepTimeDifferenceMinutes
+        uuid WaiterUserId FK
+        int KitchenStaffCount
+        timestamp RecordedAt
+    }
+    
+    MenuItemAnalytics {
+        int Id PK
+        int MenuItemId FK
+        uuid RestaurantId FK
+        date AnalysisDate UK
+        int TimesOrdered
+        decimal TotalRevenue
+        decimal AvgPrepTimeMinutes
+        int TimesModified
+        int TimesOutOfStock
+        int MorningOrders "6AM-12PM"
+        int AfternoonOrders "12PM-6PM"
+        int EveningOrders "6PM-12AM"
+        int NightOrders "12AM-6AM"
+    }
+    
+    NotificationLog {
+        int Id PK
+        enum RecipientType "customer,staff,manager"
+        string RecipientIdentifier "phone/email"
+        enum Channel "email,whatsapp,sms"
+        string MessageType "order_confirmation,feedback_request"
+        int RelatedOrderId FK
+        int RelatedReservationId FK
+        text MessageContent
+        enum Status "pending,sent,failed"
+        timestamp SentAt
+        text FailureReason
+        timestamp CreatedAt
+    }
+    
+    BulkOrderUploads {
+        int Id PK
+        uuid RestaurantId FK
+        uuid UploadedByUserId FK
+        string FileName
+        int TotalRows
+        int SuccessfulRows
+        int FailedRows
+        enum Status "pending,processing,completed,failed"
+        jsonb ErrorLog
+        uuid ApprovedByAdminId FK
+        timestamp ApprovedAt
+        timestamp CreatedAt
+        timestamp CompletedAt
+    }

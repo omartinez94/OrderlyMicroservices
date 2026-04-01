@@ -56,8 +56,8 @@ erDiagram
         enum Role "Admin,Manager,Waiter,KitchenStaff"
         uuid RestaurantId FK
         boolean IsActive
-        timestamp CreatedAt
-        timestamp UpdatedAt
+        timestamp CreatedOn
+        timestamp LastModifiedOn
     }
     
     Restaurants {
@@ -90,8 +90,8 @@ erDiagram
         enum Status "available,occupied,reserved,cleaning,needs_attention"
         int CurrentOrderId FK
         boolean IsActive
-        timestamp CreatedAt
-        timestamp UpdatedAt
+        timestamp CreatedOn
+        timestamp LastModifiedOn
     }
     
     MergedTables {
@@ -110,7 +110,7 @@ erDiagram
         text Description
         int DisplayOrder
         boolean IsActive
-        timestamp CreatedAt
+        timestamp CreatedOn
     }
     
     MenuSubCategories {
@@ -142,8 +142,8 @@ erDiagram
         timestamp PromoEndDate
         int DisplayOrder
         boolean IsActive
-        timestamp CreatedAt
-        timestamp UpdatedAt
+        timestamp CreatedOn
+        timestamp LastModifiedOn
     }
     
     MenuItemVariations {
@@ -222,14 +222,14 @@ erDiagram
         uuid ConfirmedByUserId FK
         uuid CompletedByUserId FK
         text Notes
-        timestamp CreatedAt
+        timestamp CreatedOn
         timestamp ConfirmedAt
         timestamp PreparingStartedAt
         timestamp ReadyAt
         timestamp DeliveredAt
         timestamp CompletedAt
         timestamp CancelledAt
-        timestamp UpdatedAt
+        timestamp LastModifiedOn
     }
     
     OrderItems {
@@ -246,7 +246,7 @@ erDiagram
         timestamp PrepStartedAt
         timestamp PrepCompletedAt
         text SpecialInstructions
-        timestamp CreatedAt
+        timestamp CreatedOn
     }
     
     OrderModificationLog {
@@ -260,7 +260,7 @@ erDiagram
         boolean RequiresApproval
         uuid ApprovedByUserId FK
         timestamp ApprovedAt
-        timestamp CreatedAt
+        timestamp CreatedOn
     }
     
     OrderBills {
@@ -275,7 +275,7 @@ erDiagram
         string PaymentMethod "cash,card,transfer"
         timestamp PaidAt
         text Notes
-        timestamp CreatedAt
+        timestamp CreatedOn
     }
     
     Reservations {
@@ -298,7 +298,7 @@ erDiagram
         boolean ReminderSent
         timestamp ReminderSentAt
         uuid CreatedByUserId FK
-        timestamp CreatedAt
+        timestamp CreatedOn
         timestamp ConfirmedAt
         timestamp SeatedAt
         timestamp CompletedAt
@@ -316,8 +316,8 @@ erDiagram
         timestamp NotifiedAt
         timestamp SeatedAt
         int TableId FK
-        timestamp CreatedAt
-        timestamp UpdatedAt
+        timestamp CreatedOn
+        timestamp LastModifiedOn
     }
     
     CustomerFeedback {
@@ -385,7 +385,7 @@ erDiagram
         enum Status "pending,sent,failed"
         timestamp SentAt
         text FailureReason
-        timestamp CreatedAt
+        timestamp CreatedOn
     }
     
     BulkOrderUploads {
@@ -400,6 +400,6 @@ erDiagram
         jsonb ErrorLog
         uuid ApprovedByAdminId FK
         timestamp ApprovedAt
-        timestamp CreatedAt
+        timestamp CreatedOn
         timestamp CompletedAt
     }

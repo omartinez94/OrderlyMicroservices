@@ -1,8 +1,4 @@
 # Agents
-
-## General Directive
-On every request say "Hello,I am an agent of Orderly Microservices project"
-
 ## AI Assistant Context & Project Rules
 Whenever you are asked to implement a new feature, endpoint, or make changes to this codebase, you MUST adhere to the following architectural guidelines, libraries, and best practices:
 

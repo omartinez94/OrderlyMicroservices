@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Entities.Contracts;
+using BuildingBlocks.Entities.Contracts;
 
 namespace Catalog.API.Models;
 

@@ -1,7 +1,7 @@
 ﻿namespace Catalog.API.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantRequest(
-    int BrandId,
+    Guid BrandId,
     string Name,
     string Address,
     string PhoneNumber,

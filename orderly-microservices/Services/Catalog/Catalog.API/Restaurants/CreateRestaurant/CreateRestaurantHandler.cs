@@ -1,4 +1,4 @@
-﻿namespace Catalog.API.Restaurants.CreateRestaurant;
+namespace Catalog.API.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantCommand(
     Guid BrandId,
@@ -15,6 +15,38 @@ public record CreateRestaurantCommand(
     int EstimatedTurnoverMinutes) : ICommand<CreateRestaurantResult>;
 
 public record CreateRestaurantResult(Guid Id);
+
+public class CreateRestaurantCommandValidator : AbstractValidator<CreateRestaurantCommand>
+{
+    public CreateRestaurantCommandValidator()
+    {
+        RuleFor(x => x.BrandId)
+            .NotEmpty().WithMessage("BrandId is required");
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required")
+            .MaximumLength(100).WithMessage("Name must not exceed 100 characters");
+        RuleFor(x => x.Address)
+            .NotEmpty().WithMessage("Address is required")
+            .MaximumLength(200).WithMessage("Address must not exceed 200 characters");
+        RuleFor(x => x.PhoneNumber)
+            .NotEmpty().WithMessage("PhoneNumber is required")
+            .MaximumLength(20).WithMessage("PhoneNumber must not exceed 20 characters");
+        RuleFor(x => x.Email)
+            .NotEmpty().WithMessage("Email is required")
+            .EmailAddress().WithMessage("Email must be a valid email address")
+            .MaximumLength(100).WithMessage("Email must not exceed 100 characters");
+        RuleFor(x => x.TaxRate)
+            .GreaterThanOrEqualTo(0).WithMessage("TaxRate must be greater than or equal to 0")
+            .LessThanOrEqualTo(1).WithMessage("TaxRate must be less than or equal to 1");
+        RuleFor(x => x.Currency)
+            .NotEmpty().WithMessage("Currency is required")
+            .Length(3).WithMessage("Currency must be exactly 3 characters");
+        RuleFor(x => x.TimeZone)
+            .NotEmpty().WithMessage("TimeZone is required");
+        RuleFor(x => x.EstimatedTurnoverMinutes)
+            .GreaterThan(0).WithMessage("EstimatedTurnoverMinutes must be greater than 0");
+    }
+}
 
 internal class CreateRestaurantCommandHandler(IDocumentSession session) : ICommandHandler<CreateRestaurantCommand, CreateRestaurantResult>
 {

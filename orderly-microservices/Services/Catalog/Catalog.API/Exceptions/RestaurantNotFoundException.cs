@@ -1,8 +1,5 @@
 namespace Catalog.API.Exceptions;
 
-public class RestaurantNotFoundException : Exception
+public class RestaurantNotFoundException(Guid id) : NotFoundException("Restaurant", id)
 {
-    public RestaurantNotFoundException(Guid id) : base($"Restaurant with Id {id} not found.")
-    {
-    }
 }

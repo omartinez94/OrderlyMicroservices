@@ -51,15 +51,10 @@ public class UpdateRestaurantCommandValidator : AbstractValidator<UpdateRestaura
     }
 }
 
-internal class UpdateRestaurantCommandHandler(IDocumentSession session, ILogger<UpdateRestaurantCommandHandler> logger) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
+internal class UpdateRestaurantCommandHandler(IDocumentSession session) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        if (logger.IsEnabled(LogLevel.Information))
-        {
-            logger.LogInformation("Updating restaurant with Id: {Id}", command.Id);
-        }
-
         var restaurant = await session.LoadAsync<Restaurant>(command.Id, cancellationToken);
         if (restaurant is null)
         {

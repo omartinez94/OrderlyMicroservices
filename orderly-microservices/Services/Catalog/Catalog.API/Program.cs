@@ -6,6 +6,7 @@ builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
     cfg.AddOpenBehavior(typeof(ValidationBevavior<,>));
+    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
 builder.Services.AddMarten(opt =>
 {

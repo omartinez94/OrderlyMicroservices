@@ -14,6 +14,11 @@ builder.Services.AddMarten(opt =>
     opt.Schema.For<Restaurant>().SoftDeleted();
 }).UseLightweightSessions();
 
+if(builder.Environment.IsDevelopment())
+{
+    builder.Services.InitializeMartenWith<CatalogInitialData>();
+}
+
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();

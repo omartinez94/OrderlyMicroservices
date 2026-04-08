@@ -16,9 +16,7 @@ internal class GetRestaurantsQueryHandler(IDocumentSession session) : IQueryHand
         }
         
         var restaurants = await session.Query<Restaurant>()
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ToPagedListAsync(pageNumber, pageSize, cancellationToken);
 
         return new GetRestaurantsResult(restaurants);
     }

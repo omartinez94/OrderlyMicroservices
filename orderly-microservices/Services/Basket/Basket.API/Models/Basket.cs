@@ -1,5 +1,3 @@
-using NodaTime;
-
 namespace Basket.API.Models;
 
 public class Basket
@@ -16,8 +14,8 @@ public class Basket
 
     public Guid UserId { get; set; }
     public Guid RestaurantId { get; set; }
-    public List<BasketItem> Items { get; set; } = new();
-    public List<string> AppliedDiscounts { get; set; } = new();
+    public List<BasketItem> Items { get; set; } = [];
+    public List<string> AppliedDiscounts { get; set; } = [];
     
     public decimal Subtotal => Items.Sum(x => x.TotalPrice);
     

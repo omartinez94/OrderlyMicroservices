@@ -1,3 +1,5 @@
+using Marten.Schema;
+
 namespace Basket.API.Models;
 
 public class Basket
@@ -12,6 +14,7 @@ public class Basket
         RestaurantId = restaurantId;
     }
 
+    [Identity]
     public Guid UserId { get; set; }
     public Guid RestaurantId { get; set; }
     public List<BasketItem> Items { get; set; } = [];

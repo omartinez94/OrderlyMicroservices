@@ -1,4 +1,16 @@
 services:
+  catalogdb:
+    container_name: catalogdb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=Catalogdb
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_catalog:/var/lib/postgresql/data
   catalog.api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
@@ -15,15 +27,15 @@ services:
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
       - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
-  catalogdb:
-    container_name: catalogdb
+  basketdb:
+    container_name: basketdb
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=Catalogdb
+      - POSTGRES_DB=Basketdb
       - PGDATA=/var/lib/postgresql/data/pgdata
     restart: always
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
-      - postgres_catalog:/var/lib/postgresql/data
+      - postgres_basket:/var/lib/postgresql/data

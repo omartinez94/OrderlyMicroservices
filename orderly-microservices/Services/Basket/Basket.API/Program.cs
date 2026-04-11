@@ -14,10 +14,31 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddOpenBehavior(typeof(ValidationBevavior<,>));
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
+var connectionString = builder.Configuration.GetConnectionString("BasketDB")!;
+builder.Services.AddMarten(opt =>
+{
+    opt.Connection(connectionString);
+    opt.CreateDatabasesForTenants(c =>
+    {
+        var maintenanceDbStr = new Npgsql.NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Database = "postgres"
+        }.ConnectionString;
+
+        // Specify a db to which to connect in case database needs to be created.
+        c.MaintenanceDatabase(maintenanceDbStr);
+        c.ForTenant()
+            .CheckAgainstPgDatabase();
+    });
+})
+    .ApplyAllDatabaseChangesOnStartup()
+    .UseLightweightSessions();
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
+
+builder.Services.AddScoped<IBasketRepository, BasketRepository>();
 
 var app = builder.Build();
 

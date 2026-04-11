@@ -12,21 +12,12 @@ public class DeleteBasketCommandValidator : AbstractValidator<DeleteBasketComman
     }
 }
 
-public class DeleteBasketHandler(IDocumentSession session) : ICommandHandler<DeleteBasketCommand, DeleteBasketResult>
+public class DeleteBasketHandler(IBasketRepository basketRepository) : ICommandHandler<DeleteBasketCommand, DeleteBasketResult>
 {
     public async Task<DeleteBasketResult> Handle(DeleteBasketCommand request, CancellationToken cancellationToken)
     {
-        var baskets = await session.Query<Models::Basket>()
-            .Where(b => b.UserId == request.UserId && b.RestaurantId == request.RestaurantId)
-            .ToListAsync(cancellationToken);
+        var isSuccess = await basketRepository.DeleteBasketAsync(request.UserId, request.RestaurantId, cancellationToken);
 
-        foreach (var basket in baskets)
-        {
-            session.Delete(basket);
-        }
-
-        await session.SaveChangesAsync(cancellationToken);
-
-        return new DeleteBasketResult(true);
+        return new DeleteBasketResult(isSuccess);
     }
 }

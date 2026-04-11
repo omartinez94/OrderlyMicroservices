@@ -4,6 +4,11 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    // Setting this to null makes it use the exact C# property names (PascalCase)
+    options.SerializerOptions.PropertyNamingPolicy = null;
+});
 builder.Services.AddCarter();
 builder.Services.AddMediatR(cfg =>
 {

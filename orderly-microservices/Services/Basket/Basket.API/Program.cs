@@ -2,6 +2,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddCarter();
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    // Setting this to null makes it use the exact C# property names (PascalCase)
+    options.SerializerOptions.PropertyNamingPolicy = null;
+});
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);

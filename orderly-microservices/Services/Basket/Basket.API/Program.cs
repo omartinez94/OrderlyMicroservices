@@ -1,3 +1,7 @@
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using NodaTime.Serialization.SystemTextJson;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -68,5 +72,11 @@ var app = builder.Build();
 app.MapCarter();
 
 app.UseExceptionHandler(options => { });
+
+app.UseHealthChecks("/health",
+    new HealthCheckOptions
+    {
+        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+    });
 
 app.Run();

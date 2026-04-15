@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+option csharp_namespace = "Discount.Grpc";
+
+package discount;
+
+service DiscountService {
+  rpc GetDiscount (GetDiscountRequest) returns (GetDiscountResponse);
+  rpc CreateDiscount (CreateDiscountRequest) returns (CreateDiscountResponse);
+  rpc UpdateDiscount (UpdateDiscountRequest) returns (UpdateDiscountResponse);
+  rpc DeleteDiscount (DeleteDiscountRequest) returns (DeleteDiscountResponse);
+}
+
+message CouponModel {
+  int32 id = 1;
+  string restaurant_id = 2;
+  string code = 3;
+  string description = 4;
+  double amount = 5;
+  int32 max_redeem_amount = 6;
+  string expiration_date = 7;
+  bool is_active = 8;
+}
+
+message GetDiscountRequest {
+  string restaurant_id = 1;
+  string code = 2;
+}
+
+message GetDiscountResponse {
+  CouponModel coupon = 1;
+}
+
+message CreateDiscountRequest {
+  CouponModel coupon = 1;
+}
+
+message CreateDiscountResponse {
+  CouponModel coupon = 1;
+  bool success = 2;
+}
+
+message UpdateDiscountRequest {
+  CouponModel coupon = 1;
+}
+
+message UpdateDiscountResponse {
+  CouponModel coupon = 1;
+  bool success = 2;
+}
+
+message DeleteDiscountRequest {
+  string restaurant_id = 1;
+  string code = 2;
+}
+
+message DeleteDiscountResponse {
+  bool success = 1;
+}

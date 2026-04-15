@@ -15,6 +15,7 @@ erDiagram
     Restaurants ||--o{ WalkInQueue : manages
     Restaurants ||--o{ PriceHistory : tracks
     Restaurants ||--o{ Baskets : "active in"
+    Restaurants ||--o{ Coupons : "issues"
     
     Tables ||--o{ Orders : "assigned to"
     Tables ||--o{ Reservations : "reserved for"
@@ -63,14 +64,14 @@ erDiagram
         string LastName
         string PhoneNumber
         enum Role "Admin,Manager,Waiter,KitchenStaff"
-        int RestaurantId FK
+        uuid RestaurantId FK
         boolean IsActive
         timestamp CreatedAt
         timestamp UpdatedAt
     }
     
     Restaurants {
-        int Id PK
+        uuid Id PK
         int BrandId
         string Name
         text Address
@@ -89,24 +90,24 @@ erDiagram
     }
     
     Tables {
-        int Id PK
-        int RestaurantId FK
+        uuid Id PK
+        uuid RestaurantId FK
         string TableNumber UK
         int Capacity
         int PositionX
         int PositionY
         string Shape
         enum Status "available,occupied,reserved,cleaning,needs_attention"
-        int CurrentOrderId FK
+        uuid CurrentOrderId FK
         boolean IsActive
         timestamp CreatedAt
         timestamp UpdatedAt
     }
     
     MergedTables {
-        int Id PK
-        int ParentTableId FK
-        int ChildTableId FK
+        uuid Id PK
+        uuid ParentTableId FK
+        uuid ChildTableId FK
         timestamp MergedAt
         timestamp SplitAt
         boolean IsActive
@@ -114,7 +115,7 @@ erDiagram
     
     MenuCategories {
         int Id PK
-        int RestaurantId FK
+        uuid RestaurantId FK
         string Name
         text Description
         int DisplayOrder
@@ -136,8 +137,8 @@ erDiagram
     }
     
     MenuItems {
-        int Id PK
-        int RestaurantId FK
+        uuid Id PK
+        uuid RestaurantId FK
         int SubCategoryId FK
         string Name
         text Description
@@ -163,7 +164,7 @@ erDiagram
     
     MenuItemVariations {
         int Id PK
-        int MenuItemId FK
+        uuid MenuItemId FK
         string Name "e.g. Size, Spice"
         string VariationValue "e.g. Large, Extra Spicy"
         decimal PriceModifier "Current price modifier"
@@ -175,15 +176,15 @@ erDiagram
     
     ComboItems {
         int Id PK
-        int ComboMenuItemId FK
-        int IncludedMenuItemId FK
+        uuid ComboMenuItemId FK
+        uuid IncludedMenuItemId FK
         int Quantity
         boolean IsOptional
     }
     
     Ingredients {
         int Id PK
-        int RestaurantId FK
+        uuid RestaurantId FK
         string Name UK
         string Unit "kg,liters,units"
         decimal CurrentStock
@@ -194,7 +195,7 @@ erDiagram
     
     MenuItemIngredients {
         int Id PK
-        int MenuItemId FK
+        uuid MenuItemId FK
         int IngredientId FK
         decimal QuantityRequired
         boolean IsOptional
@@ -206,13 +207,13 @@ erDiagram
         int AlternativeIngredientId FK
         decimal PriceModifier "Current price modifier"
         boolean AutoSubstitute
-        int RestaurantId FK
+        uuid RestaurantId FK
     }
     
     PriceHistory {
         int Id PK
-        int RestaurantId FK
-        int MenuItemId FK "NULL for ingredient alternatives"
+        uuid RestaurantId FK
+        uuid MenuItemId FK "NULL for ingredient alternatives"
         int IngredientAlternativeId FK "NULL for menu items"
         int VariationId FK "NULL for base prices"
         enum PriceType "base_price,variation,ingredient_alternative"
@@ -225,11 +226,11 @@ erDiagram
     }
     
     Orders {
-        int Id PK
-        int RestaurantId FK
+        uuid Id PK
+        uuid RestaurantId FK
         string OrderNumber UK "R1-20231015-001"
         enum OrderType "dine-in,takeout,delivery"
-        int TableId FK
+        uuid TableId FK
         text DeliveryAddress
         decimal DeliveryLatitude
         decimal DeliveryLongitude
@@ -268,8 +269,8 @@ erDiagram
     
     OrderItems {
         int Id PK
-        int OrderId FK
-        int MenuItemId FK "NULL if item deleted"
+        uuid OrderId FK
+        uuid MenuItemId FK "NULL if item deleted"
         string MenuItemName "SNAPSHOT name"
         text MenuItemDescription "SNAPSHOT description"
         string MenuItemImageUrl "SNAPSHOT image"
@@ -289,7 +290,7 @@ erDiagram
     
     OrderSnapshot {
         int Id PK
-        int OrderId FK
+        uuid OrderId FK
         jsonb FullOrderData "Complete order snapshot JSON"
         jsonb MenuPricesSnapshot "All menu prices at order time"
         jsonb TaxConfiguration "Tax rules at order time"
@@ -302,7 +303,7 @@ erDiagram
     OrderItemPriceAudit {
         int Id PK
         int OrderItemId FK
-        int MenuItemId
+        uuid MenuItemId
         decimal MenuBasePrice "From menu at order time"
         decimal AppliedBasePrice "Actually charged"
         jsonb VariationsBreakdown "Each variation with price"
@@ -318,7 +319,7 @@ erDiagram
     
     OrderModificationLog {
         int Id PK
-        int OrderId FK
+        uuid OrderId FK
         uuid ModifiedByUserId FK
         string PreviousStatus
         string NewStatus
@@ -334,7 +335,7 @@ erDiagram
     
     OrderBills {
         int Id PK
-        int OrderId FK
+        uuid OrderId FK
         int BillNumber UK "1,2,3"
         enum SplitType "equal,custom"
         decimal Amount "SNAPSHOT subtotal"
@@ -349,8 +350,8 @@ erDiagram
     }
     
     Reservations {
-        int Id PK
-        int RestaurantId FK
+        uuid Id PK
+        uuid RestaurantId FK
         string ReservationNumber UK
         string CustomerName
         string CustomerPhone
@@ -358,7 +359,7 @@ erDiagram
         int PartySize
         date ReservationDate
         time ReservationTime
-        int TableId FK
+        uuid TableId FK
         enum Status "pending,confirmed,seated,completed,cancelled,no_show"
         boolean RequiresApproval
         uuid ApprovedByUserId FK
@@ -377,7 +378,7 @@ erDiagram
     
     WalkInQueue {
         int Id PK
-        int RestaurantId FK
+        uuid RestaurantId FK
         string CustomerName
         string CustomerPhone
         int PartySize
@@ -385,15 +386,15 @@ erDiagram
         int EstimatedWaitMinutes
         timestamp NotifiedAt
         timestamp SeatedAt
-        int TableId FK
+        uuid TableId FK
         timestamp CreatedAt
         timestamp UpdatedAt
     }
     
     CustomerFeedback {
         int Id PK
-        int OrderId FK
-        int RestaurantId FK
+        uuid OrderId FK
+        uuid RestaurantId FK
         int FoodQualityRating "1-5"
         int ServiceSpeedRating "1-5"
         int WaiterFriendlinessRating "1-5"
@@ -405,14 +406,14 @@ erDiagram
         text RewardDescription
         boolean RewardRedeemed
         timestamp RedeemedAt
-        int RedeemedInOrderId FK
+        uuid RedeemedInOrderId FK
         timestamp SubmittedAt
     }
     
     OrderTimingAnalytics {
         int Id PK
-        int OrderId FK
-        int RestaurantId FK
+        uuid OrderId FK
+        uuid RestaurantId FK
         int OrderingToPendingSeconds
         int PendingToConfirmedSeconds
         int ConfirmedToPreparingSeconds
@@ -429,8 +430,8 @@ erDiagram
     
     MenuItemAnalytics {
         int Id PK
-        int MenuItemId FK
-        int RestaurantId FK
+        uuid MenuItemId FK
+        uuid RestaurantId FK
         date AnalysisDate UK
         int TimesOrdered
         decimal TotalRevenue
@@ -449,8 +450,8 @@ erDiagram
         string RecipientIdentifier "phone/email"
         enum Channel "email,whatsapp,sms"
         string MessageType "order_confirmation,feedback_request"
-        int RelatedOrderId FK
-        int RelatedReservationId FK
+        uuid RelatedOrderId FK
+        uuid RelatedReservationId FK
         text MessageContent
         enum Status "pending,sent,failed"
         timestamp SentAt
@@ -460,7 +461,7 @@ erDiagram
     
     BulkOrderUploads {
         int Id PK
-        int RestaurantId FK
+        uuid RestaurantId FK
         uuid UploadedByUserId FK
         string FileName
         int TotalRows
@@ -477,8 +478,8 @@ erDiagram
     Baskets {
         uuid Id PK
         uuid UserId FK
-        int RestaurantId FK
-        int TableId FK "Optional for dine-in"
+        uuid RestaurantId FK
+        uuid TableId FK "Optional for dine-in"
         decimal Subtotal "Calculated from items"
         decimal DiscountAmount "Applied discount total"
         decimal TotalAmount "Subtotal - Discount"
@@ -492,7 +493,7 @@ erDiagram
     BasketItems {
         uuid Id PK
         uuid BasketId FK
-        int MenuItemId FK
+        uuid MenuItemId FK
         string MenuItemName "SNAPSHOT name"
         string MenuItemImageUrl "SNAPSHOT image"
         int Quantity
@@ -503,4 +504,19 @@ erDiagram
         jsonb Customizations "SNAPSHOT with prices"
         text SpecialInstructions
         timestamp CreatedAt
+    }
+    
+    Coupons {
+        int Id PK
+        uuid RestaurantId FK
+        string Code UK
+        string Description
+        decimal Amount
+        int MaxRedeemAmount
+        timestamp ExpirationDate
+        boolean IsActive
+        string CreatedBy
+        timestamp CreatedOn
+        string LastModifiedBy
+        timestamp LastModifiedOn
     }

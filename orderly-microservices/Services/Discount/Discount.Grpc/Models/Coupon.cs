@@ -5,7 +5,7 @@ namespace Discount.Grpc.Models;
 
 public class Coupon : AuditableEntity<int>
 {
-    public required Guid RestaurantId { get; set; }
+    public Guid RestaurantId { get; set; }
     public required string Code { get; set; }
     public required string Description { get; set; }
     public required decimal Amount { get; set; }

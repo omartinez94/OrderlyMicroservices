@@ -26,7 +26,8 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
                     RestaurantId = request.RestaurantId,
                     Code = String.Empty,
                     Description = String.Empty,
-                    Amount = 0
+                    Amount = 0,
+                    IsActive = false
                 } 
             };
         }

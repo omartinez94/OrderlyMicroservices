@@ -2,6 +2,17 @@
 
 A multi-tenant restaurant management system built with modern .NET utilizing the CQRS pattern, MediatR, Carter, and Marten (PostgreSQL).
 
+## Port strategy
+
+Ports are listed as http/https
+
+| Service       | Local env   | Docker env  | Docker inside |
+|---------------|-------------|-------------|---------------|
+| Catalog API   | 5000 - 5050 | 6000 - 6060 | 8080 - 8081   |
+| Basket API    | 5001 - 5051 | 6001 - 6061 | 8080 - 8081   |
+| Discount gRPC | 5002 - 5052 | 6002 - 6062 | 8080 - 8081   |
+| Ordering API  | 5003 - 5053 | 6003 - 6063 | 8080 - 8081   |
+
 ## Running the Application
 
 There are two primary ways to run this solution: locally (via Visual Studio / .NET CLI) or fully containerized via Docker.

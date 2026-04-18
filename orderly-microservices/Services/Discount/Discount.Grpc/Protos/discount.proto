@@ -9,6 +9,7 @@ service DiscountProtoService {
   rpc CreateDiscount (CreateDiscountRequest) returns (CreateDiscountResponse);
   rpc UpdateDiscount (UpdateDiscountRequest) returns (UpdateDiscountResponse);
   rpc DeleteDiscount (DeleteDiscountRequest) returns (DeleteDiscountResponse);
+  rpc RedeemDiscount (RedeemDiscountRequest) returns (RedeemDiscountResponse);
 }
 
 message CouponModel {
@@ -17,9 +18,10 @@ message CouponModel {
   string code = 3;
   string description = 4;
   double amount = 5;
-  int32 max_redeem_amount = 6;
-  string expiration_date = 7;
-  bool is_active = 8;
+  int32 redeem_amount = 6;
+  int32 max_redeem_amount = 7;
+  string expiration_date = 8;
+  bool is_active = 9;
 }
 
 message GetDiscountRequest {
@@ -55,5 +57,14 @@ message DeleteDiscountRequest {
 }
 
 message DeleteDiscountResponse {
+  bool success = 1;
+}
+
+message RedeemDiscountRequest {
+  string restaurant_id = 1;
+  string code = 2;
+}
+
+message RedeemDiscountResponse {
   bool success = 1;
 }

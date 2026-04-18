@@ -1,4 +1,4 @@
-namespace Catalog.API.Brands.CreateBrand;
+namespace Catalog.API.Features.Brands.CreateBrand;
 
 public record CreateBrandCommand(
     string Name,

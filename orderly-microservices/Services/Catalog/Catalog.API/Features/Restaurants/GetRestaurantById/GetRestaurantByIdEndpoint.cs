@@ -1,4 +1,4 @@
-namespace Catalog.API.Restaurants.GetRestaurantById;
+namespace Catalog.API.Features.Restaurants.GetRestaurantById;
 
 public record GetRestaurantByIdResponse(Restaurant Restaurant);
 

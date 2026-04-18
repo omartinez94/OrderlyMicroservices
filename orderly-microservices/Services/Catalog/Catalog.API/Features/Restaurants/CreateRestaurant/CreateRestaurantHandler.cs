@@ -1,4 +1,4 @@
-namespace Catalog.API.Restaurants.CreateRestaurant;
+namespace Catalog.API.Features.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantCommand(
     Guid BrandId,

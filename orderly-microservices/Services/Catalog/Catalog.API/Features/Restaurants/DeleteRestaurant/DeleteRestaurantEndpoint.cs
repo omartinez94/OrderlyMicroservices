@@ -1,4 +1,4 @@
-namespace Catalog.API.Restaurants.DeleteRestaurant;
+namespace Catalog.API.Features.Restaurants.DeleteRestaurant;
 
 public record DeleteRestaurantResponse(bool IsSuccess);
 

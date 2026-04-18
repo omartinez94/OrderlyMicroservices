@@ -1,4 +1,4 @@
-namespace Catalog.API.Restaurants.UpdateRestaurant;
+namespace Catalog.API.Features.Restaurants.UpdateRestaurant;
 
 public record UpdateRestaurantCommand(
     Guid Id,

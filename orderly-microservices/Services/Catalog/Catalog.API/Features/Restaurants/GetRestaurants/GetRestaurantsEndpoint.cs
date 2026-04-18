@@ -1,4 +1,4 @@
-namespace Catalog.API.Restaurants.GetRestaurants;
+namespace Catalog.API.Features.Restaurants.GetRestaurants;
 
 public record GetRestaurantsRequest(int? PageNumber = 1, int? PageSize = 10);
 

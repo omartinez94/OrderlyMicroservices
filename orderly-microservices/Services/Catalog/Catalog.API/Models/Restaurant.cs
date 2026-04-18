@@ -1,5 +1,3 @@
-using BuildingBlocks.Entities.Contracts;
-
 namespace Catalog.API.Models;
 
 public class Restaurant : AuditableEntity<Guid>

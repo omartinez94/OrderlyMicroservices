@@ -19,7 +19,12 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddMarten(opt =>
 {
     opt.Connection(builder.Configuration.GetConnectionString("CatalogDB")!);
-    opt.Schema.For<Restaurant>().SoftDeleted();
+    
+    // Explicitly configure Marten to only handle document models (audit/logs)
+    opt.Schema.For<OrderSnapshot>();
+    opt.Schema.For<OrderModificationLog>();
+    opt.Schema.For<OrderItemPriceAudit>();
+    opt.Schema.For<NotificationLog>();
 }).UseLightweightSessions();
 
 if(builder.Environment.IsDevelopment())

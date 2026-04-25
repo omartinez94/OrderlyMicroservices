@@ -21,7 +21,7 @@ public class OrderItem : Entity<int>
     public int SeatNumber { get; set; }
     
     /// <summary>Preparation state: pending, preparing, ready</summary>
-    public string PrepStatus { get; set; } = string.Empty;
+    public PrepStatus PrepStatus { get; set; }
     public Instant? PrepStartedAt { get; set; }
     public Instant? PrepCompletedAt { get; set; }
     public string SpecialInstructions { get; set; } = string.Empty;

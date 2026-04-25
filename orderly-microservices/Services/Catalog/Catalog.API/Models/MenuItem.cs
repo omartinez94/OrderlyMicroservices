@@ -11,12 +11,12 @@ public class MenuItem : AuditableEntity<Guid>
     public int PrepTimeMinutes { get; set; }
     public int PrepTimeMaxMinutes { get; set; }
     /// <summary>Type of item: regular, combo, promo, seasonal</summary>
-    public string ItemType { get; set; } = string.Empty; // regular,combo,promo,seasonal
+    public ItemType ItemType { get; set; }
     
     public bool IsAvailable { get; set; }
     
     /// <summary>Current availability: available, limited, unavailable</summary>
-    public string AvailabilityStatus { get; set; } = string.Empty;
+    public AvailabilityStatus AvailabilityStatus { get; set; }
     public LocalDate? SeasonStartDate { get; set; }
     public LocalDate? SeasonEndDate { get; set; }
     public decimal? PromoPrice { get; set; }

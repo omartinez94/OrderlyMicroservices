@@ -1,4 +1,4 @@
-namespace Catalog.API.Models;
+namespace BuildingBlocks.Enums;
 
 public enum CuisineType
 {

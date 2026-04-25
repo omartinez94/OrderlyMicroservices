@@ -8,7 +8,7 @@ public class BulkOrderUpload : Entity<int>
     public int TotalRows { get; set; }
     public int SuccessfulRows { get; set; }
     public int FailedRows { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public BulkUploadStatus Status { get; set; }
     public string ErrorLog { get; set; } = string.Empty; // jsonb
     public Guid? ApprovedByAdminId { get; set; }
     public Instant? ApprovedAt { get; set; }

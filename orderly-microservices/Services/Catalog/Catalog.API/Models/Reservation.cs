@@ -11,7 +11,7 @@ public class Reservation : AuditableEntity<Guid>
     public LocalDate ReservationDate { get; set; }
     public LocalTime ReservationTime { get; set; }
     public Guid? TableId { get; set; }
-    public string Status { get; set; } = string.Empty;
+    public ReservationStatus Status { get; set; }
     public bool RequiresApproval { get; set; }
     public Guid? ApprovedByUserId { get; set; }
     public Instant? ApprovedAt { get; set; }

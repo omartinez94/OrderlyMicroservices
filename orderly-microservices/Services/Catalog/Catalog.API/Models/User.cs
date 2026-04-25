@@ -7,6 +7,6 @@ public class User : AuditableEntity<Guid>
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
-    public string Role { get; set; } = string.Empty; // Admin,Manager,Waiter,KitchenStaff
+    public Role Role { get; set; }
     public Guid RestaurantId { get; set; }
 }

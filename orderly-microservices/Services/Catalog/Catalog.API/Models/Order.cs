@@ -5,18 +5,18 @@ public class Order : AuditableEntity<Guid>
     public Guid RestaurantId { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
     /// <summary>Type of the order: dine-in, takeout, delivery</summary>
-    public OrderType OrderType { get; set; }
+    public OrderType OrderType { get; set; } = OrderType.DineIn;
     public Guid? TableId { get; set; }
     public string DeliveryAddress { get; set; } = string.Empty;
     public decimal? DeliveryLatitude { get; set; }
     public decimal? DeliveryLongitude { get; set; }
     public string DeliveryNotes { get; set; } = string.Empty;
-    public DeliveryStatus DeliveryStatus { get; set; }
+    public DeliveryStatus? DeliveryStatus { get; set; };
     public string CustomerName { get; set; } = string.Empty;
     public string CustomerPhone { get; set; } = string.Empty;
     public string CustomerEmail { get; set; } = string.Empty;
     /// <summary>Current state: ordering, pending, confirmed, preparing, ready, delivered, completed, cancelled, on_hold</summary>
-    public OrderStatus Status { get; set; }
+    public OrderStatus Status { get; set; } = OrderStatus.Pending;
     /// <summary>Snapshot of the total subtotal at order time</summary>
     public decimal Subtotal { get; set; }
     

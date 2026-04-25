@@ -8,6 +8,6 @@ public class Table : AuditableEntity<Guid>
     public int PositionX { get; set; }
     public int PositionY { get; set; }
     public string Shape { get; set; } = string.Empty;
-    public TableStatus Status { get; set; }
+    public TableStatus Status { get; set; } = TableStatus.Available;
     public Guid? CurrentOrderId { get; set; }
 }

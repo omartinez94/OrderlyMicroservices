@@ -13,7 +13,7 @@ public class NotificationLog : Entity<int>
     public Guid? RelatedOrderId { get; set; }
     public Guid? RelatedReservationId { get; set; }
     public string MessageContent { get; set; } = string.Empty;
-    public NotificationStatus Status { get; set; }
+    public NotificationStatus Status { get; set; } = NotificationStatus.Pending;
     public Instant? SentAt { get; set; }
     public string FailureReason { get; set; } = string.Empty;
     public Instant CreatedAt { get; set; }

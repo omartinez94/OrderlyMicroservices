@@ -31,7 +31,7 @@ public class DiscountContext(DbContextOptions<DiscountContext> options) : DbCont
                 MaxRedeemAmount = 100,
                 ExpirationDate = Instant.FromUtc(2024, 12, 31, 23, 59, 59),
                 CreatedBy = "System",
-                CreatedOn = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
+                CreatedAt = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
                 LastModifiedBy = "System",
                 IsActive = true
             },
@@ -46,7 +46,7 @@ public class DiscountContext(DbContextOptions<DiscountContext> options) : DbCont
                 MaxRedeemAmount = 200,
                 ExpirationDate = Instant.FromUtc(2024, 12, 31, 23, 59, 59),
                 CreatedBy = "System",
-                CreatedOn = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
+                CreatedAt = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
                 LastModifiedBy = "System",
                 IsActive = true
             }

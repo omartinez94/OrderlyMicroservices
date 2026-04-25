@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Entities.Interfaces;
+using BuildingBlocks.Entities.Interfaces;
 using NodaTime;
 using System.Text.Json.Serialization;
 
@@ -8,9 +8,9 @@ public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
 {
     public required TId Id { get; set; }
     public string CreatedBy { get; protected set; }
-    public Instant CreatedOn { get; protected set; }
+    public Instant CreatedAt { get; protected set; }
     public string LastModifiedBy { get; protected set; }
-    public Instant? LastModifiedOn { get; protected set; } = null!;
+    public Instant? LastModifiedAt { get; protected set; } = null!;
     public bool IsActive { get; protected set; }
 
     /// <summary>
@@ -20,26 +20,26 @@ public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
     {/* ... */}
 
     [JsonConstructor]
-    protected AuditableEntity(TId id, string createdBy, Instant createdOn, string lastModifiedBy, Instant? lastModifiedOn,
+    protected AuditableEntity(TId id, string createdBy, Instant createdAt, string lastModifiedBy, Instant? lastModifiedAt,
         bool isActive)
     {
         Id = id;
         CreatedBy = createdBy;
-        CreatedOn = createdOn;
+        CreatedAt = createdAt;
         LastModifiedBy = lastModifiedBy;
-        LastModifiedOn = lastModifiedOn;
+        LastModifiedAt = lastModifiedAt;
         IsActive = isActive;
     }
 
     void IAuditableEntity.CreatedFrom(string userId, Instant timestamp)
     {
         CreatedBy = userId;
-        CreatedOn = timestamp;
+        CreatedAt = timestamp;
     }
 
     void IAuditableEntity.ModifiedFrom(string userId, Instant timestamp)
     {
         LastModifiedBy = userId;
-        LastModifiedOn = timestamp;
+        LastModifiedAt = timestamp;
     }
 }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -26,9 +26,9 @@ namespace Discount.Grpc.Migrations
                     MaxRedeemAmount = table.Column<int>(type: "INTEGER", nullable: true),
                     ExpirationDate = table.Column<long>(type: "INTEGER", nullable: true),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
-                    CreatedOn = table.Column<long>(type: "INTEGER", nullable: false),
+                    CreatedAt = table.Column<long>(type: "INTEGER", nullable: false),
                     LastModifiedBy = table.Column<string>(type: "TEXT", nullable: false),
-                    LastModifiedOn = table.Column<long>(type: "INTEGER", nullable: true),
+                    LastModifiedAt = table.Column<long>(type: "INTEGER", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
                 },
                 constraints: table =>
@@ -38,7 +38,7 @@ namespace Discount.Grpc.Migrations
 
             migrationBuilder.InsertData(
                 table: "Coupons",
-                columns: new[] { "Id", "Amount", "Code", "CreatedBy", "CreatedOn", "Description", "ExpirationDate", "IsActive", "LastModifiedBy", "LastModifiedOn", "MaxRedeemAmount", "RestaurantId" },
+                columns: new[] { "Id", "Amount", "Code", "CreatedBy", "CreatedAt", "Description", "ExpirationDate", "IsActive", "LastModifiedBy", "LastModifiedAt", "MaxRedeemAmount", "RestaurantId" },
                 values: new object[,]
                 {
                     { 1, 10m, "DISCOUNT10", "System", 17040672000000000L, "10% off your order", 17356895990000000L, true, "System", null, 100, new Guid("11111111-1111-1111-1111-111111111111") },

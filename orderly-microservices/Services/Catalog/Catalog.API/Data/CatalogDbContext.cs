@@ -6,13 +6,8 @@ namespace Catalog.API.Data;
 /// Database context for the Catalog Service
 /// Manages: Restaurants, Tables, Menu, Ingredients
 /// </summary>
-public class CatalogDbContext : DbContext
+public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)
 {
-    public CatalogDbContext(DbContextOptions<CatalogDbContext> options)
-        : base(options)
-    {
-    }
-
     public DbSet<User> Users => Set<User>();
 
     // ═══════════════════════════════════════════════════
@@ -134,10 +129,10 @@ public class CatalogDbContext : DbContext
             entity.Property(r => r.IsActive)
                 .HasDefaultValue(true);
 
-            entity.Property(r => r.CreatedOn)
+            entity.Property(r => r.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.Property(r => r.LastModifiedOn)
+            entity.Property(r => r.LastModifiedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Indexes
@@ -172,10 +167,10 @@ public class CatalogDbContext : DbContext
             entity.Property(t => t.IsActive)
                 .HasDefaultValue(true);
 
-            entity.Property(t => t.CreatedOn)
+            entity.Property(t => t.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.Property(t => t.LastModifiedOn)
+            entity.Property(t => t.LastModifiedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Relationships
@@ -244,7 +239,7 @@ public class CatalogDbContext : DbContext
             entity.Property(mc => mc.IsDeleted)
                 .HasDefaultValue(false);
 
-            entity.Property(mc => mc.CreatedOn)
+            entity.Property(mc => mc.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Relationships
@@ -335,10 +330,10 @@ public class CatalogDbContext : DbContext
             entity.Property(mi => mi.IsDeleted)
                 .HasDefaultValue(false);
 
-            entity.Property(mi => mi.CreatedOn)
+            entity.Property(mi => mi.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.Property(mi => mi.LastModifiedOn)
+            entity.Property(mi => mi.LastModifiedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Relationships
@@ -455,7 +450,7 @@ public class CatalogDbContext : DbContext
             entity.Property(i => i.IsAvailable)
                 .HasDefaultValue(true);
 
-            entity.Property(i => i.LastModifiedOn)
+            entity.Property(i => i.LastModifiedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Relationships

@@ -1,4 +1,4 @@
-﻿using NodaTime;
+using NodaTime;
 
 namespace BuildingBlocks.Entities.Interfaces;
 
@@ -10,11 +10,11 @@ public interface IAuditableEntity : IEntity
 {
     string CreatedBy { get; }
 
-    Instant CreatedOn { get; }
+    Instant CreatedAt { get; }
 
     string LastModifiedBy { get; }
 
-    Instant? LastModifiedOn { get; }
+    Instant? LastModifiedAt { get; }
 
     void CreatedFrom(string userId, Instant timestamp);
 

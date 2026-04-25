@@ -455,7 +455,7 @@ public class CatalogDbContext : DbContext
             entity.Property(i => i.IsAvailable)
                 .HasDefaultValue(true);
 
-            entity.Property(i => i.LastUpdated)
+            entity.Property(i => i.LastModifiedOn)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             // Relationships

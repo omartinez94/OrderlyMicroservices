@@ -1,12 +1,10 @@
-namespace Catalog.API.Models;
+namespace Ordering.Domain.Models;
 
-public class Order : AuditableEntity<Guid>
+public class Order : Aggregate<Guid>
 {
     public int ActualPrepTimeMinutes { get; set; }
     public string Currency { get; set; } = string.Empty;
-    public string CustomerEmail { get; set; } = string.Empty;
-    public string CustomerName { get; set; } = string.Empty;
-    public string CustomerPhone { get; set; } = string.Empty;
+    public Guid CustomerId { get; set; }
     public string DeliveryAddress { get; set; } = string.Empty;
     public string DeliveryNotes { get; set; } = string.Empty;
     public decimal DiscountAmount { get; set; }

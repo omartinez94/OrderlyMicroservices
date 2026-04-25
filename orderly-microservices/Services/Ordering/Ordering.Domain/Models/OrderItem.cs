@@ -1,4 +1,4 @@
-namespace Catalog.API.Models;
+namespace Ordering.Domain.Models;
 
 public class OrderItem : Entity<int>
 {

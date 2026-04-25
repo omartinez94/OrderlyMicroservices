@@ -53,17 +53,6 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     /// </summary>
     public DbSet<IngredientAlternative> IngredientAlternatives => Set<IngredientAlternative>();
 
-    // ═══════════════════════════════════════════════════
-    // ORDERS & BILLING
-    // ═══════════════════════════════════════════════════
-    public DbSet<Order> Orders => Set<Order>();
-    public DbSet<OrderItem> OrderItems => Set<OrderItem>();
-    
-    /// <summary>
-    /// Manages the billing and splitting of payments for a single order.
-    /// </summary>
-    public DbSet<OrderBill> OrderBills => Set<OrderBill>();
-    
     /// <summary>
     /// Tracks historical price changes for menu items, variations, and ingredient alternatives over time.
     /// </summary>

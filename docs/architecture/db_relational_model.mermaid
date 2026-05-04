@@ -5,6 +5,8 @@ erDiagram
     Users ||--o{ BulkOrderUploads : uploads
     Users ||--o{ Baskets : creates
     
+    Customers ||--o{ Orders : places
+
     Restaurants ||--o{ Users : employs
     Restaurants ||--o{ Tables : contains
     Restaurants ||--o{ MenuCategories : has
@@ -49,6 +51,7 @@ erDiagram
     Orders ||--o{ OrderSnapshot : "price snapshot"
     
     Baskets ||--o{ BasketItems : contains
+    Baskets ||--o{ Users : "belongs to"
     
     OrderItems ||--o{ OrderItemPriceAudit : "audit trail"
     
@@ -56,6 +59,18 @@ erDiagram
     
     CustomerFeedback ||--o{ Orders : "redeems reward in"
     
+    Customers {
+        uuid Id PK
+        string Email
+        string Name
+        string Phone
+        string CreatedBy
+        timestamp CreatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+        boolean IsActive
+    }
+
     Users {
         uuid Id PK
         string Email UK
@@ -72,7 +87,7 @@ erDiagram
     
     Restaurants {
         uuid Id PK
-        int BrandId
+        uuid BrandId
         string Name
         text Address
         string PhoneNumber
@@ -84,9 +99,11 @@ erDiagram
         boolean AutoConfirmReservations
         boolean AllowAutoSubstitute
         int EstimatedTurnoverMinutes
-        boolean IsActive
+        string CreatedBy
         timestamp CreatedAt
-        timestamp UpdatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+        boolean IsActive
     }
     
     Tables {
@@ -231,14 +248,12 @@ erDiagram
         string OrderNumber UK "R1-20231015-001"
         enum OrderType "dine-in,takeout,delivery"
         uuid TableId FK
+        uuid CustomerId FK
         text DeliveryAddress
         decimal DeliveryLatitude
         decimal DeliveryLongitude
         text DeliveryNotes
         enum DeliveryStatus "pending,dispatched,delivered"
-        string CustomerName
-        string CustomerPhone
-        string CustomerEmail
         enum Status "ordering,pending,confirmed,preparing,ready,delivered,completed,cancelled,on_hold"
         decimal Subtotal "SNAPSHOT at order time"
         decimal TaxAmount "SNAPSHOT calculated"
@@ -257,14 +272,17 @@ erDiagram
         uuid ConfirmedByUserId FK
         uuid CompletedByUserId FK
         text Notes
+        string CreatedBy
         timestamp CreatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+        boolean IsActive
         timestamp ConfirmedAt
         timestamp PreparingStartedAt
         timestamp ReadyAt
         timestamp DeliveredAt
         timestamp CompletedAt
         timestamp CancelledAt
-        timestamp UpdatedAt
     }
     
     OrderItems {
@@ -476,31 +494,25 @@ erDiagram
     }
     
     Baskets {
-        uuid Id PK
-        uuid UserId FK
+        uuid UserId PK
         uuid RestaurantId FK
-        uuid TableId FK "Optional for dine-in"
+        jsonb AppliedDiscounts
         decimal Subtotal "Calculated from items"
-        decimal DiscountAmount "Applied discount total"
-        decimal TotalAmount "Subtotal - Discount"
-        string DiscountCode "Applied promo/reward code"
-        enum Status "active,abandoned,checked_out"
         timestamp CreatedAt
         timestamp ExpiresAt "Auto-expire after 2 hours"
-        timestamp UpdatedAt
     }
     
     BasketItems {
         uuid Id PK
         uuid BasketId FK
-        uuid MenuItemId FK
+        int MenuItemId FK
         string MenuItemName "SNAPSHOT name"
         string MenuItemImageUrl "SNAPSHOT image"
         int Quantity
         decimal BasePrice "SNAPSHOT base price"
         decimal UnitPrice "SNAPSHOT final unit price"
         decimal TotalPrice "SNAPSHOT total"
-        jsonb SelectedVariations "SNAPSHOT with prices"
+        jsonb Variations "SNAPSHOT with prices"
         jsonb Customizations "SNAPSHOT with prices"
         text SpecialInstructions
         timestamp CreatedAt

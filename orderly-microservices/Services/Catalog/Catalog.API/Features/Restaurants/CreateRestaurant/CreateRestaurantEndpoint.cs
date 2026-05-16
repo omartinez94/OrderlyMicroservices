@@ -20,13 +20,15 @@ public class CreateRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/restaurants", async (CreateRestaurantRequest request, ISender sender) =>
+        var group = app.MapGroup("/api/v1").WithTags("Restaurants");
+
+        group.MapPost("/restaurants", async (CreateRestaurantRequest request, ISender sender) =>
         {
             var command = request.Adapt<CreateRestaurantCommand>();
             var result = await sender.Send(command);
             var response = result.Adapt<CreateRestaurantResponse>();
 
-            return Results.Created($"/restaurants/{response.Id}", response);
+            return Results.Created($"/api/v1/restaurants/{response.Id}", response);
         })
         .WithDescription("Creates a new restaurant.")
         .WithName("CreateRestaurant")

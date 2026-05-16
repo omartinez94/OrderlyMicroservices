@@ -6,7 +6,9 @@ public class DeleteRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/restaurants/{id}", async (Guid id, ISender sender) =>
+        var group = app.MapGroup("/api/v1").WithTags("Restaurants");
+
+        group.MapDelete("/restaurants/{id}", async (Guid id, ISender sender) =>
         {
             var command = new DeleteRestaurantCommand(id);
             var result = await sender.Send(command);

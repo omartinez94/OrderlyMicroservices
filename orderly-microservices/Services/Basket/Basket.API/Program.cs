@@ -18,7 +18,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    cfg.AddOpenBehavior(typeof(ValidationBevavior<,>));
+    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
 var connectionString = builder.Configuration.GetConnectionString("BasketDB")!;

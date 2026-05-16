@@ -7,14 +7,12 @@ namespace Basket.API.Data;
 public class CachedBasketRepository(IBasketRepository innerRepository, IDistributedCache cache)
     : IBasketRepository
 {
-    public async Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
+    public async Task DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var result = await innerRepository.DeleteBasketAsync(userId, restaurantId, cancellationToken);
+        await innerRepository.DeleteBasketAsync(userId, restaurantId, cancellationToken);
         
         var cacheKey = $"basket:{userId}:{restaurantId}";
         await cache.RemoveAsync(cacheKey, cancellationToken);
-        
-        return result;
     }
 
     public async Task<Models.Basket> GetBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)

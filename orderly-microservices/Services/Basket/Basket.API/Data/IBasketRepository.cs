@@ -6,5 +6,5 @@ public interface IBasketRepository
 
     Task<Models::Basket> StoreBasketAsync(Models::Basket basket, CancellationToken cancellationToken = default);
 
-    Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default);
+    Task DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default);
 }

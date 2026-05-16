@@ -3,7 +3,7 @@
 public class BasketRepository(IDocumentSession session)
     : IBasketRepository
 {
-    public async Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
+    public async Task DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
         var basket = await session.Query<Models::Basket>()
             .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
@@ -14,8 +14,6 @@ public class BasketRepository(IDocumentSession session)
             session.Delete(basket);
             await session.SaveChangesAsync(cancellationToken);
         }
-
-        return true;
     }
 
     public async Task<Models.Basket> GetBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)

@@ -6,7 +6,9 @@ public class StoreBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/basket", async (StoreBasketRequest request, ISender sender) =>
+        var group = app.MapGroup("/api/v1").WithTags("Baskets");
+
+        group.MapPut("/baskets/{userId}/{restaurantId}", async (Guid userId, Guid restaurantId, StoreBasketRequest request, ISender sender) =>
         {
             var command = request.Adapt<StoreBasketCommand>();
 
@@ -14,7 +16,7 @@ public class StoreBasketEndpoints : ICarterModule
 
             var response = result.Adapt<StoreBasketResponse>();
 
-            return Results.Created($"/basket/{response.UserId}/{response.RestaurantId}", response);
+            return Results.Ok(response);
         })
         .WithName("StoreBasket")
         .Produces<StoreBasketResponse>(StatusCodes.Status201Created)

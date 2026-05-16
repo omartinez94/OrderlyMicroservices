@@ -6,7 +6,9 @@ public class GetBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/basket/{userId}/{restaurantId}", async (Guid userId, Guid restaurantId, ISender sender) =>
+        var group = app.MapGroup("/api/v1").WithTags("Baskets");
+
+        group.MapGet("/baskets/{userId}/{restaurantId}", async (Guid userId, Guid restaurantId, ISender sender) =>
         {
             var result = await sender.Send(new GetBasketQuery(userId, restaurantId));
 

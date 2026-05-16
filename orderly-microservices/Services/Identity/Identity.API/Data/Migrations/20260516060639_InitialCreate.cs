@@ -186,7 +186,7 @@ namespace Identity.API.Data.Migrations
                     UserId = table.Column<Guid>(type: "uuid", nullable: true),
                     EventType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     IpAddress = table.Column<string>(type: "character varying(45)", maxLength: 45, nullable: false),
-                    UserAgent = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
+                    UserAgent = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     Timestamp = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     Details = table.Column<string>(type: "text", nullable: true)
                 },

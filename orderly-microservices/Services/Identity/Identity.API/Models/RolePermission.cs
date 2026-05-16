@@ -2,9 +2,8 @@ namespace Identity.API.Models;
 
 public class RolePermission
 {
-    public Guid RoleId { get; set; }
-    public ApplicationRole Role { get; set; } = null!;
-
-    public Guid PermissionId { get; set; }
-    public Permission Permission { get; set; } = null!;
+    public required Guid RoleId { get; set; }
+    public required ApplicationRole Role { get; set; }
+    public required Guid PermissionId { get; set; }
+    public required Permission Permission { get; set; }
 }

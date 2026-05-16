@@ -2,9 +2,9 @@ namespace Identity.API.Models;
 
 public class ApplicationUser : IdentityUser<Guid>
 {
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
+    public required string FirstName { get; set; }
+    public required string LastName { get; set; }
     public bool IsActive { get; set; } = true;
-    public DateTimeOffset CreatedAt { get; set; }
+    public required DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
 }

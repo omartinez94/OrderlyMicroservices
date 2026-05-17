@@ -1,7 +1,16 @@
 namespace Ordering.Domain.Models;
 
-public class OrderItem : Entity<int>
+public class OrderItem : Abstractions::Entity<OrderItemId>
 {
+    internal OrderItem(OrderId orderId, MenuItemId menuItemId, int quantity, decimal price) 
+    {
+        Id = OrderItemId.Of(Guid.NewGuid());
+        OrderId = orderId;
+        MenuItemId = menuItemId;
+        Quantity = quantity;
+        UnitPrice = price;
+    }
+
     public decimal BasePrice { get; set; }
     public Instant CreatedAt { get; set; }
     /// <summary>JSON snapshot of additional customizations and extra charges</summary>
@@ -9,7 +18,8 @@ public class OrderItem : Entity<int>
     public string MenuItemDescription { get; set; } = string.Empty;
     public string MenuItemImageUrl { get; set; } = string.Empty;
     public string MenuItemName { get; set; } = string.Empty;
-    public Guid OrderId { get; set; }
+    public OrderId OrderId { get; set; } = default!;
+    public MenuItemId MenuItemId { get; set; } = default!;
     /// <summary>Preparation state: pending, preparing, ready</summary>
     public PrepStatus PrepStatus { get; set; } = PrepStatus.Pending;
     public int Quantity { get; set; }
@@ -20,7 +30,6 @@ public class OrderItem : Entity<int>
     public string SpecialInstructions { get; set; } = string.Empty;
     public decimal TotalPrice { get; set; }
     public decimal UnitPrice { get; set; }
-    public Guid? MenuItemId { get; set; }
     public Instant? PrepCompletedAt { get; set; }
     public Instant? PrepStartedAt { get; set; }
 }

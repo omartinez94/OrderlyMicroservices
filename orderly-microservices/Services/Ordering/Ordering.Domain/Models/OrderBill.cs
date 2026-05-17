@@ -1,6 +1,6 @@
 namespace Ordering.Domain.Models;
 
-public class OrderBill : Entity<int>
+public class OrderBill : Abstractions::Entity<int>
 {
     public decimal Amount { get; set; }
     public int BillNumber { get; set; }
@@ -17,4 +17,18 @@ public class OrderBill : Entity<int>
     public decimal TaxAmount { get; set; }
     public decimal TotalAmount { get; set; }
     public Instant? PaidAt { get; set; }
+
+    public static OrderBill Create(Guid orderId, int billNumber, decimal amount, decimal taxAmount, decimal totalAmount)
+    {
+        return new OrderBill
+        {
+            OrderId = orderId,
+            BillNumber = billNumber,
+            Amount = amount,
+            TaxAmount = taxAmount,
+            TotalAmount = totalAmount,
+            PaymentStatus = PaymentStatus.Pending,
+            SplitType = SplitType.Equal
+        };
+    }
 }

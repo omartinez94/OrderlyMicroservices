@@ -1,10 +1,10 @@
 ﻿namespace Ordering.Domain.Abstractions;
 
-public interface IAggregate<T> : IAggregate, IAuditableEntity<T>
+public interface IAggregate<T> : IAggregate, IEntity<T>
 {
 }
 
-public interface IAggregate : IAuditableEntity
+public interface IAggregate : IEntity
 {
     IReadOnlyList<IDomainEvent> DomainEvents { get; }
 

@@ -1,8 +1,15 @@
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using NodaTime.Serialization.SystemTextJson;
+using BuildingBlocks.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddJwtAuthentication(
+    authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5007",
+    audience: "OrderlyMicroservices");
+
+builder.Services.AddAuthorizationServices();
 
 // Add services to the container.
 builder.Services.AddCarter();
@@ -82,6 +89,9 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.MapCarter();
 
 app.UseExceptionHandler(options => { });

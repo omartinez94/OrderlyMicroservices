@@ -1,5 +1,3 @@
-using OpenIddict.Abstractions;
-
 namespace Identity.API.Features.Auth.Logout;
 
 public class LogoutModule : ICarterModule
@@ -46,3 +44,4 @@ public class LogoutModule : ICarterModule
             .Produces(204);
     }
 }
+

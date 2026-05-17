@@ -1,5 +1,3 @@
-using OpenIddict.Abstractions;
-
 namespace Identity.API.Features.Auth.Login;
 
 public class LoginModule : ICarterModule
@@ -100,3 +98,4 @@ public class LoginModule : ICarterModule
         };
     }
 }
+

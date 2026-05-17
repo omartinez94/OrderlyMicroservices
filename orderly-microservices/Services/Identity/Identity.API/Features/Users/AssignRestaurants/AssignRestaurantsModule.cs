@@ -4,8 +4,7 @@ public class AssignRestaurantsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/users");
 
         group.MapPut("{id:guid}/restaurants", async (
                 Guid id,
@@ -17,11 +16,11 @@ public class AssignRestaurantsModule : ICarterModule
                 var response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
-            })
-            .Accepts<AssignRestaurantsRequest>("application/json")
+            }).RequirePermission("users:assign_restaurants").Accepts<AssignRestaurantsRequest>("application/json")
             .Produces<AssignRestaurantsResponse>(200)
             .ProducesProblem(404);
     }
 }
 
 public record AssignRestaurantsRequest(List<AssignRestaurants.RestaurantAssignment> Restaurants);
+

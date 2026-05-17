@@ -4,8 +4,7 @@ public class GetUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/users");
 
         group.MapGet("{id:guid}", async (
                 Guid id,
@@ -16,8 +15,7 @@ public class GetUserModule : ICarterModule
                 var response = await sender.Send(query, ct);
 
                 return Results.Ok(response);
-            })
-            .Produces<GetUserResponse>(200)
-            .ProducesProblem(404);
+            }).RequirePermission("users:view_all").Produces<GetUserResponse>(200).RequirePermission("users:view_all").ProducesProblem(404);
     }
 }
+

@@ -4,8 +4,7 @@ public class ListUsersModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/users");
 
         group.MapGet("", async (
                 [AsParameters] ListUsersRequest request,
@@ -16,9 +15,9 @@ public class ListUsersModule : ICarterModule
                 var response = await sender.Send(query, ct);
 
                 return Results.Ok(response);
-            })
-            .Produces<ListUsersResponse>(200);
+            }).RequirePermission("users:view_all").Produces<ListUsersResponse>(200);
     }
 }
 
 public record ListUsersRequest(int Page = 1, int PageSize = 50, string? SearchTerm = null);
+

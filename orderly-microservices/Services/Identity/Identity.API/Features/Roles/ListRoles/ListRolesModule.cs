@@ -4,8 +4,7 @@ public class ListRolesModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/roles")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/roles");
 
         group.MapGet("", async (
                 ISender sender,
@@ -15,7 +14,7 @@ public class ListRolesModule : ICarterModule
                 var response = await sender.Send(query, ct);
 
                 return Results.Ok(response);
-            })
-            .Produces<ListRolesResponse>(200);
+            }).RequirePermission("roles:view").Produces<ListRolesResponse>(200);
     }
 }
+

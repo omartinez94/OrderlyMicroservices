@@ -4,8 +4,7 @@ public class UpdateRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/roles")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/roles");
 
         group.MapPut("{id:guid}", async (
                 Guid id,
@@ -17,8 +16,7 @@ public class UpdateRoleModule : ICarterModule
                 var response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
-            })
-            .Accepts<UpdateRoleRequest>("application/json")
+            }).RequirePermission("roles:edit").Accepts<UpdateRoleRequest>("application/json")
             .Produces<UpdateRoleResponse>(200)
             .ProducesProblem(404)
             .ProducesProblem(400);
@@ -26,3 +24,4 @@ public class UpdateRoleModule : ICarterModule
 }
 
 public record UpdateRoleRequest(string Name, string? Description = null);
+

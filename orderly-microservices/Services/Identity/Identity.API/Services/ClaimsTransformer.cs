@@ -1,5 +1,3 @@
-using OpenIddict.Abstractions;
-
 namespace Identity.API.Services;
 
 public class ClaimsTransformer(IdentityDbContext dbContext)

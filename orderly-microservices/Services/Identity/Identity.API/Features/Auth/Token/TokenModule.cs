@@ -1,5 +1,3 @@
-using OpenIddict.Abstractions;
-
 namespace Identity.API.Features.Auth.Token;
 
 public class TokenModule : ICarterModule
@@ -119,3 +117,4 @@ public class TokenModule : ICarterModule
         };
     }
 }
+

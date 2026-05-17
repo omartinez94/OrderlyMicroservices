@@ -10,6 +10,7 @@ public static class AuthorizationServiceCollectionExtensions
     public static IServiceCollection AddAuthorizationServices(this IServiceCollection services)
     {
         services.AddAuthorization();
+        services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddSingleton<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
         services.AddAuthorizationBuilder()

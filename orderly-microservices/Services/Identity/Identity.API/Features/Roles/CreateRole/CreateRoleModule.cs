@@ -4,8 +4,7 @@ public class CreateRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/roles")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/roles");
 
         group.MapPost("", async (
                 ISender sender,
@@ -16,8 +15,7 @@ public class CreateRoleModule : ICarterModule
                 var response = await sender.Send(command, ct);
 
                 return Results.Created($"/api/roles/{response.RoleId}", response);
-            })
-            .Accepts<CreateRoleRequest>("application/json")
+            }).RequirePermission("roles:create").Accepts<CreateRoleRequest>("application/json")
             .Produces<CreateRoleResponse>(201)
             .ProducesProblem(400)
             .ProducesProblem(409);
@@ -25,3 +23,4 @@ public class CreateRoleModule : ICarterModule
 }
 
 public record CreateRoleRequest(string Name, string? Description = null);
+

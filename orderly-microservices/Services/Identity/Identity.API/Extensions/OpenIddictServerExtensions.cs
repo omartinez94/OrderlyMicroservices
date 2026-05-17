@@ -1,5 +1,3 @@
-using OpenIddict.Abstractions;
-
 namespace Identity.API.Extensions;
 
 public static class OpenIddictServerExtensions

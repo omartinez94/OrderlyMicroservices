@@ -4,8 +4,7 @@ public class AssignPermissionsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/permissions")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/permissions");
 
         group.MapPost("assign-to-role", async (
                 ISender sender,
@@ -16,11 +15,11 @@ public class AssignPermissionsModule : ICarterModule
                 var response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
-            })
-            .Accepts<AssignPermissionsToRoleRequest>("application/json")
+            }).RequirePermission("roles:edit_permissions").Accepts<AssignPermissionsToRoleRequest>("application/json")
             .Produces<AssignPermissionsToRoleResponse>(200)
             .ProducesProblem(404);
     }
 }
 
 public record AssignPermissionsToRoleRequest(Guid RoleId, List<Guid> PermissionIds);
+

@@ -4,8 +4,7 @@ public class UpdateUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/users");
 
         group.MapPut("{id:guid}", async (
                 Guid id,
@@ -23,8 +22,7 @@ public class UpdateUserModule : ICarterModule
                 var response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
-            })
-            .Accepts<UpdateUserRequest>("application/json")
+            }).RequirePermission("users:edit").Accepts<UpdateUserRequest>("application/json")
             .Produces<UpdateUserResponse>(200)
             .ProducesProblem(404)
             .ProducesProblem(400);
@@ -36,3 +34,4 @@ public record UpdateUserRequest(
     string LastName,
     string? PhoneNumber = null,
     bool IsActive = true);
+

@@ -4,8 +4,7 @@ public class DeleteUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users")
-            .RequireAuthorization();
+        var group = app.MapGroup("/api/users");
 
         group.MapDelete("{id:guid}", async (
                 Guid id,
@@ -16,8 +15,7 @@ public class DeleteUserModule : ICarterModule
                 await sender.Send(command, ct);
 
                 return Results.NoContent();
-            })
-            .Produces(204)
-            .ProducesProblem(404);
+            }).RequirePermission("users:delete").Produces(204).RequirePermission("users:delete").ProducesProblem(404);
     }
 }
+

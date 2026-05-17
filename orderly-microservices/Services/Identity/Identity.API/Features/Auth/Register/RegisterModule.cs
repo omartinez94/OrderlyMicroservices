@@ -22,3 +22,4 @@ public class RegisterModule : ICarterModule
             .ProducesProblem(409);
     }
 }
+

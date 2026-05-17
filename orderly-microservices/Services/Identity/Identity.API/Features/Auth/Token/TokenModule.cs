@@ -2,19 +2,23 @@ using OpenIddict.Abstractions;
 
 namespace Identity.API.Features.Auth.Token;
 
-public class TokenModule : CarterModule
+public class TokenModule : ICarterModule
 {
-    public TokenModule() : base("/connect") { }
-
-    public override void AddRoutes(IEndpointRouteBuilder app)
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/token", async (
+        var group = app.MapGroup("/connect");
+
+        group.MapPost("/token", async (
                 HttpContext context,
                 ClaimsTransformer claimsTransformer,
+                AuditLogger auditLogger,
                 CancellationToken ct) =>
             {
                 var request = context.GetOpenIddictServerRequest()
                     ?? throw new InvalidOperationException("Invalid token request.");
+
+                var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var userAgent = context.Request.Headers.UserAgent.ToString();
 
                 if (request.IsPasswordGrantType())
                 {
@@ -24,14 +28,18 @@ public class TokenModule : CarterModule
                     var user = await userManager.FindByEmailAsync(request.Username!);
                     if (user is null || !user.IsActive)
                     {
+                        await auditLogger.LogAsync(user?.Id, "TokenFailure", ipAddress, userAgent, "User not found or inactive", ct);
                         return Results.Problem("Invalid credentials.", statusCode: 400);
                     }
 
                     var result = await signInManager.CheckPasswordSignInAsync(user, request.Password!, true);
                     if (!result.Succeeded)
                     {
+                        await auditLogger.LogAsync(user.Id, "TokenFailure", ipAddress, userAgent, "Invalid credentials", ct);
                         return Results.Problem("Invalid credentials.", statusCode: 400);
                     }
+
+                    await auditLogger.LogAsync(user.Id, "TokenIssued", ipAddress, userAgent, "Password grant", ct);
 
                     var principal = await signInManager.CreateUserPrincipalAsync(user);
                     principal.SetScopes(request.GetScopes());
@@ -61,6 +69,11 @@ public class TokenModule : CarterModule
                     var authenticateResult = await context.AuthenticateAsync("OpenIddict.Server.AspNetCore");
                     var principal = authenticateResult.Principal
                         ?? throw new InvalidOperationException("Invalid refresh token.");
+
+                    var userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                    Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
+
+                    await auditLogger.LogAsync(userId, "TokenRefreshed", ipAddress, userAgent, "Refresh token grant", ct);
 
                     var claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
                     var identity = principal.Identity as ClaimsIdentity;

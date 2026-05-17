@@ -2,22 +2,30 @@ using OpenIddict.Abstractions;
 
 namespace Identity.API.Features.Auth.Logout;
 
-public class LogoutModule : CarterModule
+public class LogoutModule : ICarterModule
 {
-    public LogoutModule() : base("/api/auth") { }
-
-    public override void AddRoutes(IEndpointRouteBuilder app)
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/logout", async (
+        var group = app.MapGroup("/api/auth");
+
+        group.MapPost("/logout", async (
+                HttpContext context,
                 SignInManager<ApplicationUser> signInManager,
                 IOpenIddictTokenManager tokenManager,
                 ClaimsPrincipal principal,
+                AuditLogger auditLogger,
                 CancellationToken ct) =>
             {
                 if (principal.Identity?.IsAuthenticated != true)
                 {
                     return Results.NoContent();
                 }
+
+                var userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
+
+                var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var userAgent = context.Request.Headers.UserAgent.ToString();
 
                 var tokenId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
                 if (tokenId is not null)
@@ -28,6 +36,8 @@ public class LogoutModule : CarterModule
                         await tokenManager.TryRevokeAsync(token, ct);
                     }
                 }
+
+                await auditLogger.LogAsync(userId, "Logout", ipAddress, userAgent, null, ct);
 
                 await signInManager.SignOutAsync();
                 return Results.NoContent();

@@ -2,31 +2,52 @@ using OpenIddict.Abstractions;
 
 namespace Identity.API.Features.Auth.Login;
 
-public class LoginModule : CarterModule
+public class LoginModule : ICarterModule
 {
-    public LoginModule() : base("/api/auth") { }
-
-    public override void AddRoutes(IEndpointRouteBuilder app)
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/login", async (
+        var group = app.MapGroup("/api/auth");
+
+        group.MapPost("/login", async (
                 HttpContext context,
                 SignInManager<ApplicationUser> signInManager,
                 UserManager<ApplicationUser> userManager,
                 ClaimsTransformer claimsTransformer,
+                IValidator<LoginRequest> validator,
+                AuditLogger auditLogger,
                 LoginRequest request,
                 CancellationToken ct) =>
             {
+                var validationResult = await validator.ValidateAsync(request, ct);
+                if (!validationResult.IsValid)
+                {
+                    return Results.BadRequest(validationResult.Errors);
+                }
+
+                var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                var userAgent = context.Request.Headers.UserAgent.ToString();
+
                 var user = await userManager.FindByEmailAsync(request.Email);
                 if (user is null || !user.IsActive)
                 {
+                    await auditLogger.LogAsync(user?.Id, "LoginFailure", ipAddress, userAgent, "User not found or inactive", ct);
                     return Results.Unauthorized();
                 }
 
                 var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, true);
                 if (!result.Succeeded)
                 {
+                    if (result.IsLockedOut)
+                    {
+                        await auditLogger.LogAsync(user.Id, "AccountLocked", ipAddress, userAgent, "Account locked due to multiple failed attempts", ct);
+                        return Results.Problem("Account is temporarily locked.", statusCode: 403);
+                    }
+                    
+                    await auditLogger.LogAsync(user.Id, "LoginFailure", ipAddress, userAgent, "Invalid credentials", ct);
                     return Results.Unauthorized();
                 }
+
+                await auditLogger.LogAsync(user.Id, "LoginSuccess", ipAddress, userAgent, null, ct);
 
                 var principal = await signInManager.CreateUserPrincipalAsync(user);
                 principal.SetScopes([

@@ -15,6 +15,8 @@ global using Identity.API.Extensions;
 global using Identity.API.Dtos;
 global using Identity.API.Services;
 global using BuildingBlocks.Exceptions.Handler;
+global using BuildingBlocks.Exceptions;
+global using BuildingBlocks.CQRS;
 global using Carter;
 global using FluentValidation;
 global using MediatR;

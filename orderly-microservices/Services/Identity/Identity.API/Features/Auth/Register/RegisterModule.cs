@@ -1,46 +1,20 @@
 namespace Identity.API.Features.Auth.Register;
 
-public class RegisterModule : CarterModule
+public class RegisterModule : ICarterModule
 {
-    public RegisterModule() : base("/api/auth") { }
-
-    public override void AddRoutes(IEndpointRouteBuilder app)
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/register", async (
-                UserManager<ApplicationUser> userManager,
+        var group = app.MapGroup("/api/auth");
+
+        group.MapPost("/register", async (
+                ISender sender,
                 RegisterRequest request,
                 CancellationToken ct) =>
             {
-                var existingUser = await userManager.FindByEmailAsync(request.Email);
-                if (existingUser is not null)
-                {
-                    return Results.Conflict("User with this email already exists.");
-                }
+                var command = new RegisterCommand(request);
+                var response = await sender.Send(command, ct);
 
-                var user = new ApplicationUser
-                {
-                    UserName = request.Email,
-                    Email = request.Email,
-                    FirstName = request.FirstName,
-                    LastName = request.LastName,
-                    PhoneNumber = request.PhoneNumber,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    IsActive = true
-                };
-
-                var result = await userManager.CreateAsync(user, request.Password);
-                if (!result.Succeeded)
-                {
-                    return Results.BadRequest(result.Errors.Select(e => e.Description));
-                }
-
-                var response = new RegisterResponse(
-                    user.Id,
-                    user.Email!,
-                    user.FirstName,
-                    user.LastName);
-
-                return Results.Created($"/api/users/{user.Id}", response);
+                return Results.Created($"/api/users/{response.UserId}", response);
             })
             .Accepts<RegisterRequest>("application/json")
             .Produces<RegisterResponse>(201)

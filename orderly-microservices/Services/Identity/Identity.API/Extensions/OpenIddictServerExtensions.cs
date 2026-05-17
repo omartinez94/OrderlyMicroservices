@@ -6,8 +6,10 @@ public static class OpenIddictServerExtensions
 {
     public static IServiceCollection AddOpenIddictServer(this IServiceCollection services, IConfiguration configuration)
     {
-        var accessTokenLifetime = int.Parse(configuration["Jwt:AccessTokenLifetimeMinutes"] ?? "15");
-        var refreshTokenLifetime = int.Parse(configuration["Jwt:RefreshTokenLifetimeDays"] ?? "7");
+        var jwtSettings = new JwtSettings();
+        configuration.GetSection(JwtSettings.SectionName).Bind(jwtSettings);
+
+        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
 
         services.AddOpenIddict()
             .AddCore(options =>
@@ -33,8 +35,8 @@ public static class OpenIddictServerExtensions
 
                 options.AllowRefreshTokenFlow();
 
-                options.SetAccessTokenLifetime(TimeSpan.FromMinutes(accessTokenLifetime));
-                options.SetRefreshTokenLifetime(TimeSpan.FromDays(refreshTokenLifetime));
+                options.SetAccessTokenLifetime(TimeSpan.FromMinutes(jwtSettings.AccessTokenLifetimeMinutes));
+                options.SetRefreshTokenLifetime(TimeSpan.FromDays(jwtSettings.RefreshTokenLifetimeDays));
 
                 options.AddDevelopmentEncryptionCertificate()
                     .AddDevelopmentSigningCertificate();

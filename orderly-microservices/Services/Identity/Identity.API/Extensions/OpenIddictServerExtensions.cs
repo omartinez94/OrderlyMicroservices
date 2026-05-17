@@ -1,9 +1,14 @@
+using OpenIddict.Abstractions;
+
 namespace Identity.API.Extensions;
 
 public static class OpenIddictServerExtensions
 {
     public static IServiceCollection AddOpenIddictServer(this IServiceCollection services, IConfiguration configuration)
     {
+        var accessTokenLifetime = int.Parse(configuration["Jwt:AccessTokenLifetimeMinutes"] ?? "15");
+        var refreshTokenLifetime = int.Parse(configuration["Jwt:RefreshTokenLifetimeDays"] ?? "7");
+
         services.AddOpenIddict()
             .AddCore(options =>
             {
@@ -21,10 +26,15 @@ public static class OpenIddictServerExtensions
                     OpenIddictConstants.Scopes.Profile,
                     OpenIddictConstants.Scopes.OfflineAccess);
 
+                options.AllowPasswordFlow();
+
                 options.AllowAuthorizationCodeFlow()
                     .RequireProofKeyForCodeExchange();
 
                 options.AllowRefreshTokenFlow();
+
+                options.SetAccessTokenLifetime(TimeSpan.FromMinutes(accessTokenLifetime));
+                options.SetRefreshTokenLifetime(TimeSpan.FromDays(refreshTokenLifetime));
 
                 options.AddDevelopmentEncryptionCertificate()
                     .AddDevelopmentSigningCertificate();

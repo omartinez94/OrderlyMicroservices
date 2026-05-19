@@ -95,7 +95,7 @@ public class Order : Aggregate<OrderId>
         Payment = payment;
         Status = status;
 
-        // AddDomainEvent(new OrderUpdatedEvent(this));
+        AddDomainEvent(new OrderUpdatedEvent(this));
     }
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)

@@ -22,9 +22,12 @@ public class CreateRestaurantEndpoint : ICarterModule
     {
         var group = app.MapGroup("/api/v1").WithTags("Restaurants");
 
-        group.MapPost("/restaurants", async (CreateRestaurantRequest request, ISender sender) =>
+        group.MapPost("/restaurants", async (CreateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            var command = request.Adapt<CreateRestaurantCommand>();
+            var userId = user.Identity?.IsAuthenticated == true ? user.GetUserId().ToString() : "system";
+
+            var command = request.Adapt<CreateRestaurantCommand>() with { UserId = userId };
+
             var result = await sender.Send(command);
             var response = result.Adapt<CreateRestaurantResponse>();
 

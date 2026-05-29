@@ -1,3 +1,4 @@
+global using BuildingBlocks.Authorization;
 global using BuildingBlocks.Behaviors;
 global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Entities.Contracts;
@@ -15,3 +16,4 @@ global using Marten;
 global using MediatR;
 global using Microsoft.EntityFrameworkCore;
 global using NodaTime;
+global using System.Security.Claims;

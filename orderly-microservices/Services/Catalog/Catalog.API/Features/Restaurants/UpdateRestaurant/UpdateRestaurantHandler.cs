@@ -13,7 +13,8 @@ public record UpdateRestaurantCommand(
     bool AutoConfirmOrders,
     bool AutoConfirmReservations,
     bool AllowAutoSubstitute,
-    int EstimatedTurnoverMinutes) : ICommand<UpdateRestaurantResult>;
+    int EstimatedTurnoverMinutes,
+    string UserId = "system") : ICommand<UpdateRestaurantResult>;
 
 public record UpdateRestaurantResult(bool IsSuccess);
 
@@ -76,7 +77,7 @@ internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
 
         if (restaurant is IAuditableEntity auditableRest)
         {
-            auditableRest.ModifiedFrom("system", SystemClock.Instance.GetCurrentInstant());
+            auditableRest.ModifiedFrom(command.UserId, SystemClock.Instance.GetCurrentInstant());
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

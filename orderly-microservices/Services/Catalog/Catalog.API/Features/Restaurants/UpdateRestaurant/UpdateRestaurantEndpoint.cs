@@ -1,5 +1,7 @@
 namespace Catalog.API.Features.Restaurants.UpdateRestaurant;
 
+using BuildingBlocks.Authorization;
+
 public record UpdateRestaurantRequest(
     Guid Id,
     Guid BrandId,

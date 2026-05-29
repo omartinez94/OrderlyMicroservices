@@ -12,7 +12,8 @@ public record CreateRestaurantCommand(
     bool AutoConfirmOrders,
     bool AutoConfirmReservations,
     bool AllowAutoSubstitute,
-    int EstimatedTurnoverMinutes) : ICommand<CreateRestaurantResult>;
+    int EstimatedTurnoverMinutes,
+    string UserId = "system") : ICommand<CreateRestaurantResult>;
 
 public record CreateRestaurantResult(Guid Id);
 
@@ -71,7 +72,7 @@ internal class CreateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
 
         if (restaurant is IAuditableEntity auditableEntity)
         {
-            auditableEntity.CreatedFrom("system", SystemClock.Instance.GetCurrentInstant());
+            auditableEntity.CreatedFrom(command.UserId, SystemClock.Instance.GetCurrentInstant());
         }
 
         dbContext.Restaurants.Add(restaurant);

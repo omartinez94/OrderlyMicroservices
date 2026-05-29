@@ -1,7 +1,5 @@
 namespace Catalog.API.Features.Restaurants.UpdateRestaurant;
 
-using BuildingBlocks.Authorization;
-
 public record UpdateRestaurantRequest(
     Guid Id,
     Guid BrandId,
@@ -25,11 +23,13 @@ public class UpdateRestaurantEndpoint : ICarterModule
     {
         var group = app.MapGroup("/api/v1").WithTags("Restaurants");
 
-        group.MapPut("/restaurants/{id}", async (Guid id, UpdateRestaurantRequest request, ISender sender) =>
+        group.MapPut("/restaurants/{id}", async (Guid id, UpdateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
             if (id != request.Id) return Results.BadRequest();
 
-            var command = request.Adapt<UpdateRestaurantCommand>();
+            var userId = user.Identity?.IsAuthenticated == true ? user.GetUserId().ToString() : "system";
+
+            var command = request.Adapt<UpdateRestaurantCommand>() with { UserId = userId };
             var result = await sender.Send(command);
             var response = result.Adapt<UpdateRestaurantResponse>();
 

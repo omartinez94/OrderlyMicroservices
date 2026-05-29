@@ -4,7 +4,7 @@ public record GetRestaurantsQuery(int? PageNumber = 1, int? PageSize = 10) : IQu
 
 public record GetRestaurantsResult(IEnumerable<Restaurant> Restaurants);
 
-internal class GetRestaurantsQueryHandler(IDocumentSession session) : IQueryHandler<GetRestaurantsQuery, GetRestaurantsResult>
+internal class GetRestaurantsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetRestaurantsQuery, GetRestaurantsResult>
 {
     public async Task<GetRestaurantsResult> Handle(GetRestaurantsQuery query, CancellationToken cancellationToken)
     {
@@ -15,8 +15,12 @@ internal class GetRestaurantsQueryHandler(IDocumentSession session) : IQueryHand
             pageSize = 50;
         }
         
-        var restaurants = await session.Query<Restaurant>()
-            .ToPagedListAsync(pageNumber, pageSize, cancellationToken);
+        var restaurants = await EntityFrameworkQueryableExtensions.ToListAsync(
+            dbContext.Restaurants
+                .AsNoTracking()
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize),
+            cancellationToken);
 
         return new GetRestaurantsResult(restaurants);
     }

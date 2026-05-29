@@ -51,11 +51,11 @@ public class UpdateRestaurantCommandValidator : AbstractValidator<UpdateRestaura
     }
 }
 
-internal class UpdateRestaurantCommandHandler(IDocumentSession session) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
+internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        var restaurant = await session.LoadAsync<Restaurant>(command.Id, cancellationToken);
+        var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken);
         if (restaurant is null)
         {
             throw new RestaurantNotFoundException(command.Id);
@@ -79,8 +79,7 @@ internal class UpdateRestaurantCommandHandler(IDocumentSession session) : IComma
             auditableRest.ModifiedFrom("system", SystemClock.Instance.GetCurrentInstant());
         }
 
-        session.Update(restaurant);
-        await session.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new UpdateRestaurantResult(true);
     }

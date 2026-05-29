@@ -1,5 +1,6 @@
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using BuildingBlocks.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -35,6 +36,11 @@ builder.Services.AddMarten(opt =>
     opt.Schema.For<NotificationLog>();
 }).UseLightweightSessions();
 
+builder.Services.AddDbContext<CatalogDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogDB")!);
+});
+
 if(builder.Environment.IsDevelopment())
 {
     builder.Services.InitializeMartenWith<CatalogInitialData>();
@@ -49,7 +55,10 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+await using var scope = app.Services.CreateAsyncScope();
+var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+await dbContext.Database.MigrateAsync();
+
 app.UseAuthentication();
 app.UseAuthorization();
 

@@ -48,12 +48,10 @@ public class CreateRestaurantCommandValidator : AbstractValidator<CreateRestaura
     }
 }
 
-internal class CreateRestaurantCommandHandler(IDocumentSession session) : ICommandHandler<CreateRestaurantCommand, CreateRestaurantResult>
+internal class CreateRestaurantCommandHandler(CatalogDbContext dbContext) : ICommandHandler<CreateRestaurantCommand, CreateRestaurantResult>
 {
     public async Task<CreateRestaurantResult> Handle(CreateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        // Business logic to create a restaurant would go here, such as validating the input, saving to a database, etc.
-
         var restaurant = new Restaurant
         {
             Id = Guid.NewGuid(),
@@ -76,8 +74,8 @@ internal class CreateRestaurantCommandHandler(IDocumentSession session) : IComma
             auditableEntity.CreatedFrom("system", SystemClock.Instance.GetCurrentInstant());
         }
 
-        session.Store(restaurant);
-        await session.SaveChangesAsync(cancellationToken);
+        dbContext.Restaurants.Add(restaurant);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new CreateRestaurantResult(restaurant.Id);
     }

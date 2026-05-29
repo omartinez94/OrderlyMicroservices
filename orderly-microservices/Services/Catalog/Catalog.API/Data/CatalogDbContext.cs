@@ -151,7 +151,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
             entity.Property(t => t.Status)
                 .IsRequired()
                 .HasMaxLength(20)
-                .HasDefaultValue("available");
+                .HasDefaultValue(BuildingBlocks.Enums.TableStatus.Available);
 
             entity.Property(t => t.IsActive)
                 .HasDefaultValue(true);
@@ -298,11 +298,11 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
 
             entity.Property(mi => mi.ItemType)
                 .HasMaxLength(20)
-                .HasDefaultValue("regular");
+                .HasDefaultValue(BuildingBlocks.Enums.ItemType.Regular);
 
             entity.Property(mi => mi.AvailabilityStatus)
                 .HasMaxLength(20)
-                .HasDefaultValue("available");
+                .HasDefaultValue(BuildingBlocks.Enums.AvailabilityStatus.Available);
 
             entity.Property(mi => mi.PromoPrice)
                 .HasColumnType("decimal(10,2)");

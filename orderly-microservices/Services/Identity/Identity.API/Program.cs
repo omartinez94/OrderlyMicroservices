@@ -9,6 +9,7 @@ builder.Services.AddCarter();
 
 builder.Services.AddIdentityDbContext(builder.Configuration);
 builder.Services.AddOpenIddictServer(builder.Configuration);
+builder.Services.AddAuthorizationServices();
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 

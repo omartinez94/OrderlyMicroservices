@@ -20,6 +20,7 @@ public class GetBasketEndpoints : ICarterModule
         .Produces<GetBasketResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .WithSummary("Get Basket")
-        .WithDescription("Get a user's active shopping basket for a specific restaurant.");
+        .WithDescription("Get a user's active shopping basket for a specific restaurant.")
+        .RequirePermission("orders:view_own");
     }
 }

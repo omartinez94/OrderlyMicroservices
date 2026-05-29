@@ -1,5 +1,3 @@
-using FluentValidation;
-
 namespace Identity.API.Validators;
 
 public class LoginRequestValidator : AbstractValidator<LoginRequest>

@@ -37,11 +37,13 @@ services:
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
       - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=postgres;Password=postgres;Include Error Detail=true
+      - IdentityServiceUrl=http://identity.api:8080
     ports:
       - "6000:8080"
       - "6060:8081"
     depends_on:
       - catalogdb
+      - identity.api
     volumes:
       - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
@@ -55,10 +57,12 @@ services:
       - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=postgres;Password=postgres;Include Error Detail=true
       - ConnectionStrings__Redis=distributedcache:6379
       - GrpcSettings__DiscountUrl=https://discount.grpc:8081
+      - IdentityServiceUrl=http://identity.api:8080
     depends_on:
       - basketdb
       - distributedcache
       - discount.grpc
+      - identity.api
     ports:
       - "6001:8080"
       - "6061:8081"
@@ -77,6 +81,55 @@ services:
     ports:
       - "6002:8080"
       - "6062:8081"
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+
+  identitydb:
+    container_name: identitydb
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=Identitydb
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    restart: always
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_identity:/var/lib/postgresql/data
+
+  identity.api:
+    container_name: identity.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=postgres;Password=postgres;Include Error Detail=true
+    ports:
+      - "5007:8080"
+      - "5057:8081"
+    depends_on:
+      - identitydb
+    volumes:
+      - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
+      - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro
+      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+
+  ordering.api:
+    container_name: ordering.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - IdentityServiceUrl=http://identity.api:8080
+    ports:
+      - "6003:8080"
+      - "6063:8081"
+    depends_on:
+      - identity.api
     volumes:
       - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro

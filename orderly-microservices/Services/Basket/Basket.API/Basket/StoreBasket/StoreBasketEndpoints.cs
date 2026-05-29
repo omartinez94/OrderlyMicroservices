@@ -1,4 +1,5 @@
 namespace Basket.API.Basket.StoreBasket;
+
 public record StoreBasketRequest(Models::Basket Basket);
 public record StoreBasketResponse(Guid UserId, Guid RestaurantId);
 
@@ -22,6 +23,7 @@ public class StoreBasketEndpoints : ICarterModule
         .Produces<StoreBasketResponse>(StatusCodes.Status201Created)
         .ProducesProblem(StatusCodes.Status400BadRequest)
         .WithSummary("Store Basket")
-        .WithDescription("Create or update a user's shopping basket.");
+        .WithDescription("Create or update a user's shopping basket.")
+        .RequirePermission("orders:create");
     }
 }

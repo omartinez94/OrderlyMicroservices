@@ -437,11 +437,69 @@ Services/Identity/
 
 ### Phase 4: Integration & Testing (Week 4-5)
 
-- End-to-end authentication flow testing
-- Integration with existing microservices
-- Security testing (penetration testing, token validation)
-- Performance testing (token issuance, validation)
-- Documentation and deployment configuration
+#### Overview
+
+Phase 4 validates the complete Identity Service through integration tests covering authentication flows, authorization enforcement, and microservice interoperability. Tests run against an ephemeral PostgreSQL container to ensure isolation and repeatability.
+
+#### Test Project
+
+```
+Services/Identity/
+└── Identity.API.Tests/
+    ├── Identity.API.Tests.csproj
+    ├── Auth/
+    │   ├── LoginTests.cs
+    │   ├── RegisterTests.cs
+    │   ├── TokenEndpointTests.cs
+    │   ├── RefreshTokenRotationTests.cs
+    │   └── LogoutTests.cs
+    ├── Users/
+    │   └── UserManagementTests.cs
+    ├── Roles/
+    │   └── RoleManagementTests.cs
+    └── Infrastructure/
+        ├── IdentityApiFactory.cs
+        └── TestcontainersFixture.cs
+```
+
+#### Test Categories
+
+| Category | Tests |
+|----------|-------|
+| **Auth Flows** | Login (success/failure/lockout), Register, Token endpoint, Refresh rotation, Logout revocation |
+| **User Management** | CRUD operations, AssignRoles, AssignRestaurants |
+| **Role Management** | CRUD operations, AssignPermissions |
+| **Permissions** | ListPermissions |
+| **Audit Log** | GetAuditLog with event filtering |
+
+#### Test Infrastructure
+
+- **`IdentityApiFactory<TStartup>`**: Custom `WebApplicationFactory` that bootstraps an isolated `IHost` per test class
+- **`Testcontainers.PostgreSql`**: Spins up an ephemeral PostgreSQL container per test class; connection string injected via `IConfiguration`
+- **`DataSeeder`**: Runs before each test class to ensure roles, permissions, and default `SuperAdmin` user are seeded
+- **FluentAssertions**: Used for readable assertion syntax
+
+#### Test Execution
+
+```bash
+cd orderly-microservices/Services/Identity/Identity.API.Tests
+dotnet test
+```
+
+#### Validation Checklist
+
+- [ ] Access token (15-min lifespan) and refresh token (7-day with rotation) correctly issued
+- [ ] Authorization Code + PKCE flow end-to-end
+- [ ] JWT contains `roles`, `permissions`, `restaurantId`, and `sub` claims
+- [ ] Token refresh invalidates old refresh token and issues new one
+- [ ] Logout revokes refresh tokens
+- [ ] Rate limiting: 5 failed login attempts triggers 30-minute lockout
+- [ ] Audit log entries created for all authentication events
+- [ ] Downstream services (`Catalog.API`, `Basket.API`, `Ordering.API`) validate JWTs via OIDC discovery
+- [ ] `.RequirePermission(...)` policies enforced in downstream services
+- [ ] Row-level security filters applied based on `restaurantId` claim
+- [ ] Token issuance latency < 200ms under load
+- [ ] Docker Compose service definition finalized
 
 ---
 
@@ -471,6 +529,6 @@ Services/Identity/
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: May 5, 2026  
-**Status**: Approved for Implementation
+**Document Version**: 1.1
+**Last Updated**: May 27, 2026
+**Status**: Phase 4 documented, pending implementation

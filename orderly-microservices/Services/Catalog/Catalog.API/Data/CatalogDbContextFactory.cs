@@ -106,7 +106,11 @@ public class RestaurantMigrationContextFactory : IDesignTimeDbContextFactory<Res
         
         optionsBuilder.UseNpgsql(
             "Host=localhost;Database=catalogdb;Username=cataloguser;Password=catalogpassword",
-            npgsqlOptions => npgsqlOptions.EnableRetryOnFailure());
+            npgsqlOptions => 
+            {
+                npgsqlOptions.EnableRetryOnFailure();
+                npgsqlOptions.UseNodaTime();
+            });
 
         return new RestaurantMigrationContext(optionsBuilder.Options);
     }

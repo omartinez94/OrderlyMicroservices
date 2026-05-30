@@ -5,7 +5,7 @@ public static class DependencyInjection
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddJwtAuthentication(
-            authority: configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5007",
+            authority: configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
             audience: "OrderlyMicroservices");
 
         services.AddAuthorizationServices();

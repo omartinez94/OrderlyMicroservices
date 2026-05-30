@@ -1,12 +1,11 @@
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using NodaTime.Serialization.SystemTextJson;
-using BuildingBlocks.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddJwtAuthentication(
-    authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5007",
+    authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 
 builder.Services.AddAuthorizationServices();

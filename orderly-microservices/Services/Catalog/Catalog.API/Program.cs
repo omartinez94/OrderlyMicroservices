@@ -1,7 +1,5 @@
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.EntityFrameworkCore;
-using BuildingBlocks.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +11,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddJwtAuthentication(
-    authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5007",
+    authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 
 builder.Services.AddAuthorizationServices();
@@ -36,9 +34,16 @@ builder.Services.AddMarten(opt =>
     opt.Schema.For<NotificationLog>();
 }).UseLightweightSessions();
 
+var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("CatalogDB")!);
+dataSourceBuilder.UseNodaTime();
+var dataSource = dataSourceBuilder.Build();
+
 builder.Services.AddDbContext<CatalogDbContext>(options =>
 {
-    options.UseNpgsql(builder.Configuration.GetConnectionString("CatalogDB")!);
+    options.UseNpgsql(dataSource, npgsqlOptions => 
+    {
+        npgsqlOptions.UseNodaTime();
+    });
 });
 
 if(builder.Environment.IsDevelopment())

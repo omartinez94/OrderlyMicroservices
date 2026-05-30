@@ -16,4 +16,5 @@ global using Marten;
 global using MediatR;
 global using Microsoft.EntityFrameworkCore;
 global using NodaTime;
+global using Npgsql;
 global using System.Security.Claims;

@@ -5,7 +5,7 @@ public record Payment
     public string CardName { get; }
     public string CardNumber { get; }
     public string Expiration { get; }
-    public string CCV { get; }
+    public string Ccv { get; }
     public string PaymentMethod { get; }
 
     private Payment(string cardName, string cardNumber, string expiration, string ccv, string paymentMethod)
@@ -13,7 +13,7 @@ public record Payment
         CardName = cardName;
         CardNumber = cardNumber;
         Expiration = expiration;
-        CCV = ccv;
+        Ccv = ccv;
         PaymentMethod = paymentMethod;
     }
 

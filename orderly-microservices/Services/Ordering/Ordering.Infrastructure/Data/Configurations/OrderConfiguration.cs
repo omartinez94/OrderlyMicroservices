@@ -20,16 +20,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(o => o.CustomerId)
             .IsRequired();
 
+        builder.Property(o => o.OrderNumber)
+            .HasMaxLength(100)
+            .IsRequired()
+            .HasConversion(on => on.Value, value => OrderNumber.Of(value));
+
         builder.HasIndex(o => o.OrderNumber)
             .IsUnique();
-
-        builder.ComplexProperty(o => o.OrderNumber, nameBuilder =>
-        {
-            nameBuilder.Property(on => on.Value)
-                .HasMaxLength(100)
-                .HasColumnName(nameof(Order.OrderNumber))
-                .IsRequired();
-        });
 
         builder.ComplexProperty(o => o.BillingAddress, addressBuilder =>
         {
@@ -54,7 +51,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             paymentBuilder.Property(p => p.CardName).HasMaxLength(50).IsRequired();
             paymentBuilder.Property(p => p.CardNumber).HasMaxLength(24).IsRequired();
             paymentBuilder.Property(p => p.Expiration).HasMaxLength(10).IsRequired();
-            paymentBuilder.Property(p => p.CCV).HasMaxLength(3).IsRequired();
+            paymentBuilder.Property(p => p.Ccv).HasMaxLength(3).IsRequired();
             paymentBuilder.Property(p => p.PaymentMethod).HasMaxLength(50).IsRequired();
         });
 

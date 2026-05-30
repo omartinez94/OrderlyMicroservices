@@ -2,13 +2,13 @@ namespace Ordering.Domain.Models;
 
 public class OrderItem : Abstractions::Entity<OrderItemId>
 {
-    internal OrderItem(OrderId orderId, MenuItemId menuItemId, int quantity, decimal price) 
+    internal OrderItem(OrderId orderId, MenuItemId menuItemId, int quantity, decimal unitPrice) 
     {
         Id = OrderItemId.Of(Guid.NewGuid());
         OrderId = orderId;
         MenuItemId = menuItemId;
         Quantity = quantity;
-        UnitPrice = price;
+        UnitPrice = unitPrice;
     }
 
     public decimal BasePrice { get; set; }

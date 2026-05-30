@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace Ordering.Infrastructure.Data;
 
@@ -14,5 +14,24 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
         base.OnModelCreating(builder);
+    }
+
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder
+            .Properties<NodaTime.Instant>()
+            .HaveConversion<InstantConverter>();
+
+        base.ConfigureConventions(configurationBuilder);
+    }
+}
+
+public class InstantConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<NodaTime.Instant, DateTime>
+{
+    public InstantConverter()
+        : base(
+            v => v.ToDateTimeUtc(),
+            v => NodaTime.Instant.FromDateTimeUtc(DateTime.SpecifyKind(v, DateTimeKind.Utc)))
+    {
     }
 }

@@ -1,4 +1,4 @@
-﻿namespace Ordering.Infrastructure.Data.Configurations;
+namespace Ordering.Infrastructure.Data.Configurations;
 
 public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
 {
@@ -13,5 +13,14 @@ public class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         builder.Property(c => c.Email).HasMaxLength(255).IsRequired();
 
         builder.HasIndex(c => c.Email).IsUnique();
+
+        builder.OwnsOne(c => c.Address, addressBuilder =>
+        {
+            addressBuilder.Property(a => a.Street).HasMaxLength(180);
+            addressBuilder.Property(a => a.City).HasMaxLength(50);
+            addressBuilder.Property(a => a.State).HasMaxLength(50);
+            addressBuilder.Property(a => a.ZipCode).HasMaxLength(5);
+            addressBuilder.Property(a => a.Country).HasMaxLength(50);
+        });
     }
 }

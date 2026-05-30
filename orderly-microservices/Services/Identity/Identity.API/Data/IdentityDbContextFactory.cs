@@ -5,7 +5,8 @@ public class IdentityDbContextFactory : IDesignTimeDbContextFactory<IdentityDbCo
     public IdentityDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<IdentityDbContext>();
-        optionsBuilder.UseNpgsql("Host=localhost;Database=Identitydb;Username=postgres;Password=postgres");
+        optionsBuilder.UseNpgsql("Host=localhost;Port=5435;Database=Identitydb;Username=postgres;Password=postgres");
+        optionsBuilder.UseOpenIddict();
 
         return new IdentityDbContext(optionsBuilder.Options);
     }

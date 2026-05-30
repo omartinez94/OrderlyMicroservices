@@ -1,3 +1,5 @@
+using Identity.API.Data.Migrations;
+
 namespace Identity.API.Extensions;
 
 public static class IdentityDbContextExtensions
@@ -8,6 +10,7 @@ public static class IdentityDbContextExtensions
         {
             options.UseNpgsql(configuration.GetConnectionString("IdentityDB"));
             options.UseOpenIddict();
+            options.UseModel(IdentityDbContextModel.Instance);
         });
 
         services.AddIdentity<ApplicationUser, ApplicationRole>(options =>

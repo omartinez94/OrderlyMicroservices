@@ -39,7 +39,7 @@ public class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
     }
 }
 
-public class CreateBrandCommandHandler(IDocumentSession session) : ICommandHandler<CreateBrandCommand, CreateBrandResult>
+public class CreateBrandCommandHandler(CatalogDbContext dbContext) : ICommandHandler<CreateBrandCommand, CreateBrandResult>
 {
     public async Task<CreateBrandResult> Handle(CreateBrandCommand command, CancellationToken cancellationToken)
     {
@@ -52,8 +52,7 @@ public class CreateBrandCommandHandler(IDocumentSession session) : ICommandHandl
             WebsiteUrl = command.WebsiteUrl,
             ContactEmail = command.ContactEmail,
             ContactPhone = command.ContactPhone,
-            CuisineType = command.CuisineType,
-            IsActive = command.IsActive
+            CuisineType = command.CuisineType
         };
 
         if (brand is IAuditableEntity auditableEntity)
@@ -61,8 +60,8 @@ public class CreateBrandCommandHandler(IDocumentSession session) : ICommandHandl
             auditableEntity.CreatedFrom("system", SystemClock.Instance.GetCurrentInstant());
         }
 
-        session.Store(brand);
-        await session.SaveChangesAsync(cancellationToken);
+        dbContext.Brands.Add(brand);
+        await dbContext.SaveChangesAsync(cancellationToken);
 
         return new CreateBrandResult(brand.Id);
     }

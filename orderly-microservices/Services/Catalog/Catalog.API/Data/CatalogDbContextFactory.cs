@@ -11,6 +11,7 @@ public class RestaurantMigrationContext : DbContext
     }
     
     public DbSet<Restaurant> Restaurants => Set<Restaurant>();
+    public DbSet<Brand> Brands => Set<Brand>();
     
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,12 +20,6 @@ public class RestaurantMigrationContext : DbContext
             entity.ToTable("Restaurants");
             entity.HasKey(r => r.Id);
             
-            entity.Ignore(r => r.CreatedAt);
-            entity.Ignore(r => r.LastModifiedAt);
-            entity.Ignore(r => r.CreatedBy);
-            entity.Ignore(r => r.LastModifiedBy);
-            entity.Ignore(r => r.IsActive);
-
             entity.Property(r => r.Name)
                 .IsRequired()
                 .HasMaxLength(255);
@@ -66,6 +61,37 @@ public class RestaurantMigrationContext : DbContext
                 .HasDefaultValue(30);
 
             entity.HasIndex(r => r.BrandId);
+        });
+
+        modelBuilder.Entity<Brand>(entity =>
+        {
+            entity.ToTable("Brands");
+            entity.HasKey(b => b.Id);
+
+            entity.Property(b => b.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(b => b.Description)
+                .HasMaxLength(500);
+
+            entity.Property(b => b.LogoUrl)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(b => b.WebsiteUrl)
+                .HasMaxLength(255);
+
+            entity.Property(b => b.ContactEmail)
+                .HasMaxLength(255);
+
+            entity.Property(b => b.ContactPhone)
+                .HasMaxLength(20);
+
+            entity.Property(b => b.CuisineType)
+                .HasMaxLength(50);
+
+            entity.HasIndex(b => b.Name);
         });
         
         base.OnModelCreating(modelBuilder);

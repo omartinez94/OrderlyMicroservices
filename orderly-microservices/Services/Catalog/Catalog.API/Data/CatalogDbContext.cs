@@ -14,6 +14,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     // RESTAURANT & INFRASTRUCTURE
     // ═══════════════════════════════════════════════════
     public DbSet<Restaurant> Restaurants => Set<Restaurant>();
+    public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Table> Tables => Set<Table>();
     
     /// <summary>
@@ -127,6 +128,50 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
             // Indexes
             entity.HasIndex(r => r.BrandId);
             entity.HasIndex(r => r.IsActive);
+        });
+
+        // ═══════════════════════════════════════════════════
+        // BRAND CONFIGURATION
+        // ═══════════════════════════════════════════════════
+        modelBuilder.Entity<Brand>(entity =>
+        {
+            entity.ToTable("Brands");
+            entity.HasKey(b => b.Id);
+
+            entity.Property(b => b.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(b => b.Description)
+                .HasMaxLength(500);
+
+            entity.Property(b => b.LogoUrl)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(b => b.WebsiteUrl)
+                .HasMaxLength(255);
+
+            entity.Property(b => b.ContactEmail)
+                .HasMaxLength(255);
+
+            entity.Property(b => b.ContactPhone)
+                .HasMaxLength(20);
+
+            entity.Property(b => b.CuisineType)
+                .HasMaxLength(50);
+
+            entity.Property(b => b.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(b => b.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(b => b.LastModifiedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(b => b.Name);
+            entity.HasIndex(b => b.IsActive);
         });
 
         // ═══════════════════════════════════════════════════

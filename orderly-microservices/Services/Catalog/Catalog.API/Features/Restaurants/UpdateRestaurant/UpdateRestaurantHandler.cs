@@ -13,8 +13,7 @@ public record UpdateRestaurantCommand(
     bool AutoConfirmOrders,
     bool AutoConfirmReservations,
     bool AllowAutoSubstitute,
-    int EstimatedTurnoverMinutes,
-    string UserId = "system") : ICommand<UpdateRestaurantResult>;
+    int EstimatedTurnoverMinutes) : ICommand<UpdateRestaurantResult>;
 
 public record UpdateRestaurantResult(bool IsSuccess);
 
@@ -56,11 +55,7 @@ internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken);
-        if (restaurant is null)
-        {
-            throw new RestaurantNotFoundException(command.Id);
-        }
+        var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken) ?? throw new RestaurantNotFoundException(command.Id);
 
         restaurant.BrandId = command.BrandId;
         restaurant.Name = command.Name;
@@ -74,11 +69,6 @@ internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
         restaurant.AutoConfirmReservations = command.AutoConfirmReservations;
         restaurant.AllowAutoSubstitute = command.AllowAutoSubstitute;
         restaurant.EstimatedTurnoverMinutes = command.EstimatedTurnoverMinutes;
-
-        if (restaurant is IAuditableEntity auditableRest)
-        {
-            auditableRest.ModifiedFrom(command.UserId, SystemClock.Instance.GetCurrentInstant());
-        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

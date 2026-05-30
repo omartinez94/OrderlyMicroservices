@@ -27,9 +27,7 @@ public class UpdateRestaurantEndpoint : ICarterModule
         {
             if (id != request.Id) return Results.BadRequest();
 
-            var userId = user.Identity?.IsAuthenticated == true ? user.GetUserId().ToString() : "system";
-
-            var command = request.Adapt<UpdateRestaurantCommand>() with { UserId = userId };
+            var command = request.Adapt<UpdateRestaurantCommand>();
             var result = await sender.Send(command);
             var response = result.Adapt<UpdateRestaurantResponse>();
 

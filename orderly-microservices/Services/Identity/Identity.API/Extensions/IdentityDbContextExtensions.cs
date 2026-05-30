@@ -1,3 +1,4 @@
+using BuildingBlocks.Entities.Interceptors;
 using Identity.API.Data.Migrations;
 
 namespace Identity.API.Extensions;
@@ -6,11 +7,13 @@ public static class IdentityDbContextExtensions
 {
     public static IServiceCollection AddIdentityDbContext(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddScoped<AuditableEntityInterceptor>();
         services.AddDbContext<Data.IdentityDbContext>(options =>
         {
             options.UseNpgsql(configuration.GetConnectionString("IdentityDB"));
             options.UseOpenIddict();
             options.UseModel(IdentityDbContextModel.Instance);
+            options.AddInterceptors(new AuditableEntityInterceptor());
         });
 
         services.AddIdentity<ApplicationUser, ApplicationRole>(options =>

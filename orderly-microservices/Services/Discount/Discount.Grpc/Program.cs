@@ -1,3 +1,4 @@
+using BuildingBlocks.Entities.Interceptors;
 using Discount.Grpc.Data;
 using Discount.Grpc.Services;
 using Microsoft.EntityFrameworkCore;
@@ -6,8 +7,9 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddGrpc();
+builder.Services.AddScoped<AuditableEntityInterceptor>();
 builder.Services.AddDbContext<DiscountContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Database")));
+    options.UseSqlite(builder.Configuration.GetConnectionString("Database")).AddInterceptors(new AuditableEntityInterceptor()));
 
 var app = builder.Build();
 

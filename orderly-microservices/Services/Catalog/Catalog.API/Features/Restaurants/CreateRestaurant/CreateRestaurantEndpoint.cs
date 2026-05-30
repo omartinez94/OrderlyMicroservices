@@ -24,9 +24,7 @@ public class CreateRestaurantEndpoint : ICarterModule
 
         group.MapPost("/restaurants", async (CreateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            var userId = user.Identity?.IsAuthenticated == true ? user.GetUserId().ToString() : "system";
-
-            var command = request.Adapt<CreateRestaurantCommand>() with { UserId = userId };
+            var command = request.Adapt<CreateRestaurantCommand>();
 
             var result = await sender.Send(command);
             var response = result.Adapt<CreateRestaurantResponse>();

@@ -55,11 +55,6 @@ public class CreateBrandCommandHandler(CatalogDbContext dbContext) : ICommandHan
             CuisineType = command.CuisineType
         };
 
-        if (brand is IAuditableEntity auditableEntity)
-        {
-            auditableEntity.CreatedFrom("system", SystemClock.Instance.GetCurrentInstant());
-        }
-
         dbContext.Brands.Add(brand);
         await dbContext.SaveChangesAsync(cancellationToken);
 

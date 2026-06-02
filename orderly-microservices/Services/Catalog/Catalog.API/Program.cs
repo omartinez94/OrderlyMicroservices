@@ -1,6 +1,7 @@
 using BuildingBlocks.Entities.Interceptors;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -39,7 +40,8 @@ var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(builder.Configuration
 dataSourceBuilder.UseNodaTime();
 var dataSource = dataSourceBuilder.Build();
 
-builder.Services.AddScoped<AuditableEntityInterceptor>();
+builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+
 builder.Services.AddDbContext<CatalogDbContext>(options =>
 {
     options.AddInterceptors(new AuditableEntityInterceptor());

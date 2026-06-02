@@ -1,5 +1,6 @@
 using BuildingBlocks.Entities.Interceptors;
 using Identity.API.Data.Migrations;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Identity.API.Extensions;
 
@@ -7,7 +8,8 @@ public static class IdentityDbContextExtensions
 {
     public static IServiceCollection AddIdentityDbContext(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddScoped<AuditableEntityInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+
         services.AddDbContext<Data.IdentityDbContext>(options =>
         {
             options.UseNpgsql(configuration.GetConnectionString("IdentityDB"));

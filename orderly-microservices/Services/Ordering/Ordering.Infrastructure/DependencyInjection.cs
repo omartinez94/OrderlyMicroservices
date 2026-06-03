@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Entities.Interceptors;
+using BuildingBlocks.Entities.Interceptors;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Ordering.Infrastructure.Data.Interceptors;
 
@@ -18,6 +18,8 @@ public static class DependencyInjection
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
             options.UseSqlServer(connectionString);
         });
+
+        services.AddScoped<Application.Data.IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDBContext>());
 
         return services;
     }

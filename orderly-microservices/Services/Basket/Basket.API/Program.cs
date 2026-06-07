@@ -1,4 +1,6 @@
+using BuildingBlocks.Messaging.MassTransit;
 using HealthChecks.UI.Client;
+using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using NodaTime.Serialization.SystemTextJson;
 
@@ -67,6 +69,9 @@ builder.Services.AddStackExchangeRedisCache(rediscache =>
 {
     rediscache.Configuration = builder.Configuration.GetConnectionString("Redis")!;
 });
+
+// Async comunication services
+builder.Services.AddMessageBroker(builder.Configuration);
 
 var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {

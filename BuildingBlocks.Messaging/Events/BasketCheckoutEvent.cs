@@ -15,6 +15,7 @@ public record BasketCheckoutEvent : IntegrationEvent
     public string AddressLine { get; init; } = default!;
     public string Country { get; init; } = default!;
     public string State { get; init; } = default!;
+    public string City { get; init; } = default!;
     public string ZipCode { get; init; } = default!;
 
     // Payment
@@ -22,7 +23,7 @@ public record BasketCheckoutEvent : IntegrationEvent
     public string CardNumber { get; init; } = default!;
     public string Expiration { get; init; } = default!;
     public string CVV { get; init; } = default!;
-    public int PaymentMethod { get; init; }
+    public string PaymentMethod { get; init; } = default!;
 }
 
 public class BasketCheckoutItem

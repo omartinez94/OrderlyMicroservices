@@ -1,5 +1,3 @@
-using BuildingBlocks.Messaging.Events;
-using MassTransit;
 using Ordering.Application.Orders.Commands.CreateOrder;
 
 namespace Ordering.Application.Orders.EventHandlers.Integration;

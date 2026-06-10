@@ -40,6 +40,17 @@ services:
     ports:
       - "1433:1433"
 
+  messagebroker:
+    container_name: messagebroker
+    hostname: orderly-mq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+
   catalog.api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development

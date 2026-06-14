@@ -9,6 +9,7 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
+    public DbSet<OrderBill> OrderBills => Set<OrderBill>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

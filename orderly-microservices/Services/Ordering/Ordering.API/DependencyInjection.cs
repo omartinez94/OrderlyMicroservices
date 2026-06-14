@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Exceptions.Handler;
+using BuildingBlocks.Exceptions.Handler;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
@@ -13,6 +13,7 @@ public static class DependencyInjection
             audience: "OrderlyMicroservices");
         services.AddAuthorizationServices();
 
+        services.AddHttpContextAccessor();
         services.AddCarter();
 
         services.AddExceptionHandler<CustomExceptionHandler>();

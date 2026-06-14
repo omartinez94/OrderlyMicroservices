@@ -154,12 +154,18 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      - ConnectionStrings__Database=Server=orderdb;Database=OrderDb;User ID=sa;Password=YrPsswrd123456789;Encrypt=False;TrustServerCertificate=True
+      - MessageBroker__Host=amqp://messagebroker:5672
+      - MessageBroker__UserName=guest
+      - MessageBroker__Password=guest
       - IdentityServiceUrl=http://identity.api:8080
     ports:
       - "6003:8080"
       - "6063:8081"
     depends_on:
       - identity.api
+      - orderdb
+      - messagebroker
     volumes:
       - ${APPDATA}/Microsoft/UserSecrets:/home/app/.microsoft/usersecrets:ro
       - ${APPDATA}/Microsoft/UserSecrets:/root/.microsoft/usersecrets:ro

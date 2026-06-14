@@ -35,6 +35,8 @@ public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
     {
         CreatedBy = userId;
         CreatedAt = timestamp;
+        LastModifiedBy = userId;
+        LastModifiedAt = timestamp;
     }
 
     void IAuditableEntity.ModifiedFrom(string userId, Instant timestamp)

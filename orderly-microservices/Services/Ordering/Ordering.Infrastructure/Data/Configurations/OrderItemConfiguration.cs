@@ -17,7 +17,14 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .IsRequired();
 
         builder.Property(oi => oi.UnitPrice)
+            .HasPrecision(18, 2)
             .IsRequired();
+            
+        builder.Property(oi => oi.BasePrice)
+            .HasPrecision(18, 2);
+            
+        builder.Property(oi => oi.TotalPrice)
+            .HasPrecision(18, 2);
 
         builder.Property(oi => oi.PrepStatus)
             .HasDefaultValue(PrepStatus.Pending)

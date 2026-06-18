@@ -82,11 +82,15 @@ services:
       - ConnectionStrings__Redis=distributedcache:6379
       - GrpcSettings__DiscountUrl=https://discount.grpc:8081
       - IdentityServiceUrl=http://identity.api:8080
+      - MessageBroker__Host=amqp://messagebroker:5672
+      - MessageBroker__UserName=guest
+      - MessageBroker__Password=guest
     depends_on:
       - basketdb
       - distributedcache
       - discount.grpc
       - identity.api
+      - messagebroker
     ports:
       - "6001:8080"
       - "6061:8081"
@@ -159,6 +163,7 @@ services:
       - MessageBroker__UserName=guest
       - MessageBroker__Password=guest
       - IdentityServiceUrl=http://identity.api:8080
+      - FeatureManagement__OrderFullfilment=true
     ports:
       - "6003:8080"
       - "6063:8081"

@@ -1,0 +1,1065 @@
+{
+  "info": {
+    "_postman_id": "83ddb495-1383-41e5-9a7e-e11fb40263a9",
+    "name": "Orderly",
+    "description": "Complete Orderly microservices API collection.\n\n## Global Variables\n\n| Variable | Local | Docker |\n|---|---|---|\n| `catalog_url` | `http://localhost:6000` | `http://localhost:6000` |\n| `basket_url` | `http://localhost:6001` | `http://localhost:6001` |\n| `identity_url` | `http://localhost:6007` | `http://localhost:6007` |\n| `ordering_url` | `http://localhost:6003` | `http://localhost:6003` |\n\nAll endpoints are versioned under `/api/v1` where applicable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "2750083"
+  },
+  "variable": [
+    {
+      "key": "catalog_url",
+      "value": "http://localhost:6000",
+      "description": "Catalog API base URL (local: http://localhost:6000 | docker: http://localhost:6000)"
+    },
+    {
+      "key": "basket_url",
+      "value": "http://localhost:6001",
+      "description": "Basket API base URL (local: http://localhost:6001 | docker: http://localhost:6001)"
+    },
+    {
+      "key": "identity_url",
+      "value": "http://localhost:6007",
+      "description": "Identity API base URL (local: http://localhost:6007 | docker: http://localhost:6007)"
+    },
+    {
+      "key": "ordering_url",
+      "value": "http://localhost:6003",
+      "description": "Ordering API base URL (local: http://localhost:6003 | docker: http://localhost:6003)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Catalog API",
+      "item": [
+        {
+          "name": "Restaurants",
+          "item": [
+            {
+              "name": "Get Restaurants",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/restaurants",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "restaurants"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Restaurant by Id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Restaurant",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"brandId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\n    \"name\": \"Kalaa Restaurant\",\n    \"address\": \"123 Test St, Test City\",\n    \"phoneNumber\": \"+1234567890\",\n    \"email\": \"kalaa@testrestaurant.com\",\n    \"taxRate\": 0.16,\n    \"currency\": \"MXN\",\n    \"timeZone\": \"America/Mexico_City\",\n    \"autoConfirmOrders\": false,\n    \"autoConfirmReservations\": false,\n    \"allowAutoSubstitute\": false,\n    \"estimatedTurnoverMinutes\": 45\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/restaurants",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "restaurants"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Restaurant",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Kalaa Restaurant (Updated)\",\n    \"address\": \"456 New St, Updated City\",\n    \"phoneNumber\": \"+1987654321\",\n    \"email\": \"kalaa-updated@testrestaurant.com\",\n    \"taxRate\": 0.10,\n    \"currency\": \"MXN\",\n    \"timeZone\": \"America/Mexico_City\",\n    \"autoConfirmOrders\": true,\n    \"autoConfirmReservations\": true,\n    \"allowAutoSubstitute\": false,\n    \"estimatedTurnoverMinutes\": 60\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Restaurant",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Brands",
+          "item": [
+            {
+              "name": "Create Brand",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Luigi's Trattoria\",\n  \"description\": \"Authentic Italian dining experience blending traditional recipes with modern flair.\",\n  \"logoUrl\": \"https://example.com/assets/luigis-logo.png\",\n  \"websiteUrl\": \"https://luigis-trattoria.local\",\n  \"contactEmail\": \"hello@luigistrattoria.local\",\n  \"contactPhone\": \"+1-555-019-8372\",\n  \"cuisineType\": 1,\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{catalog_url}}/api/v1/brands",
+                  "host": ["{{catalog_url}}"],
+                  "path": ["api", "v1", "brands"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{catalog_url}}/health",
+              "host": ["{{catalog_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Basket API",
+      "item": [
+        {
+          "name": "Get Basket",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "host": ["{{basket_url}}"],
+              "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Store Basket",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"Basket\": {\r\n    \"UserId\": \"9fb02bf6-3b03-4b57-8c08-acc8994b3063\",\r\n    \"RestaurantId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\r\n    \"Items\": [\r\n      {\r\n        \"MenuItemId\": 142,\r\n        \"Quantity\": 2,\r\n        \"UnitPrice\": 12.50,\r\n        \"Variations\": [\r\n          {\r\n            \"Name\": \"Size\",\r\n            \"Value\": \"Large\",\r\n            \"Price\": 2.50\r\n          }\r\n        ],\r\n        \"Customizations\": [\r\n          {\r\n            \"Ingredient\": \"Onions\",\r\n            \"Action\": \"Remove\"\r\n          },\r\n          {\r\n            \"Ingredient\": \"Extra Cheese\",\r\n            \"Action\": \"Add\"\r\n          }\r\n        ]\r\n      },\r\n      {\r\n        \"MenuItemId\": 98,\r\n        \"Quantity\": 1,\r\n        \"UnitPrice\": 4.00,\r\n        \"Variations\": [],\r\n        \"Customizations\": []\r\n      }\r\n    ],\r\n    \"AppliedDiscounts\": [\r\n      \"SUMMER10\"\r\n    ],\r\n    \"CreatedAt\": \"2026-04-11T13:56:32Z\",\r\n    \"ExpiresAt\": \"2026-04-11T14:56:32Z\"\r\n  }\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "host": ["{{basket_url}}"],
+              "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Basket",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "host": ["{{basket_url}}"],
+              "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout Basket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"BasketCheckoutDto\": {\n    \"UserId\": \"9fb02bf6-3b03-4b57-8c08-acc8994b3063\",\n    \"RestaurantId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\n    \"FirstName\": \"John\",\n    \"LastName\": \"Doe\",\n    \"EmailAddress\": \"john.doe@example.com\",\n    \"AddressLine\": \"123 Main St\",\n    \"Country\": \"Mexico\",\n    \"State\": \"CDMX\",\n    \"ZipCode\": \"06600\",\n    \"CardName\": \"John Doe\",\n    \"CardNumber\": \"4111111111111111\",\n    \"Expiration\": \"12/27\",\n    \"CVV\": \"123\",\n    \"PaymentMethod\": 1\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{basket_url}}/api/v1/baskets/checkout",
+              "host": ["{{basket_url}}"],
+              "path": ["api", "v1", "baskets", "checkout"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{basket_url}}/health",
+              "host": ["{{basket_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Identity API",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Register",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Email\": \"john.doe@example.com\",\n  \"Password\": \"P@ssw0rd123!\",\n  \"FirstName\": \"John\",\n  \"LastName\": \"Doe\",\n  \"PhoneNumber\": \"+1234567890\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/auth/register",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "auth", "register"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Login",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Email\": \"john.doe@example.com\",\n  \"Password\": \"P@ssw0rd123!\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/auth/login",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "auth", "login"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/auth/logout",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "auth", "logout"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Token (Password Grant)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/x-www-form-urlencoded",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    { "key": "grant_type", "value": "password", "type": "text" },
+                    { "key": "username", "value": "john.doe@example.com", "type": "text" },
+                    { "key": "password", "value": "P@ssw0rd123!", "type": "text" },
+                    { "key": "scope", "value": "openid email profile offline_access", "type": "text" }
+                  ]
+                },
+                "url": {
+                  "raw": "{{identity_url}}/connect/token",
+                  "host": ["{{identity_url}}"],
+                  "path": ["connect", "token"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Token (Refresh Grant)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/x-www-form-urlencoded",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "urlencoded",
+                  "urlencoded": [
+                    { "key": "grant_type", "value": "refresh_token", "type": "text" },
+                    { "key": "refresh_token", "value": "{{refresh_token}}", "type": "text" }
+                  ]
+                },
+                "url": {
+                  "raw": "{{identity_url}}/connect/token",
+                  "host": ["{{identity_url}}"],
+                  "path": ["connect", "token"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "List Users",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/users",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get User by Id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Email\": \"staff@example.com\",\n  \"Password\": \"P@ssw0rd123!\",\n  \"FirstName\": \"Jane\",\n  \"LastName\": \"Smith\",\n  \"PhoneNumber\": \"+1987654321\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/users",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"FirstName\": \"Jane\",\n  \"LastName\": \"Doe\",\n  \"PhoneNumber\": \"+1111111111\",\n  \"IsActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Roles to User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Roles\": [\"Manager\", \"Staff\"]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/roles",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "roles"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Restaurants to User",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Restaurants\": [\n    { \"RestaurantId\": 1, \"IsDefault\": true },\n    { \"RestaurantId\": 2, \"IsDefault\": false }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/restaurants",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "restaurants"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Roles",
+          "item": [
+            {
+              "name": "List Roles",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/roles",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "roles"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Get Role by Id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Create Role",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Name\": \"Manager\",\n  \"Description\": \"Restaurant manager with elevated permissions\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/roles",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "roles"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Update Role",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"Name\": \"Senior Manager\",\n  \"Description\": \"Senior restaurant manager with all permissions\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Permissions to Role",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"PermissionIds\": [\n    \"a1b2c3d4-0000-0000-0000-000000000001\",\n    \"a1b2c3d4-0000-0000-0000-000000000002\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb/permissions",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb", "permissions"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Permissions",
+          "item": [
+            {
+              "name": "List Permissions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/permissions",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "permissions"]
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Permissions to Role (via /permissions)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"RoleId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\n  \"PermissionIds\": [\n    \"a1b2c3d4-0000-0000-0000-000000000001\",\n    \"a1b2c3d4-0000-0000-0000-000000000002\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{identity_url}}/api/permissions/assign-to-role",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "permissions", "assign-to-role"]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Audit Log",
+          "item": [
+            {
+              "name": "Get Audit Log",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer {{access_token}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{identity_url}}/api/audit-log?Page=1&PageSize=50",
+                  "host": ["{{identity_url}}"],
+                  "path": ["api", "audit-log"],
+                  "query": [
+                    { "key": "Page", "value": "1" },
+                    { "key": "PageSize", "value": "50" },
+                    { "key": "UserId", "value": "", "disabled": true },
+                    { "key": "EventType", "value": "", "disabled": true }
+                  ]
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{identity_url}}/health",
+              "host": ["{{identity_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Ordering API",
+      "item": [
+        {
+          "name": "Get Orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders?PageIndex=0&PageSize=10",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders"],
+              "query": [
+                { "key": "PageIndex", "value": "0" },
+                { "key": "PageSize", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Order by Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Orders by Customer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders/customer/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders", "customer", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Order\": {\n    \"Id\": \"00000000-0000-0000-0000-000000000000\",\n    \"CustomerId\": \"9fb02bf6-3b03-4b57-8c08-acc8994b3063\",\n    \"OrderNumber\": \"ORD-001\",\n    \"RestaurantId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\n    \"Currency\": \"MXN\",\n    \"Subtotal\": 29.00,\n    \"TaxRate\": 0.16,\n    \"TaxAmount\": 4.64,\n    \"DiscountAmount\": 0.00,\n    \"DiscountCode\": \"\",\n    \"TotalAmount\": 33.64,\n    \"Status\": 0,\n    \"OrderType\": 0,\n    \"BillingAddress\": {\n      \"Street\": \"123 Main St\",\n      \"City\": \"Mexico City\",\n      \"State\": \"CDMX\",\n      \"ZipCode\": \"06600\",\n      \"Country\": \"Mexico\"\n    },\n    \"DeliveryAddress\": {\n      \"Street\": \"123 Main St\",\n      \"City\": \"Mexico City\",\n      \"State\": \"CDMX\",\n      \"ZipCode\": \"06600\",\n      \"Country\": \"Mexico\"\n    },\n    \"DeliveryNotes\": \"Please ring the doorbell\",\n    \"DeliveryStatus\": null,\n    \"DeliveryLatitude\": null,\n    \"DeliveryLongitude\": null,\n    \"Payment\": {\n      \"CardName\": \"John Doe\",\n      \"CardNumber\": \"4111111111111111\",\n      \"Expiration\": \"12/27\",\n      \"Ccv\": \"123\",\n      \"PaymentMethod\": \"CreditCard\"\n    },\n    \"EstimatedPrepTimeMinutes\": 20,\n    \"ActualPrepTimeMinutes\": 0,\n    \"IsModified\": false,\n    \"RequiresAdminApproval\": false,\n    \"TableId\": null,\n    \"CreatedByUserId\": null,\n    \"ApprovedByAdminId\": null,\n    \"ConfirmedByUserId\": null,\n    \"CompletedByUserId\": null,\n    \"ApprovedAt\": null,\n    \"CancelledAt\": null,\n    \"CompletedAt\": null,\n    \"ConfirmedAt\": null,\n    \"DeliveredAt\": null,\n    \"PreparingStartedAt\": null,\n    \"ReadyAt\": null,\n    \"Notes\": \"No spicy food please\",\n    \"OrderItems\": [\n      {\n        \"Id\": \"00000000-0000-0000-0000-000000000000\",\n        \"OrderId\": \"00000000-0000-0000-0000-000000000000\",\n        \"MenuItemId\": \"a1b2c3d4-0000-0000-0000-000000000010\",\n        \"MenuItemName\": \"Margherita Pizza\",\n        \"MenuItemDescription\": \"Classic tomato and mozzarella\",\n        \"MenuItemImageUrl\": \"\",\n        \"Quantity\": 2,\n        \"UnitPrice\": 12.50,\n        \"BasePrice\": 12.50,\n        \"TotalPrice\": 25.00,\n        \"SeatNumber\": 1,\n        \"SpecialInstructions\": \"Extra cheese\",\n        \"Customizations\": \"\",\n        \"SelectedVariations\": \"\",\n        \"PrepStatus\": 0,\n        \"CreatedAt\": \"2026-06-18T12:00:00Z\",\n        \"PrepStartedAt\": null,\n        \"PrepCompletedAt\": null\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Order",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Order\": {\n    \"Id\": \"9fb02bf6-3b03-4b57-8c08-acc8994b3063\",\n    \"CustomerId\": \"9fb02bf6-3b03-4b57-8c08-acc8994b3063\",\n    \"OrderNumber\": \"ORD-001\",\n    \"RestaurantId\": \"c95621a8-1640-494a-bc20-849a2abf4ceb\",\n    \"Currency\": \"MXN\",\n    \"Subtotal\": 29.00,\n    \"TaxRate\": 0.16,\n    \"TaxAmount\": 4.64,\n    \"DiscountAmount\": 0.00,\n    \"DiscountCode\": \"\",\n    \"TotalAmount\": 33.64,\n    \"Status\": 1,\n    \"OrderType\": 0,\n    \"BillingAddress\": {\n      \"Street\": \"123 Main St\",\n      \"City\": \"Mexico City\",\n      \"State\": \"CDMX\",\n      \"ZipCode\": \"06600\",\n      \"Country\": \"Mexico\"\n    },\n    \"DeliveryAddress\": {\n      \"Street\": \"123 Main St\",\n      \"City\": \"Mexico City\",\n      \"State\": \"CDMX\",\n      \"ZipCode\": \"06600\",\n      \"Country\": \"Mexico\"\n    },\n    \"DeliveryNotes\": \"Please ring the doorbell\",\n    \"DeliveryStatus\": null,\n    \"DeliveryLatitude\": null,\n    \"DeliveryLongitude\": null,\n    \"Payment\": {\n      \"CardName\": \"John Doe\",\n      \"CardNumber\": \"4111111111111111\",\n      \"Expiration\": \"12/27\",\n      \"Ccv\": \"123\",\n      \"PaymentMethod\": \"CreditCard\"\n    },\n    \"EstimatedPrepTimeMinutes\": 20,\n    \"ActualPrepTimeMinutes\": 0,\n    \"IsModified\": true,\n    \"RequiresAdminApproval\": false,\n    \"TableId\": null,\n    \"CreatedByUserId\": null,\n    \"ApprovedByAdminId\": null,\n    \"ConfirmedByUserId\": null,\n    \"CompletedByUserId\": null,\n    \"ApprovedAt\": null,\n    \"CancelledAt\": null,\n    \"CompletedAt\": null,\n    \"ConfirmedAt\": null,\n    \"DeliveredAt\": null,\n    \"PreparingStartedAt\": null,\n    \"ReadyAt\": null,\n    \"Notes\": \"Updated notes\",\n    \"OrderItems\": []\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Order",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{ordering_url}}/api/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "host": ["{{ordering_url}}"],
+              "path": ["api", "v1", "orders", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Healthcheck",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{ordering_url}}/health",
+              "host": ["{{ordering_url}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

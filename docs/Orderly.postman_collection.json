@@ -2,30 +2,30 @@
   "info": {
     "_postman_id": "83ddb495-1383-41e5-9a7e-e11fb40263a9",
     "name": "Orderly",
-    "description": "Complete Orderly microservices API collection.\n\n## Global Variables\n\n| Variable | Local | Docker |\n|---|---|---|\n| `catalog_url` | `http://localhost:6000` | `http://localhost:6000` |\n| `basket_url` | `http://localhost:6001` | `http://localhost:6001` |\n| `identity_url` | `http://localhost:6007` | `http://localhost:6007` |\n| `ordering_url` | `http://localhost:6003` | `http://localhost:6003` |\n\nAll endpoints are versioned under `/api/v1` where applicable.",
+    "description": "Complete Orderly microservices API collection.\n\n## Global Variables\n\n| Variable | Local | Docker |\n|---|---|---|\n| `catalog_url` | `http://localhost:5050` | `http://localhost:6060` |\n| `basket_url` | `http://localhost:5051` | `http://localhost:6061` |\n| `identity_url` | `http://localhost:5057` | `http://localhost:6067` |\n| `ordering_url` | `http://localhost:5053` | `http://localhost:6063` |\n\nAll endpoints are versioned under `/api/v1` where applicable.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "2750083"
   },
   "variable": [
     {
       "key": "catalog_url",
-      "value": "http://localhost:6000",
-      "description": "Catalog API base URL (local: http://localhost:6000 | docker: http://localhost:6000)"
+      "value": "http://localhost:5050",
+      "description": "Catalog API base URL (local: http://localhost:5050 | docker: http://localhost:6060)"
     },
     {
       "key": "basket_url",
-      "value": "http://localhost:6001",
-      "description": "Basket API base URL (local: http://localhost:6001 | docker: http://localhost:6001)"
+      "value": "http://localhost:5051",
+      "description": "Basket API base URL (local: http://localhost:5051 | docker: http://localhost:6061)"
     },
     {
       "key": "identity_url",
-      "value": "http://localhost:6007",
-      "description": "Identity API base URL (local: http://localhost:6007 | docker: http://localhost:6007)"
+      "value": "http://localhost:5057",
+      "description": "Identity API base URL (local: http://localhost:5057 | docker: http://localhost:6067)"
     },
     {
       "key": "ordering_url",
-      "value": "http://localhost:6003",
-      "description": "Ordering API base URL (local: http://localhost:6003 | docker: http://localhost:6003)"
+      "value": "http://localhost:5053",
+      "description": "Ordering API base URL (local: http://localhost:5053 | docker: http://localhost:6063)"
     }
   ],
   "item": [

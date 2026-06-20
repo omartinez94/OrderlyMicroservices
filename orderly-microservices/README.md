@@ -6,12 +6,14 @@ A multi-tenant restaurant management system built with modern .NET utilizing the
 
 Ports are listed as http/https
 
-| Service       | Local env   | Docker env  | Docker inside |
-|---------------|-------------|-------------|---------------|
-| Catalog API   | 5000 - 5050 | 6000 - 6060 | 8080 - 8081   |
-| Basket API    | 5001 - 5051 | 6001 - 6061 | 8080 - 8081   |
-| Discount gRPC | 5002 - 5052 | 6002 - 6062 | 8080 - 8081   |
-| Ordering API  | 5003 - 5053 | 6003 - 6063 | 8080 - 8081   |
+| Service          | Local env   | Docker env  | Docker inside |
+|------------------|-------------|-------------|---------------|
+| Catalog API      | 5000 - 5050 | 6000 - 6060 | 8080 - 8081   |
+| Basket API       | 5001 - 5051 | 6001 - 6061 | 8080 - 8081   |
+| Discount gRPC    | 5002 - 5052 | 6002 - 6062 | 8080 - 8081   |
+| Ordering API     | 5003 - 5053 | 6003 - 6063 | 8080 - 8081   |
+| Yarp API Gateway | 5004 - 5054 | 6004 - 6064 | 8080 - 8081   |
+| Identity API     | 5007 - 5057 | 6007 - 6067 | 8080 - 8081   |
 
 ## Running the Application
 

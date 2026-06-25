@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuSubCategories.CreateMenuSubCategory;
 
 public record CreateMenuSubCategoryCommand(

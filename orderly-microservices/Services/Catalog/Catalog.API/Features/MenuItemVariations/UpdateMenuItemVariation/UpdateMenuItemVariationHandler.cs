@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItemVariations.UpdateMenuItemVariation;
 
 public record UpdateMenuItemVariationCommand(

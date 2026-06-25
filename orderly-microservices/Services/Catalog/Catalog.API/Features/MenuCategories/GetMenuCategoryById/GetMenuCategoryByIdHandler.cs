@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuCategories.GetMenuCategoryById;
 
 public record GetMenuCategoryByIdQuery(int Id) : IQuery<GetMenuCategoryByIdResult>;

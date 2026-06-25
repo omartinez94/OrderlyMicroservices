@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItems.UpdateMenuItem;
 
 public class UpdateMenuItemCommand : ICommand<UpdateMenuItemResult>

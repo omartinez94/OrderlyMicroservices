@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuCategories.UpdateMenuCategory;
 
 public record UpdateMenuCategoryCommand(

@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuSubCategories.GetMenuSubCategories;
 
 public record GetMenuSubCategoriesQuery(int CategoryId) : IQuery<GetMenuSubCategoriesResult>;

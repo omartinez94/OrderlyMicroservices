@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.Restaurants.GetRestaurantById;
 
 public record GetRestaurantByIdQuery(Guid Id) : IQuery<GetRestaurantByIdResult>;

@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItems.GetMenuItems;
 
 public class GetMenuItemsQuery : IQuery<GetMenuItemsResult>

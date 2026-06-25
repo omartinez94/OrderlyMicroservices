@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuCategories.DeleteMenuCategory;
 
 public record DeleteMenuCategoryCommand(int Id) : ICommand<DeleteMenuCategoryResult>;

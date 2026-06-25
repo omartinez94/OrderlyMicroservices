@@ -1,6 +1,8 @@
 using BuildingBlocks.Entities.Interceptors;
 using HealthChecks.UI.Client;
+using Marten;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);

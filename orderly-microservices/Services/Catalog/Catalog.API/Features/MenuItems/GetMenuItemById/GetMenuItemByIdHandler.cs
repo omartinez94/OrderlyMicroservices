@@ -1,4 +1,5 @@
 using Catalog.API.Features.MenuItems.GetMenuItems;
+using Microsoft.EntityFrameworkCore;
 
 namespace Catalog.API.Features.MenuItems.GetMenuItemById;
 

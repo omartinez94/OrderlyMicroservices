@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItemVariations.DeleteMenuItemVariation;
 
 public record DeleteMenuItemVariationCommand(int Id) : ICommand<DeleteMenuItemVariationResult>;

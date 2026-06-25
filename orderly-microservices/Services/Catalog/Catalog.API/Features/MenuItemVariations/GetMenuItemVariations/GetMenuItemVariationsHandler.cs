@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItemVariations.GetMenuItemVariations;
 
 public record GetMenuItemVariationsQuery(Guid MenuItemId) : IQuery<GetMenuItemVariationsResult>;

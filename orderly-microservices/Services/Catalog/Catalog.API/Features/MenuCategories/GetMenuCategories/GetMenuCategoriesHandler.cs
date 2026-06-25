@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuCategories.GetMenuCategories;
 
 public record GetMenuCategoriesQuery(Guid RestaurantId) : IQuery<GetMenuCategoriesResult>;

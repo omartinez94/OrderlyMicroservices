@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.ComboItems.GetComboItems;
 
 public record GetComboItemsQuery(Guid ComboMenuItemId) : IQuery<GetComboItemsResult>;

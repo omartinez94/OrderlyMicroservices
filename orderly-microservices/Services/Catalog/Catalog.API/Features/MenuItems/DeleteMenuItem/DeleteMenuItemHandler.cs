@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItems.DeleteMenuItem;
 
 public record DeleteMenuItemCommand(Guid Id) : ICommand<DeleteMenuItemResult>;

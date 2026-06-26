@@ -422,3 +422,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Agent-generated notes & plans (not for version control)
+.agents/notes/

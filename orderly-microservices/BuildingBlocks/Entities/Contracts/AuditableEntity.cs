@@ -6,7 +6,7 @@ namespace BuildingBlocks.Entities.Contracts;
 
 public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
 {
-    public required TId Id { get; set; }
+    public TId Id { get; set; } = default!;
     public string CreatedBy { get; protected set; }
     public Instant CreatedAt { get; protected set; }
     public string LastModifiedBy { get; protected set; }

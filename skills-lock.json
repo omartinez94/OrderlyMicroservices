@@ -7,17 +7,47 @@
       "skillPath": "plugins/backend-development/skills/api-design-principles/SKILL.md",
       "computedHash": "b242f962d5f78bf8bc147e92f2aa0341459b9f5f2f955e9867a8c41b85f22648"
     },
+    "csharp-async": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "213d4b0921836fdf1ea3d218bc3625f48d149463f9bc765aac0eb343f31cfe37"
+    },
     "csharp-developer": {
       "source": "jeffallan/claude-skills",
       "sourceType": "github",
       "skillPath": "skills/csharp-developer/SKILL.md",
       "computedHash": "42e372314889f097ba72053461500ace703cbccaa7fa71a00aae541fcbd65293"
     },
+    "csharp-docs": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "03ba5f2f605625202803d1cc79353e10b4f3ff720b93992aeecc8d88a1e44720"
+    },
     "csharp-expert": {
       "source": "personamanagmentlayer/pcl",
       "sourceType": "github",
       "skillPath": "stdlib/languages/csharp-expert/SKILL.md",
       "computedHash": "4f0d20ba86aad201d5e86bf8d8bf022a94efbb9476eb9eb4c27b7a1720ed282e"
+    },
+    "csharp-nunit": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "0493f7b95a519b13685335a32c9ff86e4eaca53e44a4f6795d11f72f899c683d"
+    },
+    "csharp-xunit": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "808c2d86afd16bccaba5f6d499361eb1da4d3e687a3305aa376ad4d40382e27d"
+    },
+    "dotnet-best-practices": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "98bd60f0529ffbb6b6319e61e952ce11ae9deb99106212d1070007bc8ae6708f"
+    },
+    "dotnet-design-pattern-review": {
+      "source": "github/awesome-copilot",
+      "sourceType": "autoskills-registry",
+      "computedHash": "60e201c6f3bd2832ed3834a8bb75143b2e6647e6026c5cbdad62f7706700c496"
     },
     "error-handling-patterns": {
       "source": "wshobson/agents",

@@ -2,8 +2,8 @@ services:
   catalogdb:
     container_name: catalogdb
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Catalogdb
       - PGDATA=/var/lib/postgresql/data/pgdata
     restart: always
@@ -15,8 +15,8 @@ services:
   basketdb:
     container_name: basketdb
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Basketdb
       - PGDATA=/var/lib/postgresql/data/pgdata
     restart: always
@@ -35,7 +35,7 @@ services:
     container_name: orderdb
     environment:
       - ACCEPT_EULA=Y
-      - SA_PASSWORD=YrPsswrd123456789
+      - SA_PASSWORD=${SA_PASSWORD:-YrPsswrd123456789}
     restart: always
     ports:
       - "1433:1433"
@@ -48,17 +48,17 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=guest
-      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
 
   catalog.api:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=postgres;Password=postgres;Include Error Detail=true
+      - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
       - IdentityServiceUrl=http://identity.api:8080
     ports:
       - "6000:8080"
@@ -76,15 +76,15 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=postgres;Password=postgres;Include Error Detail=true
+      - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
       - ConnectionStrings__Redis=distributedcache:6379
       - GrpcSettings__DiscountUrl=https://discount.grpc:8081
       - IdentityServiceUrl=http://identity.api:8080
       - MessageBroker__Host=amqp://messagebroker:5672
-      - MessageBroker__UserName=guest
-      - MessageBroker__Password=guest
+      - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
+      - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
     depends_on:
       - basketdb
       - distributedcache
@@ -105,7 +105,7 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
       - ConnectionStrings__Database=Data Source=discountdb
     ports:
@@ -120,8 +120,8 @@ services:
   identitydb:
     container_name: identitydb
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Identitydb
       - PGDATA=/var/lib/postgresql/data/pgdata
     restart: always
@@ -136,9 +136,9 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=postgres;Password=postgres;Include Error Detail=true
+      - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
     ports:
       - "6007:8080"
       - "6067:8081"
@@ -156,12 +156,12 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=password123
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__Database=Server=orderdb;Database=OrderDb;User ID=sa;Password=YrPsswrd123456789;Encrypt=False;TrustServerCertificate=True
+      - ConnectionStrings__Database=Server=orderdb;Database=OrderDb;User ID=sa;Password=${SA_PASSWORD:-YrPsswrd123456789};Encrypt=False;TrustServerCertificate=True
       - MessageBroker__Host=amqp://messagebroker:5672
-      - MessageBroker__UserName=guest
-      - MessageBroker__Password=guest
+      - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
+      - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
       - IdentityServiceUrl=http://identity.api:8080
       - FeatureManagement__OrderFullfilment=true
     ports:
@@ -182,6 +182,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
     ports:
       - "6004:8080"
       - "6064:8081"

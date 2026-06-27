@@ -37,6 +37,20 @@ To view the logs or stop the environment:
 - **Stop containers:** `docker-compose down`
 - **Wipe database volumes (if you need a fresh start):** `docker-compose down -v`
 
+#### Environment variables
+
+All credentials are externalized. Out of the box, `docker-compose up` uses the
+dev defaults baked into `docker-compose.override.yml`. To override any
+credential (e.g. a stronger DB password for a shared environment), copy
+`.env.example` to `.env` in this same directory (next to
+`docker-compose.override.yml`) and edit it. Docker Compose auto-loads that
+`.env` when you run `docker-compose up` from here. The `.env` file is
+git-ignored — do not commit real secrets.
+
+Variables: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `SA_PASSWORD`,
+`RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`,
+`ASPNETCORE_Kestrel__Default__Password` (cert).
+
 ### Option 2: Running Locally (Visual Studio or .NET CLI)
 
 If you prefer to run the .NET processes locally on your machine for easier debugging:

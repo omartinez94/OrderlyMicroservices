@@ -10,6 +10,9 @@
 *.userosscache
 *.sln.docstates
 *.env
+# Local environment overrides for docker-compose (see orderly-microservices/.env.example)
+.env
+.env.local
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

@@ -18,6 +18,7 @@
   </Folder>
   <Folder Name="/Services/Identity/">
     <Project Path="Services/Identity/Identity.API/Identity.API.csproj" />
+    <Project Path="Services/Identity/Identity.API.Tests/Identity.API.Tests.csproj" Id="9b7c2f1a-3e8d-4a6b-b2c5-7d1e9f4a3b8c" />
   </Folder>
   <Folder Name="/Services/Ordering/">
     <Project Path="Services/Ordering/Ordering.API/Ordering.API.csproj" Id="57e1da73-894d-4cf8-b91d-c4534574199c" />

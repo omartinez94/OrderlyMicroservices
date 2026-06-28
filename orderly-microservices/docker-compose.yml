@@ -9,7 +9,7 @@ services:
     image: redis
 
   orderdb:
-    image: mcr.microsoft.com/mssql/server
+    image: mcr.microsoft.com/mssql/server:2022-latest
 
   messagebroker:
     image: rabbitmq:3-management
@@ -55,7 +55,9 @@ services:
 
 volumes:
   postgres_catalog:
-  
+
   postgres_basket:
 
   postgres_identity:
+
+  mssql_order:

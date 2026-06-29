@@ -6,7 +6,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Catalogdb
       - PGDATA=/var/lib/postgresql/data/pgdata
-    restart: always
+    restart: unless-stopped
     ports:
       - "5433:5432"
     volumes:
@@ -19,7 +19,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Basketdb
       - PGDATA=/var/lib/postgresql/data/pgdata
-    restart: always
+    restart: unless-stopped
     ports:
       - "5434:5432"
     volumes:
@@ -27,7 +27,8 @@ services:
 
   distributedcache:
     container_name: distributedcache
-    restart: always
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-redisdev}"]
     ports:
       - "6379:6379"
 
@@ -36,7 +37,7 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - SA_PASSWORD=${SA_PASSWORD:-YrPsswrd123456789}
-    restart: always
+    restart: unless-stopped
     ports:
       - "1433:1433"
     volumes:
@@ -45,7 +46,7 @@ services:
   messagebroker:
     container_name: messagebroker
     hostname: orderly-mq
-    restart: always
+    restart: unless-stopped
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -54,13 +55,14 @@ services:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
 
   catalog.api:
+    container_name: catalog.api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
+      - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
       - IdentityServiceUrl=http://identity.api:8080
     ports:
       - "6000:8080"
@@ -69,17 +71,18 @@ services:
       - catalogdb
       - identity.api
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
   basket.api:
+    container_name: basket.api
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
-      - ConnectionStrings__Redis=distributedcache:6379
+      - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
+      - ConnectionStrings__Redis=distributedcache:6379,password=${REDIS_PASSWORD:-redisdev}
       - GrpcSettings__DiscountUrl=https://discount.grpc:8081
       - IdentityServiceUrl=http://identity.api:8080
       - MessageBroker__Host=amqp://messagebroker:5672
@@ -95,10 +98,11 @@ services:
       - "6001:8080"
       - "6061:8081"
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
 
   discount.grpc:
+    container_name: discount.grpc
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
@@ -110,8 +114,8 @@ services:
       - "6002:8080"
       - "6062:8081"
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
 
   identitydb:
     container_name: identitydb
@@ -120,7 +124,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=Identitydb
       - PGDATA=/var/lib/postgresql/data/pgdata
-    restart: always
+    restart: unless-stopped
     ports:
       - "5435:5432"
     volumes:
@@ -134,15 +138,15 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
-      - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};Include Error Detail=true
+      - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
     ports:
       - "6007:8080"
       - "6067:8081"
     depends_on:
       - identitydb
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
 
   ordering.api:
     container_name: ordering.api
@@ -166,10 +170,11 @@ services:
       - orderdb
       - messagebroker
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
 
   yarpapigateway:
+    container_name: yarpapigateway
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
@@ -186,5 +191,5 @@ services:
       - ordering.api
       - identity.api
     volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${APPDATA}/ASP.NET/Https:/root/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro

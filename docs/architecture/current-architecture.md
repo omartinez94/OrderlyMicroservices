@@ -90,7 +90,7 @@ Docker host ports are **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HT
 | Discount.Grpc | `discount.grpc` | 6002 | 6062 | gRPC only (HTTP/2). SQLite file. |
 | Ordering.API | `ordering.api` | 6003 | 6063 | MSSQL + MassTransit consumer |
 | YarpApiGateway | `yarpapigateway` | 6004 | 6064 | YARP, fixed-window rate limit |
-| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR hub |
+| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR `/hubs/kitchen` — domain, read + command endpoints, outbound integration events, and live broadcast |
 | Identity.API | `identity.api` | 6007 | 6067 | OpenIddict server + ASP.NET Identity |
 
 Gateway public prefixes (`appsettings.json`):
@@ -321,7 +321,7 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 
 **Surface:** YARP reverse-proxy only. No controllers, no auth middleware, no token-forward transforms.
 
-- 6 routes, all prefixed `/<service>-api/{**catch-all}` with `PathRemovePrefix` transform.
+- 6 routes, all prefixed `/<service>-api/{**catch-all}` with `PathRemovePrefix` transform. WebSocket upgrades are forwarded transparently — the kitchen SignalR hub is reachable at `ws://localhost:6004/kitchen-api/hubs/kitchen` (negotiate with `?access_token=...`).
 - Rate limit policy `"fixed"`: **10 requests / 1 minute per `User.Identity.Name ?? Host`**, no queue. Applied to every route.
 - Pipeline: `UseRateLimiter()` → `MapReverseProxy()`.
 - The downstream services each enforce their own JWT validation (Identity authority is the configured `IdentityServiceUrl`). The gateway does **not** re-validate tokens. The caller's `Authorization` header reaches downstream services via the ASP.NET HttpClient default propagation.
@@ -445,7 +445,7 @@ record BasketCheckoutEvent : IntegrationEvent
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
 6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
-8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume.
+8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
 
 ### YARP, called from outside the compose network
 ```

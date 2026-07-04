@@ -1,7 +1,6 @@
 using HealthChecks.UI.Client;
 using Kitchen.API.Application;
 using Kitchen.API.Infrastructure;
-using Kitchen.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +18,12 @@ builder.Services.AddJwtAuthentication(
 builder.Services.AddAuthorizationServices();
 
 builder.Services.AddCarter();
+
+// SignalR — single typed hub at /hubs/kitchen. JWT bearer is hoisted off
+// the ?access_token= query string by the SignalR client; YARP forwards the
+// WebSocket upgrade transparently (verified by route config in
+// ApiGateway/YarpApiGateway/appsettings.json).
+builder.Services.AddSignalR();
 
 builder.Services
     .AddApplicationServices(builder.Configuration)
@@ -46,6 +51,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapCarter();
+app.MapHub<KitchenHub>("/hubs/kitchen");
 
 app.UseExceptionHandler(options => { });
 

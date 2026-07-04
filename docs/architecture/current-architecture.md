@@ -49,7 +49,7 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 
 ## 3. Solution Layout
 
-Source root: `orderly-microservices/`. 11 projects + 2 test projects + a Docker compose project.
+Source root: `orderly-microservices/`. 12 projects + 2 test projects + a Docker compose project.
 
 ```
 orderly-microservices/
@@ -62,6 +62,7 @@ orderly-microservices/
 │   ├── Basket/Basket.API/                      # Marten + Redis cache, gRPC client to Discount, publishes BasketCheckoutEvent
 │   ├── Discount/Discount.Grpc/                 # gRPC server, SQLite store, single Coupon entity
 │   ├── Identity/Identity.API/                  # OpenIddict + ASP.NET Identity + RBAC permissions
+│   ├── Kitchen/Kitchen.API/                    # Kitchen fulfilment, SignalR hub, Postgres `kitchendb`
 │   └── Ordering/
 │       ├── Ordering.Domain/                    # Aggregate<Order>, OrderItem, OrderBill, Customer, MenuItem; value objects
 │       ├── Ordering.Application/               # MediatR commands/queries, domain + integration handlers
@@ -79,7 +80,7 @@ orderly-microservices/
 
 ## 4. Microservices
 
-Docker host ports are **6000–6004, 6007** (HTTP) and **6060–6064, 6067** (HTTPS). Inside the container, Kestrel listens on `8080`/`8081`.
+Docker host ports are **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HTTPS). Inside the container, Kestrel listens on `8080`/`8081`.
 
 | Service | Container | HTTP | HTTPS | Notes |
 |---|---|---|---|---|
@@ -88,6 +89,7 @@ Docker host ports are **6000–6004, 6007** (HTTP) and **6060–6064, 6067** (HT
 | Discount.Grpc | `discount.grpc` | 6002 | 6062 | gRPC only (HTTP/2). SQLite file. |
 | Ordering.API | `ordering.api` | 6003 | 6063 | MSSQL + MassTransit consumer |
 | YarpApiGateway | `yarpapigateway` | 6004 | 6064 | YARP, fixed-window rate limit |
+| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR hub |
 | Identity.API | `identity.api` | 6007 | 6067 | OpenIddict server + ASP.NET Identity |
 
 Gateway public prefixes (`appsettings.json`):
@@ -98,6 +100,7 @@ Gateway public prefixes (`appsettings.json`):
 | `/basket-api/{**catch-all}` | → | `basket-cluster` (http://basket.api:8080) |
 | `/discount-api/{**catch-all}` | → | `discount-cluster` (http://discount.grpc:8080) |
 | `/ordering-api/{**catch-all}` | → | `ordering-cluster` (http://ordering.api:8080) |
+| `/kitchen-api/{**catch-all}` | → | `kitchen-cluster` (http://kitchen.api:8080) |
 | `/identity-api/{**catch-all}` | → | `identity-cluster` (http://identity.api:8080) |
 
 ---
@@ -317,7 +320,7 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 
 **Surface:** YARP reverse-proxy only. No controllers, no auth middleware, no token-forward transforms.
 
-- 5 routes, all prefixed `/<service>-api/{**catch-all}` with `PathRemovePrefix` transform.
+- 6 routes, all prefixed `/<service>-api/{**catch-all}` with `PathRemovePrefix` transform.
 - Rate limit policy `"fixed"`: **10 requests / 1 minute per `User.Identity.Name ?? Host`**, no queue. Applied to every route.
 - Pipeline: `UseRateLimiter()` → `MapReverseProxy()`.
 - The downstream services each enforce their own JWT validation (Identity authority is the configured `IdentityServiceUrl`). The gateway does **not** re-validate tokens. The caller's `Authorization` header reaches downstream services via the ASP.NET HttpClient default propagation.
@@ -373,6 +376,7 @@ record BasketCheckoutEvent : IntegrationEvent
 | Postgres `catalogdb` | `postgres`, host `localhost:5433`, `Database=Catalogdb` | `Catalog.API` (relations + Marten docs) |
 | Postgres `basketdb` | `postgres`, host `localhost:5434` | `Basket.API` (Marten, per-tenant databases created on startup) |
 | Postgres `identitydb` | `postgres`, host `localhost:5435` | `Identity.API` (Identity + OpenIddict + custom) |
+| Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` |
 | MS SQL `orderdb` | `mcr.microsoft.com/mssql/server:2022-latest`, `Server=localhost,1433`, user `sa` | `Ordering.API` |
 | SQLite `discountdb` | file `Data Source=discountdb` | `Discount.Grpc` |
 | Redis `distributedcache` | `redis`, host `localhost:6379`, password `redisdev` | `Basket.API` cache only |
@@ -427,12 +431,13 @@ record BasketCheckoutEvent : IntegrationEvent
 
 ### Startup sequence
 1. `cp orderly-microservices/.env.example orderly-microservices/.env` (optional — defaults bake into `docker-compose.override.yml`).
-2. `cd orderly-microservices && docker compose up -d` — brings up `catalogdb`, `basketdb`, `identitydb`, `orderdb`, `distributedcache` (Redis), `messagebroker` (RabbitMQ), then each API container.
-3. The override file publishes ports **6000–6004, 6007** (HTTP) and **6060–6064, 6067** (HTTPS).
+2. `cd orderly-microservices && docker compose up -d` — brings up `catalogdb`, `basketdb`, `identitydb`, `orderdb`, `kitchendb`, `distributedcache` (Redis), `messagebroker` (RabbitMQ), then each API container.
+3. The override file publishes ports **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HTTPS).
 4. Identity seeds the 8 roles, 25 permissions, role-permission mappings, and a `SuperAdmin` user (`admin@orderly.com` / `Admin@123456`) on first start.
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
 6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
+8. Kitchen.API boots in skeleton mode — JWT auth, Carter, MediatR, exception handler, and `/health` (Postgres `kitchendb` reachability) are live. No DbContext yet, so no migrations are applied and no domain rows are written
 
 ### YARP, called from outside the compose network
 ```
@@ -440,6 +445,7 @@ https://localhost:6064/identity-api/api/auth/login      # login proxy
 http://localhost:6004/catalog-api/api/v1/menu-items     # public catalog proxy
 http://localhost:6004/basket-api/api/v1/baskets/...     # public basket proxy
 http://localhost:6004/ordering-api/api/v1/orders        # public ordering proxy
+http://localhost:6004/kitchen-api/health               # kitchen health proxy
 http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not callable via REST
 ```
 

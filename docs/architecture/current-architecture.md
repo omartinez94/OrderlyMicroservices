@@ -63,6 +63,7 @@ orderly-microservices/
 │   ├── Discount/Discount.Grpc/                 # gRPC server, SQLite store, single Coupon entity
 │   ├── Identity/Identity.API/                  # OpenIddict + ASP.NET Identity + RBAC permissions
 │   ├── Kitchen/Kitchen.API/                    # Kitchen fulfilment, SignalR hub, Postgres `kitchendb`
+│   ├── Kitchen/Kitchen.API.Tests/              # xUnit + FluentAssertions + NSubstitute for the Kitchen domain
 │   └── Ordering/
 │       ├── Ordering.Domain/                    # Aggregate<Order>, OrderItem, OrderBill, Customer, MenuItem; value objects
 │       ├── Ordering.Application/               # MediatR commands/queries, domain + integration handlers
@@ -379,7 +380,7 @@ record BasketCheckoutEvent : IntegrationEvent
 | Postgres `catalogdb` | `postgres`, host `localhost:5433`, `Database=Catalogdb` | `Catalog.API` (relations + Marten docs) |
 | Postgres `basketdb` | `postgres`, host `localhost:5434` | `Basket.API` (Marten, per-tenant databases created on startup) |
 | Postgres `identitydb` | `postgres`, host `localhost:5435` | `Identity.API` (Identity + OpenIddict + custom) |
-| Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` |
+| Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` — tables `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations` |
 | MS SQL `orderdb` | `mcr.microsoft.com/mssql/server:2022-latest`, `Server=localhost,1433`, user `sa` | `Ordering.API` |
 | SQLite `discountdb` | file `Data Source=discountdb` | `Discount.Grpc` |
 | Redis `distributedcache` | `redis`, host `localhost:6379`, password `redisdev` | `Basket.API` cache only |
@@ -440,7 +441,7 @@ record BasketCheckoutEvent : IntegrationEvent
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
 6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
-8. Kitchen.API boots in skeleton mode — JWT auth, Carter, MediatR, exception handler, and `/health` (Postgres `kitchendb` reachability) are live. No DbContext yet, so no migrations are applied and no domain rows are written
+8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`).
 
 ### YARP, called from outside the compose network
 ```
@@ -456,7 +457,9 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 
 ### Tests
 - `Ordering.Domain.Tests` (xUnit + FluentAssertions + NSubstitute).
+- `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee).
 - `Identity.API.Tests` (xUnit + FluentAssertions + NSubstitute + EF Core InMemory).
+- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute — aggregate-level transition tests for `KitchenTicket`/`KitchenTicketItem`; covers every legal transition plus the corresponding negative-path rejections).
 
 ---
 

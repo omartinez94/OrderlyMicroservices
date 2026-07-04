@@ -1,4 +1,7 @@
 using HealthChecks.UI.Client;
+using Kitchen.API.Application;
+using Kitchen.API.Infrastructure;
+using Kitchen.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,14 +19,10 @@ builder.Services.AddJwtAuthentication(
 builder.Services.AddAuthorizationServices();
 
 builder.Services.AddCarter();
-builder.Services.AddMediatR(cfg =>
-{
-    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
-    cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
-});
 
-builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+builder.Services
+    .AddApplicationServices(builder.Configuration)
+    .AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
@@ -31,6 +30,17 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("KitchenDB")!);
 
 var app = builder.Build();
+
+// Apply pending EF Core migrations on startup. Postgres rarely has the
+// MSSQL "database still recovering" race that Ordering works around with
+// retry; the simple call mirrors Catalog's pattern. See
+// KITCHEN_SERVICE_PLAN.md §8.4 for the future retry-helper work.
+if (app.Environment.IsDevelopment())
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<KitchenDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 app.UseAuthentication();
 app.UseAuthorization();

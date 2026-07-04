@@ -22,6 +22,7 @@
   </Folder>
   <Folder Name="/Services/Kitchen/">
     <Project Path="Services/Kitchen/Kitchen.API/Kitchen.API.csproj" />
+    <Project Path="Services/Kitchen/Kitchen.API.Tests/Kitchen.API.Tests.csproj" />
   </Folder>
   <Folder Name="/Services/Ordering/">
     <Project Path="Services/Ordering/Ordering.API/Ordering.API.csproj" Id="57e1da73-894d-4cf8-b91d-c4534574199c" />

@@ -90,7 +90,7 @@ Docker host ports are **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HT
 | Discount.Grpc | `discount.grpc` | 6002 | 6062 | gRPC only (HTTP/2). SQLite file. |
 | Ordering.API | `ordering.api` | 6003 | 6063 | MSSQL + MassTransit consumer |
 | YarpApiGateway | `yarpapigateway` | 6004 | 6064 | YARP, fixed-window rate limit |
-| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR `/hubs/kitchen` — domain, read + command endpoints, outbound integration events, and live broadcast |
+| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR `/hubs/kitchen` — domain, read + command endpoints, outbound integration events, live broadcast, plus `/health` (EF Core `KitchenDbContext` check) and `Microsoft.FeatureManagement` registration |
 | Identity.API | `identity.api` | 6007 | 6067 | OpenIddict server + ASP.NET Identity |
 
 Gateway public prefixes (`appsettings.json`):
@@ -463,7 +463,7 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 - `Ordering.Domain.Tests` (xUnit + FluentAssertions + NSubstitute).
 - `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee).
 - `Identity.API.Tests` (xUnit + FluentAssertions + NSubstitute + EF Core InMemory).
-- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute — aggregate-level transition tests for `KitchenTicket`/`KitchenTicketItem`; covers every legal transition plus the corresponding negative-path rejections).
+- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 36 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster, plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check).
 
 ---
 

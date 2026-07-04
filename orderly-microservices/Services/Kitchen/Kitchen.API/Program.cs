@@ -2,6 +2,7 @@ using HealthChecks.UI.Client;
 using Kitchen.API.Application;
 using Kitchen.API.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,8 +32,19 @@ builder.Services
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
+// Feature flags so Kitchen can participate in shared rollout gates
+// (e.g. the OrderFullfilment kill switch lives on Ordering today; future
+// flags like prep-time tracking land here).
+builder.Services.AddFeatureManagement();
+
+// Health: EF Core + Postgres reachability. The RabbitMQ broker check is
+// documented in KITCHEN_SERVICE_PLAN.md §12.5 but skipped here because
+// the current AspNetCore.HealthChecks.Rabbitmq 8.0.x depends on
+// RabbitMQ.Client 7.x while MassTransit 8.5.10 transitively pins 6.x —
+// a follow-up commit should add the broker check once a compatible
+// health-check package is published.
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("KitchenDB")!);
+    .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
 
 var app = builder.Build();
 

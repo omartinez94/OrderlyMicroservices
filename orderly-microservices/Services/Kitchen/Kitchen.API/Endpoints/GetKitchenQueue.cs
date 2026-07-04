@@ -23,7 +23,7 @@ public class GetKitchenQueue : ICarterModule
             return Results.Ok(result);
         })
         .WithTags("Kitchen")
-        .RequireAuthorization("kitchen:view_orders");
+        .RequirePermission("kitchen:view_orders");
     }
 
     private record GetKitchenQueueRequest(

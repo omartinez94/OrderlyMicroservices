@@ -17,6 +17,6 @@ public class GetTicketDetail : ICarterModule
             return Results.Ok(ticket);
         })
         .WithTags("Kitchen")
-        .RequireAuthorization("kitchen:view_orders");
+        .RequirePermission("kitchen:view_orders");
     }
 }

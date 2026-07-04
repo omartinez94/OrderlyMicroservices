@@ -20,6 +20,6 @@ public class MarkItemReady : ICarterModule
             return Results.NoContent();
         })
         .WithTags("Kitchen")
-        .RequireAuthorization("kitchen:update_prep_status");
+        .RequirePermission("kitchen:update_prep_status");
     }
 }

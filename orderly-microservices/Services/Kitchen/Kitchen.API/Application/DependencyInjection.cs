@@ -1,4 +1,7 @@
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Kitchen.API.Infrastructure;
 
 namespace Kitchen.API.Application;
 
@@ -23,6 +26,9 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+        services.AddHttpContextAccessor();
+        services.AddScoped<Application.Abstractions.ICurrentUser, HttpContextCurrentUser>();
 
         services.AddMessageBroker(configuration, Assembly.GetExecutingAssembly());
 

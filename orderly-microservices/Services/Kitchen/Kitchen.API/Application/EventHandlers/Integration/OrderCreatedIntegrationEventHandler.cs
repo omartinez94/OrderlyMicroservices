@@ -1,5 +1,3 @@
-using MassTransit;
-
 namespace Kitchen.API.Application.EventHandlers.Integration;
 
 /// <summary>

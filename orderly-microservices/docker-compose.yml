@@ -11,6 +11,9 @@ services:
   orderdb:
     image: mcr.microsoft.com/mssql/server:2022-latest
 
+  kitchendb:
+    image: postgres
+
   messagebroker:
     image: rabbitmq:3-management
 
@@ -47,6 +50,12 @@ services:
       context: .
       dockerfile: Services/Ordering/Ordering.API/Dockerfile
 
+  kitchen.api:
+    image: ${DOCKER_REGISTRY-}kitchenapi
+    build:
+      context: .
+      dockerfile: Services/Kitchen/Kitchen.API/Dockerfile
+
   yarpapigateway:
     image: ${DOCKER_REGISTRY-}yarpapigateway
     build:
@@ -59,5 +68,7 @@ volumes:
   postgres_basket:
 
   postgres_identity:
+
+  postgres_kitchen:
 
   mssql_order:

@@ -43,6 +43,19 @@ services:
     volumes:
       - mssql_order:/var/opt/mssql
 
+  kitchendb:
+    container_name: kitchendb
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=Kitchendb
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    restart: unless-stopped
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres_kitchen:/var/lib/postgresql/data
+
   messagebroker:
     container_name: messagebroker
     hostname: orderly-mq
@@ -173,6 +186,26 @@ services:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
 
+  kitchen.api:
+    container_name: kitchen.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ASPNETCORE_HTTPS_PORTS=8081
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      - ConnectionStrings__KitchenDB=Server=kitchendb;Port=5432;Database=Kitchendb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
+      - IdentityServiceUrl=http://identity.api:8080
+    ports:
+      - "6005:8080"
+      - "6065:8081"
+    depends_on:
+      - kitchendb
+      - identity.api
+    volumes:
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
+
   yarpapigateway:
     container_name: yarpapigateway
     environment:
@@ -189,6 +222,7 @@ services:
       - basket.api
       - discount.grpc
       - ordering.api
+      - kitchen.api
       - identity.api
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro

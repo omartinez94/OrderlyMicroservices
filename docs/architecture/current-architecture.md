@@ -343,16 +343,19 @@ There are no other `HttpClient` registrations across the services. No service-to
 
 **Transport.** `rabbitmq:3-management` exposed on `5672` (AMQP) and `15672` (management UI). Configured via `MessageBroker:Host`, `User`, `Password`. Endpoint naming is kebab-case (`SetKebabCaseEndpointNameFormatter()`).
 
-**Abstraction.** No `IEventBus`. MassTransit primitives are used directly (`IPublishEndpoint.Publish`, `IConsumer<T>`, `AddMassTransit` from `BuildingBlocks.Messaging/Extensions.cs`). Base type: `record IntegrationEvent { Id => Guid.NewGuid(); OccurredOn => SystemClock.Instance.GetCurrentInstant(); EventType => GetType().FullName; }`.
+**Abstraction.** No `IEventBus`. MassTransit primitives are used directly (`IPublishEndpoint.Publish`, `IConsumer<T>`, `AddMassTransit` from `BuildingBlocks.Messaging/Extensions.cs`). Base type: `record IntegrationEvent { Id { get; init; } = Guid.NewGuid(); OccurredOn { get; init; } = SystemClock.Instance.GetCurrentInstant(); EventType => GetType().AssemblyQualifiedName!; }`.
 
-> **Footgun:** `Id` and `OccurredOn` are getter expressions, not constructor-set properties, so every read returns new values. Treat these as advisory / for log messages; do not rely on identity from re-deserialized events.
+> **Note:** `Id` and `OccurredOn` are constructor-set (init properties), captured once per instance. Earlier releases used getter expressions that returned a fresh value per read — fixed in M0 per KITCHEN_INTEGRATION_PLAN.md Phase 1 so consumers can rely on stable event identity for correlation and idempotency.
 
 **Integration events emitted / consumed:**
 
 | Event | Publisher | Consumer |
 |---|---|---|
 | `BasketCheckoutEvent` | `Basket.API/CheckoutBasket/CheckoutBasketHandler` | `Ordering.Application/.../BasketCheckoutEventHandler` |
-| `OrderCreatedIntegrationEvent` (from `OrderCreatedEventHandler`) | `Ordering.Application` (gated by `OrderFullfilment` feature flag) | none |
+| `OrderCreatedIntegrationEvent` | `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler` (gated by `OrderFullfilment` feature flag) | `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler` (M2 — M0 only publishes; no consumer yet) |
+
+**`OrderCreatedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs`):
+`OrderId`, `OrderNumber`, `RestaurantId`, `TableId?`, `OrderType`, `CustomerId`, `Subtotal`, `TotalAmount`, `TaxAmount`, `DiscountAmount`, `Currency`, `DiscountCode?`, `BillingAddress`, `DeliveryAddress?` (only when `OrderType.Delivery`), `Items: IReadOnlyList<KitchenOrderItemPreview>`, `EstimatedPrepTimeMinutes`, `Notes`. **No** `Payment*` / `Card*` / `Cvv` / `Expiration` fields — those stay internal to Ordering.
 
 **Event payload reference:**
 ```csharp

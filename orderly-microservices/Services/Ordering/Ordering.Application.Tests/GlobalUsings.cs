@@ -1,0 +1,12 @@
+global using BuildingBlocks.Enums;
+global using BuildingBlocks.Messaging.Events;
+global using FluentAssertions;
+global using MassTransit;
+global using Microsoft.Extensions.Logging.Abstractions;
+global using NSubstitute;
+global using Ordering.Application.Dtos;
+global using Ordering.Application.Orders.EventHandlers.Domain;
+global using Ordering.Domain.Events;
+global using Ordering.Domain.Models;
+global using Ordering.Domain.ValueObjects;
+global using Xunit;

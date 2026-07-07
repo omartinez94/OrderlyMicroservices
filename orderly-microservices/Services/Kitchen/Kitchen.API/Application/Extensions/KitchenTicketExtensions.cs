@@ -63,7 +63,12 @@ public static class KitchenTicketExtensions
     /// <summary>
     /// Maps an inbound <c>OrderCreatedIntegrationEvent</c> to the per-item
     /// seeds used by <c>KitchenTicket.CreateFromOrder</c>. Stays free of any
-    /// payment-derived fields (the integration event carries none)
+    /// payment-derived fields (the integration event carries none).
+    ///
+    /// Phase D: variations and customizations arrive as typed records;
+    /// <see cref="FlattenVariations"/> and <see cref="FlattenCustomizations"/>
+    /// collapse them back to the jsonb-compatible
+    /// <c>IReadOnlyList&lt;string&gt;</c> shape the aggregate still uses.
     /// </summary>
     public static IReadOnlyList<OrderItemSeed> ToOrderItemSeeds(this OrderCreatedIntegrationEvent evt) =>
         evt.Items
@@ -73,9 +78,64 @@ public static class KitchenTicketExtensions
                 MenuItemName: i.MenuItemName,
                 Quantity: i.Quantity,
                 UnitPrice: i.UnitPrice,
-                SelectedVariations: i.SelectedVariations,
-                Customizations: i.Customizations,
+                SelectedVariations: FlattenVariations(i.SelectedVariations),
+                Customizations: FlattenCustomizations(i.Customizations),
                 SpecialInstructions: i.SpecialInstructions,
                 SeatNumber: i.SeatNumber))
             .ToList();
+
+    /// <summary>
+    /// Renders a variation as "<c>Name</c>" or, when a non-zero price is
+    /// present, "<c>Name (+$X.XX)</c>". Empty <c>Name</c>s are dropped.
+    /// </summary>
+    private static IReadOnlyList<string> FlattenVariations(
+        IReadOnlyList<BuildingBlocks.Messaging.Events.KitchenOrderItemVariation> variations)
+    {
+        if (variations.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>(variations.Count);
+        foreach (var v in variations)
+        {
+            if (string.IsNullOrWhiteSpace(v.Name))
+            {
+                continue;
+            }
+
+            result.Add(v.Price == 0m
+                ? v.Name
+                : $"{v.Name} (+${v.Price:0.00})");
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Renders a customization as "<c>Label</c>" or, when a value is
+    /// present, "<c>Label: Value</c>". Price is omitted (it's already in
+    /// the per-item total). Empty <c>Label</c>s are dropped.
+    /// </summary>
+    private static IReadOnlyList<string> FlattenCustomizations(
+        IReadOnlyList<BuildingBlocks.Messaging.Events.KitchenOrderItemCustomization> customizations)
+    {
+        if (customizations.Count == 0)
+        {
+            return [];
+        }
+
+        var result = new List<string>(customizations.Count);
+        foreach (var c in customizations)
+        {
+            if (string.IsNullOrWhiteSpace(c.Label))
+            {
+                continue;
+            }
+
+            result.Add(string.IsNullOrWhiteSpace(c.Value)
+                ? c.Label
+                : $"{c.Label}: {c.Value}");
+        }
+        return result;
+    }
 }

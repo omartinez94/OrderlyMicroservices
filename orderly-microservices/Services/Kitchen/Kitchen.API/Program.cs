@@ -37,14 +37,29 @@ builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 // flags like prep-time tracking land here).
 builder.Services.AddFeatureManagement();
 
-// Health: EF Core + Postgres reachability. The RabbitMQ broker check is
-// documented in KITCHEN_SERVICE_PLAN.md §12.5 but skipped here because
-// the current AspNetCore.HealthChecks.Rabbitmq 8.0.x depends on
-// RabbitMQ.Client 7.x while MassTransit 8.5.10 transitively pins 6.x —
-// a follow-up commit should add the broker check once a compatible
-// health-check package is published.
+// Health: EF Core + Postgres reachability + the RabbitMQ broker. The
+// broker check (Phase E, Path E.1) uses AspNetCore.HealthChecks.Rabbitmq
+// 8.0.2, whose RabbitMQ.Client dependency is `>= 6.8.1` — NuGet resolves
+// it to the 7.2.1 transitive dep that MassTransit 8.5.10 pulls in. Tagged
+// `broker, ready` so the ?tags=ready filter exposes it to readiness
+// probes. Connection string reuses MessageBroker:Host (the AMQP URI the
+// factory / production config already supply).
+var rabbitConnectionString =
+    builder.Configuration.GetValue<string>("MessageBroker:ConnectionString")
+    ?? builder.Configuration.GetValue<string>("MessageBroker:Host")
+    ?? "amqp://guest:guest@localhost:5672/";
+
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
+
+if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
+{
+    builder.Services.AddHealthChecks()
+        .AddRabbitMQ(
+            rabbitConnectionString: rabbitConnectionString,
+            name: "messagebroker",
+            tags: new[] { "broker", "ready" });
+}
 
 var app = builder.Build();
 

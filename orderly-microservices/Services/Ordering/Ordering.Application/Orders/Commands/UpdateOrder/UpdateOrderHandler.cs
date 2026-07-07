@@ -33,8 +33,10 @@ public class UpdateOrderHandler(IApplicationDbContext dbContext)
             dto.Payment.Ccv,
             dto.Payment.PaymentMethod);
 
-        // Core update via domain method (raises OrderUpdatedEvent)
-        order.Update(billingAddress, deliveryAddress, payment, dto.Status);
+        // Core update via domain method (raises OrderUpdatedEvent). Status
+        // transitions are routed through the dedicated Confirm / MarkReady /
+        // Cancel methods so the legal-transition guards apply.
+        order.Update(billingAddress, deliveryAddress, payment);
 
         // Scalar fields not covered by Order.Update
         order.Currency                 = dto.Currency;

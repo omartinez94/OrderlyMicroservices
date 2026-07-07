@@ -98,10 +98,12 @@ public sealed class OrderTests
     // -------- Update --------
 
     /// <summary>
-    /// <c>Update</c> mutates the four target fields (billing, delivery, payment, status)
-    /// and raises exactly one <see cref="OrderUpdatedEvent"/> referencing this aggregate.
-    /// The pre-existing <c>OrderCreatedEvent</c> is cleared first so the assertion focuses
-    /// on the event raised by <c>Update</c> alone.
+    /// <c>Update</c> mutates the customer-editable fields (billing, delivery,
+    /// payment) and raises exactly one <see cref="OrderUpdatedEvent"/>
+    /// referencing this aggregate. Status is no longer mutated here — use
+    /// <c>Confirm</c>, <c>MarkReady</c>, or <c>Cancel</c> for state changes.
+    /// The pre-existing <c>OrderCreatedEvent</c> is cleared first so the
+    /// assertion focuses on the event raised by <c>Update</c> alone.
     /// </summary>
     [Fact]
     public void Update_AssignsFieldsAndRaisesOrderUpdatedEvent()
@@ -116,14 +118,14 @@ public sealed class OrderTests
         var newBilling = Address.Of("1 New St", "Chicago", "IL", "67890", "US");
         var newDelivery = Address.Of("2 New St", "Chicago", "IL", "67890", "US");
         var newPayment = Payment.Of("Jane Doe", "5555555555554444", "01/31", "321", "Debit");
-        var newStatus = OrderStatus.Confirmed;
+        var originalStatus = order.Status;
 
-        order.Update(newBilling, newDelivery, newPayment, newStatus);
+        order.Update(newBilling, newDelivery, newPayment);
 
         order.BillingAddress.Should().Be(newBilling);
         order.DeliveryAddress.Should().Be(newDelivery);
         order.Payment.Should().Be(newPayment);
-        order.Status.Should().Be(newStatus);
+        order.Status.Should().Be(originalStatus);
         order.DomainEvents.Should().HaveCount(1);
         order.DomainEvents[0].Should().BeOfType<OrderUpdatedEvent>()
             .Which.Order.Should().BeSameAs(order);
@@ -139,7 +141,7 @@ public sealed class OrderTests
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
 
-        Action act = () => order.Update(null!, ValidAddress(), ValidPayment(), OrderStatus.Confirmed);
+        Action act = () => order.Update(null!, ValidAddress(), ValidPayment());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("billingAddress");
     }
@@ -154,7 +156,7 @@ public sealed class OrderTests
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
 
-        Action act = () => order.Update(ValidAddress(), null!, ValidPayment(), OrderStatus.Confirmed);
+        Action act = () => order.Update(ValidAddress(), null!, ValidPayment());
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("deliveryAddress");
     }
@@ -169,9 +171,248 @@ public sealed class OrderTests
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
 
-        Action act = () => order.Update(ValidAddress(), ValidAddress(), null!, OrderStatus.Confirmed);
+        Action act = () => order.Update(ValidAddress(), ValidAddress(), null!);
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("payment");
+    }
+
+    // -------- Confirm --------
+
+    /// <summary>
+    /// Happy path: <c>Confirm</c> transitions <c>Pending -&gt; Confirmed</c>,
+    /// stamps the audit fields, and raises exactly one
+    /// <see cref="OrderConfirmedEvent"/>.
+    /// </summary>
+    [Fact]
+    public void Confirm_FromPending_TransitionsToConfirmedAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.ClearDomainEvents();
+
+        var staffId = Guid.NewGuid();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.Confirm(staffId, now);
+
+        order.Status.Should().Be(OrderStatus.Confirmed);
+        order.ConfirmedAt.Should().Be(now);
+        order.ConfirmedByUserId.Should().Be(staffId);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderConfirmedEvent>()
+            .Which.Order.Should().BeSameAs(order);
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>Confirm</c> on a non-<c>Pending</c> order
+    /// raises <see cref="InvalidOrderStateTransitionException"/>. This is the
+    /// guard the downstream consumer relies on — if the aggregate is already
+    /// in a terminal-ish state, the consumer must nack and let the broker
+    /// retry rather than silently rewriting Status.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void Confirm_FromNonPending_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        // Drive the order into the desired starting status via the legal
+        // transition methods (rather than a back-door Status setter).
+        switch (from)
+        {
+            case OrderStatus.Confirmed:
+                order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+                break;
+            case OrderStatus.Cancelled:
+                order.Cancel("test", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+                break;
+            // Preparing / Ready cannot be reached from Pending via the public
+            // API alone (the kitchen-side consumers drive them); set Status
+            // directly here only to seed the test fixture.
+            default:
+                order.GetType().GetProperty(nameof(Order.Status))!
+                    .SetValue(order, from);
+                break;
+        }
+
+        Action act = () => order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    /// <summary>
+    /// Null guard: <c>Confirm</c> rejects an empty staff user id.
+    /// </summary>
+    [Fact]
+    public void Confirm_WithEmptyStaffId_Throws()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        Action act = () => order.Confirm(Guid.Empty, SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<ArgumentException>().WithParameterName("confirmedByUserId");
+    }
+
+    // -------- MarkReady --------
+
+    /// <summary>
+    /// Happy path: <c>MarkReady</c> transitions <c>Preparing -&gt; Ready</c>,
+    /// stamps the audit field, and raises exactly one
+    /// <see cref="OrderReadyEvent"/>.
+    /// </summary>
+    [Fact]
+    public void MarkReady_FromPreparing_TransitionsToReadyAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        // Seed Preparing state via reflection (no public path exists from
+        // Pending; the kitchen-side consumer is the production trigger).
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Preparing);
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.MarkReady(now);
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        order.ReadyAt.Should().Be(now);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderReadyEvent>()
+            .Which.Order.Should().BeSameAs(order);
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>MarkReady</c> only allows
+    /// <c>Preparing -&gt; Ready</c>. Any other starting state must throw.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void MarkReady_FromNonPreparing_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.MarkReady(SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- Cancel --------
+
+    /// <summary>
+    /// Happy path: <c>Cancel</c> from <c>Pending</c> transitions to
+    /// <c>Cancelled</c>, captures the reason and the cancelling user id, and
+    /// raises <see cref="OrderCancelledEvent"/>.
+    /// </summary>
+    [Fact]
+    public void Cancel_FromPending_TransitionsToCancelledAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.ClearDomainEvents();
+
+        var staffId = Guid.NewGuid();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.Cancel("customer requested", staffId, now);
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.CancelledAt.Should().Be(now);
+        order.CancelledByUserId.Should().Be(staffId);
+        order.CancellationReason.Should().Be("customer requested");
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderCancelledEvent>()
+            .Which.Order.Should().BeSameAs(order);
+    }
+
+    /// <summary>
+    /// <c>Cancel</c> is permitted from any non-terminal state. Verifies the
+    /// transition from <c>Confirmed</c> for completeness.
+    /// </summary>
+    [Fact]
+    public void Cancel_FromConfirmed_IsAllowed()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+        order.ClearDomainEvents();
+
+        order.Cancel("customer requested", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderCancelledEvent>();
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>Cancel</c> cannot be invoked on an already
+    /// <c>Cancelled</c>, <c>Completed</c>, or <c>Delivered</c> order.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Cancelled)]
+    [InlineData(OrderStatus.Completed)]
+    [InlineData(OrderStatus.Delivered)]
+    public void Cancel_FromTerminalState_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.Cancel("reason", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    /// <summary>
+    /// Null/empty guard: <c>Cancel</c> rejects an empty reason string.
+    /// </summary>
+    [Fact]
+    public void Cancel_WithEmptyReason_Throws()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        Action act = () => order.Cancel("", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<ArgumentException>().WithParameterName("reason");
+    }
+
+    /// <summary>
+    /// Null guard: <c>Cancel</c> rejects an empty staff user id.
+    /// </summary>
+    [Fact]
+    public void Cancel_WithEmptyUserId_Throws()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        Action act = () => order.Cancel("reason", Guid.Empty, SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<ArgumentException>().WithParameterName("cancelledByUserId");
     }
 
     // -------- Add --------

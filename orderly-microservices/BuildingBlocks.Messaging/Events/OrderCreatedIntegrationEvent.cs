@@ -49,6 +49,12 @@ public record OrderAddress(
 /// payment-adjacent fields, no kitchen-write columns (<c>PrepStartedAt</c>,
 /// <c>PrepCompletedAt</c>) — those are owned by Kitchen and Ordering
 /// respectively and arrive on the bus later as their own events.
+///
+/// Variations / customizations are typed records rather than raw
+/// <c>string</c> lists (Phase D) so the kitchen display can render
+/// "<c>Size: Large (+$2.50)</c>" or "<c>No onions</c>" with a single
+/// projection. The aggregate still stores jsonb-string on disk; the
+/// mapping happens in <c>OrderExtensions.ToOrderCreatedIntegrationEvent</c>.
 /// </summary>
 public record KitchenOrderItemPreview(
     Guid OrderItemId,
@@ -56,7 +62,7 @@ public record KitchenOrderItemPreview(
     string MenuItemName,
     int Quantity,
     decimal UnitPrice,
-    IReadOnlyList<string> SelectedVariations,
-    IReadOnlyList<string> Customizations,
+    IReadOnlyList<KitchenOrderItemVariation> SelectedVariations,
+    IReadOnlyList<KitchenOrderItemCustomization> Customizations,
     string? SpecialInstructions,
     int? SeatNumber);

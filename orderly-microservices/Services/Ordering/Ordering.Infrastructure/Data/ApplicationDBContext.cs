@@ -1,4 +1,5 @@
 using System.Reflection;
+using BuildingBlocks.Messaging.Outbox;
 using Ordering.Application.Data;
 
 namespace Ordering.Infrastructure.Data;
@@ -10,10 +11,12 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<OrderBill> OrderBills => Set<OrderBill>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        builder.ApplyConfiguration(new OutboxMessageConfiguration());
 
         base.OnModelCreating(builder);
     }

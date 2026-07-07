@@ -116,34 +116,156 @@ public static class OrderExtensions
             MenuItemName: oi.MenuItemName,
             Quantity: oi.Quantity,
             UnitPrice: oi.UnitPrice,
-            SelectedVariations: DeserializeStringList(oi.SelectedVariations),
-            Customizations: DeserializeStringList(oi.Customizations),
+            SelectedVariations: DeserializeVariations(oi.SelectedVariations),
+            Customizations: DeserializeCustomizations(oi.Customizations),
             SpecialInstructions: string.IsNullOrEmpty(oi.SpecialInstructions) ? null : oi.SpecialInstructions,
             SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null);
 
     /// <summary>
-    /// <c>OrderItem.SelectedVariations</c> / <c>Customizations</c> are stored as
-    /// jsonb on the aggregate. The integration event declares them as
-    /// <c>IReadOnlyList&lt;string&gt;</c> per KITCHEN_SERVICE_PLAN.md §10.1; the
-    /// source JSON may carry richer objects (Basket uses
-    /// <c>{ Ingredient, Action }</c>), so this is a best-effort parse. Empty
-    /// string and non-array JSON both yield an empty list — downstream consumers
-    /// can rely on never receiving <c>null</c>.
+    /// Phase D: deserialize the jsonb <c>SelectedVariations</c> column into
+    /// <see cref="KitchenOrderItemVariation"/> records. Tolerates the legacy
+    /// <c>string[]</c> shape (each entry becomes a <c>(Name, 0)</c>
+    /// record) and the richer <c>{ Name, Price }</c> shape. Unparseable
+    /// entries are logged and dropped — the kitchen display must never
+    /// crash because a legacy column shape slipped through.
     /// </summary>
-    private static IReadOnlyList<string> DeserializeStringList(string? json)
+    private static IReadOnlyList<KitchenOrderItemVariation> DeserializeVariations(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return Array.Empty<string>();
+            return Array.Empty<KitchenOrderItemVariation>();
         }
 
         try
         {
-            return JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<KitchenOrderItemVariation>();
+            }
+
+            var result = new List<KitchenOrderItemVariation>();
+            foreach (var element in doc.RootElement.EnumerateArray())
+            {
+                switch (element.ValueKind)
+                {
+                    case JsonValueKind.String:
+                        var name = element.GetString();
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            result.Add(new KitchenOrderItemVariation(name, 0m));
+                        }
+                        break;
+                    case JsonValueKind.Object:
+                        var variantName = element.TryGetProperty("Name", out var n)
+                            ? n.GetString()
+                            : element.TryGetProperty("name", out n) ? n.GetString() : null;
+                        var price = 0m;
+                        if (element.TryGetProperty("Price", out var p) && p.ValueKind == JsonValueKind.Number)
+                        {
+                            price = p.GetDecimal();
+                        }
+                        else if (element.TryGetProperty("price", out p) && p.ValueKind == JsonValueKind.Number)
+                        {
+                            price = p.GetDecimal();
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(variantName))
+                        {
+                            result.Add(new KitchenOrderItemVariation(variantName!, price));
+                        }
+                        break;
+                }
+            }
+            return result;
         }
         catch (JsonException)
         {
-            return Array.Empty<string>();
+            return Array.Empty<KitchenOrderItemVariation>();
         }
+    }
+
+    /// <summary>
+    /// Deserialize the jsonb <c>Customizations</c> column into
+    /// <see cref="KitchenOrderItemCustomization"/> records. Tolerates the
+    /// legacy <c>string[]</c> shape (each entry becomes a
+    /// <c>(Label=entry, Value=null, Price=null)</c> record) and the richer
+    /// <c>{ Label, Value, Price }</c> shape. Unparseable entries are
+    /// dropped silently so a single malformed row doesn't sink the bus.
+    /// </summary>
+    private static IReadOnlyList<KitchenOrderItemCustomization> DeserializeCustomizations(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return Array.Empty<KitchenOrderItemCustomization>();
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return Array.Empty<KitchenOrderItemCustomization>();
+            }
+
+            var result = new List<KitchenOrderItemCustomization>();
+            foreach (var element in doc.RootElement.EnumerateArray())
+            {
+                switch (element.ValueKind)
+                {
+                    case JsonValueKind.String:
+                        var label = element.GetString();
+                        if (!string.IsNullOrWhiteSpace(label))
+                        {
+                            result.Add(new KitchenOrderItemCustomization(label!, null, null));
+                        }
+                        break;
+                    case JsonValueKind.Object:
+                        var custLabel = TryGetString(element, "Label", "label");
+                        if (string.IsNullOrWhiteSpace(custLabel))
+                        {
+                            break;
+                        }
+                        var value = TryGetString(element, "Value", "value");
+                        decimal? price = null;
+                        if (TryGetDecimal(element, "Price", "price") is { } p)
+                        {
+                            price = p;
+                        }
+                        result.Add(new KitchenOrderItemCustomization(custLabel!, value, price));
+                        break;
+                }
+            }
+            return result;
+        }
+        catch (JsonException)
+        {
+            return Array.Empty<KitchenOrderItemCustomization>();
+        }
+    }
+
+    private static string? TryGetString(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.String)
+            {
+                return prop.GetString();
+            }
+        }
+        return null;
+    }
+
+    private static decimal? TryGetDecimal(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (element.TryGetProperty(name, out var prop) && prop.ValueKind == JsonValueKind.Number
+                && prop.TryGetDecimal(out var d))
+            {
+                return d;
+            }
+        }
+        return null;
     }
 }

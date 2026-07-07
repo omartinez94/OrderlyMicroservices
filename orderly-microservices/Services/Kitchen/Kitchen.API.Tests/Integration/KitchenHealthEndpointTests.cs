@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 
 namespace Kitchen.API.Tests.Integration;
 
@@ -29,5 +30,26 @@ public sealed class KitchenHealthEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
         body.Should().NotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// The broker check is present in the entries map
+    /// and reports <c>Healthy</c> when the RabbitMQ container is up.
+    /// </summary>
+    [Fact]
+    public async Task Health_BrokerCheck_IsHealthy()
+    {
+        var client = _factory.CreateClient();
+
+        var response = await client.GetAsync("/health");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadAsStringAsync();
+
+        using var doc = JsonDocument.Parse(body);
+        var entries = doc.RootElement.GetProperty("entries");
+        var broker = entries.GetProperty("messagebroker");
+        broker.GetProperty("status").GetString().Should().Be("Healthy");
+        broker.GetProperty("tags").EnumerateArray()
+            .Select(t => t.GetString()).Should().Contain(new[] { "broker", "ready" });
     }
 }

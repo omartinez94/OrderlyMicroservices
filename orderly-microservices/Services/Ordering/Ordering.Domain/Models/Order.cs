@@ -31,7 +31,9 @@ public class Order : Aggregate<OrderId>
     public decimal TotalAmount { get; set; }
     public Instant? ApprovedAt { get; set; }
     public Guid? ApprovedByAdminId { get; set; }
+    public string? CancellationReason { get; set; }
     public Instant? CancelledAt { get; set; }
+    public Guid? CancelledByUserId { get; set; }
     public Instant? CompletedAt { get; set; }
     public Guid? CompletedByUserId { get; set; }
     public Instant? ConfirmedAt { get; set; }
@@ -80,11 +82,16 @@ public class Order : Aggregate<OrderId>
         return order;
     }
 
+    /// <summary>
+    /// Updates the customer-editable parts of an order (billing, delivery,
+    /// payment). <c>Status</c> transitions are not handled here — use
+    /// <see cref="Confirm"/>, <see cref="MarkReady"/>, <see cref="Cancel"/>
+    /// for state changes so the legal-transition guards apply.
+    /// </summary>
     public void Update(
         Address billingAddress,
         Address deliveryAddress,
-        Payment payment,
-        OrderStatus status)
+        Payment payment)
     {
         ArgumentNullException.ThrowIfNull(billingAddress);
         ArgumentNullException.ThrowIfNull(deliveryAddress);
@@ -93,9 +100,69 @@ public class Order : Aggregate<OrderId>
         BillingAddress = billingAddress;
         DeliveryAddress = deliveryAddress;
         Payment = payment;
-        Status = status;
 
         AddDomainEvent(new OrderUpdatedEvent(this));
+    }
+
+    /// <summary>
+    /// <c>Pending -&gt; Confirmed</c>. Records the staff user that accepted
+    /// the order and the moment of confirmation. The corresponding
+    /// <see cref="OrderConfirmedEvent"/> is raised for downstream consumers
+    /// (e.g. customer notification).
+    /// </summary>
+    public void Confirm(Guid confirmedByUserId, Instant now)
+    {
+        if (Status != OrderStatus.Pending)
+            throw new InvalidOrderStateTransitionException(Status, nameof(Confirm));
+
+        if (confirmedByUserId == Guid.Empty)
+            throw new ArgumentException("confirmedByUserId cannot be empty.", nameof(confirmedByUserId));
+
+        Status = OrderStatus.Confirmed;
+        ConfirmedAt = now;
+        ConfirmedByUserId = confirmedByUserId;
+
+        AddDomainEvent(new OrderConfirmedEvent(this, confirmedByUserId, now));
+    }
+
+    /// <summary>
+    /// <c>Preparing -&gt; Ready</c>. Triggered by the kitchen's
+    /// <c>KitchenOrderReadyIntegrationEvent</c>.
+    /// </summary>
+    public void MarkReady(Instant now)
+    {
+        if (Status != OrderStatus.Preparing)
+            throw new InvalidOrderStateTransitionException(Status, nameof(MarkReady));
+
+        Status = OrderStatus.Ready;
+        ReadyAt = now;
+
+        AddDomainEvent(new OrderReadyEvent(this, now));
+    }
+
+    /// <summary>
+    /// Permitted from any non-terminal state. Records reason and the user
+    /// who cancelled for audit.
+    /// </summary>
+    public void Cancel(string reason, Guid cancelledByUserId, Instant now)
+    {
+        if (Status == OrderStatus.Cancelled
+            || Status == OrderStatus.Completed
+            || Status == OrderStatus.Delivered)
+        {
+            throw new InvalidOrderStateTransitionException(Status, nameof(Cancel));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (cancelledByUserId == Guid.Empty)
+            throw new ArgumentException("cancelledByUserId cannot be empty.", nameof(cancelledByUserId));
+
+        Status = OrderStatus.Cancelled;
+        CancelledAt = now;
+        CancelledByUserId = cancelledByUserId;
+        CancellationReason = reason;
+
+        AddDomainEvent(new OrderCancelledEvent(this, reason, cancelledByUserId, now));
     }
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)

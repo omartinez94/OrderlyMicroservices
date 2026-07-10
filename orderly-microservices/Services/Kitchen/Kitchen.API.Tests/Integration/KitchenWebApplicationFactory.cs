@@ -99,6 +99,16 @@ public class KitchenWebApplicationFactory : WebApplicationFactory<Program>, IAsy
         await base.DisposeAsync();
     }
 
+    /// <summary>
+    /// Stops the RabbitMQ Testcontainers container in place so the
+    /// negative-path test (broker down → /health 503) can isolate
+    /// the broker check from the EF Core check. The Testcontainers
+    /// <c>RabbitMqContainer.StopAsync()</c> leaves the host entry-point
+    /// intact but closes the underlying container, so the next health
+    /// probe fails.
+    /// </summary>
+    public Task StopRabbitMqContainerAsync() => _rabbit.StopAsync();
+
     private static string ExtractAmqpHost(string amqpConnectionString)
     {
         // Helper kept for backwards-compat — the host config now passes the

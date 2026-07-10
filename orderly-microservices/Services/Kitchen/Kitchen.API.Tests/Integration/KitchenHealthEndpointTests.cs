@@ -52,4 +52,30 @@ public sealed class KitchenHealthEndpointTests
         broker.GetProperty("tags").EnumerateArray()
             .Select(t => t.GetString()).Should().Contain(new[] { "broker", "ready" });
     }
+
+    /// <summary>
+    /// once the RabbitMQ container is stopped, <c>/health</c> must
+    /// flip to 503 with <c>entries.messagebroker.status == Unhealthy</c>.
+    /// Stops the RabbitMQ container in place so the EF check still passes.
+    /// </summary>
+    [Fact]
+    public async Task Health_WhenBrokerDown_Returns503WithBrokerUnhealthy()
+    {
+        // Sanity check: /health is 200 + Healthy before we tear anything down.
+        var client = _factory.CreateClient();
+        (await client.GetAsync("/health")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Stop the broker. The Testcontainers RabbitMQ container is the
+        // back-end of the AspNetCore.HealthChecks.Rabbitmq check, so
+        // dismounting it makes the next probe fail.
+        await _factory.StopRabbitMqContainerAsync();
+
+        var response = await client.GetAsync("/health");
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+
+        var body = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(body);
+        var broker = doc.RootElement.GetProperty("entries").GetProperty("messagebroker");
+        broker.GetProperty("status").GetString().Should().Be("Unhealthy");
+    }
 }

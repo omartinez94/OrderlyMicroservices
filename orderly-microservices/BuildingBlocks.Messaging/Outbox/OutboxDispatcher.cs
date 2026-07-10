@@ -11,9 +11,12 @@ namespace BuildingBlocks.Messaging.Outbox;
 /// when rows are present, and back-offs to <see cref="OutboxOptions.IdlePollInterval"/>
 /// when the queue is empty.
 ///
-/// Stops cleanly on shutdown after the in-flight batch completes (no
-/// message is half-dispatched on crash — the row stays unclaimed and the
-/// next process picks it up).
+/// Stops cleanly on shutdown after the in-flight batch completes. On
+/// multi-replica deploys the dispatcher uses engine-native row-claim
+/// hints (<c>SELECT FOR UPDATE SKIP LOCKED</c> on Postgres,
+/// <c>WITH (ROWLOCK, UPDLOCK, READPAST)</c> on MSSQL) so two replicas
+/// picking up the same row don't duplicate the publish — the second
+/// replica's claim skips locked rows.
 /// </summary>
 public abstract class OutboxDispatcher<TContext> : BackgroundService
     where TContext : class, IOutboxDbContext
@@ -38,6 +41,21 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
     /// on the next tick without poisoning the caller's scope.</summary>
     protected abstract TContext CreateContext(IServiceProvider services);
 
+    /// <summary>
+    /// Engine-native SQL that claims up to <paramref name="batchSize"/>
+    /// undispatched <see cref="OutboxMessage"/> rows AND locks them for
+    /// the duration of the surrounding transaction. The base class runs
+    /// the SELECT, the broker publish, and the dispatched-on stamp in
+    /// the same transaction so the row's lock survives the publish.
+    ///
+    /// Implementations:
+    /// <list type="bullet">
+    /// <item>Postgres: appends <c>FOR UPDATE SKIP LOCKED</c>.</item>
+    /// <item>MSSQL: appends <c>WITH (ROWLOCK, UPDLOCK, READPAST)</c>.</item>
+    /// </list>
+    /// </summary>
+    protected abstract FormattableString BuildClaimSql(int batchSize);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!_options.Enabled)
@@ -58,13 +76,7 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
             int dispatched;
             try
             {
-                using var scope = _services.CreateScope();
-                var dbContext = CreateContext(scope.ServiceProvider);
-                var publishEndpoint = scope.ServiceProvider
-                    .GetRequiredService<IPublishEndpoint>();
-
-                dispatched = await DispatchBatchAsync(
-                    dbContext, publishEndpoint, stoppingToken);
+                dispatched = await DispatchOnceAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -93,24 +105,49 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
     }
 
     /// <summary>
-    /// Claims up to <see cref="OutboxOptions.BatchSize"/> undispatched rows
-    /// and publishes them via MassTransit. On success, stamps
-    /// <see cref="OutboxMessage.DispatchedAt"/>. Errors are logged but do
-    /// not stamp the row, so the next iteration retries.
+    /// Runs one dispatcher iteration out-of-band, bypassing the
+    /// <see cref="OutboxOptions.Enabled"/> toggle and the polling
+    /// delay. Used by tests to drive the dispatcher deterministically
+    /// across two parallel replicas against the same backing store,
+    /// proving that engine-native row locks prevent duplicate
+    /// publishes when both replicas contend on the same row.
+    /// </summary>
+    public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
+    {
+        using var scope = _services.CreateScope();
+        var dbContext = CreateContext(scope.ServiceProvider);
+        var publishEndpoint = scope.ServiceProvider
+            .GetRequiredService<IPublishEndpoint>();
+
+        return await DispatchBatchAsync(dbContext, publishEndpoint, cancellationToken);
+    }
+
+    /// <summary>
+    /// Claims a batch of undispatched rows under a transaction that
+    /// holds row-level locks until each row is either dispatched (and
+    /// stamped) or the transaction is rolled back. On multi-replica
+    /// deploys, the second replica's claim sees a row that's locked by
+    /// the first replica and skips it, eliminating duplicate publishes.
     /// </summary>
     private async Task<int> DispatchBatchAsync(
         TContext dbContext,
         IPublishEndpoint publishEndpoint,
         CancellationToken cancellationToken)
     {
-        var pending = await dbContext.OutboxMessages
-            .Where(m => m.DispatchedAt == null)
-            .OrderBy(m => m.OccurredOn)
-            .Take(_options.BatchSize)
-            .ToListAsync(cancellationToken);
+        // The claim + dispatch + stamp cycle runs inside one explicit
+        // transaction so the engine-native row lock from
+        // BuildClaimSql(...) holds until SaveChangesAsync commits.
+        await using var tx = await dbContext.Database.BeginTransactionAsync(
+            cancellationToken);
 
+        var pending = await ClaimPendingAsync(dbContext, cancellationToken);
         if (pending.Count == 0)
+        {
+            // Empty claim — commit (no-op transaction) before returning
+            // so we don't leak a held connection.
+            await tx.CommitAsync(cancellationToken);
             return 0;
+        }
 
         var now = SystemClock.Instance.GetCurrentInstant();
         foreach (var row in pending)
@@ -142,7 +179,26 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
             }
         }
 
+        // EF sees the open transaction and won't auto-open its own;
+        // SaveChanges flushes the row updates against the same
+        // connection. The explicit commit releases the row locks.
         await dbContext.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
         return pending.Count;
+    }
+
+    private async Task<List<OutboxMessage>> ClaimPendingAsync(
+        TContext dbContext,
+        CancellationToken cancellationToken)
+    {
+        // FromSql on a tracked DbSet so the stamp later routes through
+        // the same change tracker — no second round-trip to re-fetch
+        // the rows. The Engine-native SQL carries the row lock (see
+        // BuildClaimSql) which is released when the surrounding
+        // transaction commits in DispatchBatchAsync.
+        return await dbContext.OutboxMessages
+            .FromSql(BuildClaimSql(_options.BatchSize))
+            .AsTracking()
+            .ToListAsync(cancellationToken);
     }
 }

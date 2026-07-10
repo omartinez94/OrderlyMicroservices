@@ -11,6 +11,14 @@ namespace Kitchen.API.Infrastructure.Interceptors;
 /// Spawns a fresh <see cref="KitchenDbContext"/> per poll iteration so a
 /// broker publish failure can be retried on the next tick without
 /// poisoning the caller's scope.
+///
+/// Row-claim strategy (Postgres):
+/// <c>SELECT ... FOR UPDATE SKIP LOCKED</c> — Postgres-specific syntax
+/// that locks claimed rows for the duration of the surrounding
+/// transaction and skips rows already locked by a different
+/// transaction. Combined with the explicit transaction in
+/// <see cref="OutboxDispatcher{TContext}"/>, this guarantees that two
+/// replicas picking up the same outbox row can't both publish.
 /// </summary>
 public class KitchenOutboxDispatcher(
     IServiceProvider services,
@@ -24,4 +32,12 @@ public class KitchenOutboxDispatcher(
             Microsoft.EntityFrameworkCore.DbContextOptions<KitchenDbContext>>();
         return new KitchenDbContext(optionsAccessor);
     }
+
+    protected override FormattableString BuildClaimSql(int batchSize) =>
+        $@"SELECT *
+           FROM outbox_messages
+           WHERE ""DispatchedAt"" IS NULL
+           ORDER BY ""OccurredOn""
+           LIMIT {batchSize}
+           FOR UPDATE SKIP LOCKED";
 }

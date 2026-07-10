@@ -339,11 +339,11 @@ The seven Kitchen-tagged endpoints are grouped under `app.MapGroup("/api/v1").Wi
 
 All four Kitchen-side consumers follow the "fetch latest aggregate, call guarded method" pattern; missing order → log + nack (`InvalidOrderStateTransitionException` on a re-attempted illegal transition is MassTransit-faulted and re-tried by the broker).
 
-**Transactional outbox.** Aggregate events raised in domain methods are dispatched to `IOutboxPublisher` (the EF Core `SaveChangesInterceptor` writes an `outbox_messages` row inside the same transaction). `OrderingOutboxDispatcher` (hosted service) polls the table (1 s active / 5 s idle) and relays each row to `IPublishEndpoint.Publish(...)`, marking it `DispatchedAt` on success. Disabled in tests via `Outbox:Enabled=false`. Consumer-side idempotency keys off `IntegrationEvent.Id`. Single-replica safe today; multi-replica safety requires `SELECT FOR UPDATE SKIP LOCKED`.
+**Transactional outbox.** Aggregate events raised in domain methods are dispatched to `IOutboxPublisher` (the EF Core `SaveChangesInterceptor` writes an `outbox_messages` row inside the same transaction). `OrderingOutboxDispatcher` (hosted service) polls the table (1 s active / 5 s idle) and relays each row to `IPublishEndpoint.Publish(...)`, marking it `DispatchedAt` on success. Disabled in tests via `Outbox:Enabled=false`. Consumer-side idempotency keys off `IntegrationEvent.Id`. **Multi-replica safe** — the claim uses engine-native row locks (MSSQL `WITH (ROWLOCK, UPDLOCK, READPAST)` here; Postgres `FOR UPDATE SKIP LOCKED` on Kitchen) held inside an explicit transaction across the claim + broker publish + dispatched-on stamp. The `OutboxMessage.SchemaVersion` column already exists (default 1) for the poison-queue routing.
 
 **Caching.** No Redis usage in Ordering.
 
-**Health:** `/health` via `AspNetCore.HealthChecks.SqlServer` (the database reachability check). The broker RabbitMQ check is **not yet wired on Ordering**.
+**Health:** `/health` via `AspNetCore.HealthChecks.SqlServer` (the database reachability check) plus the broker RabbitMQ check (`AspNetCore.HealthChecks.Rabbitmq` 8.0.2, entry `messagebroker`, tags `["broker", "ready"]`) — landed as the Phase G broker-uniformity follow-on so every service that publishes RabbitMQ traffic reports the broker on `/health` consistently.
 
 ---
 
@@ -505,7 +505,7 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 - **Health checks:** `/health` per service, UI response writer. The full health response includes each registered check:
   - `database` — every backing-store check (`kitchendb`, `orderdb`, etc.).
   - `redis` — `Basket.API` cache reachability.
-  - `rabbitmq` — `Kitchen.API` broker reachability under entry `messagebroker` (tags `["broker", "ready"]`); wired via `AspNetCore.HealthChecks.Rabbitmq` 8.0.2
+  - `rabbitmq` — broker reachability under entry `messagebroker` (tags `["broker", "ready"]`); wired via `AspNetCore.HealthChecks.Rabbitmq` 8.0.2 on `Kitchen.API`, `Ordering.API`, and `Basket.API`.
 - **Tracing / metrics:** no OpenTelemetry / Application Insights integration in code.
 
 ---

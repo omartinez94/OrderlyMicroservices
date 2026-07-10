@@ -90,6 +90,20 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(builder.Configuration.GetConnectionString("BasketDB")!)
     .AddRedis(builder.Configuration.GetConnectionString("Redis")!);
 
+// Broker reachability under entries.messagebroker (tags ["broker",
+// "ready"])
+var rabbitConnectionString =
+    builder.Configuration.GetValue<string>("MessageBroker:ConnectionString")
+    ?? builder.Configuration.GetValue<string>("MessageBroker:Host");
+if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
+{
+    builder.Services.AddHealthChecks()
+        .AddRabbitMQ(
+            rabbitConnectionString: rabbitConnectionString,
+            name: "messagebroker",
+            tags: new[] { "broker", "ready" });
+}
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

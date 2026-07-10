@@ -21,6 +21,20 @@ public static class DependencyInjection
         services.AddHealthChecks()
             .AddSqlServer(configuration.GetConnectionString("Database")!);
 
+        // Broker reachability under entries.messagebroker (tags
+        // ["broker", "ready"]), mirroring Kitchen's wiring.
+        var rabbitConnectionString =
+            configuration.GetValue<string>("MessageBroker:ConnectionString")
+            ?? configuration.GetValue<string>("MessageBroker:Host");
+        if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
+        {
+            services.AddHealthChecks()
+                .AddRabbitMQ(
+                    rabbitConnectionString: rabbitConnectionString,
+                    name: "messagebroker",
+                    tags: new[] { "broker", "ready" });
+        }
+
         return services;
     }
 

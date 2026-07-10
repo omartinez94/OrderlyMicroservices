@@ -2,7 +2,7 @@ namespace Ordering.Domain.Models;
 
 public class OrderItem : Abstractions::Entity<OrderItemId>
 {
-    internal OrderItem(OrderId orderId, MenuItemId menuItemId, int quantity, decimal unitPrice) 
+    internal OrderItem(OrderId orderId, MenuItemId menuItemId, int quantity, decimal unitPrice)
     {
         Id = OrderItemId.Of(Guid.NewGuid());
         OrderId = orderId;
@@ -32,4 +32,32 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
     public decimal UnitPrice { get; set; }
     public Instant? PrepCompletedAt { get; set; }
     public Instant? PrepStartedAt { get; set; }
+
+    /// <summary>
+    /// <c>Pending -&gt; Preparing</c>. Mutates the per-item prep state.
+    /// The parent <see cref="Order"/>'s status is unaffected — that's the
+    /// kitchen display's responsibility to track.
+    /// </summary>
+    public void MarkItemPreparing(Instant now)
+    {
+        if (PrepStatus != PrepStatus.Pending)
+            throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemPreparing));
+
+        PrepStatus = PrepStatus.Preparing;
+        PrepStartedAt = now;
+    }
+
+    /// <summary>
+    /// <c>Preparing -&gt; Ready</c>. Idempotent: calling on an already-Ready
+    /// item throws so the API surfaces a 409 instead of silently rewriting
+    /// <see cref="PrepCompletedAt"/>.
+    /// </summary>
+    public void MarkItemReady(Instant now)
+    {
+        if (PrepStatus != PrepStatus.Preparing)
+            throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemReady));
+
+        PrepStatus = PrepStatus.Ready;
+        PrepCompletedAt = now;
+    }
 }

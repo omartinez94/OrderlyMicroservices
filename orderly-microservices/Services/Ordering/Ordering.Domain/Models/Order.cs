@@ -141,6 +141,72 @@ public class Order : Aggregate<OrderId>
     }
 
     /// <summary>
+    /// <c>Confirmed -&gt; Preparing</c>. Triggered when the kitchen signals
+    /// the first item started prep (today via the
+    /// <c>POST /orders/{id}/start-prep</c> REST endpoint — no inbound event
+    /// from Kitchen yet, see KITCHEN_FOLLOWUP_PLAN.md §7.1 open question).
+    /// </summary>
+    public void MarkPreparing(Instant now)
+    {
+        if (Status != OrderStatus.Confirmed)
+            throw new InvalidOrderStateTransitionException(Status, nameof(MarkPreparing));
+
+        Status = OrderStatus.Preparing;
+        PreparingStartedAt = now;
+
+        AddDomainEvent(new OrderPreparingEvent(this, now));
+    }
+
+    /// <summary>
+    /// <c>Ready -&gt; Dispatched</c> (sets <see cref="DeliveryStatus"/>
+    /// to <c>Dispatched</c> when the courier picks up the order). The
+    /// aggregate status stays at <c>Ready</c> for dine-in / takeout
+    /// orders — only delivery orders move through this transition.
+    /// </summary>
+    public void StartDelivery()
+    {
+        if (Status != OrderStatus.Ready)
+            throw new InvalidOrderStateTransitionException(Status, nameof(StartDelivery));
+
+        DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Dispatched;
+        AddDomainEvent(new OrderDeliveryStartedEvent(this));
+    }
+
+    /// <summary>
+    /// <c>Ready -&gt; Delivered</c>. For delivery orders this should be
+    /// preceded by <see cref="StartDelivery"/>; for dine-in / takeout the
+    /// order moves straight from Ready to Delivered. The
+    /// <see cref="DeliveryStatus"/> is stamped to <c>Delivered</c> for
+    /// audit even when the order type is non-delivery.
+    /// </summary>
+    public void MarkDelivered(Instant now)
+    {
+        if (Status != OrderStatus.Ready)
+            throw new InvalidOrderStateTransitionException(Status, nameof(MarkDelivered));
+
+        Status = OrderStatus.Delivered;
+        DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Delivered;
+        DeliveredAt = now;
+
+        AddDomainEvent(new OrderDeliveredEvent(this, now));
+    }
+
+    /// <summary>
+    /// <c>Delivered -&gt; Completed</c>. Closes out the order once the
+    /// customer / cashier confirms receipt.
+    /// </summary>
+    public void Complete(Instant now)
+    {
+        if (Status != OrderStatus.Delivered)
+            throw new InvalidOrderStateTransitionException(Status, nameof(Complete));
+
+        Status = OrderStatus.Completed;
+        CompletedAt = now;
+
+        AddDomainEvent(new OrderCompletedEvent(this, now));
+    }
+
+    /// <summary>
     /// Permitted from any non-terminal state. Records reason and the user
     /// who cancelled for audit.
     /// </summary>

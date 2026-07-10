@@ -534,4 +534,191 @@ public sealed class OrderTests
 
         act.Should().Throw<ArgumentNullException>().WithParameterName("menuItemId");
     }
+
+    // -------- MarkPreparing --------
+
+    /// <summary>
+    /// Happy path: <c>MarkPreparing</c> transitions <c>Confirmed -&gt;
+    /// Preparing</c>, stamps <c>PreparingStartedAt</c>, and raises
+    /// <see cref="OrderPreparingEvent"/>.
+    /// </summary>
+    [Fact]
+    public void MarkPreparing_FromConfirmed_TransitionsToPreparingAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        order.MarkPreparing(now);
+
+        order.Status.Should().Be(OrderStatus.Preparing);
+        order.PreparingStartedAt.Should().Be(now);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderPreparingEvent>()
+            .Which.Order.Should().BeSameAs(order);
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>MarkPreparing</c> from any non-Confirmed
+    /// state throws <see cref="InvalidOrderStateTransitionException"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void MarkPreparing_FromNonConfirmed_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.MarkPreparing(SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- MarkDelivered --------
+
+    /// <summary>
+    /// Happy path: <c>MarkDelivered</c> transitions <c>Ready -&gt;
+    /// Delivered</c>, stamps <c>DeliveredAt</c> + <c>DeliveryStatus</c>,
+    /// and raises <see cref="OrderDeliveredEvent"/>.
+    /// </summary>
+    [Fact]
+    public void MarkDelivered_FromReady_TransitionsToDeliveredAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Ready);
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        order.MarkDelivered(now);
+
+        order.Status.Should().Be(OrderStatus.Delivered);
+        order.DeliveredAt.Should().Be(now);
+        order.DeliveryStatus.Should().Be(DeliveryStatus.Delivered);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderDeliveredEvent>()
+            .Which.Order.Should().BeSameAs(order);
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>MarkDelivered</c> from any non-Ready state
+    /// throws <see cref="InvalidOrderStateTransitionException"/>.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void MarkDelivered_FromNonReady_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.MarkDelivered(SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- Complete --------
+
+    /// <summary>
+    /// Happy path: <c>Complete</c> transitions <c>Delivered -&gt;
+    /// Completed</c> and stamps <c>CompletedAt</c>.
+    /// </summary>
+    [Fact]
+    public void Complete_FromDelivered_TransitionsToCompleted()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Delivered);
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        order.Complete(now);
+
+        order.Status.Should().Be(OrderStatus.Completed);
+        order.CompletedAt.Should().Be(now);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderCompletedEvent>();
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>Complete</c> from any non-Delivered state
+    /// throws.
+    /// </summary>
+    [Theory]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void Complete_FromNonDelivered_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.Complete(SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- StartDelivery --------
+
+    /// <summary>
+    /// Happy path: <c>StartDelivery</c> stamps <c>DeliveryStatus</c> to
+    /// <c>Dispatched</c> while the order stays at <c>Ready</c>.
+    /// </summary>
+    [Fact]
+    public void StartDelivery_FromReady_StampsDeliveryStatusDispatched()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Ready);
+        order.ClearDomainEvents();
+
+        order.StartDelivery();
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        order.DeliveryStatus.Should().Be(DeliveryStatus.Dispatched);
+        order.DomainEvents.Should().HaveCount(1);
+        order.DomainEvents[0].Should().BeOfType<OrderDeliveryStartedEvent>();
+    }
+
+    /// <summary>
+    /// Illegal transition: <c>StartDelivery</c> from any non-Ready state
+    /// throws.
+    /// </summary>
+    [Fact]
+    public void StartDelivery_FromPending_Throws()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        Action act = () => order.StartDelivery();
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(OrderStatus.Pending);
+    }
 }

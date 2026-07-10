@@ -23,4 +23,14 @@ public class OutboxOptions
 
     /// <summary>Maximum rows the dispatcher claims per poll.</summary>
     public int BatchSize { get; set; } = 100;
+
+    /// <summary>
+    /// Highest <see cref="OutboxMessage.SchemaVersion"/> the dispatcher
+    /// will route to <c>IPublishEndpoint</c>. Rows stamped with a higher
+    /// version are copied to <c>outbox_messages_dead</c> instead of
+    /// being published. Bump this together with the consumer code so the
+    /// two stay in lockstep; the dispatcher is the gate because it sits
+    /// at the bus boundary.
+    /// </summary>
+    public int MaxSupportedVersion { get; set; } = 1;
 }

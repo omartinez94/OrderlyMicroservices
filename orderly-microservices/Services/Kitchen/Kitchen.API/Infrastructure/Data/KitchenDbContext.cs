@@ -16,6 +16,7 @@ public class KitchenDbContext(DbContextOptions<KitchenDbContext> options)
     public DbSet<KitchenTicketItem> TicketItems => Set<KitchenTicketItem>();
     public DbSet<KitchenStation> Stations => Set<KitchenStation>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<OutboxDeadMessage> OutboxDeadMessages => Set<OutboxDeadMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -23,6 +24,7 @@ public class KitchenDbContext(DbContextOptions<KitchenDbContext> options)
 
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(KitchenDbContext).Assembly);
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+        modelBuilder.ApplyConfiguration(new OutboxDeadMessageConfiguration());
         base.OnModelCreating(modelBuilder);
     }
 }

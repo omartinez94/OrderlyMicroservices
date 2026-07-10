@@ -152,6 +152,33 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
         var now = SystemClock.Instance.GetCurrentInstant();
         foreach (var row in pending)
         {
+            // Schema-version gate:
+            // a future-version row wasn't yet known when this
+            // dispatcher rolled out. Copy to outbox_messages_dead so an
+            // operator can triage (bump MaxSupportedVersion after a new
+            // consumer deploys) and skip the broker publish — the
+            // destination consumer doesn't have the matching CLR type
+            // yet.
+            if (row.SchemaVersion > _options.MaxSupportedVersion)
+            {
+                dbContext.OutboxDeadMessages.Add(new OutboxDeadMessage
+                {
+                    Id = row.Id,
+                    OccurredOn = row.OccurredOn,
+                    Type = row.Type,
+                    Payload = row.Payload,
+                    SchemaVersion = row.SchemaVersion,
+                    Reason = Reasons.UnsupportedSchemaVersion,
+                    RejectedAt = now,
+                });
+                dbContext.OutboxMessages.Remove(row);
+
+                _logger.LogWarning(
+                    "Outbox row {OutboxId} ({MessageType}) was stamped schema v{Schema} but the dispatcher only supports up to v{Max}. Quarantined to outbox_messages_dead.",
+                    row.Id, row.Type, row.SchemaVersion, _options.MaxSupportedVersion);
+                continue;
+            }
+
             try
             {
                 var messageType = Type.GetType(row.Type)

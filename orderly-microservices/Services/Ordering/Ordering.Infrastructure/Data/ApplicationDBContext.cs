@@ -12,11 +12,13 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<OrderBill> OrderBills => Set<OrderBill>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+    public DbSet<OutboxDeadMessage> OutboxDeadMessages => Set<OutboxDeadMessage>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         builder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         builder.ApplyConfiguration(new OutboxMessageConfiguration());
+        builder.ApplyConfiguration(new OutboxDeadMessageConfiguration());
 
         base.OnModelCreating(builder);
     }

@@ -40,7 +40,7 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 | Time | **NodaTime** | 3.3.2 — `Instant` / `LocalDate` across the schema |
 | Gateway | **YARP** | 2.3.0 |
 | Resilience | `Microsoft.AspNetCore.RateLimiting` (built-in) | — Fixed-window on Identity (5/15min/IP) and YARP (10/1min/host) |
-| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,Rabbitmq,UI.Client}` | 9.0.0 (SqlServer/NpgSql/Redis) + 8.0.2 (Rabbitmq) — every service exposes `/health`. The Rabbitmq check is currently wired only on `Kitchen.API`; see `KITCHEN_FOLLOWUP_PLAN.md` |
+| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,Rabbitmq,UI.Client}` | 9.0.0 (SqlServer/NpgSql/Redis) + 8.0.2 (Rabbitmq) — every service exposes `/health`. The Rabbitmq check is wired on `Kitchen.API`, `Ordering.API`, and `Basket.API` under entry `messagebroker` (tags `["broker", "ready"]`). |
 | API style | Carter modules + MediatR commands/queries | — DTOs and validators co-located under `Features/<Entity>/` |
 | Logging | ASP.NET Core default `ILogger` | — |
 | Frontend | none in-repo | — |
@@ -376,7 +376,7 @@ There are no other `HttpClient` registrations across the services. No service-to
 
 **Abstraction.** No `IEventBus`. MassTransit primitives are used directly (`IPublishEndpoint.Publish`, `IConsumer<T>`, `AddMassTransit` from `BuildingBlocks.Messaging/Extensions.cs`). Base type: `record IntegrationEvent { Id { get; init; } = Guid.NewGuid(); OccurredOn { get; init; } = SystemClock.Instance.GetCurrentInstant(); EventType => GetType().AssemblyQualifiedName!; MessageVersion { get; init; } = 1; }`.
 
-> **Note:** `Id`, `OccurredOn`, and `MessageVersion` are constructor-set (init properties), captured once per instance. Earlier releases used getter expressions that returned a fresh value per read — fixed in M0 per KITCHEN_INTEGRATION_PLAN.md Phase 1 so consumers can rely on stable event identity for correlation and idempotency. The `MessageVersion` field is the wire-format-versioning handle (F.5): the publisher reads it and stamps it into the outbox row's `SchemaVersion` so a single bump propagates through the schema-version gate. Additive changes (new optional fields) are non-breaking because `System.Text.Json` tolerates unknown fields on the read side; breaking changes ship a new event subtype with `MessageVersion = 2` and the same `EntityName` so both shapes route to the same consumer topic during the rollover window.
+> **Note:** `Id`, `OccurredOn`, and `MessageVersion` are constructor-set (init properties), captured once per instance. Earlier releases used getter expressions that returned a fresh value per read — so consumers can rely on stable event identity for correlation and idempotency. The `MessageVersion` field is the wire-format-versioning handle: the publisher reads it and stamps it into the outbox row's `SchemaVersion` so a single bump propagates through the schema-version gate. Additive changes (new optional fields) are non-breaking because `System.Text.Json` tolerates unknown fields on the read side; breaking changes ship a new event subtype with `MessageVersion = 2` and the same `EntityName` so both shapes route to the same consumer topic during the rollover window.
 
 **Integration events emitted / consumed:**
 

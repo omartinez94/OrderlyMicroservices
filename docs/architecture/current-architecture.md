@@ -40,7 +40,7 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 | Time | **NodaTime** | 3.3.2 — `Instant` / `LocalDate` across the schema |
 | Gateway | **YARP** | 2.3.0 |
 | Resilience | `Microsoft.AspNetCore.RateLimiting` (built-in) | — Fixed-window on Identity (5/15min/IP) and YARP (10/1min/host) |
-| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,UI.Client}` | 9.0.0 — every service exposes `/health` |
+| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,Rabbitmq,UI.Client}` | 9.0.0 (SqlServer/NpgSql/Redis) + 8.0.2 (Rabbitmq) — every service exposes `/health`. The Rabbitmq check is currently wired only on `Kitchen.API`; see `KITCHEN_FOLLOWUP_PLAN.md` |
 | API style | Carter modules + MediatR commands/queries | — DTOs and validators co-located under `Features/<Entity>/` |
 | Logging | ASP.NET Core default `ILogger` | — |
 | Frontend | none in-repo | — |
@@ -49,26 +49,27 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 
 ## 3. Solution Layout
 
-Source root: `orderly-microservices/`. 12 projects + 2 test projects + a Docker compose project.
+Source root: `orderly-microservices/`. 12 projects + 5 test projects + a Docker compose project.
 
 ```
 orderly-microservices/
 ├── ApiGateway/
 │   └── YarpApiGateway/                         # YARP front door (port 6004 / 6064)
 ├── BuildingBlocks/                             # Shared lib (CQRS, Behaviors, Authorization, Multitenancy, Entities)
-├── BuildingBlocks.Messaging/                   # MassTransit + IntegrationEvent base
+├── BuildingBlocks.Messaging/                   # MassTransit + IntegrationEvent base + Outbox dispatcher helper
 ├── Services/
 │   ├── Catalog/Catalog.API/                    # Brands, restaurants, tables, menus, reservations, snapshots
 │   ├── Basket/Basket.API/                      # Marten + Redis cache, gRPC client to Discount, publishes BasketCheckoutEvent
 │   ├── Discount/Discount.Grpc/                 # gRPC server, SQLite store, single Coupon entity
 │   ├── Identity/Identity.API/                  # OpenIddict + ASP.NET Identity + RBAC permissions
-│   ├── Kitchen/Kitchen.API/                    # Kitchen fulfilment, SignalR hub, Postgres `kitchendb`
-│   ├── Kitchen/Kitchen.API.Tests/              # xUnit + FluentAssertions + NSubstitute for the Kitchen domain
+│   ├── Kitchen/Kitchen.API/                    # Kitchen fulfilment, SignalR hub, Postgres `kitchendb`, transactional outbox
+│   ├── Kitchen/Kitchen.API.Tests/              # xUnit + FluentAssertions + Testcontainers (Postgres + RabbitMQ) for the Kitchen API
 │   └── Ordering/
-│       ├── Ordering.Domain/                    # Aggregate<Order>, OrderItem, OrderBill, Customer, MenuItem; value objects
-│       ├── Ordering.Application/               # MediatR commands/queries, domain + integration handlers
-│       ├── Ordering.Infrastructure/            # EF Core + MSSQL, interceptors, migrations
-│       └── Ordering.API/                       # Carter endpoints + MassTransit consumer
+│       ├── Ordering.Domain/                    # Aggregate<Order> with 7 state-transition methods, OrderItem (per-item prep state), value objects, exceptions
+│       ├── Ordering.Application/               # MediatR commands/queries, domain + integration handlers, Outbox publisher wiring
+│       ├── Ordering.Infrastructure/            # EF Core + MSSQL, interceptors, outbox_messages table, Outbox dispatcher hosted service
+│       ├── Ordering.API/                       # 13 Carter endpoints (6 customer/admin + 7 Kitchen state-transition), no in-assembly MassTransit consumer
+│       └── Ordering.API.Tests/                 # xUnit + FluentAssertions + Testcontainers (MSSQL + RabbitMQ) for the new endpoints + /health
 └── ...
 ```
 
@@ -88,9 +89,9 @@ Docker host ports are **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HT
 | Catalog.API | `catalog.api` | 6000 | 6060 | Postgres + Marten |
 | Basket.API | `basket.api` | 6001 | 6061 | Postgres + Marten + Redis + RabbitMQ + gRPC client |
 | Discount.Grpc | `discount.grpc` | 6002 | 6062 | gRPC only (HTTP/2). SQLite file. |
-| Ordering.API | `ordering.api` | 6003 | 6063 | MSSQL + MassTransit consumer |
+| Ordering.API | `ordering.api` | 6003 | 6063 | MSSQL + 13 Carter endpoints (6 customer/admin + 7 Kitchen state-transition `kitchen:update_prep_status`) + transactional outbox (`outbox_messages`, hosted dispatcher) |
 | YarpApiGateway | `yarpapigateway` | 6004 | 6064 | YARP, fixed-window rate limit |
-| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR `/hubs/kitchen` — domain, read + command endpoints, outbound integration events, live broadcast, plus `/health` (EF Core `KitchenDbContext` check) and `Microsoft.FeatureManagement` registration |
+| Kitchen.API | `kitchen.api` | 6005 | 6065 | Postgres (`kitchendb`) + SignalR `/hubs/kitchen` — domain, read + command endpoints, outbound integration events, live broadcast, transactional outbox (`outbox_messages` table, `KitchenOutboxPublisher` interceptor + `KitchenOutboxDispatcher` hosted service), `/health` (EF Core `KitchenDbContext` check + RabbitMQ broker check `messagebroker`), and `Microsoft.FeatureManagement` registration |
 | Identity.API | `identity.api` | 6007 | 6067 | OpenIddict server + ASP.NET Identity |
 
 Gateway public prefixes (`appsettings.json`):
@@ -281,15 +282,25 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 **Surface:** Carter modules under `/api/v1`. MSSQL Server 2022 via EF Core SqlServer. Consumes `BasketCheckoutEvent` from RabbitMQ.
 
 **Layered DDD layout.**
-- `Ordering.Domain` (no external deps except `BuildingBlocks`): `Order : Aggregate<OrderId>` with private `OrderItems` list exposed as `IReadOnlyCollection`; entities `OrderItem : Entity<OrderItemId>`, `OrderBill : Entity<int>`, `Customer : AuditableEntity<CustomerId>`, `MenuItem : Entity<MenuItemId>`. Value objects in `ValueObjects/`: `OrderId`, `OrderItemId`, `MenuItemId`, `OrderNumber`, `CustomerId`, `Address` (5-digit ZipCode enforced), `Payment` (3-digit Ccv, MM/YY regex). Domain exceptions live in `Ordering.Domain/Exceptions/DomainException.cs`.
-- `Ordering.Application`: MediatR commands + queries + open behaviors (`ValidationBehavior<,>` runs only on `ICommand<TResponse>`; `LoggingBehavior<,>` runs on everything). Inter-feature segment: `Orders/Commands/`, `Orders/Queries/`, `Orders/EventHandlers/Domain/`, `Orders/EventHandlers/Integration/`. `Dtos/` + `Dtos/Validators/`. `FeatureManagement` is registered so the `OrderFullfilment` flag gates `OrderCreatedEventHandler`.
-- `Ordering.Infrastructure`: `ApplicationDBContext` with DbSets `Customers`, `Orders`, `OrderItems`, `MenuItems`, `OrderBills`. Configurations use EF Core's `ComplexProperty` for nested `BillingAddress` / `DeliveryAddress` / `Payment` value objects. Two migrations exist (`InitialCreate` and `AddOrderBill`). Migrations retry up to 30× on SQL errors 1801/4060/233/-2, then seed four orders via `InitialData`.
-- `Ordering.API`: 6 Carter endpoints + a `BasketCheckoutEventConsumer`.
+- `Ordering.Domain` (no external deps except `BuildingBlocks`): `Order : Aggregate<OrderId>` with private `OrderItems` list exposed as `IReadOnlyCollection`; entities `OrderItem : Entity<OrderItemId>` (with `MarkItemPreparing` / `MarkItemReady` per-item state transitions), `OrderBill : Entity<int>`, `Customer : AuditableEntity<CustomerId>`, `MenuItem : Entity<MenuItemId>`. Value objects in `ValueObjects/`: `OrderId`, `OrderItemId`, `MenuItemId`, `OrderNumber`, `CustomerId`, `Address` (5-digit ZipCode enforced), `Payment` (3-digit Ccv, MM/YY regex). Domain exceptions in `Ordering.Domain/Exceptions/`: `DomainException`, `InvalidOrderStateTransitionException` (→ HTTP 409), `InvalidOrderItemStateTransitionException` (→ HTTP 409), `OrderNotFoundException`, `OrderItemNotFoundException`.
+- `Ordering.Application`: MediatR commands + queries + open behaviors (`ValidationBehavior<,>` runs only on `ICommand<TResponse>`; `LoggingBehavior<,>` runs on everything). Inter-feature segment: `Orders/Commands/` (Create, Update, Delete, Confirm, StartOrderPrep, MarkOrderReady, Cancel, StartItemPrep, MarkItemReady, MarkOrderDelivered), `Orders/Queries/`, `Orders/EventHandlers/Domain/`, `Orders/EventHandlers/Integration/` (`BasketCheckoutEventHandler` + the four `KitchenOrder*IntegrationEventHandler` consumers). `Dtos/` + `Dtos/Validators/`. `FeatureManagement` is registered so the `OrderFullfilment` flag gates `OrderCreatedEventHandler`.
+- `Ordering.Infrastructure`: `ApplicationDBContext` with DbSets `Customers`, `Orders`, `OrderItems`, `MenuItems`, `OrderBills`, `OutboxMessages`. Configurations use EF Core's `ComplexProperty` for nested `BillingAddress` / `DeliveryAddress` / `Payment` value objects. Migrations: `InitialCreate`, `AddOrderBill`, `20260706233202_AddOutboxMessages`. Migrations retry up to 30× on SQL errors 1801/4060/233/-2, then seed four orders via `InitialData`. Transactional outbox: `OrderingOutboxPublisher` (interceptor) writes to `outbox_messages` inside the same transaction as the aggregate mutation; `OrderingOutboxDispatcher` (hosted service) polls + relays to `IPublishEndpoint`.
+- `Ordering.API`: 13 Carter endpoints (6 customer/admin + 7 kitchen state-transition); no in-assembly MassTransit consumer — `Ordering.Application/Orders/EventHandlers/Integration/` is the single MassTransit registration point
 
 **Aggregate behaviour.**
-- `Order.Create(...)` → raises `OrderCreatedEvent`. The handler (under the `OrderFullfilment` feature flag) maps to an `OrderDto` and publishes via `IPublishEndpoint`.
-- `Order.Update(...)` → overwrites billing/delivery address, payment, and status in one shot; raises `OrderUpdatedEvent` (handler only logs).
+- `Order.Create(...)` → raises `OrderCreatedEvent`. The handler (gated by the `OrderFullfilment` feature flag) projects the aggregate to the bus-safe `OrderCreatedIntegrationEvent` (no `PaymentDto` / no `Card*` fields) via `OrderExtensions.ToOrderCreatedIntegrationEvent` and writes the row through the outbox publisher.
+- `Order.Update(billingAddress, deliveryAddress, payment)` → mutates the customer-editable parts only; **`Status` is no longer written here**. Raises `OrderUpdatedEvent` (handler only logs).
 - `Order.Add(menuItemId, quantity, price)` / `Order.Remove(menuItemId)`.
+- **State-transition methods** (each guarded by `InvalidOrderStateTransitionException` → HTTP 409 when the current `Status` does not permit the transition; each raises the matching `Order*Event` for downstream consumption):
+  - `Confirm(confirmedByUserId, now)` — `Pending` → `Confirmed`. Used by `KitchenOrderAcceptedIntegrationEventHandler` and the `POST /orders/{id}/confirm` endpoint.
+  - `MarkPreparing(now)` — `Confirmed` → `Preparing`. Driven today by the `POST /orders/{id}/start-prep` endpoint (a `KitchenOrderPrepStartedIntegrationEvent` consumer does not exist yet).
+  - `MarkReady(now)` — `Preparing` → `Ready`. Used by `KitchenOrderReadyIntegrationEventHandler` and the `POST /orders/{id}/mark-ready` endpoint.
+  - `StartDelivery()` — `Ready` → `DeliveryStatus = Dispatched` (for delivery orders; aggregate `Status` stays at `Ready`).
+  - `MarkDelivered(now)` — `Ready` → `Delivered`.
+  - `Complete(now)` — `Delivered` → `Completed`.
+  - `Cancel(reason, cancelledByUserId, now)` — any non-terminal → `Cancelled`. Used by `KitchenOrderCancelledIntegrationEventHandler` and the `POST /orders/{id}/cancel` endpoint.
+- `OrderItem.MarkItemPreparing(now)` — `Pending` → `Preparing`. Driven by `POST /orders/{id}/items/{itemId}/start-prep`. Throws `InvalidOrderItemStateTransitionException` (→ HTTP 409).
+- `OrderItem.MarkItemReady(now)` — `Preparing` → `Ready`. Driven by `POST /orders/{id}/items/{itemId}/mark-ready`. Throws `InvalidOrderItemStateTransitionException` (→ HTTP 409).
 
 **Status enum (`BuildingBlocks/Enums/OrderEnums.cs`):**
 `OrderStatus { Ordering, Pending, Confirmed, Preparing, Ready, Delivered, Completed, Cancelled, OnHold }`, plus `OrderType { DineIn | Takeout | Delivery }`, `DeliveryStatus`, `PrepStatus`, `SplitType { Equal | Custom }`, `PaymentStatus { Pending | Paid | Void }`.
@@ -298,22 +309,41 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 
 **Endpoint surface (Carter modules):**
 
-| Method | Route | Sends |
-|---|---|---|
-| POST | `/api/v1/orders` | `CreateOrderCommand` |
-| PUT | `/api/v1/orders` | `UpdateOrderCommand` |
-| DELETE | `/api/v1/orders/{id}` | `DeleteOrderCommand` |
-| GET | `/api/v1/orders/{id}` | `GetOrderByIdQuery` |
-| GET | `/api/v1/orders` | `GetOrdersQuery` (paged) |
-| GET | `/api/v1/orders/customer/{customerId}` | `GetOrdersByCustomerQuery` |
+| Tag | Method | Route | Sends | AuthZ |
+|---|---|---|---|---|
+| Orders | POST | `/api/v1/orders` | `CreateOrderCommand` | `orders:create` |
+| Orders | PUT | `/api/v1/orders` | `UpdateOrderCommand` | `orders:modify_*` |
+| Orders | DELETE | `/api/v1/orders/{id}` | `DeleteOrderCommand` | `orders:modify_*` |
+| Orders | GET | `/api/v1/orders/{id}` | `GetOrderByIdQuery` | `orders:view_*` |
+| Orders | GET | `/api/v1/orders` | `GetOrdersQuery` (paged) | `orders:view_*` |
+| Orders | GET | `/api/v1/orders/customer/{customerId}` | `GetOrdersByCustomerQuery` | `orders:view_*` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/confirm` | `ConfirmOrderCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/start-prep` | `StartOrderPrepCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/mark-ready` | `MarkOrderReadyCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/mark-delivered` | `MarkOrderDeliveredCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/cancel` (`{ "reason": "..." }`) | `CancelOrderCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/items/{itemId}/start-prep` | `StartItemPrepCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/api/v1/orders/{id}/items/{itemId}/mark-ready` | `MarkItemReadyCommand` | `kitchen:update_prep_status` |
 
-**Cross-service HTTP/gRPC.** None. `Ordering.Infrastructure` and `Ordering.API` contain no `HttpClient` / `GrpcClient` / `AddHttpClient` registrations. The only external HTTP target is the Identity service for JWT validation. All coordination with Basket is via `BasketCheckoutEvent` on RabbitMQ.
+The seven Kitchen-tagged endpoints are grouped under `app.MapGroup("/api/v1").WithTags("Kitchen")` and use `RequirePermission("kitchen:update_prep_status")`. They all return `204 NoContent` on success, `404 NotFound` when the order/item is unknown, and `409 Conflict` on illegal transitions (via `InvalidOrderStateTransitionException` / `InvalidOrderItemStateTransitionException`).
 
-**Consumer.** `Ordering.Application/Orders/EventHandlers/Integration/BasketCheckoutEventHandler.cs` is the registered `IConsumer<BasketCheckoutEvent>` (only the Application assembly is scanned).
+**Cross-service HTTP/gRPC.** None. `Ordering.Infrastructure` and `Ordering.API` contain no `HttpClient` / `GrpcClient` / `AddHttpClient` registrations. The only external HTTP target is the Identity service for JWT validation. All coordination with Basket and Kitchen is via RabbitMQ events.
+
+**Consumers.** Five `IConsumer<T>` classes in `Ordering.Application/Orders/EventHandlers/Integration/`, all discovered by `MassTransit.AddMessageBroker(...)` scanning the Application assembly:
+
+- `BasketCheckoutEventHandler` — `IConsumer<BasketCheckoutEvent>` (basket checkout → `Order.Create`).
+- `KitchenOrderAcceptedIntegrationEventHandler` — fetch `Order` → `Order.Confirm(...)`.
+- `KitchenOrderReadyIntegrationEventHandler` — fetch `Order` → `Order.MarkReady(...)`.
+- `KitchenOrderBumpedIntegrationEventHandler` — log only (no aggregate change today).
+- `KitchenOrderCancelledIntegrationEventHandler` — fetch `Order` → `Order.Cancel(...)`.
+
+All four Kitchen-side consumers follow the "fetch latest aggregate, call guarded method" pattern; missing order → log + nack (`InvalidOrderStateTransitionException` on a re-attempted illegal transition is MassTransit-faulted and re-tried by the broker).
+
+**Transactional outbox.** Aggregate events raised in domain methods are dispatched to `IOutboxPublisher` (the EF Core `SaveChangesInterceptor` writes an `outbox_messages` row inside the same transaction). `OrderingOutboxDispatcher` (hosted service) polls the table (1 s active / 5 s idle) and relays each row to `IPublishEndpoint.Publish(...)`, marking it `DispatchedAt` on success. Disabled in tests via `Outbox:Enabled=false`. Consumer-side idempotency keys off `IntegrationEvent.Id`. Single-replica safe today; multi-replica safety requires `SELECT FOR UPDATE SKIP LOCKED`.
 
 **Caching.** No Redis usage in Ordering.
 
-**Health:** `/health` via `AspNetCore.HealthChecks.SqlServer`.
+**Health:** `/health` via `AspNetCore.HealthChecks.SqlServer` (the database reachability check). The broker RabbitMQ check is **not yet wired on Ordering**.
 
 ---
 
@@ -354,10 +384,10 @@ There are no other `HttpClient` registrations across the services. No service-to
 |---|---|---|
 | `BasketCheckoutEvent` | `Basket.API/CheckoutBasket/CheckoutBasketHandler` | `Ordering.Application/.../BasketCheckoutEventHandler` |
 | `OrderCreatedIntegrationEvent` | `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler` (gated by `OrderFullfilment` feature flag) | `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler` (M2) |
-| `KitchenOrderAcceptedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrderHandler` | **Ordering** — pending consumer (Pending → Confirmed via `Order.Confirm`) |
-| `KitchenOrderReadyIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/MarkOrderReadyHandler` | **Ordering** — pending consumer (Preparing → Ready via `Order.MarkReady`) |
-| `KitchenOrderBumpedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/BumpOrderHandler` | none today; recorded for audit / analytics |
-| `KitchenOrderCancelledIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/CancelOrderHandler` | **Ordering** — pending consumer (any → Cancelled via `Order.Cancel`) |
+| `KitchenOrderAcceptedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderAcceptedIntegrationEventHandler` → `Order.Confirm(event.ConfirmedByUserId, event.ConfirmedAt)` |
+| `KitchenOrderReadyIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/MarkOrderReadyHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderReadyIntegrationEventHandler` → `Order.MarkReady(event.ReadyAt)` |
+| `KitchenOrderBumpedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/BumpOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderBumpedIntegrationEventHandler` (logs only — no aggregate change today) |
+| `KitchenOrderCancelledIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/CancelOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderCancelledIntegrationEventHandler` → `Order.Cancel(event.Reason, event.CancelledByUserId, event.CancelledAt)` |
 
 **`OrderCreatedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs`):
 `OrderId`, `OrderNumber`, `RestaurantId`, `TableId?`, `OrderType`, `CustomerId`, `Subtotal`, `TotalAmount`, `TaxAmount`, `DiscountAmount`, `Currency`, `DiscountCode?`, `BillingAddress`, `DeliveryAddress?` (only when `OrderType.Delivery`), `Items: IReadOnlyList<KitchenOrderItemPreview>`, `EstimatedPrepTimeMinutes`, `Notes`. **No** `Payment*` / `Card*` / `Cvv` / `Expiration` fields — those stay internal to Ordering.
@@ -384,8 +414,8 @@ record BasketCheckoutEvent : IntegrationEvent
 | Postgres `catalogdb` | `postgres`, host `localhost:5433`, `Database=Catalogdb` | `Catalog.API` (relations + Marten docs) |
 | Postgres `basketdb` | `postgres`, host `localhost:5434` | `Basket.API` (Marten, per-tenant databases created on startup) |
 | Postgres `identitydb` | `postgres`, host `localhost:5435` | `Identity.API` (Identity + OpenIddict + custom) |
-| Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` — tables `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations` |
-| MS SQL `orderdb` | `mcr.microsoft.com/mssql/server:2022-latest`, `Server=localhost,1433`, user `sa` | `Ordering.API` |
+| Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` — tables `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`, `outbox_messages` |
+| MS SQL `orderdb` | `mcr.microsoft.com/mssql/server:2022-latest`, `Server=localhost,1433`, user `sa` | `Ordering.API` — tables `Orders`, `OrderItems`, `OrderBills`, `Customers`, `MenuItems`, `outbox_messages` |
 | SQLite `discountdb` | file `Data Source=discountdb` | `Discount.Grpc` |
 | Redis `distributedcache` | `redis`, host `localhost:6379`, password `redisdev` | `Basket.API` cache only |
 | RabbitMQ `messagebroker` | `rabbitmq:3-management`, ports `5672` / `15672`, `guest`/`guest` | `Basket.API` + `Ordering.Application` |
@@ -416,7 +446,7 @@ record BasketCheckoutEvent : IntegrationEvent
 - **Mapster.** Global `using` imports across Catalog/Basket/Ordering. DTOs are flat records.
 - **NodaTime everywhere.** EF Core columns are configured with `InstantConverter`; `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime` is used. `ConfigureForNodaTime(DateTimeZoneProviders.Tzdb)` is set on JSON options, and `dataSourceBuilder.UseNodaTime()` is wired in Catalog.
 - **Feature flags.** `Microsoft.FeatureManagement.AspNetCore` exposes `OrderFullfilment` (default true per `appsettings.json`) which gates `OrderCreatedEventHandler`'s publish step.
-- **Interceptors.** `BuildingBlocks.Entities.Interceptors.AuditableEntityInterceptor` and `DispatchDomainEventsInterceptor` are registered in Ordering, Catalog, Basket (the latter via `Scrutor` decorator).
+- **Interceptors.** `BuildingBlocks.Entities.Interceptors.AuditableEntityInterceptor` and `DispatchDomainEventsInterceptor` are registered in Ordering, Catalog, Basket (the latter via `Scrutor` decorator). `OrderingOutboxPublisher` (`Ordering.Infrastructure`) and `KitchenOutboxPublisher` (`Kitchen.API`) intercept `SaveChangesAsync` to write `outbox_messages` rows inside the same EF Core transaction as the aggregate mutation; the matching dispatcher hosted service relays the rows to `IPublishEndpoint`.
 - **Caching via Scrutor decorate.** `services.Decorate<IBasketRepository, CachedBasketRepository>()` is the only `IDistributedCache` consumer.
 
 ---
@@ -443,7 +473,8 @@ record BasketCheckoutEvent : IntegrationEvent
 3. The override file publishes ports **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HTTPS).
 4. Identity seeds the 8 roles, 25 permissions, role-permission mappings, and a `SuperAdmin` user (`admin@orderly.com` / `Admin@123456`) on first start.
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
-6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills.
+6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required.
+6a. Kitchen.API migrates the `kitchendb` schema (3 tables + `outbox_messages`). Both services start their outbox dispatcher hosted services alongside the API; tests in either project flip `Outbox:Enabled=false` to skip the relay loop.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
 8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
 
@@ -461,16 +492,20 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 
 ### Tests
 - `Ordering.Domain.Tests` (xUnit + FluentAssertions + NSubstitute).
-- `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee).
+- `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee, every state-transition handler's happy + not-found path, and the four `KitchenOrder*IntegrationEventHandler` cases).
+- `Ordering.API.Tests` (xUnit + FluentAssertions + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 22 `WebApplicationFactory` integration tests for the seven new Kitchen-tagged Carter endpoints (anonymous 401 / missing-permission 403 / unknown-id 404 / empty-reason 400 / happy 200-204) plus 2 `/health` checks. Spins up MSSQL 2022 + RabbitMQ 3-management in Testcontainers per test run; `Outbox:Enabled=false` and `FeatureManagement:OrderFullfilment=false` keep the test host quiet).
 - `Identity.API.Tests` (xUnit + FluentAssertions + NSubstitute + EF Core InMemory).
-- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 36 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster, plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check).
+- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 36 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster, plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check that asserts `entries.messagebroker.status == Healthy`).
 
 ---
 
 ## 12. Observability
 
 - **Logging:** stock `ILogger<T>` via Microsoft.Extensions.Logging.
-- **Health checks:** `/health` per service, UI response writer. The full health response includes each registered check (`database`, `redis`, `rabbitmq` via Basket only).
+- **Health checks:** `/health` per service, UI response writer. The full health response includes each registered check:
+  - `database` — every backing-store check (`kitchendb`, `orderdb`, etc.).
+  - `redis` — `Basket.API` cache reachability.
+  - `rabbitmq` — `Kitchen.API` broker reachability under entry `messagebroker` (tags `["broker", "ready"]`); wired via `AspNetCore.HealthChecks.Rabbitmq` 8.0.2
 - **Tracing / metrics:** no OpenTelemetry / Application Insights integration in code.
 
 ---

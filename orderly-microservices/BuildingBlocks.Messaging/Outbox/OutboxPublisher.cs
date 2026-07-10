@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using BuildingBlocks.Messaging.Events;
 using Microsoft.Extensions.Logging;
 
 namespace BuildingBlocks.Messaging.Outbox;
@@ -39,6 +40,7 @@ public abstract class OutboxPublisher<TContext> : IOutboxPublisher
         ArgumentNullException.ThrowIfNull(message);
 
         var payload = JsonSerializer.Serialize(message, SerializerOptions);
+        var schemaVersion = (message as IntegrationEvent)?.MessageVersion ?? 1;
         var row = new OutboxMessage
         {
             Id = Guid.NewGuid(),
@@ -46,13 +48,14 @@ public abstract class OutboxPublisher<TContext> : IOutboxPublisher
             Type = typeof(T).FullName!,
             Payload = payload,
             DispatchedAt = null,
-            SchemaVersion = 1
+            SchemaVersion = schemaVersion,
         };
 
         await ResolveContext().OutboxMessages.AddAsync(row, cancellationToken);
         Logger.LogDebug(
-            "Outbox row {OutboxId} staged for type {MessageType}",
+            "Outbox row {OutboxId} staged for type {MessageType} (schema v{Schema})",
             row.Id,
-            row.Type);
+            row.Type,
+            schemaVersion);
     }
 }

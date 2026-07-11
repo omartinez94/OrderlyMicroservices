@@ -51,6 +51,92 @@ These two conventions apply to **every phase** below. They are non-negotiable �
 >
 > The phase's checklist entry (see §9) requires the doc PR / commit before the phase is marked complete.
 
+### 0.3 Code-quality guard rails (dotnet-best-practices)
+
+In addition to the `csharp-developer` skill (§0.1), every phase must satisfy the .NET/C# best practices below. **Where the two overlap, the skill wins** (it has the C# 12+ / .NET 10 specifics); **where this list adds project-specific guard rails, this list wins.** The companion skill is at `.claude/skills/dotnet-best-practices/SKILL.md`.
+
+#### 0.3.1 Documentation
+
+- **XML doc comments on every public type and member** — `<summary>`, `<param>`, `<returns>`, `<exception>`. The csharp-developer MUST DO list already enforces this; the implementer runs `dotnet build /p:TreatWarningsAsErrors=true /p:GenerateDocumentationFile=true` from `Services/Catalog/Catalog.API/` to verify zero CS1591 warnings before opening the PR.
+
+#### 0.3.2 Architecture & patterns
+
+- **Primary constructors for all handlers and small services** — no empty parameterless constructors on injected types. Already in §5 *Tech decisions*.
+- **Interface segregation** — every public service exposes an interface (`IXxx`); the `I` prefix is a project-wide convention enforced by csharp-developer's MUST DO.
+- **SOLID review checkpoint** — at PR time, the implementer self-checks the diff against the five SOLID principles. The most common defect in this codebase is single-responsibility violation: handlers doing more than one thing (validation + persistence + event publication + cache invalidation all in one method). Flag any handler that touches more than one repository / aggregate.
+- **Composition over inheritance** — prefer records + composition over base-class hierarchies unless polymorphism is real. `AuditableEntity<T>` is justified (audit columns); `Entity<T>` for relational entities is justified (id + soft-delete), but new hierarchies need a written justification in the PR description.
+
+#### 0.3.3 Dependency injection & service lifetimes
+
+- **`ArgumentNullException.ThrowIfNull` on every constructor parameter** that is a non-value-type reference (C# 12 idiom). Nullable-enabled + compiler non-null covers the type-system side; `ThrowIfNull` covers the runtime guard for callers who bypass the compiler (`null!` casts, reflection, etc.).
+- **Service lifetime table** — use the right lifetime for the right job. Project conventions:
+
+  | Lifetime | Use for |
+  |---|---|
+  | `Singleton` | `IConnectionMultiplexer`, `ICatalogCache` (Redis client), MassTransit `IBus`, hosted-service instances, the engine's pure-function calculator. |
+  | `Scoped` | `CatalogDbContext`, Marten `IDocumentSession`, MediatR handlers, Carter request scopes, Scrutor-decorated services wrapping Scoped types. |
+  | `Transient` | Stateless mappers (rare — Mapster handles most), small value-calculator helpers. |
+  Capture lifetime choices in a comment near the registration in `Program.cs`; reviewers flag mismatches.
+
+- **No captive dependencies** — a Singleton cannot depend on a Scoped service. If the engine or hosted service needs DB access, take `IServiceScopeFactory` and resolve a scope inside the operation, or convert the host to Scoped.
+- **No service locator** — inject dependencies, never `IServiceProvider.GetService<T>()` from app code. The one allowed exception is framework integration points (custom `IHealthCheck`, `IHostedService.StartAsync`).
+
+#### 0.3.4 Async/await
+
+- **Async all the way down** — no `.Result`, `.Wait()`, `Task.Run` for I/O. Already in csharp-developer's MUST NOT DO.
+- **`CancellationToken` on every public async method** — propagate from controller/handler to DbContext / cache / bus. Already in csharp-developer's MUST DO.
+- **`ConfigureAwait(false)` rule** — library code under `BuildingBlocks/*` and `BuildingBlocks.Messaging/*` **does** use `ConfigureAwait(false)` because it may be consumed outside ASP.NET Core. `Catalog.API` application code **does not** need it (no `SynchronizationContext`). Document the rule so a contributor applies it consistently to libraries and skips it in apps.
+- **Async exception handling** — `try`/`catch` at the service boundary (handlers, hosted services, the outbox dispatcher); log with `ILogger.LogError(ex, "Context {Id}", id)` and rethrow unless the catch is a known recoverable condition. Never swallow exceptions silently.
+
+#### 0.3.5 Resource management
+
+- **`IAsyncDisposable` for hosted services** — `CacheDriftRepairService`, `IngredientAvailabilityReconcileService`, every Hangfire job host, the outbox dispatcher. `StopAsync(CancellationToken)` must drain in-flight work and release DB / Redis connections within the host shutdown grace period.
+- **Connection lifetime** — `IConnectionMultiplexer` (Singleton) outlives requests; never wrap it in `using`.
+- **`IDisposable` for cache values that hold buffers** — Marten session scoping; EF Core already handles DbContext disposal.
+
+#### 0.3.6 Configuration
+
+- **`IOptions<T>` for strongly-typed config**, bound from `appsettings.json`. Every options class lives in `Catalog.API/Options/` and exposes a `Section` constant for `Configure<T>(Configuration.GetSection(Section))`.
+- **`ValidateOnStart()` is mandatory** — `services.AddOptions<T>().Bind(...).ValidateDataAnnotations().ValidateOnStart()`. Bad config must fail fast at boot, not at first request.
+- **Data annotations on options** — `[Required]`, `[Range]`, `[RegularExpression]` where applicable. The `CatalogOptions:OutboxDeadLetterThreshold` is `[Range(0, int.MaxValue)]`; `CatalogOptions:CacheRepairInterval` (Phase 1) is `[Range(1, 1440)]` minutes.
+- **No string-based config keys** — reaffirm csharp-developer's MUST NOT DO.
+
+#### 0.3.7 Error handling
+
+- **Specific exception types** — every Catalog domain exception derives from `BuildingBlocks.Exceptions.DomainException` (HTTP-aware base, mapped by `CustomExceptionHandler`) or `NotFoundException` for 404s. The plan's existing `IngredientAvailabilityStaleException` follows this. New exceptions for Phases 1–5 (e.g. `CacheRepairFailedException`, `OutboxPoisonMessageException`) follow the same hierarchy.
+- **No string-typed error returns** — use `Result<T>` or thrown exceptions, not `(bool ok, string err)` tuples. Already in csharp-developer MUST DO.
+- **Structured error logging** — `ILogger.LogError(ex, "Engine recompute failed for restaurant {RestaurantId}", restaurantId)` — always include the contextual identifier, never just the message.
+
+#### 0.3.8 Logging
+
+- **`ILogger<T>` with typed category** — every class takes `ILogger<T>` in its primary constructor; `T` is the class itself, not a base.
+- **`BeginScope` for correlation IDs** — the §8 *Observability* paragraph mandates a correlation-id enrichment. Implementation: `IHttpContextAccessor` middleware pushes a `CorrelationId` onto the HTTP scope → outbox row `CorrelationId` column → MassTransit header → consumer's log scope. One ID flows through the entire request / event chain.
+- **No `Console.WriteLine` / `Debug.WriteLine`** — enforced by `TreatWarningsAsErrors`.
+
+#### 0.3.9 Performance
+
+- **Allocation-free hot paths** — `IngredientAvailabilityEngine.AvailabilityProfileFor` is called per menu-item on every recompute; keep it allocation-free in steady state (no LINQ chains that box, no string concatenation in tight loops). `Span<T>` if a phase lands a parser on the hot path.
+- **Async streams (`IAsyncEnumerable<T>`) for paged reads** — list endpoints for `MenuItem`, `Reservation`, `WalkInQueue`, etc. stream rather than materialize full lists in memory.
+- **`ValueTask<T>` for hot read paths** — cache reads, engine pure-function results. Reserved for proven hot paths; not required everywhere.
+
+#### 0.3.10 Security
+
+- **Parameterised queries only** — EF Core parameterizes by default. The rule applies to any future raw SQL via `FromSqlRaw` (review for parameterization; prefer `FromSqlInterpolated`).
+- **Input validation at the boundary** — FluentValidation runs on `ICommand<TResponse>` per BuildingBlocks. Free-text fields (`MessageContent`, `FailureReason`, `Description`, `Notes`) get explicit `[StringLength]` attributes capping length to prevent abuse.
+- **Secrets never in source** — `appsettings.json` references env-var placeholders (`${REDIS_PASSWORD:-redisdev}`). `appsettings.Development.json` may include dev-only secrets and must be gitignored.
+
+#### 0.3.11 Testing — **project override of the skill's defaults**
+
+> The `dotnet-best-practices` skill defaults to **MSTest + FluentAssertions + Moq**. **This project uses xUnit + FluentAssertions + Moq/NSubstitute** (see `Ordering.API.Tests`, `Kitchen.API.Tests`, current-architecture.md §500-504). The skill's MSTest recommendation is **not applied** to this codebase; the xUnit pattern wins.
+
+- **Test framework: xUnit + FluentAssertions** (project-wide).
+- **Mocking: Moq** for new tests (matches §5 *Tests*); NSubstitute is also present in `Ordering.Application.Tests` — new code defaults to Moq for consistency with the catalog-tests project if/when created.
+- **AAA pattern** — explicit `// Arrange`, `// Act`, `// Assert` comments in every test method.
+- **Null-parameter validation tests** — for every public method that takes a non-null reference parameter, add a `MethodName_NullParam_Throws` test using `Assert.Throws<ArgumentNullException>` (xUnit).
+- **Happy + sad path** — every handler has at least one happy-path test and one not-found / validation-failure test.
+- **Integration test isolation** — Testcontainers (Postgres + Redis + RabbitMQ) per test class; never share containers across test classes that mutate state.
+- **Fake clock** — `Microsoft.Extensions.TimeProvider.Testing` for Hangfire job logic (already in §8 *Testing strategy*).
+
 ---
 
 ## 1. Context
@@ -580,10 +666,12 @@ For reproducibility, every phase's PR follows this sequence (the `csharp-develop
 
 ---
 
-**Document Version:** 1.4
+**Document Version:** 1.5
 **Last Updated:** 2026-07-11
 **Maintained By:** Catalog working group
 
+> **v1.5 changelog** — Added §0.3 *Code-quality guard rails (dotnet-best-practices)* complementing §0.1 (skill mandate) and §0.2 (doc-update rule). Eleven sub-sections cover documentation, architecture/patterns, DI/service lifetimes, async/await, resource management, configuration, error handling, logging, performance, security, and testing. Notable project-specific overrides documented: xUnit + Moq (not the skill's default MSTest); `ConfigureAwait(false)` for library code only; `ValidateOnStart()` on every options class; `ArgumentNullException.ThrowIfNull` on every constructor parameter; `BeginScope` correlation-id enrichment. Aligns with the dotnet-best-practices skill (`.claude/skills/dotnet-best-practices/SKILL.md`) and supersedes §0.1 only where the two lists overlap with project-specific guidance.
+>
 > **v1.4 changelog** — Added a *Verification (preamble)* block at the top of §7.6.2 (Coupon move to Discount). Confirmed via `Services/Catalog/**` grep that Catalog has zero Coupon code today (no model, no DbSet, no migration, no `Features/Coupons/` folder, no endpoints, no writers); Coupon is fully implemented in Discount and exists in the architecture only as mermaid drift in `db_relational_model.mermaid:283/499/540` plus a phantom line in `db_relational_model.md:62`. The §7.6.2 step list is preserved verbatim — the verification just records the no-op confirmation so a future implementer doesn't waste time looking for Catalog source code. Trade-off analysis (Catalog vs Discount as home for Coupon) concluded **Discount is the right home** and the move is the right direction; the alternative would force cross-service writes that the project explicitly avoids.
 >
 > **v1.3 changelog** — Resolved the `NotificationLog` ambiguity raised during v1.2 review. **Option B (Promote & merge) adopted**: there is only one `NotificationLog` going forward — relational, owned by Notification. New §6.7 *NotificationLog ownership: Notification owns the only one* locks the decision, the backfill sequence, and the doc-update scope. §1 (three Marten audit docs, not four), §4 (boundary statement), §6.1 (Notification v1 prerequisite list), §9 Cleanup milestone (three docs), and §9 Phase 6.1 doc-update row all updated to reference §6.7.

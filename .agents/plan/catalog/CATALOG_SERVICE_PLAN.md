@@ -137,6 +137,113 @@ In addition to the `csharp-developer` skill (§0.1), every phase must satisfy th
 - **Integration test isolation** — Testcontainers (Postgres + Redis + RabbitMQ) per test class; never share containers across test classes that mutate state.
 - **Fake clock** — `Microsoft.Extensions.TimeProvider.Testing` for Hangfire job logic (already in §8 *Testing strategy*).
 
+### 0.4 API design principles (REST + Carter + MediatR)
+
+This section enforces the REST + Carter + MediatR + FluentValidation conventions every Catalog endpoint must follow. It is the API-shape counterpart to §0.1 (skill), §0.2 (doc-update), and §0.3 (code-quality). The companion skill is at `.claude/skills/api-design-principles/SKILL.md`.
+
+#### 0.4.1 Resource-oriented design
+
+- **Resources are nouns, not verbs** — endpoints name the resource, not the action. The action is the HTTP method.
+- **Plural nouns for collections** — `/api/v1/menu-items`, `/api/v1/reservations`, `/api/v1/walk-in-queues` (kebab-case, per the project's route convention).
+- **Hierarchical URLs for nested resources** — `/api/v1/restaurants/{restaurantId}/menu-items` when the parent is part of the resource's identity. Avoid more than two levels of nesting (deep hierarchies are a smell — split into a separate aggregate).
+- **Resource IDs in the URL path** with type constraint: `/{id:guid}` for `Guid`, `/{id:int}` for `int`. Never `?id=...` in the query string for the primary key.
+
+#### 0.4.2 HTTP method / status code matrix
+
+Every endpoint declares its method and expected response codes. The matrix below is the source of truth — flag any deviation in code review.
+
+| Method | Success | Client errors | Server errors |
+|---|---|---|---|
+| `POST /api/v1/<resource>` (create) | **201 Created** + `Location: /api/v1/<resource>/{newId}` header + body = created DTO | 400 Bad Request (validation), 409 Conflict (uniqueness / state) | 500 |
+| `POST /api/v1/<resource>/{id}/<action>` (state transition) | **204 No Content** | 404 Not Found, 409 Conflict (illegal transition) | 500 |
+| `GET /api/v1/<resource>/{id}` | **200 OK** + body, or 404 Not Found | 400 (malformed id) | 500 |
+| `GET /api/v1/<resource>` (paged list) | **200 OK** + `PagedResult<T>` body | 400 (bad `page` / `pageSize`) | 500 |
+| `PUT /api/v1/<resource>/{id}` (full replace) | **204 No Content** | 404, 400, 409 | 500 |
+| `PATCH /api/v1/<resource>/{id}` (partial update) | **200 OK** + body, or 204 No Content | 404, 400, 409 | 500 |
+| `DELETE /api/v1/<resource>/{id}` | **204 No Content** (idempotent: success whether or not the resource existed at call time, unless it was in a state that forbids delete → 409) | 404, 409 | 500 |
+| `POST /api/v1/<resource>/bulk` (bulk operation) | **207 Multi-Status** + per-item results | 400 | 500 |
+
+State-transition endpoints introduced by Phases 4–6 follow the `POST /{id}/<action>` row:
+- Phase 4: `SplitMergedTable`, `ApproveBulkOrderUpload`, `RejectBulkOrderUpload`, `SubmitFeedback`, `RecomputeToday` (admin).
+- Phase 5: implicit (Hangfire jobs — no HTTP surface).
+- Phase 6.0/6.1: out of plan.
+
+#### 0.4.3 Carter module structure
+
+- **One `ICarterModule` per aggregate / feature group** — e.g., `MenuItemEndpoints`, `MergedTableEndpoints`, `BulkOrderUploadEndpoints`. Co-locate with the command/query handlers in `Features/<Resource>/<Action>/`.
+- **Group endpoints with `MapGroup`** — `app.MapGroup("/api/v1/menu-items").WithTags("MenuItems").RequireAuthorization()` once per module; per-endpoint `RequirePermission("menu:edit")` overrides for write paths.
+- **Lean endpoints** — endpoint methods do at most: (1) bind the route + query + body, (2) call `ISender.Send(...)`, (3) translate the result to an `IResult`. **No business logic in the endpoint.** The skill's Pattern 1 is the canonical shape.
+- **`[AsParameters]` for complex query DTOs** — `group.MapGet("/", async (ISender sender, [AsParameters] GetMenuItemsQuery query) => ...)`. Avoid query strings with more than three parameters.
+- **No MVC controllers** — this is a Carter-only project. The skill lists MVC Controllers as a common pitfall.
+
+#### 0.4.4 DTO mapping
+
+- **Mapster for mapping** (`request.Dto → domain entity` and `domain entity → response.Dto`) — matches the project's `Mapster` choice. New code uses Mapster; existing `Entity → DTO` mappings stay as-is unless the phase touches them.
+- **Never expose EF Core entities or Marten documents directly in API responses** (csharp-developer MUST NOT DO; restated here for the API context).
+- **Request DTOs are the command/query records themselves** — ASP.NET Core's body binder binds JSON to the record. No separate `Request` DTO wrapping the command.
+- **Response DTOs are flat records** with NodaTime `Instant` for timestamps (`CreatedAt`, `UpdatedAt`, `DeletedAt`) — the skill's NodaTime rule applies; never `DateTime`.
+
+#### 0.4.5 Pagination contract
+
+- **Query parameters**: `?page=1&pageSize=20`. 1-indexed. Defaults: `page=1`, `pageSize=20`. Hard cap: `pageSize=100`.
+- **Response shape** (`BuildingBlocks/Pagination/PagedResult.cs`, added by Phase 4 or earlier):
+  ```csharp
+  public sealed record PagedResult<T>(
+      IReadOnlyList<T> Items,
+      int Page,
+      int PageSize,
+      int TotalCount);
+  ```
+- **Validation**: 400 Bad Request when `page < 1`, `pageSize < 1`, or `pageSize > 100`. FluentValidation enforces; the response body is `ProblemDetails` with the offending field.
+- **Out of scope today**: cursor-based pagination. Add only when offset pagination becomes a bottleneck (e.g., >100k rows being paged through).
+
+#### 0.4.6 Validation pipeline
+
+- **FluentValidation validators co-located** with each command: `Features/<Resource>/Commands/<Action>/<Action>CommandValidator.cs`.
+- **Validators run via the BuildingBlocks MediatR pipeline behavior** (`ValidationBehavior<,>`) — runs **only on `ICommand<TResponse>`** (not queries, by project convention; queries are read-only and don't carry state-mutating invariants). This matches the skill's Pattern 3.
+- **Endpoints do not call validators manually.** Invalid input from a malformed body or a route constraint failure is caught by ASP.NET Core's model binder and returned as 400 with `ValidationProblemDetails`. Invalid business rules from a FluentValidation rule are caught by `ValidationBehavior` and returned as 400 with the same shape.
+- **Validation runs before the handler** — never in the handler. The handler trusts its inputs.
+
+#### 0.4.7 Error responses (ProblemDetails, RFC 7807)
+
+Every error response uses `application/problem+json` per RFC 7807. The global `CustomExceptionHandler` in BuildingBlocks maps exceptions to `ProblemDetails`:
+
+| Exception | HTTP status | `type` URI hint | Notes |
+|---|---|---|---|
+| `NotFoundException` | 404 | `/problems/not-found` | Body: `{ Title, Status, Detail, ResourceId }` |
+| `ValidationException` | 400 | `/problems/validation-failed` | Body: `{ Title, Status, Errors: { Field: [Messages] } }` |
+| `DomainException` (state-transition violations) | 409 | `/problems/domain-conflict` | Body: `{ Title, Status, Detail, CurrentState, AttemptedTransition }` |
+| `IngredientAvailabilityStaleException` (Phase 3) | 409 | `/problems/availability-stale` | Body: `{ Title, Status, Detail, MenuItemId, AttemptedAt }` |
+| `UnhandledException` | 500 | `/problems/internal` | Body: `{ Title, Status, TraceId }` — message is generic; full detail in logs. |
+
+The `type` field is a stable URI; the project's docs link to it.
+
+#### 0.4.8 Idempotency for POST with side effects
+
+POST endpoints that trigger downstream effects (Phase 4 `SubmitFeedback`, Phase 4 `BulkOrderUpload` upload, Phase 4 `ApproveBulkOrderUpload`, any future payment-like endpoint) accept an `Idempotency-Key` request header (UUID v4). Behavior:
+
+- Middleware reads `Idempotency-Key`, hashes it with the user-id + endpoint, looks up Redis (`idempotency:{userId}:{sha256(key+endpoint)}`).
+- **Cache hit**: return the cached response (status + body). No second side effect.
+- **Cache miss**: process the request, store the response in Redis with a 24h TTL before returning.
+- **Conflict (same key, different body)**: 422 Unprocessable Entity with `ProblemDetails` explaining the key was reused.
+- **Out of scope today**: read-only endpoints and state-transition endpoints (which are already idempotent because they target a single resource by id).
+
+#### 0.4.9 OpenAPI / Swagger
+
+- Swashbuckle + SwaggerUI (or Scalar — TBD at implementation time) is registered in `Catalog.API/Program.cs`. Verify the current project's choice at implementation time and use whichever is in use elsewhere.
+- **All Carter modules auto-discovered by `AddCarter()`**; OpenAPI metadata is generated from the route definitions + XML doc comments (per §0.3.1).
+- **`WithTags(...)` sets the OpenAPI tag** — one tag per Carter group, matching the aggregate name (e.g., `"MenuItems"`, `"Reservations"`).
+- **XML doc comments feed the operation summary / parameter descriptions** — the `GenerateDocumentationFile=true` build flag (per §0.3.1) is what surfaces them.
+- **Authentication scheme declared** in the OpenAPI document so the Swagger UI "Authorize" button works (bearer JWT against the Identity authority).
+
+#### 0.4.10 Cross-cutting API concerns
+
+- **CORS**: not configured today (no browser frontend). When the React frontend lands, add a permissive dev policy + a locked-down prod policy keyed on the deployed origin.
+- **Auth**: every Carter group calls `RequireAuthorization()`; per-endpoint `RequirePermission("...")` for write paths. `/health`, `/live`, `/ready` are public.
+- **Rate limit**: YARP gateway enforces 10 req/min/host (`current-architecture.md` §4.6). No per-endpoint limit in Catalog unless a hot path warrants it; flag any endpoint handling more than 100 req/s for a review.
+- **Correlation ID**: every request flows a `CorrelationId` from `IHttpContextAccessor` → handler scope → outbox row → MassTransit header → consumer scope (§0.3.8).
+- **Response caching**: read endpoints that are cache-friendly (e.g., `GET /api/v1/restaurants/{id}/menu-items`) opt into `ResponseCache` with a short max-age that aligns with the §7.1 Redis cache TTLs. POST/PUT/PATCH/DELETE never opt into response caching.
+
 ---
 
 ## 1. Context
@@ -666,10 +773,12 @@ For reproducibility, every phase's PR follows this sequence (the `csharp-develop
 
 ---
 
-**Document Version:** 1.5
+**Document Version:** 1.6
 **Last Updated:** 2026-07-11
 **Maintained By:** Catalog working group
 
+> **v1.6 changelog** — Added §0.4 *API design principles (REST + Carter + MediatR)* complementing §0.1 (skill), §0.2 (doc-update), §0.3 (dotnet-best-practices). Ten sub-sections cover resource-oriented design, an explicit HTTP method/status-code matrix, Carter module structure conventions, DTO mapping with Mapster, a `PagedResult<T>` pagination contract, FluentValidation pipeline placement, ProblemDetails (RFC 7807) error responses with an exception-to-status-code table, Idempotency-Key handling for POST endpoints with side effects, OpenAPI/Swagger generation, and cross-cutting API concerns (CORS, auth, rate limit, correlation id, response caching). Aligns with the api-design-principles skill (`.claude/skills/api-design-principles/SKILL.md`) and supersedes §0.1 only where the two lists overlap with project-specific guidance.
+>
 > **v1.5 changelog** — Added §0.3 *Code-quality guard rails (dotnet-best-practices)* complementing §0.1 (skill mandate) and §0.2 (doc-update rule). Eleven sub-sections cover documentation, architecture/patterns, DI/service lifetimes, async/await, resource management, configuration, error handling, logging, performance, security, and testing. Notable project-specific overrides documented: xUnit + Moq (not the skill's default MSTest); `ConfigureAwait(false)` for library code only; `ValidateOnStart()` on every options class; `ArgumentNullException.ThrowIfNull` on every constructor parameter; `BeginScope` correlation-id enrichment. Aligns with the dotnet-best-practices skill (`.claude/skills/dotnet-best-practices/SKILL.md`) and supersedes §0.1 only where the two lists overlap with project-specific guidance.
 >
 > **v1.4 changelog** — Added a *Verification (preamble)* block at the top of §7.6.2 (Coupon move to Discount). Confirmed via `Services/Catalog/**` grep that Catalog has zero Coupon code today (no model, no DbSet, no migration, no `Features/Coupons/` folder, no endpoints, no writers); Coupon is fully implemented in Discount and exists in the architecture only as mermaid drift in `db_relational_model.mermaid:283/499/540` plus a phantom line in `db_relational_model.md:62`. The §7.6.2 step list is preserved verbatim — the verification just records the no-op confirmation so a future implementer doesn't waste time looking for Catalog source code. Trade-off analysis (Catalog vs Discount as home for Coupon) concluded **Discount is the right home** and the move is the right direction; the alternative would force cross-service writes that the project explicitly avoids.

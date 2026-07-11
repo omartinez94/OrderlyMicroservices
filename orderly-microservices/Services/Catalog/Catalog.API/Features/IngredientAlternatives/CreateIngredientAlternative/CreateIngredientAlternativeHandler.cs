@@ -41,6 +41,15 @@ internal class CreateIngredientAlternativeCommandHandler(
         };
 
         dbContext.IngredientAlternatives.Add(ingredientAlternative);
+
+        // Domain event BEFORE SaveChanges so the dispatcher drains it.
+        ingredientAlternative.AddDomainEvent(new IngredientAlternativeChangedDomainEvent(
+            ingredientAlternative.Id,
+            ingredientAlternative.RestaurantId,
+            ingredientAlternative.OriginalIngredientId,
+            ingredientAlternative.AlternativeIngredientId,
+            IngredientAlternativeChangedDomainEvent.ChangeKind.Created));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);

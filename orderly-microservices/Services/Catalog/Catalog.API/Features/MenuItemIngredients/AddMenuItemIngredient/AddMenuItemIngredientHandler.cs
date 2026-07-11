@@ -51,6 +51,16 @@ internal class AddMenuItemIngredientCommandHandler(
         };
 
         dbContext.MenuItemIngredients.Add(link);
+
+        // Domain event BEFORE SaveChanges so the dispatcher drains
+        // it during the same SaveChanges call. The engine handler queries
+        // MenuItemId + IngredientId to recompute availability.
+        link.AddDomainEvent(new MenuItemIngredientChangedDomainEvent(
+            link.Id,
+            command.MenuItemId,
+            command.IngredientId,
+            MenuItemIngredientChangedDomainEvent.ChangeKind.Created));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Invalidate the menu tree because the item's ingredient list changed,

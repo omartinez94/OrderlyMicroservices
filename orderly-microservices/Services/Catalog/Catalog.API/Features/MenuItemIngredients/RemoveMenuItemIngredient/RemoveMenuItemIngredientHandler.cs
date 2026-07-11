@@ -42,6 +42,14 @@ internal class RemoveMenuItemIngredientCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         dbContext.MenuItemIngredients.Remove(link);
+
+        // Domain event BEFORE SaveChanges.
+        link.AddDomainEvent(new MenuItemIngredientChangedDomainEvent(
+            link.Id,
+            command.MenuItemId,
+            link.IngredientId,
+            MenuItemIngredientChangedDomainEvent.ChangeKind.Deleted));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         if (menuRestaurantId is { } menuRid)

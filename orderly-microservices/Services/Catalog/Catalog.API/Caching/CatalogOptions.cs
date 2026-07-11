@@ -50,4 +50,22 @@ public sealed class CatalogOptions
     /// </remarks>
     [Range(0, int.MaxValue)]
     public int OutboxDeadLetterThreshold { get; set; } = 0;
+
+    /// <summary>
+    /// Interval in minutes between Ingredient Availability Engine reconcile
+    /// ticks. The hosted service
+    /// (<see cref="IngredientAvailabilityReconcileService"/>) re-runs the
+    /// engine for every menu item in every restaurant and emits the
+    /// integration event for any status flip — a safety net for missed
+    /// domain events.
+    /// </summary>
+    /// <remarks>
+    /// Default <c>1</c>. The host is gated by the
+    /// <c>CatalogAvailabilityEngineReconcile</c> feature flag (default
+    /// <see langword="false"/>) so a flip of that flag is the runtime
+    /// switch; the interval is just how often the gated loop wakes up.
+    /// Allowed range: 1 to 1440 (1 minute to 24 hours).
+    /// </remarks>
+    [Range(1, 1440)]
+    public int AvailabilityRecurrenceIntervalMinutes { get; set; } = 1;
 }

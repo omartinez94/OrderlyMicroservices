@@ -1,3 +1,5 @@
+global using BuildingBlocks.Enums;
+global using Catalog.API.Availability;
 global using Catalog.API.Caching;
 global using FluentAssertions;
 global using NSubstitute;

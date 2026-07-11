@@ -1,12 +1,12 @@
 using BuildingBlocks.Entities.Interceptors;
 using Catalog.API.Health;
 using Catalog.API.Infrastructure;
+using Catalog.API.Infrastructure.Interceptors;
 using HealthChecks.UI.Client;
 using Marten;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +51,12 @@ builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 // unconditionally and toggled at runtime.
 builder.Services.AddHostedService<CacheDriftRepairService>();
 
+// Phase 3: Ingredient Availability Engine reconcile hosted service. Same
+// feature-flag-gated pattern as CacheDriftRepairService (Phase 1). The
+// default flag value (`CatalogAvailabilityEngineReconcile=false`) means
+// the loop is dormant in production until ops flip the flag.
+builder.Services.AddHostedService<IngredientAvailabilityReconcileService>();
+
 // Infrastructure (Phase 2): outbox publisher + dispatcher + MassTransit
 // consumer discovery. AddInfrastructureServices also calls
 // services.AddMessageBroker(...) so the OrderCompletedIntegrationEventHandler
@@ -84,9 +90,14 @@ var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
 
-builder.Services.AddDbContext<CatalogDbContext>(options =>
+// Phase 3: domain-event dispatch interceptor (pre-commit drain). DI-resolved
+// so the IMediator constructor injection works. Mirrors Ordering's setup
+// (Ordering.Infrastructure/DependencyInjection.cs lines 17-21).
+builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
+
+builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
 {
-    options.AddInterceptors(new AuditableEntityInterceptor());
+    options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
     options.UseNpgsql(dataSource, npgsqlOptions =>
     {
         npgsqlOptions.UseNodaTime();

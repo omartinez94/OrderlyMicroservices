@@ -45,6 +45,15 @@ internal class UpdateIngredientAlternativeCommandHandler(
         ingredientAlternative.AutoSubstitute = command.AutoSubstitute;
 
         dbContext.IngredientAlternatives.Update(ingredientAlternative);
+
+        // Domain event BEFORE SaveChanges.
+        ingredientAlternative.AddDomainEvent(new IngredientAlternativeChangedDomainEvent(
+            ingredientAlternative.Id,
+            ingredientAlternative.RestaurantId,
+            ingredientAlternative.OriginalIngredientId,
+            ingredientAlternative.AlternativeIngredientId,
+            IngredientAlternativeChangedDomainEvent.ChangeKind.Updated));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);

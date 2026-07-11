@@ -39,6 +39,20 @@ internal class CreateIngredientCommandHandler(
         };
 
         dbContext.Ingredients.Add(ingredient);
+
+        // Raise the in-process domain event BEFORE SaveChanges so the
+        // DispatchDomainEventsInterceptor drains it during the SaveChanges
+        // pass (pre-commit). The handler
+        // (IngredientAvailabilityChangedDomainEventHandler) queries every
+        // MenuItemIngredient row whose IngredientId == ingredient.Id,
+        // runs the engine, and writes MenuItem.AvailabilityStatus +
+        // publishes IngredientAvailabilityChangedIntegrationEvent via
+        // IOutboxPublisher — all inside the same SaveChanges call.
+        ingredient.AddDomainEvent(new IngredientChangedDomainEvent(
+            ingredient.Id,
+            ingredient.RestaurantId,
+            IngredientChangedDomainEvent.ChangeKind.Created));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);

@@ -42,6 +42,14 @@ internal class UpdateIngredientCommandHandler(
         ingredient.IsAvailable = command.IsAvailable;
 
         dbContext.Ingredients.Update(ingredient);
+
+        // Raise the domain event BEFORE SaveChanges so the
+        // DispatchDomainEventsInterceptor drains it (pre-commit).
+        ingredient.AddDomainEvent(new IngredientChangedDomainEvent(
+            ingredient.Id,
+            ingredient.RestaurantId,
+            IngredientChangedDomainEvent.ChangeKind.Updated));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);

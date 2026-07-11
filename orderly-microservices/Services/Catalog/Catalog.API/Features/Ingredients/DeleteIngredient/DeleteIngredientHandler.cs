@@ -25,6 +25,13 @@ internal class DeleteIngredientCommandHandler(
             ?? throw new IngredientNotFoundException(command.Id);
 
         dbContext.Ingredients.Remove(ingredient);
+
+        // Domain event BEFORE SaveChanges.
+        ingredient.AddDomainEvent(new IngredientChangedDomainEvent(
+            ingredient.Id,
+            ingredient.RestaurantId,
+            IngredientChangedDomainEvent.ChangeKind.Deleted));
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);

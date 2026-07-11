@@ -28,8 +28,17 @@ public record IngredientAvailabilityChangedIntegrationEvent : IntegrationEvent
     /// <summary>
     /// When the engine resolves a single auto-substitute alternative and
     /// <c>Restaurant.AllowAutoSubstitute</c> is <see langword="true"/>, this
-    /// carries the alternative ingredient id. <see langword="null"/>
-    /// otherwise (status flips without an auto-substitute).
+    /// carries the alternative <c>Ingredient.Id</c> (int, since
+    /// <c>IngredientAlternative.AlternativeIngredientId</c> is int).
+    /// <see langword="null"/> otherwise (status flips without an
+    /// auto-substitute).
     /// </summary>
-    public Guid? AutoSubstituteOf { get; init; }
+    /// <remarks>
+    /// Phase 3 corrected this field's type from <c>Guid?</c> (a copy-edit
+    /// error in the original Phase 2 contract — ingredient ids are int,
+    /// not Guid). The wire-format bump is part of Phase 3's
+    /// <c>MessageVersion = 1</c>; no Phase 2 consumer existed yet, so no
+    /// back-compat is required.
+    /// </remarks>
+    public int? AutoSubstituteOf { get; init; }
 }

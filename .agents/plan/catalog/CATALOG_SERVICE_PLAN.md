@@ -7,9 +7,57 @@
 
 ---
 
+## 0. Skill & documentation conventions
+
+These two conventions apply to **every phase** below. They are non-negotiable — no implementation PR for this plan should land without satisfying both.
+
+### 0.1 Skill mandate — `csharp-developer`
+
+> **All implementation work on this plan MUST invoke the `csharp-developer` skill** (base directory `.claude/skills/csharp-developer`, invoked as `/csharp-developer` in Claude Code).
+>
+> The skill is the source of truth for C# 12+ / .NET 10 idiom, async patterns, EF Core / Marten usage, ASP.NET Core + Carter, MediatR CQRS, xUnit + Testcontainers test scaffolding, and the project's "MUST DO / MUST NOT DO" guard rails (nullable enabled, primary constructors, async/await with `CancellationToken`, `Result<T>` for error paths, no blocking calls, DTO mapping for API responses).
+>
+> At the start of **every phase**, the implementer (human or AI agent) loads the skill. Companion reference files under `.claude/skills/csharp-developer/references/` are loaded on demand per the skill's table:
+> - `modern-csharp.md` — records, primary constructors, collection expressions, pattern matching, nullable types.
+> - `aspnet-core.md` — Minimal API / Carter endpoints, DI, middleware, routing.
+> - `entity-framework.md` — EF Core configuration, migrations, query optimization, interceptors.
+> - `blazor.md` — only if a Blazor surface is added (this plan does not add one).
+> - `performance.md` — `Span<T>`/`Memory<T>`, async, AOT; loaded only if a phase lands a perf-sensitive hot path.
+>
+> **EF Core checkpoint:** after any code change that mutates the schema (Phase 1 invalidation hooks are code-only; Phase 4 / 6.2 may need new columns), the implementer runs `dotnet ef migrations add <Name>` from `Services/Catalog/Catalog.API/`, **reviews the generated migration file** for unintended drops, and rolls back with `dotnet ef migrations remove` if the diff is wrong.
+>
+> The skill is *additional* to whatever other skills are relevant (e.g. `csharp-xunit` for test scaffolding, `api-design-principles` for endpoint shape). It is **not** a substitute for the plan; the plan wins where they disagree.
+
+### 0.2 Phase-completion documentation update
+
+> **After completing every phase (1–6.2), `docs/architecture/current-architecture.md` MUST be updated to reflect the new state of the codebase before the PR is merged.**
+>
+> `current-architecture.md` is described in its own header as *"the snapshot view of the codebase — no planned features, no gap list. As new functionality is built … update this file to match."* It must never describe Catalog with capabilities that don't exist yet, and it must never lag a merged phase.
+>
+> The implementer writes the doc update as part of the phase, not as a follow-up commit. Each phase below lists its **Doc-update scope** — the §-numbered sections of `current-architecture.md` that phase touches.
+>
+> For convenience, the recurring touch points are:
+>
+> | Doc section | Why it usually changes per phase |
+> |---|---|
+> | §2 Tech Stack | New package row (Redis client, Hangfire, MassTransit pieces). |
+> | §4.2 Catalog Service | New endpoints, new entities, new event publish/consume, cache details, health checks. |
+> | §4.4 Discount Service | Phase 6.2 — Coupon table ownership moves. |
+> | §5.1 Synchronous / §5.2 Asynchronous | New event rows in the publish/consume matrix; new HTTP/gRPC targets. |
+> | §6 Data Stores | New schemas (Hangfire) or new entries (Redis client, RabbitMQ usage). |
+> | §9 Cross-Cutting Patterns | New interceptors, decorators, behaviors (e.g. `DispatchDomainEventsInterceptor`, `OutboxDeadLetterProbe`). |
+> | §11 Local Development | Startup sequence updates (Hangfire schema migration, new feature flags), test inventory. |
+> | §12 Observability | `/live` + `/ready` split, new `/health` entries. |
+>
+> The phase's checklist entry (see §9) requires the doc PR / commit before the phase is marked complete.
+
+---
+
 ## 1. Context
 
-`Catalog.API` already runs end to end for basic menu / restaurant / table CRUD over PostgreSQL + EF Core, plus Marten for the four audit documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`, `NotificationLog`). All four extend `Entity<int>` today — a known code smell tracked in `db_relational_model.md` §137-148 and folded into §8 of this plan. Marten documents are not relational entities; the right fix is to **drop the base class**, not swap it for `Entity<Guid>`.
+`Catalog.API` already runs end to end for basic menu / restaurant / table CRUD over PostgreSQL + EF Core, plus Marten for the three audit documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`). All three extend `Entity<int>` today — a known code smell tracked in `db_relational_model.md` §137-148 and folded into §8 of this plan. Marten documents are not relational entities; the right fix is to **drop the base class**, not swap it for `Entity<Guid>`.
+
+> The Marten `NotificationLog` previously in this list is being **removed**, not kept — see §6.7. Notification service will own the only `NotificationLog` going forward, as a relational table.
 
 Concretely, three cross-cutting capabilities are not wired and several owned entities have incomplete or absent features:
 
@@ -66,7 +114,7 @@ The companion `docs/architecture/db_relational_model.mermaid` change-log appendi
 
 - **`Orders`, `OrderItems`, `OrderBills`, `OrderModificationLog`, `OrderSnapshot`, `OrderItemPriceAudit`, `OrderTimingAnalytics`** — Ordering domain. Catalog **persists** the four Marten *documents* (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`) and the relational `NotificationLog` because they're cross-service audit records, but the **writers** live in Ordering / Kitchen / Notification. None of these documents extend `AuditableEntity<>` / `Entity<int>` / `Entity<Guid>` (Marten documents are not relational entities).
 - **`Reservation`, `WalkInQueue`, `BulkOrderUpload`** — Ordering domain. **No scaffolding exists in Ordering today** (verified by file glob — only `Catalog.API/Models/` defines them). The move requires an Ordering-side plan to introduce the aggregates first (Phase 6.0 prerequisite). Catalog keeps the writers until that plan lands.
-- **`CustomerFeedback`, `NotificationLog`** (relational) — Notification domain. **No `Notification.API` exists today** (verified — `Services/` has only Basket/Catalog/Discount/Identity/Kitchen/Ordering). Phase 6.1 prerequisite: Notification v1 plan. Catalog keeps the writers until then.
+- **`CustomerFeedback`, `NotificationLog`** — Notification domain. **No `Notification.API` exists today** (verified — `Services/` has only Basket/Catalog/Discount/Identity/Kitchen/Ordering). Phase 6.1 prerequisite: Notification v1 plan. Catalog keeps the writers until then. **`NotificationLog` has a single owner going forward — Notification, as a relational table** (§6.7). The Marten `NotificationLog` currently registered in `Catalog.API/Program.cs:38` is removed once Notification v1 lands and backfills its rows; it is not retained alongside a relational copy.
 - **`User`** (in Catalog) — Identity mirror. Keep local-mirror model only; no write path; document explicitly in `db_relational_model.md` §"Out of scope".
 - **`Coupon`** — Discount service responsibility (per architecture §210-216 and §283-292). **Discount already has the table** (`Discount.Grpc/Models/Coupon.cs:6-15`), with the same columns plus `AuditableEntity<int>` instead of `Entity<int>`. The Coupon move is in-plan (§7.6.2).
 
@@ -196,6 +244,48 @@ YARP is configured in `ApiGateway/YarpApiGateway/appsettings.json` with one rout
 
 The Coupon move (§7.6.2) is the first application of this convention.
 
+### 6.7 — `NotificationLog` ownership: Notification owns the only one
+
+**Decision (Option B from v1.2 review).** Earlier versions of this plan contemplated two `NotificationLog` concepts coexisting indefinitely — a Marten document in Catalog (audit) and a relational table in Notification (operational queue). Reviewer flagged this as ambiguous: a reader couldn't tell which was source of truth, whether one replaced the other, or how the two related. **Decision: there is only one `NotificationLog` going forward — relational, owned by the Notification service.** Catalog's Marten `NotificationLog` is removed once Notification v1 lands and backfills its rows.
+
+**Why merge instead of split.**
+
+- **One concept, one name, one shape** — no dual-writer or dual-reader confusion, no migration question ("which table is the row I just queried?").
+- **Relational is a better fit.** The operational fields that Notification needs (Status with retry counters, `NextAttemptAt`, indexed by `(Status, NextAttemptAt)` for the retry worker) are inherently relational — Marten documents don't naturally model those indexes.
+- **No active writers today.** Verified by grep over `Services/Catalog/Catalog.API/**` — the Marten `NotificationLog` schema is registered at `Program.cs:38` (`opt.Schema.For<NotificationLog>();`) but **nothing inserts into it**. The "audit log" intent was never implemented; the only data is whatever was seeded or written by hand.
+- **Notification owns delivery.** When Notification ships, it writes to its own table in its own transaction; it has no business writing to a document store owned by Catalog. The cross-service write would force a Marten session in Catalog's `catalogdb`, which Catalog already uses for its own aggregates — a recipe for coupling.
+
+**What changes in Catalog (driven by Notification v1 plan landing; out of scope for this plan).**
+
+1. `Catalog.API/Models/NotificationLog.cs` is deleted.
+2. `Catalog.API/Program.cs:38` (`opt.Schema.For<NotificationLog>();`) is removed.
+3. A no-op Catalog migration drops the empty `mt_doc_notification_log` storage (Marten will GC the schema entries once unregistered; no DDL is needed if the table is empty).
+4. `db_relational_model.mermaid` removes the `NotificationLog` diagram block and the two relationship rows (`Orders ||--o{ NotificationLog : triggers`, `Reservations ||--o{ NotificationLog : triggers`).
+5. `db_relational_model.md` drops the `NotificationLog` row from the Marten-document list (§35) and the code-vs-storage mismatch paragraph (§44).
+6. `current-architecture.md` §4.2 entity table drops the `NotificationLog` row; the "Catalog persists … `NotificationLog`" sentence in §4 is removed.
+
+**Backfill sequence (owned by the Notification v1 plan, not this one).**
+
+1. Notification applies its migration creating the relational `notification_log` table with the columns in §6.1.
+2. A one-shot console job runs in Catalog (gated by `Catalog:BackfillNotificationLogs=true`): read every row from `mt_doc_notification_log`, map fields to the relational shape (Marten's synthetic `Guid` id → `OriginalMartenId`; `Status.Pending/Sent/Failed` map 1:1; `Channel`, `MessageType`, `RecipientType`, `RecipientIdentifier`, `MessageContent`, `RelatedOrderId`, `RelatedReservationId`, `CreatedAt`, `SentAt` copy directly). Idempotent insert keyed by `OriginalMartenId`.
+3. Verify: `SELECT COUNT(*) FROM mt_doc_notification_log` matches the number of successful inserts in Notification's log.
+4. Catalog removes the schema registration + deletes the model file. The original Marten document data is left in `mt_doc_notification_log` for one retention cycle; a follow-up retention decision (delete after N months / never) is owned by the Notification v1 plan.
+
+**§4 / §6.1 alignment.**
+
+- §4 line 115 is rewritten to read "`CustomerFeedback`, `NotificationLog` — Notification domain. … `NotificationLog` has a single owner going forward — Notification, as a relational table (§6.7)."
+- §6.1 prerequisite list reframes "A relational `NotificationLog` table (Marten document `NotificationLog` stays in Catalog; the relational one moves)" to "The `NotificationLog` relational table (the only `NotificationLog` going forward — see §6.7). It owns: id, …".
+
+**Doc-update scope when Notification v1 lands (drives both Catalog and Notification docs).**
+
+- `current-architecture.md` §4.2 Catalog Service — drop `NotificationLog` row from the entity table; remove "Catalog persists … `NotificationLog`" sentence.
+- `current-architecture.md` new §4.7 Notification Service (created by Notification v1 plan) — describe the relational `notification_log` table per §6.1's column list.
+- `current-architecture.md` §5.2 Asynchronous — add any new outbound events Notification publishes (`NotificationDelivered`, `NotificationFailed`).
+- `db_relational_model.mermaid` + `db_relational_model.md` — drop the Catalog-side `NotificationLog` block and references.
+- `CATALOG_SERVICE_PLAN.md` §9 Cleanup milestone — `NotificationLog` removed from the four-document list (now three).
+
+**Why this is out of scope for the Catalog plan.** The relational table lives in Notification's database (`notificationdb` — to be created by the Notification v1 plan), not Catalog's. The backfill touches Catalog code but is initiated by Notification's deploy. No Catalog code change is appropriate *until* Notification v1 has somewhere to backfill to. Tracking continues in Phase 6.1.
+
 ---
 
 ## 7. Phased milestones
@@ -218,6 +308,13 @@ The phases are ordered so each one is independently shippable and any earlier ph
 - **Failure-mode policy (decision #8):** cache calls are best-effort. If Redis is unreachable, the mutation commits; the call is logged at `Warning`. The new `CacheDriftRepairService` (`Cache/CacheDriftRepairService.cs`) is an `IHostedService` that runs every 5 minutes (configurable via `CatalogOptions:CacheRepairInterval`), diffs the per-restaurant DB row counts against cache key presence, and repopulates any missing keys. Flag-gated.
 - Flag-gate the rollout behind `FeatureManagement__CatalogRedisCache=true` so it can be disabled without a redeploy if the cache goes stale.
 - **Tests:** Testcontainers (real Redis) integration test for hit/miss + invalidation hooks + drift-repair simulation when Redis is killed mid-test.
+
+**Doc-update scope (§0.2):**
+- §2 Tech Stack — add `Microsoft.Extensions.Caching.StackExchangeRedis` + `IConnectionMultiplexer` row.
+- §4.2 Catalog Service — add **Caching** subsection (key formats `catalog:menu:{rid}` / `catalog:ingredients:{rid}`, TTLs, fail-open policy, `CacheDriftRepairService` hosted service cadence).
+- §4.2 Catalog Service — add the `catalog-api` row to the gateway prefix table if not already present.
+- §9 Cross-Cutting Patterns — note `ICatalogCache` + Scrutor `CachedMenuReader` decorator in the caching row.
+- §11 Local Development — startup sequence line confirming Catalog reads `ConnectionStrings__Redis` from env/compose.
 
 ### Phase 2 — Messaging + outbox wiring
 
@@ -247,6 +344,14 @@ The phases are ordered so each one is independently shippable and any earlier ph
 - Add a doc block in `BuildingBlocks.Messaging/Events/` index listing which service publishes which events.
 - **Tests:** Testcontainers + MassTransit `InMemoryTestHarness` for publish → consume round-trip on `OrderCompleted`. Unit tests on handler idempotency.
 
+**Doc-update scope (§0.2):**
+- §2 Tech Stack — note MassTransit is now wired in Catalog (row already mentions Catalog? add RabbitMQ broker note if missing).
+- §4.2 Catalog Service — replace "**Events published / consumed by Catalog.** None." with the four-event publish list (`MenuItemChangedIntegrationEvent`, `IngredientAvailabilityChangedIntegrationEvent`, `TableStatusChangedIntegrationEvent`, `RestaurantConfigurationChangedIntegrationEvent`) and the `OrderCompletedIntegrationEvent` consumer row.
+- §5.2 Asynchronous — add five rows to the publish/consume matrix: the four Catalog→ events and the `OrderCompletedIntegrationEvent → Catalog` row.
+- §4.2 Catalog Service — flip **Health** row from a single `/health` to `/live` + `/ready` split (defer full details to Phase 2's health row update below or note forward-reference to the `/ready` block in this section).
+- §9 Cross-Cutting Patterns — add a row for `IOutboxPublisher` use in Catalog handlers + `OutboxDeadLetterProbe` (mirror Ordering/Kitchen).
+- §12 Observability — append the `/ready` entry (`outbox_dlq`, `redis`, `rabbitmq`) to the bullet list.
+
 ### Phase 3 — Ingredient Availability Engine
 
 - Define a pure `IngredientAvailabilityEngine.AvailabilityProfileFor(menuItemId, restaurantId)` returning `{ AvailabilityStatus, AutoSubstituteOf }` based on:
@@ -261,6 +366,10 @@ The phases are ordered so each one is independently shippable and any earlier ph
 - After recompute, publish `IngredientAvailabilityChangedIntegrationEvent` per affected `MenuItem` (batched, deduped per restaurant).
 - **Tests:** Unit tests over the matrix in `architecture.md` §927-931 (no alt + not optional → Unavailable; alt exists → Limited; auto-substitute satisfied → Available). Testcontainers integration for the full refresh path.
 
+**Doc-update scope (§0.2):**
+- §4.2 Catalog Service — add a paragraph under the engine describing the `IngredientAvailabilityEngine.AvailabilityProfileFor` rule, the `IDomainEvent` trigger via `DispatchDomainEventsInterceptor`, and the flag-gated `IngredientAvailabilityReconcileService` safety net.
+- §9 Cross-Cutting Patterns — extend the interceptors row to mention `DispatchDomainEventsInterceptor` registration in Catalog (mirror Ordering/Kitchen).
+
 ### Phase 4 — Complete partial / missing features
 
 | Feature slice | What to add |
@@ -273,6 +382,11 @@ The phases are ordered so each one is independently shippable and any earlier ph
 | `Features/RestaurantConfiguration/AuditOnUpdate/` | Wrap `UpdateRestaurantHandler` to produce a `PriceHistory`-style audit entry for any of the listed mutating fields so changes are traceable across the system. |
 | `Features/MenuItemAnalytics/` | Already has reads. Add `RecomputeTodayCommand` (admin) + automatic nightly recompute (`IHostedService`). The hot path is the `OrderCompleted` consumer. |
 | `Features/CustomerFeedback/SubmitFeedback/` | `SubmitFeedbackCommand` accepting the four ratings + comments + `OrderId`. On `OverallRating ≥ 4` emit `FeedbackSubmittedIntegrationEvent` (lives in `BuildingBlocks.Messaging/Events/Notification/`). **Stays in Catalog** — the move to Notification is now out-of-plan (§7.6.1). |
+
+**Doc-update scope (§0.2):**
+- §4.2 Catalog Service — extend the **Endpoints by feature** list to include `MergedTables` (Create/Split/Get), `BulkOrderUploads` (Upload/Get/Approve/Reject), `MenuSubCategories` Delete, `ComboItems` Update, `PriceHistories` (now auto-populated by mutations), `MenuItemAnalytics.RecomputeToday`, and `CustomerFeedback.SubmitFeedback`.
+- §4.2 Catalog Service — note the nightly recompute `IHostedService` for `MenuItemAnalytics` under the engine / hosted-service paragraph.
+- §11 Local Development — append `Catalog.API.Tests` once the new test slices land (Testcontainers — Postgres + Redis + RabbitMQ for cache/outbox/engine coverage).
 
 ### Phase 5 — Async lifecycle (reservations, walk-in, seasonal)
 
@@ -293,6 +407,12 @@ The phases are ordered so each one is independently shippable and any earlier ph
   - Same logic for promo items vs `PromoStartDate` / `PromoEndDate`.
 - All four jobs are feature-flag gated (`FeatureManagement__CatalogScheduledJobs=true`).
 - **Tests:** integration tests using a fake clock (e.g. `Microsoft.Extensions.TimeProvider.Testing`) — not actual time travel, just controlled `TimeProvider`. Hangfire recurring-job timing assertions are out of scope.
+
+**Doc-update scope (§0.2):**
+- §2 Tech Stack — add a Hangfire row (with PostgreSQL schema storage).
+- §4.2 Catalog Service — add an **Async lifecycle** subsection listing the four Hangfire recurring jobs (`ReservationReminderJob`, `ReservationNoShowJob`, `WalkInNoShowJob`, `SeasonalAvailabilityJob`) with their cadence and flag name.
+- §6 Data Stores — note `catalogdb` now hosts the `hangfire` schema.
+- §11 Local Development — startup sequence line: Catalog applies the `hangfire` schema migration and exposes the Hangfire dashboard at a configured path.
 
 ### Phase 6 — Entity moves
 
@@ -318,14 +438,17 @@ Until that plan lands, Catalog keeps the writers, the tables, and the endpoints.
 
 A separate Notification v1 plan must introduce:
 
-- The `Notification.API` service skeleton (Carter, JWT auth, Postgres, Marten if applicable).
+- The `Notification.API` service skeleton (Carter, JWT auth, Postgres).
 - Notification deliveries: receipt generation (`OrderCompleted`), feedback request, reservation confirmations, reminders, etc. The integrations with Twilio/SendGrid from `architecture.md` §616.
 - The `CustomerFeedback` aggregate and the reward-code generation flow (`architecture.md` §411-415, `FeedbackSubmittedIntegrationEvent` defined).
-- A relational `NotificationLog` table (Marten document `NotificationLog` stays in Catalog; the relational one moves).
+- The **`NotificationLog` relational table** (the only `NotificationLog` going forward — see §6.7 for the merge rationale). It owns: `id`, `RestaurantId`, `Channel`, `MessageType`, `RecipientType`, `RecipientIdentifier`, `Status` (`Pending | InFlight | RetryPending | Sent | Failed`), `AttemptCount`, `NextAttemptAt?`, `LastError?`, `RelatedOrderId?`, `RelatedReservationId?`, `CreatedAt`, `SentAt?`. Indexed by `(Status, NextAttemptAt)` for the retry worker.
+- The **backfill job** that reads `mt_doc_notification_log` in Catalog and idempotently inserts into Notification's relational `notification_log`. Detailed steps in §6.7.
 
-Until that plan lands, Catalog keeps `CustomerFeedback` and `NotificationLog`. The `FeedbackSubmittedIntegrationEvent` is still published (Phase 4 already does this) but no one consumes it yet — that's fine, the bus retains undelivered messages until the consumer exists (subject to its retry / dead-letter policy).
+Until that plan lands, Catalog keeps `CustomerFeedback` and the Marten `NotificationLog`. The `FeedbackSubmittedIntegrationEvent` is still published (Phase 4 already does this) but no one consumes it yet — that's fine, the bus retains undelivered messages until the consumer exists (subject to its retry / dead-letter policy).
 
 #### Phase 6.2 — **In plan: Coupon move to Discount**
+
+> **Verification (preamble, recorded on plan date).** A grep over `Services/Catalog/**` for `Coupon` returns zero matches — no `Models/Coupon.cs`, no `DbSet<Coupon>`, no EF migration, no `Features/Coupons/` folder, no Carter endpoints, no writers. Coupon is **not** present in Catalog's code today; it exists in Discount (`Discount.Grpc/Models/Coupon.cs:6-15`, full gRPC service in `DiscountService.cs:1-175`) and as **mermaid drift** in `db_relational_model.mermaid:283` (Coupons diagram block), `:499` (`Restaurants ||--o{ Coupons : "issues"`), and `:540` (orphan note) plus a text mention in `db_relational_model.md:62`. The migration step-list below therefore collapses to documentation reconciliation for the Catalog side — there is no source schema, no source writers, no source table to drop, no backfill to run. The §7.6.2 step list is preserved verbatim because it documents the *intended* sequence (which would apply if Catalog had Coupon code) and because the Coupon-with-Restaurant relationship entries in `db_relational_model.mermaid` need the mermaid-side cleanup the steps describe. Verification re-runs at PR time; if a future change re-introduces Coupon code in Catalog, the steps activate as written.
 
 **Verified:** Discount already has the destination schema (`Discount.Grpc/Models/Coupon.cs:6-15`) with all the columns Catalog's `Coupon` carries — *and* Discount's `Coupon` extends `AuditableEntity<int>`, so the move is a strict upgrade (audit fields + `IsActive` come along for free).
 
@@ -350,6 +473,13 @@ Steps (mirrors §7.6 generic step pattern, but more concrete because the destina
 8. **Feature flag:** `Catalog:EntityMoveCoupons=true` for the entire phase. Lets us roll back without a redeploy.
 
 **Tests:** Migration idempotency test (run twice, second run is a no-op). End-to-end test that Discount.gRPC `CreateDiscount` → Catalog's read-only table reflects the value before step 4 (read-only mirror window) and stops reflecting after step 6 (table dropped).
+
+**Doc-update scope (§0.2):**
+- §4.2 Catalog Service — remove `Coupon` from the entity table and remove any `Features/Coupons/*` endpoint row.
+- §4.4 Discount Service — update the Coupon model description to confirm it now serves Catalog's former writers (REST/gRPC surface, seeded codes, redemption parity).
+- §4 — extend the gateway-prefix table if a new `discount-api/coupons` route was added per §6.6.
+- §4.5 Ordering Service / §5.2 — no change unless cross-service consumers of coupon events were added in this phase.
+- §11 Local Development — note any `Catalog.Coupons → Discount.Coupons` backfill run in the startup sequence (idempotent on `Code + RestaurantId`).
 
 ---
 
@@ -413,21 +543,51 @@ These were tracked as open in plan v1.0; verified against the code and closed in
 
 ## 9. Milestone checklist
 
+> Every phase entry has **two** check-boxes: the code/test gate **and** the `current-architecture.md` doc-update gate (§0.2). A phase is not "done" until both are merged.
+
 - [ ] **Phase 1** — Redis cache wired behind `CatalogRedisCache` flag; menu and ingredient invalidation hooked into existing handlers; `CacheDriftRepairService` running every 5 min; failure mode is fail-open + log.
+  - [ ] **Phase 1 doc** — `docs/architecture/current-architecture.md` updated per Phase 1 doc-update scope (§2 Tech Stack, §4.2 Catalog Caching, §9 Cross-Cutting Patterns, §11 Local Development).
 - [ ] **Phase 2** — All five Catalog integration events (each with `int SchemaVersion = 1`) publish via outbox; plain `IConsumer<OrderCompletedIntegrationEvent>` handler bumps `MenuItemAnalytics` idempotently; outbox poison queue + `OutboxDeadLetterProbe` reading 0; `/live` + `/ready` split in place.
+  - [ ] **Phase 2 doc** — `current-architecture.md` updated per Phase 2 doc-update scope (§2 Tech Stack, §4.2 Events, §5.2 matrix rows, §9 interceptors row, §12 Observability `/ready` entries).
 - [ ] **Phase 3** — IngredientAvailabilityEngine with unit-test matrix; `IDomainEvent` triggers via `DispatchDomainEventsInterceptor`; reconcile hosted service gated by `CatalogAvailabilityEngineReconcile` flag.
+  - [ ] **Phase 3 doc** — `current-architecture.md` updated per Phase 3 doc-update scope (§4.2 engine paragraph, §9 interceptors row).
 - [ ] **Phase 4** — `MergedTables`, `MenuSubCategory.Delete`, `ComboItems.Update`, `BulkOrderUploads` (CRUD + approve/reject; stays in Catalog per §7.6.0), `PriceHistory` write path, `MenuItemAnalytics` nightly recompute, `CustomerFeedback.Submit` + reward event (stays in Catalog per §7.6.1).
+  - [ ] **Phase 4 doc** — `current-architecture.md` updated per Phase 4 doc-update scope (§4.2 endpoint list, §11 test inventory).
 - [ ] **Phase 5** — Hangfire + recurring jobs: reservation reminder, reservation no-show, walk-in no-show, seasonal availability. All gated by `CatalogScheduledJobs` flag.
+  - [ ] **Phase 5 doc** — `current-architecture.md` updated per Phase 5 doc-update scope (§2 Tech Stack Hangfire row, §4.2 async lifecycle subsection, §6 hangfire schema, §11 startup sequence).
 - [ ] **Phase 6.0** — *Out-of-plan.* Track Ordering-side plan introducing `Reservation` / `WalkInQueue` aggregates. Open until the Ordering-side plan lands.
-- [ ] **Phase 6.1** — *Out-of-plan.* Track Notification v1 plan introducing `CustomerFeedback` / relational `NotificationLog`. Open until the Notification v1 plan lands.
+  - [ ] **Phase 6.0 doc** — none required (no Catalog code change in this sub-phase; only the prerequisite note in §7.6.0 is refreshed).
+- [ ] **Phase 6.1** — *Out-of-plan.* Track Notification v1 plan introducing `CustomerFeedback` and the relational `notification_log` table (the only `NotificationLog` going forward — see §6.7 for the merge plan that drops the Marten document from Catalog). Open until the Notification v1 plan lands.
+  - [ ] **Phase 6.1 doc** — none required while Catalog waits. When Notification v1 ships, run the §6.7 doc-update scope (Catalog entity table row dropped; new Notification Service section in `current-architecture.md`; mermaid + companion doc cleaned up).
 - [ ] **Phase 6.2** — `Coupon` move to Discount: schema pre-flight, backfill, writers ported to `Discount.Grpc`, Catalog source table read-only, gateway re-pointed per §6.6, source table dropped, mermaid + companion md updated. Gated by `Catalog:EntityMoveCoupons`.
-- [ ] **Cleanup** — Four Marten documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`, `NotificationLog`) drop the `Entity<int>` base; they are plain Marten documents with no relational base class. `BulkOrderUploads` becomes `AuditableEntity<int>`. Mermaid + companion doc both updated to reflect the new bases / id conventions.
+  - [ ] **Phase 6.2 doc** — `current-architecture.md` updated per Phase 6.2 doc-update scope (§4.2 removes Coupon, §4.4 Discount absorbs it, §4 gateway table, §11 backfill note).
+- [ ] **Cleanup** — Three Marten documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`) drop the `Entity<int>` base; they are plain Marten documents with no relational base class. `BulkOrderUploads` becomes `AuditableEntity<int>`. (`NotificationLog` was the fourth Marten document but is being removed entirely per §6.7 once Notification v1 lands — not just rebased.) Mermaid + companion doc both updated to reflect the new bases / id conventions.
+  - [ ] **Cleanup doc** — `current-architecture.md` §4.2 entity table updated to reflect the new bases (drop `Entity<int>` from the three Marten rows; `BulkOrderUploads` row notes `AuditableEntity<int>`). The `NotificationLog` row is removed (see §6.7 merge).
 - [ ] **Docs** — `db_relational_model.mermaid` updated to match each phase (mermaid is reconciled after every phase, not only at the end).
+
+### 9.1 Per-phase implementation recipe
+
+For reproducibility, every phase's PR follows this sequence (the `csharp-developer` skill is loaded at step 1 per §0.1):
+
+1. **Load skill.** Invoke `/csharp-developer`. Load the relevant `references/*.md` files for the phase.
+2. **Design.** Read the phase section above; map endpoints → Carter modules, handlers → MediatR, events → MassTransit. Confirm no naming conflict with existing modules.
+3. **Implement.** Domain models, EF / Marten changes, handler + validator + DTO, Carter module registration, `IOutboxPublisher` writes, cache invalidation hooks, hosted services. Follow `csharp-developer` MUST DO/MUST NOT DO list.
+4. **EF Core checkpoint.** Run `dotnet ef migrations add <Name>` from `Services/Catalog/Catalog.API/`. Review the generated SQL; if it contains unintended drops, roll back with `dotnet ef migrations remove` and fix the model.
+5. **Test.** xUnit + FluentAssertions unit tests; Testcontainers (Postgres + Redis + RabbitMQ as needed) integration tests.
+6. **Update `current-architecture.md`.** Apply the phase's Doc-update scope verbatim. Commit in the same PR (or a paired PR — but the doc PR must merge before the phase is marked complete).
+7. **Update `db_relational_model.mermaid`.** If the phase touched the schema, reconcile the mermaid to code (project convention).
+8. **Merge.** Phase is "done" only when both the code PR and the doc PR have landed and the checklist boxes in §9 above are ticked.
 
 ---
 
-**Document Version:** 1.1
-**Last Updated:** 2026-07-10
+**Document Version:** 1.4
+**Last Updated:** 2026-07-11
 **Maintained By:** Catalog working group
+
+> **v1.4 changelog** — Added a *Verification (preamble)* block at the top of §7.6.2 (Coupon move to Discount). Confirmed via `Services/Catalog/**` grep that Catalog has zero Coupon code today (no model, no DbSet, no migration, no `Features/Coupons/` folder, no endpoints, no writers); Coupon is fully implemented in Discount and exists in the architecture only as mermaid drift in `db_relational_model.mermaid:283/499/540` plus a phantom line in `db_relational_model.md:62`. The §7.6.2 step list is preserved verbatim — the verification just records the no-op confirmation so a future implementer doesn't waste time looking for Catalog source code. Trade-off analysis (Catalog vs Discount as home for Coupon) concluded **Discount is the right home** and the move is the right direction; the alternative would force cross-service writes that the project explicitly avoids.
+>
+> **v1.3 changelog** — Resolved the `NotificationLog` ambiguity raised during v1.2 review. **Option B (Promote & merge) adopted**: there is only one `NotificationLog` going forward — relational, owned by Notification. New §6.7 *NotificationLog ownership: Notification owns the only one* locks the decision, the backfill sequence, and the doc-update scope. §1 (three Marten audit docs, not four), §4 (boundary statement), §6.1 (Notification v1 prerequisite list), §9 Cleanup milestone (three docs), and §9 Phase 6.1 doc-update row all updated to reference §6.7.
+>
+> **v1.2 changelog** — Added §0 *Skill & documentation conventions*: §0.1 mandates the `csharp-developer` skill on every phase; §0.2 mandates a `docs/architecture/current-architecture.md` update at the end of every phase. Each phase now ends with a *Doc-update scope* block, and the §9 milestone checklist has paired code/doc check-boxes plus a §9.1 *Per-phase implementation recipe*.
 
 For the schema-level drift baseline, see `db_relational_model.md` last reconciliation 2026-06-30 and the memory `db-model-drift-reports.md`.

@@ -72,11 +72,14 @@ These two conventions apply to **every phase** below. They are non-negotiable �
 
 ### 0.3 Code-quality guard rails (dotnet-best-practices)
 
-Same role as `CATALOG_SERVICE_PLAN.md §0.3`. Discount's project-specific overrides:
+**Discount copies the rule bullets from `CATALOG_SERVICE_PLAN.md §0.3` verbatim** rather than mirror-referencing them. Reason: mirror-references (e.g., "see Catalog §0.3") drift silently — a future Catalog-side change leaves Discount with no signal that its own guard rails moved. Copy-into-context is verbose but drift-proof; update this section in lockstep with Catalog §0.3 changes.
+
+Discount's project-specific overrides layered on top of the catalog-copied bullets:
 
 - **xUnit + FluentAssertions + NSubstitute** for unit tests (Catalog's choice).
 - **SQLite `:memory:` + MassTransit `InMemoryTestHarness`** for integration tests (Catalog uses Testcontainers Postgres; SQLite doesn't need a container).
 - **gRPC error codes via `Grpc.Core.Status` + `ServerCallContext.Status`** — never silent `catch` in RPC handlers; map known exceptions to `StatusCode.NotFound` / `StatusCode.InvalidArgument` / `StatusCode.PermissionDenied` / `StatusCode.FailedPrecondition`. No string-typed error tuples.
+- **Mapping via Mapster** — new `RewardCodeService` and `DiscountRuleService` use `request.Adapt<RewardCode>()` and `entity.Adapt<RewardCodeModel>()`; the existing `DiscountService.cs:144–158` manual `ToProtoModel`/`ToEntity` is deleted in Phase 1 to keep mapping consistent with Catalog (current-architecture.md §4.2). Add `Mapster.DependencyInjection` configuration in `Program.cs` (`services.AddMapster(); services.AddSingleton(TypeAdapterConfig.GlobalSettings);`) so the new `MapGrpc...Mapper.CreateAdapter()` calls in handlers pick up the shared type-map config.
 - **`ArgumentNullException.ThrowIfNull`** on every constructor parameter of every Discount service.
 - **JWT bearer validation** in `Program.cs` (`AddJwtBearer`); per-RPC permission checks via `[Authorize(Policy = "coupon:create")]`-style attributes on the gRPC service methods (the `Microsoft.AspNetCore.Authorization.AuthorizationPolicy` works through gRPC's `IAsyncStreamReader`-adjacent pipeline).
 
@@ -125,7 +128,29 @@ This section enforces the gRPC + MassTransit conventions every Discount endpoint
 - **One `Service` per aggregate.** `DiscountProtoService` for Coupon (existing), `RewardCodeProtoService` for RewardCode (Phase 3), `DiscountRuleProtoService` for DiscountRule (Phase 2). Each lives in its own `.proto` file or its own `package` block within `Protos/discount.proto`. Generated clients mirror; Basket already imports the protos.
 - **Per-RPC request / response messages, not reuse.** Discount uses `CouponModel` (existing) for the Coupon CRUD RPCs; new RewardCode RPCs use `RewardCodeModel`; new DiscountRule RPCs use `DiscountRuleModel`. **Don't** reuse `CouponModel` to encode a `RewardCode` — the field shapes differ; reusing creates protobuf tags that drift.
 - **Validation in handlers, not at the proto layer.** Field-level constraints (`Required`, `Range`, etc.) live in FluentValidation validators + the handler, not in protobuf field annotations (proto3 has limited `optional` semantics). The exception is `string restaurant_id`, which gets pattern-checked at handler entry via `Guid.TryParse`.
-- **`Idempotency-Key` for state transitions.** `RedeemDiscount`, `RedeemRewardCode`, and `UpdateDiscount` accept an `Idempotency-Key` request header (UUID v4) — middleware reads it, hashes with `restaurantId + code`, and caches the response in Redis (`idempotency:{rId}:{sha256(key+rId+code)}`, 24h TTL). **Conflict** (same key, different request body) → 422 via `StatusCode.FailedPrecondition` with details. Redis is the same shared instance Basket and Catalog use — **discount:* namespace** to avoid collision.
+- **`Idempotency-Key` for state transitions.** `RedeemDiscount`, `RedeemRewardCode`, and `UpdateDiscount` accept an `Idempotency-Key` request header (UUID v4) — middleware reads it, computes a server-attested MAC of `callerRestaurantId + endpoint + rawRequestBody`, and caches the response in Redis (`idempotency:{rId}:{hmacHex}`, 24h TTL). **Conflict** (same key, different request body) → 422 via `StatusCode.FailedPrecondition` with details.
+
+  **MAC, not plain hash.** The cache key uses `HMAC-SHA256(key, envelope)` keyed on a server-side secret, **not** plain `SHA256(envelope)`. Plain SHA256 lets an attacker craft a `key+rId+code` collision if they guess the input format; HMAC requires knowledge of the secret. The secret is 32 random bytes generated at startup or read from `IConfiguration["Discount:IdempotencyKey"]` (the production value comes from Key Vault; the dev value lives in `appsettings.Development.json`, which is gitignored). The secret is registered once as a singleton `IIdempotencyKeyProvider` and **never logged**:
+
+    ```csharp
+    public sealed class IdempotencyKeyProvider : IIdempotencyKeyProvider
+    {
+        private readonly byte[] _key;
+        public IdempotencyKeyProvider(IConfiguration config)
+        {
+            var raw = config["Discount:IdempotencyKey"]
+                ?? throw new InvalidOperationException(
+                    "Discount:IdempotencyKey missing from configuration (dev: appsettings.Development.json; prod: Key Vault).");
+            ArgumentNullException.ThrowIfNull(raw);
+            _key = Convert.FromHexString(raw);
+            if (_key.Length < 16) throw new InvalidOperationException("Discount:IdempotencyKey must decode to >= 16 bytes.");
+        }
+        public string Compute(string envelope) =>
+            Convert.ToHexString(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(envelope)));
+    }
+    ```
+
+  Redis is the same shared instance Basket and Catalog use — **discount:* namespace** to avoid collision.
 
 #### 0.4.2 gRPC error → StatusCode mapping
 
@@ -142,13 +167,71 @@ Catalog §0.4.7 (ProblemDetails, RFC 7807) doesn't map cleanly to gRPC. Discount
 
 `CustomExceptionHandler` from BuildingBlocks doesn't apply directly to gRPC; Discount uses an `ExceptionInterceptor` registered on the gRPC service collection that maps the same `DomainException` hierarchy → `StatusCode`.
 
+#### 0.4.2.1 gRPC authorization mechanism
+
+**`[Authorize(Policy = "coupon:create")]` on a gRPC service method does NOT work the way it does on an MVC controller.** gRPC services are not routed through the MVC pipeline; the `[Authorize]` attribute is silently ignored. The project's actual mechanism is a global gRPC `AuthorizationInterceptor` registered with `services.AddGrpc(o => o.Interceptors.Add<DiscountAuthorizationInterceptor>())`. The interceptor:
+
+1. Resolves `HttpContext.User` via `ServerCallContext.GetHttpContext()` (gRPC populates it from the `Metadata["authorization"]` Bearer token once `AddJwtBearer` is wired).
+2. Looks up the policy name from a `[Permission("coupon:create")]` attribute on the gRPC method (custom attribute — declare it in `Authorization/DiscountPermissionAttribute.cs`).
+3. Runs `IAuthorizationService.AuthorizeAsync(user, resource, "coupon:create")`. Failure → `StatusCode.PermissionDenied` with `Metadata["required-permission"] = "coupon:create"`.
+
+Document the `[Permission("coupon:create")]` attribute and the `DiscountAuthorizationInterceptor` in Phase 1 alongside the JWT wiring. Per-method `[Authorize(Policy=...)]` is **not** used; per-method `[Permission("coupon:create")]` is the convention.
+
 #### 0.4.3 Proto file layout
 
-`Protos/discount.proto` currently houses `CouponModel` + 5 RPCs in `package discount`. After Phase 2 / Phase 3, the file grows. Recommendations:
+`Protos/discount.proto` currently houses `CouponModel` + 5 RPCs in `package discount`. After Phase 2 / Phase 3, the file grows. The split uses one **aggregator** proto at the existing path so the Basket client (`Basket.API.csproj:32`) keeps including the same path without churn:
 
-- Split into `Protos/coupon.proto`, `Protos/reward_code.proto`, `Protos/discount_rule.proto` and re-import in a single `.proto` aggregator. This keeps the generated C# out of one giant namespace.
-- Generated proto stubs land in `obj/Debug/net10.0/Protos/`. **Never edit these.** They regenerate on every build.
-- All proto files declare `csharp_namespace = "Discount.Grpc"` and `package discount`. The Basket client imports `Protos/discount.proto` today (Basket.API.csproj:32); after the split, Basket gets only `Protos/coupon.proto` for the existing RPCs (no churn in Basket), and `reward_code.proto` / `discount_rule.proto` exist only for Discount internal.
+```
+Protos/
+  discount.proto          # aggregator: imports the three slices; declares package discount
+  coupon.proto            # CouponModel + the 5 existing RPCs
+  reward_code.proto       # RewardCodeModel + 6 reward RPCs
+  discount_rule.proto     # DiscountRuleModel + 6 rule RPCs + Evaluate
+```
+
+The aggregator's body is just:
+
+```proto
+syntax = "proto3";
+option csharp_namespace = "Discount.Grpc";
+package discount;
+
+import "coupon.proto";
+import "reward_code.proto";
+import "discount_rule.proto";
+```
+
+Each slice file declares its own `csharp_namespace`:
+
+```proto
+// coupon.proto
+option csharp_namespace = "Discount.Grpc.Coupon";
+package discount;
+message CouponModel { ... }
+service DiscountProtoService { rpc GetDiscount(...) returns (...); /* ...the 5 RPCs */ }
+```
+
+```proto
+// reward_code.proto
+option csharp_namespace = "Discount.Grpc.RewardCode";
+package discount;
+message RewardCodeModel { ... }
+service RewardCodeProtoService { rpc CreateRewardCode(...) returns (...); /* ...the 6 RPCs */ }
+```
+
+```proto
+// discount_rule.proto
+option csharp_namespace = "Discount.Grpc.DiscountRule";
+package discount;
+message DiscountRuleModel { ... }
+service DiscountRuleProtoService { rpc CreateDiscountRule(...) returns (...); /* ...the 6 RPCs */ }
+```
+
+Generated C# lands in three namespaces: `Discount.Grpc.Coupon`, `Discount.Grpc.RewardCode`, `Discount.Grpc.DiscountRule`. Each service class is registered separately in `Program.cs` via `app.MapGrpcService<Coupon.DiscountProtoService>()` etc. — registering the existing one is unchanged; the two new ones are additive. `Discount.Grpc.csproj` lists each `.proto` with `<Protobuf Include="Protos/coupon.proto" GrpcServices="Server" />` (and likewise for the other two); the aggregator `discount.proto` does NOT need a separate `<Protobuf />` entry because none of the message types or services are declared at the top level — it's just `import` glue for Basket's existing include path.
+
+**Basket is unaffected.** Its `<Protobuf Include="..\..\Discount\Discount.Grpc\Protos\discount.proto" GrpcServices="Client" />` still pulls in the aggregator, which re-exports the Coupon slice's generated stubs under the existing `Discount.Grpc` namespace (the aggregator uses `csharp_namespace = "Discount.Grpc"`). The two new slices land in `Discount.Grpc.RewardCode` / `Discount.Grpc.DiscountRule`, which Basket never imports — Basket doesn't see them. No Basket-side code change required.
+
+`dotnet build` generates stubs into `obj/Debug/net10.0/Protos/{coupon.cs, reward_code.cs, discount_rule.cs}` plus the aggregator's compiled output; **never edit generated files.**
 
 #### 0.4.4 Event versioning on the bus
 
@@ -160,6 +243,7 @@ Mirrors Catalog §6.5. Every `I*IntegrationEvent` from Discount carries `int Sch
 - **Correlation ID** — `IHttpContextAccessor` middleware pushes `CorrelationId` onto the HTTP scope → outbox row `CorrelationId` column → MassTransit header → consumer's log scope (mirrors Catalog's flow).
 - **Logging** — every RPC handler logs `RpcStarted`, `RpcCompleted`, `RpcFailed` with `CorrelationId` enrichment.
 - **Deadline propagation** — gRPC clients (Basket) honor `deadline`; the server-side interceptor reads `ServerCallContext.Deadline` and passes it as the `CancellationToken` to handlers. Missing deadline → default 5-second budget.
+- **gRPC reflection (development only)** — `builder.Services.AddGrpcReflection();` (registered after `AddGrpc`) plus `app.MapGrpcReflectionService();` in `Program.cs`, both guarded by `if (app.Environment.IsDevelopment())`. Lets `grpcurl`, BloomRPC, Postman-gRPC, and the `ServerReflection`-based test client enumerate services without a side-channel proto file. Production stays reflection-off (reflection leaks the schema to anyone who can reach the port).
 
 ---
 
@@ -224,7 +308,44 @@ The companion `docs/architecture/db_relational_model.mermaid` change-log appendi
 - **`DiscountRule`** — new aggregate; Phase 2.
 - **Outbox tables** (`outbox_messages`, `outbox_messages_dead`) on the same SQLite DB; engine-native row-locking handled by the SQLite claim-SQL we add to BuildingBlocks.
 - **DiscountExpirySweepService** — `IHostedService`, in-process, no Hangfire.
-- **`DiscountOptions`** — strongly-typed config (`SweepIntervalMinutes`, `OutboxDeadLetterThreshold`, `EnableHistoryPublishing`, `EnableMenuItemChangedConsumer`, `EnableRestaurantConfigChangedConsumer`, `EnableFeedbackSubmittedConsumer`).
+- **`DiscountOptions`** — strongly-typed config (full class with `[Range]`, `[Required]`, `ValidateOnStart()`):
+
+    ```csharp
+    // Options/DiscountOptions.cs
+    public sealed class DiscountOptions
+    {
+        public const string SectionName = "Discount";
+
+        [Range(1, 1440)]
+        public int SweepIntervalMinutes { get; set; } = 5;
+
+        // Production default = 5 (alert-and-let-humans-triage). 0 is for test-environment assertions.
+        // See /ready dead-letter probe — threshold trips /ready to unready when DEAD row count exceeds it.
+        [Range(0, int.MaxValue)]
+        public int OutboxDeadLetterThreshold { get; set; } = 5;
+
+        public bool EnableHistoryPublishing            { get; set; } = true;
+        public bool EnableMenuItemChangedConsumer      { get; set; } = true;
+        public bool EnableRestaurantConfigChangedConsumer { get; set; } = true;
+        public bool EnableFeedbackSubmittedConsumer    { get; set; } = false;
+        public bool EnableDiscountAppliedPublishing     { get; set; } = false;
+        public bool EnableRewardGeneratedPublishing     { get; set; } = false;
+        public bool EnableRewardRedeemedPublishing      { get; set; } = false;
+    }
+    ```
+
+    Registration in `Program.cs`:
+
+    ```csharp
+    builder.Services.AddOptions<DiscountOptions>()
+        .Bind(builder.Configuration.GetSection(DiscountOptions.SectionName))
+        .ValidateDataAnnotations()
+        .ValidateOnStart();
+    ```
+
+    `IOptions<DiscountOptions>` is consumed by hosted services (`DiscountExpirySweepService`, `DiscountOutboxDispatcher`), by the conditional `AddConsumer<>` registration in §7 Phase 5, by the `if (_options.Enable*Publishing)` guards in §7 Phase 6, and by handlers that need the threshold for the `/ready` probe.
+
+    **`OptionsAuditor` integration test** (mentioned in §8 Testing strategy): one xUnit test boots Discount with a known-good `appsettings.json` and asserts every `DiscountPermissions.All` constant maps to at least one feature-flag option OR is documented as unconditional. Counter-direction: every `DiscountOptions` boolean option is either read in code or removed. Catches drift between the permissions dictionary and the options dictionary.
 
 ### Discount.Grpc publishes
 
@@ -314,6 +435,7 @@ orderly-microservices/Services/Discount/Discount.Grpc/
     DiscountRuleService.cs                 -- Phase 2
   Authorization/
     DiscountPermissions.cs                 -- constants: coupon:read/create/edit/delete/redeem, reward:read/create/edit/delete/redeem, discount-rule:read/edit
+    DiscountActors.cs                       -- const strings: System="discount-system", Sweep="discount-sweep", Service="discount-service"
     AuthorizationPolicies.cs               -- extension methods: AddDiscountPolicies(IServiceCollection)
     ICurrentRestaurantProvider.cs          -- interface (Phase 1)
     ClaimsRestaurantProvider.cs            -- implementation: reads restaurantId from ClaimsPrincipal (Phase 1)
@@ -350,7 +472,7 @@ Single source of truth for which event Discount publishes / consumes. Both sides
 
 | Event (Discount →) | SchemaVersion=1 fields | Intended consumers → required action |
 |---|---|---|
-| `DiscountHistoryAppendedIntegrationEvent` | `EntityType ∈ {Coupon, RewardCode, DiscountRule}`, `EntityId`, `RestaurantId`, `ChangeType ∈ {Created, Updated, Deleted, Redeemed}`, `OldValues` (jsonb|null), `NewValues` (jsonb|null), `OccurredAt`, `SchemaVersion=1` | **Catalog** → write a Marten `EntityHistoryArchive` document keyed by `EntityType + EntityId`. Idempotent on `EntityType + EntityId + ChangeType + OccurredAt`. |
+| `DiscountHistoryAppendedIntegrationEvent` | `EntityType ∈ {Coupon, RewardCode, DiscountRule}`, `EntityId`, `RestaurantId`, `ChangeType ∈ {Created, Updated, Deleted, Redeemed}`, `OldValues` (nullable string of serialized JSON; null for `Created`), `NewValues` (string of serialized JSON) | **Catalog** → write a Marten `EntityHistoryArchive` document keyed by `EntityType + EntityId`. Idempotent on `EntityType + EntityId + ChangeType + OccurredOn` (base-class `OccurredOn`, NOT `OccurredAt` — see record shape in §7 Phase 4). The wire format is `string?` because the outbox row's `Payload` column is `TEXT` (serialized JSON); Catalog deserializes back to `JsonObject` on insert via `JsonNode.Parse(evt.OldValues)` and stores it. Never `JsonObject` on the wire — every publisher-to-outbox roundtrip would pay an unnecessary serialize-parse tax. |
 
 | Event (→ Discount) | Source (today / planned) | SchemaVersion | Discount's required action |
 |---|---|---|---|
@@ -417,64 +539,137 @@ Three handshakes bridge this plan with sibling plans:
 
 ---
 
-## 6.7 Outbox claim SQL — SQLite variant (BuildingBlocks contribution)
+## 6.7 Outbox — SQLite variant + BuildingBlocks contribution
 
-This is the first SQLite-flavored `BuildClaimSql` in BuildingBlocks.Messaging.Outbox. The pattern differs from the Postgres `FOR UPDATE SKIP LOCKED` and MSSQL `WITH (ROWLOCK, UPDLOCK, READPAST)` shapes.
+**Goal.** This is the first SQLite-flavored `OutboxDispatcher<TContext>` in BuildingBlocks.Messaging.Outbox. Postgres uses `FOR UPDATE SKIP LOCKED`; MSSQL uses `WITH (ROWLOCK, UPDLOCK, READPAST)`; SQLite has neither, so we need a different atomic-claim pattern that fits the base class's `FromSql(BuildClaimSql)` constraint (`BuildingBlocks/Messaging/Outbox/OutboxDispatcher.cs:226–229`).
 
-```sql
-UPDATE outbox_messages
-   SET claim_id = @claimId
- WHERE Id IN (
-     SELECT Id FROM outbox_messages
-      WHERE DispatchedAt IS NULL AND claim_id IS NULL
-        AND SchemaVersion <= @maxSupportedVersion
-      ORDER BY OccurredOn
-      LIMIT @batchSize
- )
-RETURNING *;
-```
+**BuildingBlocks changes required (drive-by from Discount's plan):**
 
-Key differences from the Postgres pattern:
+1. **`OutboxMessage` entity gains a `Guid? ClaimId` column** (currently absent — `BuildingBlocks/Messaging/Outbox/OutboxMessage.cs` only has `Id`, `OccurredOn`, `Type`, `Payload`, `DispatchedAt`, `SchemaVersion`). Add it as `public Guid? ClaimId { get; set; }`.
 
-- **`claim_id` GUID column** — populated with `Guid.NewGuid()` at the start of each dispatcher iteration (per-instance, not per-row). Atomic single-SQL claim; SQLite serializes writers through its database-level lock, so two concurrent dispatchers can't both observe the same undispatched rows.
-- **`RETURNING *`** — SQLite supports this since 3.35 (matching the project's SQLite 10.x in EF Core 10).
-- **Per-iteration transaction** — `OutboxDispatcher<TContext>.DispatchBatchAsync` already wraps the claim+dispatch+stamp in `BeginTransactionAsync`. SQLite's per-database write lock means the lock is held until commit, which gives us the same "no double-publish" guarantee Postgres's `FOR UPDATE SKIP LOCKED` gives via row locks — just coarser.
+2. **`OutboxMessageConfiguration` declares the new column + an index on `(ClaimId, OccurredOn)`** so the dispatcher's SELECT-by-claim-id is cheap. Mirror the existing `ix_outbox_messages_dispatched_at_occurred_on` pattern.
 
-**Migration that creates the `outbox_messages` + `outbox_messages_dead` tables + `claim_id` column on `outbox_messages`:**
+3. **`OutboxDispatcher.BuildClaimSql(int batchSize)` is a `FormattableString` consumed via `FromSql(...)`** — that means each engine's override must return a **single statement whose result set EF Core can materialize into `OutboxMessage` rows**. SQLite's `UPDATE … RETURNING` cannot be piped through `FromSql(...)` directly, so the SQLite override uses a **CTE** that runs the claim and the return atomically:
+
+    ```sql
+    WITH claimed AS (
+        UPDATE outbox_messages
+           SET ClaimId = @claimId
+         WHERE Id IN (
+             SELECT Id FROM outbox_messages
+              WHERE DispatchedAt IS NULL
+                AND ClaimId IS NULL
+                AND SchemaVersion <= @maxSupportedVersion
+              ORDER BY OccurredOn
+              LIMIT @batchSize
+         )
+         RETURNING *
+    )
+    SELECT * FROM claimed
+    ```
+
+    SQLite supports `WITH … UPDATE … RETURNING` since 3.33 (matching `Microsoft.EntityFrameworkCore.Sqlite` 10.x). EF Core materializes the result set of the outer `SELECT * FROM claimed` into `OutboxMessage` rows via the standard `AsTracking().ToListAsync(...)` pipeline. The CTE itself is opaque to `FromSql` — only the outer `SELECT` matters.
+
+    The C# shape:
+
+    ```csharp
+    // Services/Discount/Discount.Grpc/Messaging/Outbox/DiscountOutboxDispatcher.cs
+    public sealed class DiscountOutboxDispatcher(
+        IServiceProvider services,
+        IOptions<OutboxOptions> options,
+        ILogger<DiscountOutboxDispatcher> logger)
+        : OutboxDispatcher<DiscountContext>(services, options, logger)
+    {
+        private readonly Guid _claimId = Guid.NewGuid();   // per-instance, not per-row
+
+        protected override DiscountContext CreateContext(IServiceProvider services)
+            => services.GetRequiredService<DiscountContext>();
+
+        protected override FormattableString BuildClaimSql(int batchSize) =>
+            $@"
+                WITH claimed AS (
+                    UPDATE outbox_messages
+                       SET ClaimId = {_claimId}
+                     WHERE Id IN (
+                         SELECT Id FROM outbox_messages
+                          WHERE DispatchedAt IS NULL
+                            AND ClaimId IS NULL
+                            AND SchemaVersion <= {_options.MaxSupportedVersion}
+                          ORDER BY OccurredOn
+                          LIMIT {batchSize}
+                     )
+                     RETURNING *
+                )
+                SELECT * FROM claimed
+            ";
+    }
+    ```
+
+    > **Important — `_claimId` is per-instance, not per-row.** Two replicas of Discount cannot run concurrently against the same SQLite file (single-replica deployment assumption carries forward — see §8 *Cross-cutting SQLite notes*). Per-instance is sufficient for single-replica.
+
+4. **`OutboxMessageConfiguration` is updated** (catalog-side) to add `ClaimId`:
+    ```csharp
+    builder.Property(m => m.ClaimId).IsRequired(false);
+
+    builder.HasIndex(m => new { m.ClaimId, m.OccurredOn })
+        .HasDatabaseName("ix_outbox_messages_claim_id_occurred_on");
+    ```
+
+**Discount-side changes:**
+
+1. **`DiscountContext` implements `IOutboxDbContext`** (which means registering `DbSet<OutboxMessage>` and `DbSet<OutboxDeadMessage>` plus the dispatcher sees `DiscountContext`). Configuration comes from `OutboxMessageConfiguration` and a sibling `OutboxDeadMessageConfiguration` (already in BuildingBlocks).
+
+2. **EF Core migration** — generated normally via `dotnet ef migrations add AddOutboxAndTenantClaim`. The migration adds `OutboxMessages` and `OutboxDeadMessages` to EF's model snapshot. SQLite's text representation of GUIDs is `TEXT` (per EF Core's default SQLite `Guid ↔ TEXT` mapping); `Instant ↔ DateTime` via the per-table `OutboxInstantConverter` in `BuildingBlocks/Messaging/Outbox/OutboxMessageConfiguration.cs:54–60` — **not** the `InstantToLongConverter` used by Coupon's own columns. The Coupon-side converter stays untouched.
+
+3. **Program.cs wiring** — `AddHostedService<DiscountOutboxDispatcher>` after `AddDbContext<DiscountContext>(...)`. The dispatcher pulls a fresh `DiscountContext` from `IServiceProvider.CreateScope()` per iteration (matches the base class's `CreateScope()` semantics).
+
+**Why a contribution, not private to Discount.** Catalog's `OutboxDispatcher<KitchenDbContext>` (and any future service dispatcher) targets an engine with row-lock-during-SELECT; SQLite-flavored services need the CTE pattern. Adding `ClaimId` to the shared `OutboxMessage` entity is a small, justified BuildingBlocks change; the SQLite CTE is the first of its kind and other engines don't need to adopt it.
+
+**Concurrency proof:** on SQLite with WAL mode, concurrent writers serialize through the database-level write lock; a write transaction (`OutboxDispatcher.DispatchBatchAsync` already uses `BeginTransactionAsync`) holds an exclusive lock until COMMIT. Two concurrent dispatchers' CTEs cannot interleave because SQLite acquires the write lock when the statement begins — the second one waits at the statement boundary. Single-replica deployment is the cleanest characterization; multi-replica is a degradation. Document this in `current-architecture.md §11 Local Development`.
+
+**Transient-fault handling.** When RabbitMQ is unreachable (TCP-level failure, broker down, channel error), the base `OutboxDispatcher.ExecuteAsync` catches the exception and re-enters the polling loop on the next `ActivePollInterval`. Without a circuit breaker, this hammers the broker at full poll-rate indefinitely — slow burn rather than loud alert. The Discount-specific override wraps each tick in a small circuit-break: count consecutive `broker_failure` events; once the count exceeds `OutboxOptions.MaxConsecutiveBrokerFailures` (default `3`), the dispatcher pauses for `BrokerBackoffSeconds` (default `60s`) before the next `DispatchOnceAsync` attempt, and trips the `/ready` probe to `Unhealthy`. Reset the counter on the first successful dispatch. Mirror Catalog's behavior (verify in `Kitchen.API/Application/Outbox/KitchenOutboxDispatcher.cs`); if Catalog hasn't implemented this, Discount defines the convention and Catalog follows.
+
+Pseudocode (concrete Discount implementation inheriting `OutboxDispatcher<DiscountContext>`):
 
 ```csharp
-public partial class OutboxMigration : Migration
+private int _consecutiveBrokerFailures;
+protected override async Task ExecuteAsync(CancellationToken stoppingToken)
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    while (!stoppingToken.IsCancellationRequested)
     {
-        migrationBuilder.Sql(@"
-            CREATE TABLE outbox_messages (
-                Id TEXT NOT NULL PRIMARY KEY,
-                OccurredOn INTEGER NOT NULL,
-                Type TEXT NOT NULL,
-                Payload TEXT NOT NULL,
-                DispatchedAt INTEGER NULL,
-                SchemaVersion INTEGER NOT NULL DEFAULT 1,
-                claim_id TEXT NULL
-            )");
-        migrationBuilder.Sql("CREATE INDEX IX_outbox_messages_DispatchedAt_OccurredOn ON outbox_messages (DispatchedAt, OccurredOn)");
-        migrationBuilder.Sql(@"
-            CREATE TABLE outbox_messages_dead (
-                Id TEXT NOT NULL PRIMARY KEY,
-                OccurredOn INTEGER NOT NULL,
-                Type TEXT NOT NULL,
-                Payload TEXT NOT NULL,
-                SchemaVersion INTEGER NOT NULL,
-                Reason TEXT NOT NULL,
-                RejectedAt INTEGER NOT NULL
-            )");
+        if (_consecutiveBrokerFailures >= _options.MaxConsecutiveBrokerFailures)
+            await BackoffAsync(_options.BrokerBackoffSeconds, stoppingToken);
+        try
+        {
+            var dispatched = await DispatchOnceAsync(stoppingToken);
+            _consecutiveBrokerFailures = 0;
+            await Task.Delay(dispatched > 0 ? _options.ActivePollInterval : _options.IdlePollInterval, stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            _consecutiveBrokerFailures++;
+            _logger.LogError(ex, "Outbox dispatcher iteration failed ({Consecutive} in a row).", _consecutiveBrokerFailures);
+            await BackoffAsync(_options.BrokerBackoffSeconds, stoppingToken);
+        }
     }
 }
 ```
 
-Instant `INTEGER` round-trip is `ToUnixTimeTicks()` / `FromUnixTimeTicks()` per the existing `InstantToLongConverter` in `Data/DiscountContext.cs:57-67`. EF Core `HasConversion` keeps the mapping aligned across both tables.
+`OutboxOptions.MaxConsecutiveBrokerFailures` and `OutboxOptions.BrokerBackoffSeconds` are added to the options class with `[Range]` data annotations; production defaults = `3` failures → `60s` backoff.
 
-**Why this is a BuildingBlocks contribution, not Discount-private:** Catalog's `OutboxDispatcher<KitchenDbContext>` etc. all target Postgres; the SQLite shape is generic enough that Discount-on-SQLite AND any future service-on-SQLite (`docs/architecture/current-architecture.md` lists SQLite as a first-class engine — line 22) can adopt it. The contribution is the `BuildClaimSql` override hook — Discount opens the door; future services walk through.
+**Outbox row shape after the migration:**
+
+| Column | Type | Source |
+|---|---|---|
+| `Id` | TEXT PK (Guid→TEXT) | `OutboxMessage.Id` |
+| `OccurredOn` | TEXT (DateTime via `OutboxInstantConverter`) | `OutboxMessage.OccurredOn` |
+| `Type` | TEXT(500) | `OutboxMessage.Type` |
+| `Payload` | TEXT (JSON-serialized event) | `OutboxMessage.Payload` |
+| `DispatchedAt` | TEXT NULL (DateTime via converter) | `OutboxMessage.DispatchedAt` |
+| `SchemaVersion` | INTEGER NOT NULL | `OutboxMessage.SchemaVersion` |
+| `ClaimId` | TEXT NULL (Guid→TEXT) | `OutboxMessage.ClaimId` *(new)* |
+| `ix_outbox_messages_dispatched_at_occurred_on` | index | existing |
+| `ix_outbox_messages_claim_id_occurred_on` | index | *(new)* |
 
 ---
 
@@ -489,8 +684,56 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 - **BuildingBlocks fix:** `BuildingBlocks.Multitenancy.ITenantEntity.RestaurantId : int → Guid`. Trivial; one line. Justifies Phase 1's own tenancy work.
 - **JWT auth wired** in `Program.cs`:
   - `AddJwtBearer` against Identity authority (`https://localhost:5057`), audience `OrderlyMicroservices`.
-  - `AddDiscountPolicies(IServiceCollection)` extension registers `coupon:read/create/edit/delete/redeem` + `reward:*` + `discount-rule:*` policies that gate on the corresponding claim.
-  - `[Authorize(Policy = "coupon:read")]` on `GetDiscount`; per-method attributes for the rest.
+  - `Authorization/DiscountPermissions.cs` is the single source of truth:
+
+    ```csharp
+    public static class DiscountPermissions
+    {
+        public const string CouponRead     = "coupon:read";
+        public const string CouponCreate   = "coupon:create";
+        public const string CouponEdit     = "coupon:edit";
+        public const string CouponDelete   = "coupon:delete";
+        public const string CouponRedeem   = "coupon:redeem";
+        public const string RewardRead     = "reward:read";
+        public const string RewardCreate   = "reward:create";
+        public const string RewardEdit     = "reward:edit";
+        public const string RewardDelete   = "reward:delete";
+        public const string RewardRedeem   = "reward:redeem";
+        public const string DiscountRuleRead  = "discount-rule:read";
+        public const string DiscountRuleEdit  = "discount-rule:edit";
+
+        public static readonly IReadOnlyList<string> All =
+        [
+            CouponRead, CouponCreate, CouponEdit, CouponDelete, CouponRedeem,
+            RewardRead, RewardCreate, RewardEdit, RewardDelete, RewardRedeem,
+            DiscountRuleRead, DiscountRuleEdit,
+        ];
+    }
+    ```
+
+  - `AddDiscountPolicies(IServiceCollection)` loops over `DiscountPermissions.All` and registers each as a policy keyed by the constant value:
+
+    ```csharp
+    public static IServiceCollection AddDiscountPolicies(this IServiceCollection services)
+    {
+        services.AddAuthorization(o =>
+        {
+            foreach (var permission in DiscountPermissions.All)
+                o.AddPolicy(permission, p => p.RequireAssertion(ctx =>
+                    // Identity emits permissions comma-separated under the "permissions" claim
+                    // (verified at Phase 1 by decoding a dev login JWT). Single-permission tokens
+                    // also work via the FindAll fallback.
+                    ctx.User.FindAll("permissions").Any(c => c.Value.Split(',').Contains(permission))
+                    || ctx.User.FindAll("permission").Any(c => c.Value == permission)));
+        });
+        return services;
+    }
+    ```
+
+    The `RequireClaim("permission", permission)` shape is a *convention* — Identity may emit permissions as a comma-separated `permissions` claim, as individual `permission` claims, or under a different claim type. **Phase 1 includes a verification step before locking the policy expression**: a one-shot console snippet (added to `Discount.Grpc.Tests/Integration/JwtClaimShapeProbe.cs`) logs in via Identity's dev `/api/auth/login`, decodes the JWT, and asserts which claim shape Identity uses. The expression above handles the three observed shapes (`permissions` comma-split, individual `permission`, or both). If Identity emits something different, a CI test fails loudly — not silently.
+
+    The single source of truth for permission strings lives in `DiscountPermissions`. Identity's follow-up plan reads the same string list when seeding its `Permissions` table.
+  - Per gRPC service method, use the custom `[Permission(DiscountPermissions.CouponRead)]` attribute (declared in `Authorization/DiscountPermissionAttribute.cs`); the global `DiscountAuthorizationInterceptor` (per §0.4.2.1) reads the attribute and runs `IAuthorizationService.AuthorizeAsync(user, resource, permission)`. **Do not** use the standard `[Authorize(Policy = "...")]` attribute — gRPC ignores it.
 - **`ICurrentRestaurantProvider` registered** as `Singleton`. `ClaimsRestaurantProvider` reads `ClaimTypes.Role`/custom `restaurantId` claim from `IHttpContextAccessor.HttpContext.User`. Bus consumers use `ClaimsPrincipalFactory.FromEvent<T>(T evt)` to build the synthetic principal (Pattern 2 from Q10).
 - **Multi-tenancy global filter applied** to `Coupon`:
   - `Coupon : AuditableEntity<int>, ITenantEntity`.
@@ -499,16 +742,67 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
   - Tests: one "naive query returns only current tenant" test; one SuperAdmin `.IgnoreQueryFilters()` test (justifies the bypass pattern later used in (7)).
 - **Outbox tables added** to Discount's SQLite schema. See §6.7 for the migration. The `IOutboxDbContext` interface is implemented on `DiscountContext`. `BuildingBlocks.Messaging.Outbox.OutboxDispatcher<DiscountContext>` (named `DiscountOutboxDispatcher`) is the concrete; it overrides `BuildClaimSql` with the SQLite variant.
 - **`IOutboxPublisher.WriteOutboxMessageAsync`** called from `DiscountService.CreateDiscount` / `UpdateDiscount` / `DeleteDiscount` (history event payload: payload-of-row-delta). Same hooks in `RedeemDiscount`. Each outbox row carries `CorrelationId` from the gRPC `Metadata`. Total Phase-1 publish surface is one event type (`DiscountHistoryAppendedIntegrationEvent`).
-- **`DiscountExpirySweepService : BackgroundService`** runs every `DiscountOptions:SweepIntervalMinutes` (default 5, `[Range(1, 1440)]`). Sweeps: `UPDATE Coupons SET IsActive = 0, LastModifiedBy = 'discount-sweep', LastModifiedAt = @now WHERE ExpirationDate < @now AND IsActive = 1`. Idempotent.
-- **Lazy-evaluation gate** at every read of Coupon's "active" semantic. Add a helper `Coupon.IsActiveNow(IClock clock)` that returns `IsActive && (ExpirationDate IS NULL || ExpirationDate >= UtcNow)`. `GetDiscount` / `RedeemDiscount` consult `IsActiveNow(...)` before returning success. Hot path adds at most one boolean evaluation per call.
+- **`DiscountExpirySweepService : BackgroundService`** runs every `DiscountOptions:SweepIntervalMinutes` (default 5, `[Range(1, 1440)]`). Sweeps: `UPDATE Coupons SET IsActive = 0, LastModifiedBy = 'discount-sweep', LastModifiedAt = @now WHERE ExpirationDate < @now AND IsActive = 1`. Idempotent. Reference implementation:
+
+  ```csharp
+  public sealed class DiscountExpirySweepService(
+      IServiceProvider services, TimeProvider clock,
+      IOptions<DiscountOptions> options,
+      ILogger<DiscountExpirySweepService> logger) : BackgroundService
+  {
+      protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+      {
+          var interval = TimeSpan.FromMinutes(options.Value.SweepIntervalMinutes);
+          using var timer = new PeriodicTimer(interval);
+          do
+          {
+              try { await SweepOnceAsync(stoppingToken); }
+              catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
+              catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+              {
+                  logger.LogError(ex, "Expiry sweep iteration failed; will retry next tick ({Interval})", interval);
+              }
+          } while (await timer.WaitForNextTickAsync(stoppingToken));
+      }
+
+      private async Task SweepOnceAsync(CancellationToken ct)
+      {
+          await using var scope = services.CreateAsyncScope();
+          var db  = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+          var now = clock.GetCurrentInstant();
+          var flipped = await db.Coupons
+              .Where(c => c.IsActive && c.ExpirationDate != null && c.ExpirationDate < now)
+              .ExecuteUpdateAsync(s => s
+                  .SetProperty(c => c.IsActive,         false)
+                  .SetProperty(c => c.LastModifiedAt,   now)
+                  .SetProperty(c => c.LastModifiedBy,   DiscountActors.Sweep),
+              ct);
+          logger.LogInformation("Expiry sweep flipped {Rows} coupons to inactive at {Now}.", flipped, now);
+      }
+  }
+  ```
+
+  `ExecuteUpdateAsync` (EF Core 7+) avoids the load-then-save round-trip — single bulk UPDATE; reads use `WHERE IsActive = 1` so the predicate is index-friendly. `BeginScope` from §0.3.8 wraps the iteration in `{ "RestaurantId": "<scope-restaurantId>", "Component": "DiscountExpirySweepService" }` so the log line is filterable in Serilog. The same pattern repeats in `DiscountOutboxDispatcher` (per the outbox base's `ExecuteAsync`).
+- **Lazy-evaluation gate** at every read of Coupon's "active" semantic. Add a helper `Coupon.IsActiveNow(TimeProvider clock)` that returns `IsActive && (ExpirationDate IS NULL || ExpirationDate >= clock.GetUtcNow().ToInstant())`. `GetDiscount` / `RedeemDiscount` consult `IsActiveNow(...)` before returning success. Hot path adds at most one boolean evaluation per call.
+
+  **Wire `TimeProvider`** in `Program.cs`: `builder.Services.AddSingleton(TimeProvider.System);` consumed by every handler that needs "now". Tests use `Microsoft.Extensions.TimeProvider.Testing.FakeTimeProvider` and override the registered `TimeProvider` to a `FakeTimeProvider` instance via `services.Replace(...)` or `WithSingleton<TimeProvider, FakeTimeProvider>(...)` per-test. Catalog already uses `FakeTimeProvider` for `Hangfire` job logic — mirror that pattern.
 - **`RedeemDiscount` race fix:** replace the read-modify-write with conditional update:
   ```csharp
   int rowsAffected = await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-      $"UPDATE Coupons SET RedeemAmount = RedeemAmount + 1, LastModifiedAt = {now} WHERE Id = {id} AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount) AND IsActive = 1",
+      $@"UPDATE Coupons
+            SET RedeemAmount    = RedeemAmount + 1,
+                LastModifiedAt  = {now},
+                LastModifiedBy  = 'discount-system'
+          WHERE Id = {id}
+            AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+            AND IsActive = 1
+            AND ({_tenantProvider.RestaurantId} IS NULL OR RestaurantId = {_tenantProvider.RestaurantId})",
       cancellationToken);
   if (rowsAffected == 0)
       throw new ConcurrentRedemptionException(id, correlationId);
   ```
+  **Audit interceptor caveat:** `Database.ExecuteSqlInterpolatedAsync` bypasses EF Core's change tracker, so the `AuditableEntityInterceptor` registered at `Program.cs:12` does **not** fire to set `LastModifiedAt` / `LastModifiedBy`. The SQL above sets them explicitly. `LastModifiedBy = 'discount-system'` (not `'discount-sweep'` — that string is reserved for the sweep service; distinguish the two actors in audit logs). `LastModifiedBy` is the actor string per `BuildingBlocks.Entities.Contracts.AuditableEntity<int>`; the JWT `sub` claim is appended at audit-log write time elsewhere, but here we don't have one. The optional `_tenantProvider.RestaurantId` predicate is a defense-in-depth backup while the global query filter is in place (the filter already restricts, but a raw `UPDATE` ignores it; the predicate re-applies the tenant constraint at SQL level).
+  
   Map `ConcurrentRedemptionException` to `StatusCode.Aborted` (retry once internally; second failure surfaces `FailedPrecondition`).
 - **`/live` + `/ready` split for Discount:**
   - `/live` always green; liveness only.
@@ -522,7 +816,7 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 - §4.4 — note `/live` + `/ready` split.
 - §5.1 Synchronous — "every API | Identity.API | JWT bearer validation" already covers Discount by Q1's wiring; no row change needed.
 - §5.2 Asynchronous — add `DiscountHistoryAppendedIntegrationEvent` publish row (deferred consumer = Catalog own plan).
-- §6 Data Stores — SQLite `discountdb` gains `outbox_messages`, `outbox_messages_dead`, `claims`, `_ef_migrations`.
+- §6 Data Stores — SQLite `discountdb` gains `outbox_messages` (with `ClaimId` column + `ix_outbox_messages_claim_id_occurred_on` per §6.7 v1.1) and `outbox_messages_dead`, plus EF Core's auto-created `__EFMigrationsHistory`. The legacy `claims` reference from earlier drafts is dropped — that token was a stale leftover from Catalog's `Catalog:EntityMoveCoupons` flag and doesn't belong in Discount's schema inventory.
 - §9 Cross-Cutting Patterns — note first SQLite outbox claim SQL, JWT auth + 11 permission names, `ITenantEntity` adoption.
 
 ### Phase 2 — `DiscountRule` aggregate + Catalog event consumers
@@ -542,7 +836,7 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 - **New RPC service `DiscountRuleProtoService`:** `CreateDiscountRule`, `GetDiscountRule`, `ListDiscountRules` (paged, `PagedResult<DiscountRuleModel>`), `UpdateDiscountRule`, `DeleteDiscountRule`, `EvaluateDiscountRules(EvaluateDiscountRulesRequest) → EvaluateDiscountRulesResponse { IReadOnlyList<int> ApplicableCouponIds }`. All permission-gated with `discount-rule:read` / `discount-rule:edit`. `Evaluate` is `discount-rule:read`.
 - **Schema:** `DiscountRules` table with FK to `Coupons`, UK `(RestaurantId, CouponId)`. The FK uses `OnDelete(DeleteBehavior.Restrict)` per the project-wide rule (Catalog §8 / "Cascade-delete policy").
 - **Two new consumers** wired to `DiscountRuleProtoService` lifecycle + bus:
-  - **`MenuItemChangedConsumer : IConsumer<MenuItemChangedIntegrationEvent>`.** Pattern 2 (synthetic claims from event). Logic: for `ChangeType ∈ {Updated, Deleted}`, find `DiscountRule`s whose `RuleDataJson.RequiredMenuItemIds` includes `event.MenuItemId`. For each affected `Coupon`, recompute via `Coupon.IsActiveNow(...)` and persist `IsActive` based on whether at least one rule still holds. **Idempotent** on `(MenuItemId, ChangeType, RestaurantId)`. Implementation uses an internal dictionary keyed by `RestaurantId` for the last-seen `EventId + OccurredAt`.
+  - **`MenuItemChangedConsumer : IConsumer<MenuItemChangedIntegrationEvent>`.** Pattern 2 (synthetic claims from event). Logic: for `ChangeType ∈ {Updated, Deleted}`, find `DiscountRule`s whose `RuleDataJson.RequiredMenuItemIds` includes `event.MenuItemId`. For each affected `Coupon`, recompute via `Coupon.IsActiveNow(...)` and persist `IsActive` based on whether at least one rule still holds. **Idempotency**: bus redelivery protection lives in a `processed_inbound_events` table (`EventId TEXT PK, ConsumerType TEXT, ConsumedAt INTEGER NOT NULL`, populated inside the same transaction as the rule update). The consumer reads `event.Id` from `IntegrationEvent`, runs `INSERT INTO processed_inbound_events (EventId, ConsumerType) VALUES (?, 'MenuItemChanged')`; on a unique-constraint violation (`Microsoft.Data.Sqlite.SqliteException.SqlState == "23505"`), the consumer returns without dispatching (the bus already retried with a stale copy). Do **not** use an in-process dictionary — those die on restart and double-fire when the bus redelivers.
   - **`RestaurantConfigurationChangedConsumer : IConsumer<RestaurantConfigurationChangedIntegrationEvent>`.** Pattern 2. Logic: if `ChangedFields` contains `"Currency"`, find `Coupon` for `RestaurantId`, flip `IsActive=false`. Otherwise no-op.
 - **Tests:** xUnit + NSubstitute unit tests for `EvaluateDiscountRules` (MinOrderAmount, RequiredMenuItems, TimeWindow matchers); SQLite-in-memory integration for the `MenuItemChangedConsumer` end-to-end (set up a coupon + rule, fire event with `ChangeType=Deleted`, assert `Coupon.IsActive=false`); `InMemoryTestHarness` for the same consumer.
 
@@ -555,20 +849,43 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 
 - **New entity `RewardCode : AuditableEntity<int>, ITenantEntity`:**
   ```csharp
-  public class RewardCode : AuditableEntity<int>, ITenantEntity
+  public sealed class RewardCode : AuditableEntity<int>, ITenantEntity
   {
       public Guid RestaurantId { get; set; }
-      public string Code { get; set; } = default!;       // UK with RestaurantId
-      public RewardType RewardType { get; set; }        // Percentage | FixedAmount | FreeItem | Points
-      public decimal Value { get; set; }                // % for Percentage; currency for FixedAmount; item id for FreeItem; count for Points
+      public required string Code { get; set; }            // UK with RestaurantId; C# 11 required modifier
+      public required RewardKind Kind { get; set; }       // Percentage | FixedAmount | FreeItem | Points
+      public decimal Value { get; set; }                  // % for Percentage; currency for FixedAmount; menu item id (Guid) for FreeItem; count for Points
       public string? Description { get; set; }
       public Instant? ExpirationDate { get; set; }
       public int RedeemAmount { get; set; }
       public int? MaxRedeemAmount { get; set; }
-      public Guid? RedeemedInOrderId { get; set; }      // last redeeming order
+      public Guid? RedeemedInOrderId { get; set; }        // last redeeming order
       public Instant? RedeemedAt { get; set; }
+
+      // Deterministic code-builders (called from FeedbackSubmittedConsumer; take the inbound event's Id
+      // so redelivery within the same day produces an identical code, and redeliveries across day boundaries
+      // still produce identical codes — preserving unique-key-violation idempotency.)
+      internal static string Code4StarPct10 (Guid rid, Guid feedbackEventId, TimeProvider clock)
+          => BuildCode(rid, "4STAR-PCT10", feedbackEventId, clock);
+
+      internal static string Code5StarPct15 (Guid rid, Guid feedbackEventId, TimeProvider clock)
+          => BuildCode(rid, "5STAR-PCT15", feedbackEventId, clock);
+
+      internal static string Code5StarAppetizer(Guid rid, Guid feedbackEventId, TimeProvider clock)
+          => BuildCode(rid, "5STAR-APPETIZER", feedbackEventId, clock);
+
+      private static string BuildCode(Guid rid, string tag, Guid feedbackEventId, TimeProvider clock)
+      {
+          // Day-prefix is human-readable (audit reports group by date); the stable suffix is the event id.
+          // Both are required: the day-prefix makes codes match in admin UIs, the event-id makes them idempotent.
+          var day = clock.GetUtcNow().ToString("yyyyMMdd");
+          return $"RWD-{rid:N}-{tag}-{day}-{feedbackEventId:N}"[..Math.Min(120, $"RWD-{rid:N}-{tag}-{day}-{feedbackEventId:N}".Length)];
+      }
   }
+
+  public enum RewardKind { Percentage = 0, FixedAmount = 1, FreeItem = 2, Points = 3 }
   ```
+  **Naming note:** the enum is intentionally `RewardKind`, not `RewardType` — the latter collides semantically with the type's class name and reads ambiguously (`reward.Kind = RewardKind.Percentage`). `DiscountRuleType` is fine as an enum name on `DiscountRule` because there's no separate `Rule` type to confuse it with; same symmetry applies elsewhere.
 - **New RPC service `RewardCodeProtoService`:** `CreateRewardCode`, `GetRewardCode`, `ListRewardCodes` (paged), `UpdateRewardCode`, `DeleteRewardCode`, `RedeemRewardCode(RedeemRewardCodeRequest) → RedeemRewardCodeResponse`. Permissions `reward:read/create/edit/delete/redeem`. Apply `ITenantEntity` + global filter.
 - **Race-fix pattern re-applied to `RedeemRewardCode`** — same conditional UPDATE as `RedeemDiscount` in Phase 1.
 - **Lazy-eval gate + sweep pattern reused** — `RewardCode.IsActiveNow(IClock)`. `DiscountExpirySweepService` extends to also flip `RewardCode.IsActive=false` on expiry (single sweep, two UPDATEs).
@@ -584,19 +901,18 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 
 This phase is mostly "fill in the rest of the publish points" for the entities created in Phases 1 / 2 / 3. The `DiscountHistoryAppendedIntegrationEvent` was published from Coupon CUD in Phase 1; expand to RewardCode and DiscountRule.
 
-- **`DiscountHistoryAppendedIntegrationEvent` payload struct:**
+- **`DiscountHistoryAppendedIntegrationEvent` payload struct** (inherits `Id`, `OccurredOn`, `EventType`, `MessageVersion=1` from the `BuildingBlocks.Messaging.Events.IntegrationEvent` base — do NOT redeclare them or the shadowing causes MassTransit serialization confusion):
   ```csharp
   public sealed record DiscountHistoryAppendedIntegrationEvent(
       string EntityType,           // "Coupon" | "RewardCode" | "DiscountRule"
       int EntityId,
       Guid RestaurantId,
       string ChangeType,            // "Created" | "Updated" | "Deleted" | "Redeemed"
-      string? OldValues,            // serialized JSON, null for Created
-      string NewValues,             // serialized JSON
-      Guid CorrelationId,
-      Instant OccurredAt,
-      int SchemaVersion = 1) : IntegrationEvent;
+      string? OldValues,            // serialized JSON; null for Created
+      string NewValues              // serialized JSON
+  ) : IntegrationEvent;
   ```
+  The base provides `Guid Id` (for dedup), `Instant OccurredOn` (wall-clock), `EventType` (assembly-qualified, drives the dispatcher payload-deserialization), and `int MessageVersion = 1` (`OutboxPublisher` copies `MessageVersion` into the outbox row's `SchemaVersion` column on stage — see `BuildingBlocks/Messaging/Outbox/OutboxPublisher.cs:43`). The handler-level `CorrelationId` flows via the MassTransit transport header and the outbox row's own `CorrelationId` column, **not** as a record field.
 - **`IOutboxPublisher.WriteOutboxMessageAsync(...)` calls** added to all Phase 2 / 3 handlers. OldValues captured via EF Core `ChangeTracker.OriginalValues` (already in `BuildingBlocks.Entities.Interceptors.AuditableEntityInterceptor`).
 - **Documentation-only hand-off to Catalog:** this phase's commit message names the consumer contract; Catalog's plan will own the consumer implementation.
 - **Tests:** one idempotency test in `Discount.Grpc.Tests/Integration/OutboxHistoryPublisherTests.cs` — fire 3 mutations, dispatch once, assert 3 outbox rows + 3 bus messages with `SchemaVersion=1`.
@@ -610,34 +926,63 @@ This phase is mostly "fill in the rest of the publish points" for the entities c
 
 - **`FeedbackSubmittedConsumer : IConsumer<FeedbackSubmittedIntegrationEvent>`** lives at `Discount.Grpc/Messaging/EventHandlers/FeedbackSubmittedConsumer.cs`.
 - **Pattern 2 synthetic claims:** consumer constructs `ClaimsPrincipal` with `RestaurantId` from `event.RestaurantId`, `actor=discount-service`. The principal is attached to an `ICurrentRestaurantProvider` scope for the duration of `Consume`.
-- **Hardcoded 4★/5★ logic per Q6:**
+- **Hardcoded 4★/5★ logic per Q6**, applied by **dispatching the existing `CreateRewardCode` gRPC path** through an internal `ICreateRewardCodeCommandHandler` so the consumer respects the same validator, ITenantEntity gate, outbox publish, and audit columns that a REST/CLI caller would. Do **not** build `new RewardCode { ... }` instances inline — that bypasses every cross-cutting guard the rest of the plan stands up:
   ```csharp
   public async Task Consume(ConsumeContext<FeedbackSubmittedIntegrationEvent> context)
   {
       var evt = context.Message;
+      var restaurantId = evt.RestaurantId;
+
+      var creator = new CreateRewardCodeCommandHandler(_dbContext, _outbox, _tenant, _clock, _logger);
+
       if (evt.OverallRating >= 4 && evt.OverallRating < 5)
-          await _handler.CreateAsync(new RewardCode { RewardType = Percentage, Value = 10, ... }, context.CancellationToken);
+          await creator.HandleAsync(new CreateRewardCodeCommand(
+              RestaurantId: restaurantId,
+              Code:         RewardCode.Code4StarPct10(restaurantId, evt.Id, _clock),
+              Kind:         RewardKind.Percentage,
+              Value:        10m,
+              Description:  "10% off for 4★ feedback",
+              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
+              context.CancellationToken);
       else if (evt.OverallRating >= 5)
       {
-          await _handler.CreateAsync(new RewardCode { RewardType = Percentage, Value = 15, ... }, context.CancellationToken);
-          await _handler.CreateAsync(new RewardCode { RewardType = FreeItem, Value = "appetizer", ... }, context.CancellationToken);
+          await creator.HandleAsync(new CreateRewardCodeCommand(
+              RestaurantId: restaurantId,
+              Code:         RewardCode.Code5StarPct15(restaurantId, evt.Id, _clock),
+              Kind:         RewardKind.Percentage,
+              Value:        15m,
+              Description:  "15% off for 5★ feedback",
+              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
+              context.CancellationToken);
+          await creator.HandleAsync(new CreateRewardCodeCommand(
+              RestaurantId: restaurantId,
+              Code:         RewardCode.Code5StarAppetizer(restaurantId, evt.Id, _clock),
+              Kind:         RewardKind.FreeItem,
+              Value:        0m,
+              Description:  "Free appetizer for 5★ feedback",
+              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
+              context.CancellationToken);
       }
-      await context.Publish(new DiscountHistoryAppendedIntegrationEvent(EntityType: "RewardCode", ChangeType: "Created", ...));
+      // The handler writes both the RewardCode row and the outbox row.
+      // No additional DiscountHistoryAppendedIntegrationEvent publish here —
+      // the handler already does it on Created.
   }
   ```
-- **Disabled by default** via `DiscountOptions:EnableFeedbackSubmittedConsumer=false`. `services.AddMassTransit(config => config.AddConsumer<FeedbackSubmittedConsumer>();...)` plus a `IConsumerDefinition<FeedbackSubmittedConsumer>` whose endpoint config fetches the option and toggles:
+  The `Code*()` helpers are deterministic (e.g., `RWD-{restaurantId:N}-4STAR-PCT10-{yyyyMMdd}`) so re-delivery of the same `FeedbackSubmittedIntegrationEvent` is detected by the uniqueness constraint on `Code` and the duplicate-Create is swallowed. Idempotent by design — no separate `processed_inbound_events` check needed beyond what the handler's own uniqueness violation already provides.
+- **Disabled by default** via `DiscountOptions:EnableFeedbackSubmittedConsumer=false`. MassTransit 8.x does not expose `ConfigureConsumer.DisableConsumer<T>(...)`; the modern idiom is **conditional registration** in `Program.cs`:
+
   ```csharp
-  public class FeedbackSubmittedConsumerDefinition : ConsumerDefinition<FeedbackSubmittedConsumer>
+  builder.Services.AddMassTransit(config =>
   {
-      private readonly bool _enabled;
-      public FeedbackSubmittedConsumerDefinition(IOptions<DiscountOptions> options)
-          => _enabled = options.Value.EnableFeedbackSubmittedConsumer;
-      protected override void ConfigureConsumer(IReceiveEndpointConfigurator configurator)
-      {
-          if (!_enabled) configurator.DisableConsumer<FeedbackSubmittedConsumer>(this);
-      }
-  }
+      config.SetKebabCaseEndpointNameFormatter();
+      config.AddConsumers(typeof(MenuItemChangedConsumer).Assembly);  // the always-on consumers
+      if (builder.Configuration.GetValue<bool>("DiscountOptions:EnableFeedbackSubmittedConsumer"))
+          config.AddConsumer<FeedbackSubmittedConsumer>();
+      config.UsingRabbitMq(/* same as Catalog's Program.cs */);
+  });
   ```
+
+  When the flag flips on, the consumer endpoint materializes on next boot; when it flips off, an orphaned queue is left (manual cleanup is acceptable — the orphan has no consumers, just retains messages until RabbitMQ retention).
 - **Tests:** `InMemoryTestHarness` — when the flag is true, fire `FeedbackSubmittedIntegrationEvent` with `OverallRating=5`, `RestaurantId=seed-rid`, assert two `RewardCode` rows are written. The `BusTestHarness` config also asserts the publish path on `DiscountHistoryAppendedIntegrationEvent`.
 
 **Doc-update scope (§0.2):**
@@ -747,7 +1092,7 @@ These were settled during the initial grilling and locked at the top of this pla
 
 - [ ] **Phase 1** — Production-grade Coupon: `ITenantEntity` int→Guid fix shipped in BuildingBlocks; `Coupon : ITenantEntity`; global query filter active; JWT auth wired; 11 permission policies; outbox tables + first SQLite `OutboxDispatcher<DiscountContext>`; lazy-eval gate; sweep service; `RedeemDiscount` race fix; `/live`+`/ready` split.
   - [ ] **Phase 1 doc** — `current-architecture.md` updated per Phase 1 doc-update scope.
-  - [ ] **Phase 1 completed** — dev, doc commit, plan-update commit (Document Version bump + v1.1 changelog) all landed.
+  - [ ] **Phase 1 completed** — dev, doc commit, plan-update commit (Document Version bump + v1.X+1 changelog) all landed.
 - [ ] **Phase 2** — `DiscountRule` aggregate with 6 RPCs; `MenuItemChangedConsumer` + `RestaurantConfigurationChangedConsumer`; rule FK to Coupon.
   - [ ] **Phase 2 doc** — `current-architecture.md` updated.
   - [ ] **Phase 2 completed** — dev, doc, plan-update commit.
@@ -785,9 +1130,58 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 1.2
 **Last Updated:** 2026-07-11
 **Maintained By:** Discount working group
+
+> **v1.2 changelog — `dotnet-best-practices` review pass.** All 12 findings applied (plus 2 cross-cutting observations):
+>
+> **High (3):**
+> - **H-L1** §7 Phase 3: `RewardCode.Code4StarPct10` / `Code5StarPct15` / `Code5StarAppetizer` rewritten as instance-style helpers taking `(Guid rid, Guid feedbackEventId, TimeProvider clock)`. Codes combine `rid + tag + day + feedbackEventId` so redelivery within or across day-boundaries produces identical strings (uniqueness-violation idempotency holds). Phase 5 consumer sketch updated to pass `evt.Id` instead of relying on wall-clock date.
+> - **H-L2** §7 Phase 1: `DiscountOptions` class finally pinned with full `[Range]`, `SectionName`, and `ValidateOnStart()` registration in `Program.cs`. Includes an `OptionsAuditor` integration test that asserts every `DiscountPermissions.All` constant maps to a feature-flag option and vice versa.
+> - **H-L3** §0.4.1: `Idempotency-Key` rewritten to `HMAC-SHA256(key, envelope)` keyed on a server-side secret (32 bytes from `IConfiguration["Discount:IdempotencyKey"]`, never logged). The old `sha256(key+rId+code)` was a guessable digest, not a MAC, and had a cross-tenant replay hole.
+>
+> **Medium (7):**
+> - **M-L4** §7 Phase 1: dropped the stale `claims` row from the doc-update §6 Data Stores — it was a leftover from Catalog's `EntityMoveCoupons` flag, not part of Discount's schema.
+> - **M-L5** §0.3: added `Mapster.DependencyInjection` registration. New `RewardCodeService` / `DiscountRuleService` use `request.Adapt<T>()` / `entity.Adapt<T>()`; the existing manual `ToProtoModel`/`ToEntity` in `DiscountService.cs:144–158` is deleted in Phase 1.
+> - **M-L6** §7 Phase 1: structured-logging example for `DiscountExpirySweepService` added (uses `PeriodicTimer`, `ExecuteUpdateAsync` bulk UPDATE, structured `LogInformation`). Replaces the implicit "sweep happens" prose with a runnable shape.
+> - **M-L7** §0.4.5: dev-only `AddGrpcReflection` + `MapGrpcReflectionService` added (guarded by `IsDevelopment()`). Production stays reflection-off.
+> - **M-L8** §7 Phase 1: `AddDiscountPolicies` rewritten to handle three observed JWT claim shapes (`permissions` comma-split, individual `permission`, or both) via `RequireAssertion`. Added a `JwtClaimShapeProbe` xUnit test that decodes a dev login JWT and locks the policy expression to whatever Identity actually emits. Default-deny mode (§3) would otherwise mask a wrong-claim-type bug.
+> - **M-L9** §7 Phase 1 + §0.4 area: `OutboxDeadLetterThreshold` default changed from `0` (fail-closed-on-first-poison-message) to `5` (alert-and-let-humans-triage). Documented the trade-off.
+> - **M-L10** §6.7: added a transient-fault circuit-breaker to the SQLite outbox dispatcher — counts consecutive `broker_failure` events; after `OutboxOptions.MaxConsecutiveBrokerFailures` (default `3`) pauses for `BrokerBackoffSeconds` (default `60s`) and trips `/ready` to `Unhealthy`. Resets on first successful dispatch. Discount defines the convention; Catalog follows.
+>
+> **Low (2):**
+> - **L-L11** §6 folder layout: `Authorization/DiscountActors.cs` added as a centralized home for the three audit actor strings (`"discount-system"`, `"discount-sweep"`, `"discount-service"`).
+> - **L-L12** (same as M-L7; cross-referenced).
+>
+> **Cross-cutting observations (2):**
+> - **O-L13** §0.3: now copies Catalog §0.3 bullets verbatim rather than mirror-referencing them. Drift-proof (mirror-references drift silently when Catalog changes).
+> - **O-L14** (rolled into H-L2): `OptionsAuditor` integration test added to catch drift between permissions dictionary and options dictionary.
+>
+> Document Version bumped from 1.1 → 1.2. No additional documents affected. Mem-bind: the corrections listed here affect only `DISCOUNT_SERVICE_PLAN.md`; sibling plans (Catalog, Identity, Notification v1) are unchanged by this pass.
+
+> **v1.1 changelog — `csharp-expert` review pass.** All 12 findings applied:
+> **High (5):**
+> - **H1 + H2** §6.7 rewritten. The previous `UPDATE ... RETURNING` claim SQL was the wrong shape for the base class's `FromSql(BuildClaimSql)` (`BuildingBlocks/Messaging/Outbox/OutboxDispatcher.cs:226–229`). Replaced with a CTE-based atomic claim (`WITH claimed AS (UPDATE ... RETURNING *) SELECT * FROM claimed`) and a corresponding `ClaimId` column added to `OutboxMessage` entity + an `ix_outbox_messages_claim_id_occurred_on` index. The migration now generates cleanly from the EF-declared model instead of hand-written `migrationBuilder.Sql` conflicting with EF-managed entity.
+> - **H3** §7 Phase 4 event payload: dropped redundant `OccurredAt` / `SchemaVersion` / `CorrelationId` from the record (the base `IntegrationEvent` provides `Id`, `OccurredOn`, `MessageVersion`; `CorrelationId` is a MassTransit transport header, not a record field). Documented the base-class fields explicitly so future events don't shadow them.
+> - **H4** §7 Phase 2 idempotency: replaced the "internal dictionary keyed by `RestaurantId`" suggestion with a `processed_inbound_events` table approach (unique-key violation detection; survives restarts and bus redeliveries).
+> - **H5** §7 Phase 5 consumer registration: replaced the imagined `ConfigureConsumer.DisableConsumer<T>(this)` API with the actual MassTransit 8.x idiom — conditional `config.AddConsumer<FeedbackSubmittedConsumer>()` in `Program.cs` gated by `DiscountOptions:EnableFeedbackSubmittedConsumer`.
+>
+> **Medium (4):**
+> - **M6 + M7** §7 Phase 3 `RewardCode` class: renamed enum `RewardType` → `RewardKind` (the former collides semantically with the class name); replaced `string Code { get; set; } = default!` with `required string Code { get; set; }` (C# 11 required modifier); added `required RewardKind Kind { get; set; }`; added three `Code{N}Star...` helper methods for deterministic codes.
+> - **M8** §0.4.2.1 new sub-section documents the actual gRPC authorization mechanism — `[Authorize(Policy=...)]` is ignored on gRPC service methods; the project uses a global `DiscountAuthorizationInterceptor` reading a custom `[Permission(...)]` attribute per method.
+> - **M9** §6.5 consumer contract clarified: payload fields are `string? OldValues` / `string NewValues` (serialized JSON) on both publisher and consumer sides; Catalog parses back to `JsonObject` on Marten insert. Avoids the roundtrip serialize-parse tax per outbox row.
+>
+> **Low (3):**
+> - **L10** Phase 1: explicit `services.AddSingleton(TimeProvider.System);` plus `FakeTimeProvider` for tests (mirrors Catalog's existing usage). `Coupon.IsActiveNow(TimeProvider clock)` added.
+> - **L11** Phase 1 race-fix SQL: added explicit `LastModifiedBy = 'discount-system'` and `LastModifiedAt = {now}` in the conditional UPDATE (`Database.ExecuteSqlInterpolatedAsync` bypasses the EF audit interceptor). Re-applied the tenant predicate at SQL level as defense-in-depth (global query filters are bypassed by raw SQL).
+> - **L12** §0.4.3 proto split documented with the exact aggregator shape: `Protos/discount.proto` becomes a 4-line aggregator with `import` of the three slices; Basket's existing `<Protobuf Include=".../Protos/discount.proto" GrpcServices="Client" />` is unaffected (the aggregator's `csharp_namespace = "Discount.Grpc"` keeps Coupon stubs there; the two new slices land in `Discount.Grpc.RewardCode` / `Discount.Grpc.DiscountRule`, which Basket never imports).
+>
+> **Soft suggestions (2):**
+> - **S1** Phase 1: `Authorization/DiscountPermissions.cs` is now the single source of truth (constants + `All` list); `AddDiscountPolicies` loops over `All` to register each as a claim-gated policy. Identity's follow-up plan reads the same string list.
+> - **S2** Phase 5: `FeedbackSubmittedConsumer.Consume` now dispatches the existing `CreateRewardCodeCommandHandler` per generated reward instead of building `new RewardCode { ... }` entities inline. Respects validators, ITenantEntity gate, outbox publish, and audit columns. Idempotency falls out of the deterministic `Code` helpers via the unique-key violation path.
+>
+> Document Version bumped from 1.0 → 1.1. No additional documents affected. Mem-bind: the bumps listed in this entry affect only `DISCOUNT_SERVICE_PLAN.md`; sibling plans (Catalog, Identity, Notification v1) are unchanged by these corrections.
 
 > **v1.0 changelog — Initial plan.**
 >

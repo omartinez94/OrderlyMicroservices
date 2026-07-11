@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.ComboItems.CreateComboItem;
 
 public record CreateComboItemCommand(
@@ -18,10 +20,21 @@ public class CreateComboItemCommandValidator : AbstractValidator<CreateComboItem
     }
 }
 
-internal class CreateComboItemCommandHandler(CatalogDbContext dbContext) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
+internal class CreateComboItemCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
 {
     public async Task<CreateComboItemResult> Handle(CreateComboItemCommand command, CancellationToken cancellationToken)
     {
+        var restaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == command.ComboMenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (restaurantId is null)
+        {
+            throw new NotFoundException("MenuItem", command.ComboMenuItemId);
+        }
+
         var comboItem = new ComboItem
         {
             ComboMenuItemId = command.ComboMenuItemId,
@@ -32,6 +45,8 @@ internal class CreateComboItemCommandHandler(CatalogDbContext dbContext) : IComm
 
         dbContext.ComboItems.Add(comboItem);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
 
         return new CreateComboItemResult(comboItem.Id);
     }

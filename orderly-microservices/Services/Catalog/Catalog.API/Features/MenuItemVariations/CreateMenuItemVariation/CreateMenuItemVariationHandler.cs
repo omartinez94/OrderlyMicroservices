@@ -22,12 +22,17 @@ public class CreateMenuItemVariationCommandValidator : AbstractValidator<CreateM
     }
 }
 
-internal class CreateMenuItemVariationCommandHandler(CatalogDbContext dbContext) : ICommandHandler<CreateMenuItemVariationCommand, CreateMenuItemVariationResult>
+internal class CreateMenuItemVariationCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<CreateMenuItemVariationCommand, CreateMenuItemVariationResult>
 {
     public async Task<CreateMenuItemVariationResult> Handle(CreateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
-        var menuItemExists = await dbContext.MenuItems.AnyAsync(m => m.Id == command.MenuItemId && !m.IsDeleted, cancellationToken);
-        if (!menuItemExists)
+        var menuItemRestaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (menuItemRestaurantId is null)
         {
             throw new NotFoundException("MenuItem", command.MenuItemId);
         }
@@ -46,6 +51,8 @@ internal class CreateMenuItemVariationCommandHandler(CatalogDbContext dbContext)
 
         dbContext.MenuItemVariations.Add(variation);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(menuItemRestaurantId.Value, cancellationToken);
 
         return new CreateMenuItemVariationResult(variation.Id);
     }

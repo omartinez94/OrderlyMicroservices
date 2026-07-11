@@ -26,7 +26,9 @@ public class UpdateIngredientCommandValidator : AbstractValidator<UpdateIngredie
     }
 }
 
-internal class UpdateIngredientCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateIngredientCommand, UpdateIngredientResult>
+internal class UpdateIngredientCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<UpdateIngredientCommand, UpdateIngredientResult>
 {
     public async Task<UpdateIngredientResult> Handle(UpdateIngredientCommand command, CancellationToken cancellationToken)
     {
@@ -41,6 +43,8 @@ internal class UpdateIngredientCommandHandler(CatalogDbContext dbContext) : ICom
 
         dbContext.Ingredients.Update(ingredient);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);
 
         return new UpdateIngredientResult(true);
     }

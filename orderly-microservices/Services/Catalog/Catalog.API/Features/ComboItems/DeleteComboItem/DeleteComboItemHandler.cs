@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.ComboItems.DeleteComboItem;
 
 public record DeleteComboItemCommand(int Id) : ICommand<DeleteComboItemResult>;
@@ -12,7 +14,9 @@ public class DeleteComboItemCommandValidator : AbstractValidator<DeleteComboItem
     }
 }
 
-internal class DeleteComboItemCommandHandler(CatalogDbContext dbContext) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
+internal class DeleteComboItemCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
 {
     public async Task<DeleteComboItemResult> Handle(DeleteComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -24,8 +28,18 @@ internal class DeleteComboItemCommandHandler(CatalogDbContext dbContext) : IComm
             throw new NotFoundException(nameof(ComboItem), command.Id);
         }
 
+        var restaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
         dbContext.ComboItems.Remove(comboItem);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (restaurantId is not null)
+        {
+            await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
+        }
 
         return new DeleteComboItemResult(true);
     }

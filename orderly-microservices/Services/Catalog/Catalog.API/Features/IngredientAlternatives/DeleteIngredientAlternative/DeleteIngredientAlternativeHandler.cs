@@ -15,7 +15,9 @@ public class DeleteIngredientAlternativeCommandValidator : AbstractValidator<Del
     }
 }
 
-internal class DeleteIngredientAlternativeCommandHandler(CatalogDbContext dbContext) : ICommandHandler<DeleteIngredientAlternativeCommand, DeleteIngredientAlternativeResult>
+internal class DeleteIngredientAlternativeCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<DeleteIngredientAlternativeCommand, DeleteIngredientAlternativeResult>
 {
     public async Task<DeleteIngredientAlternativeResult> Handle(DeleteIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
@@ -29,6 +31,8 @@ internal class DeleteIngredientAlternativeCommandHandler(CatalogDbContext dbCont
 
         dbContext.IngredientAlternatives.Remove(ingredientAlternative);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);
 
         return new DeleteIngredientAlternativeResult(true);
     }

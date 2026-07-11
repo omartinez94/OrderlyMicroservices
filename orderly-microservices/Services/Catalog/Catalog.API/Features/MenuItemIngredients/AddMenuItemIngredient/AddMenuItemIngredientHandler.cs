@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace Catalog.API.Features.MenuItemIngredients.AddMenuItemIngredient;
 
 public record AddMenuItemIngredientCommand(
@@ -18,11 +20,27 @@ public class AddMenuItemIngredientCommandValidator : AbstractValidator<AddMenuIt
     }
 }
 
-internal class AddMenuItemIngredientCommandHandler(CatalogDbContext dbContext) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
+internal class AddMenuItemIngredientCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
 {
     public async Task<AddMenuItemIngredientResult> Handle(AddMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
-        var ingredient = new MenuItemIngredient
+        var menuRestaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (menuRestaurantId is null)
+        {
+            throw new NotFoundException("MenuItem", command.MenuItemId);
+        }
+
+        var ingredientRestaurantId = await dbContext.Ingredients
+            .Where(i => i.Id == command.IngredientId)
+            .Select(i => (Guid?)i.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var link = new MenuItemIngredient
         {
             MenuItemId = command.MenuItemId,
             IngredientId = command.IngredientId,
@@ -30,9 +48,18 @@ internal class AddMenuItemIngredientCommandHandler(CatalogDbContext dbContext) :
             IsOptional = command.IsOptional
         };
 
-        dbContext.MenuItemIngredients.Add(ingredient);
+        dbContext.MenuItemIngredients.Add(link);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new AddMenuItemIngredientResult(ingredient.Id);
+        // Invalidate the menu tree because the item's ingredient list changed,
+        // and the ingredient tree because the ingredient is now wired to a
+        // menu item (engine recomputes availability — Phase 3).
+        await cache.InvalidateMenuAsync(menuRestaurantId.Value, cancellationToken);
+        if (ingredientRestaurantId is { } ingredientRid)
+        {
+            await cache.InvalidateIngredientsAsync(ingredientRid, cancellationToken);
+        }
+
+        return new AddMenuItemIngredientResult(link.Id);
     }
 }

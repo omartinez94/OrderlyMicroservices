@@ -76,12 +76,18 @@ services:
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
       - ConnectionStrings__CatalogDB=Server=catalogdb;Port=5432;Database=Catalogdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
+      - ConnectionStrings__Redis=distributedcache:6379,password=${REDIS_PASSWORD:-redisdev}
       - IdentityServiceUrl=http://identity.api:8080
+      - FeatureManagement__CatalogRedisCache=true
+      - Catalog__CacheRepairIntervalMinutes=5
+      - Catalog__MenuCacheTtlMinutes=60
+      - Catalog__IngredientCacheTtlMinutes=5
     ports:
       - "6000:8080"
       - "6060:8081"
     depends_on:
       - catalogdb
+      - distributedcache
       - identity.api
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro

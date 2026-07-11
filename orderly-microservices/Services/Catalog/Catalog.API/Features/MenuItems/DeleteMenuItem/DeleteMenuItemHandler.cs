@@ -14,7 +14,9 @@ public class DeleteMenuItemCommandValidator : AbstractValidator<DeleteMenuItemCo
     }
 }
 
-internal class DeleteMenuItemCommandHandler(CatalogDbContext dbContext) : ICommandHandler<DeleteMenuItemCommand, DeleteMenuItemResult>
+internal class DeleteMenuItemCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<DeleteMenuItemCommand, DeleteMenuItemResult>
 {
     public async Task<DeleteMenuItemResult> Handle(DeleteMenuItemCommand command, CancellationToken cancellationToken)
     {
@@ -31,6 +33,8 @@ internal class DeleteMenuItemCommandHandler(CatalogDbContext dbContext) : IComma
         menuItem.IsAvailable = false;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(menuItem.RestaurantId, cancellationToken);
 
         return new DeleteMenuItemResult(true);
     }

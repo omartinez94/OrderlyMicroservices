@@ -19,7 +19,9 @@ public class UpdateMenuCategoryCommandValidator : AbstractValidator<UpdateMenuCa
     }
 }
 
-internal class UpdateMenuCategoryCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateMenuCategoryCommand, UpdateMenuCategoryResult>
+internal class UpdateMenuCategoryCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<UpdateMenuCategoryCommand, UpdateMenuCategoryResult>
 {
     public async Task<UpdateMenuCategoryResult> Handle(UpdateMenuCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -37,6 +39,8 @@ internal class UpdateMenuCategoryCommandHandler(CatalogDbContext dbContext) : IC
 
         dbContext.MenuCategories.Update(category);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(category.RestaurantId, cancellationToken);
 
         return new UpdateMenuCategoryResult(true);
     }

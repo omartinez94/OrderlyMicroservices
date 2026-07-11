@@ -15,20 +15,41 @@ public class RemoveMenuItemIngredientCommandValidator : AbstractValidator<Remove
     }
 }
 
-internal class RemoveMenuItemIngredientCommandHandler(CatalogDbContext dbContext) : ICommandHandler<RemoveMenuItemIngredientCommand, RemoveMenuItemIngredientResult>
+internal class RemoveMenuItemIngredientCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<RemoveMenuItemIngredientCommand, RemoveMenuItemIngredientResult>
 {
     public async Task<RemoveMenuItemIngredientResult> Handle(RemoveMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
-        var ingredient = await dbContext.MenuItemIngredients
+        var link = await dbContext.MenuItemIngredients
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.MenuItemId == command.MenuItemId, cancellationToken);
 
-        if (ingredient is null)
+        if (link is null)
         {
             throw new NotFoundException(nameof(MenuItemIngredient), command.Id);
         }
 
-        dbContext.MenuItemIngredients.Remove(ingredient);
+        var menuRestaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var ingredientRestaurantId = await dbContext.Ingredients
+            .Where(i => i.Id == link.IngredientId)
+            .Select(i => (Guid?)i.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        dbContext.MenuItemIngredients.Remove(link);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (menuRestaurantId is { } menuRid)
+        {
+            await cache.InvalidateMenuAsync(menuRid, cancellationToken);
+        }
+        if (ingredientRestaurantId is { } ingredientRid)
+        {
+            await cache.InvalidateIngredientsAsync(ingredientRid, cancellationToken);
+        }
 
         return new RemoveMenuItemIngredientResult(true);
     }

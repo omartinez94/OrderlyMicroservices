@@ -22,7 +22,9 @@ public class CreateIngredientCommandValidator : AbstractValidator<CreateIngredie
     }
 }
 
-internal class CreateIngredientCommandHandler(CatalogDbContext dbContext) : ICommandHandler<CreateIngredientCommand, CreateIngredientResult>
+internal class CreateIngredientCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<CreateIngredientCommand, CreateIngredientResult>
 {
     public async Task<CreateIngredientResult> Handle(CreateIngredientCommand command, CancellationToken cancellationToken)
     {
@@ -38,6 +40,8 @@ internal class CreateIngredientCommandHandler(CatalogDbContext dbContext) : ICom
 
         dbContext.Ingredients.Add(ingredient);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateIngredientsAsync(command.RestaurantId, cancellationToken);
 
         return new CreateIngredientResult(ingredient.Id);
     }

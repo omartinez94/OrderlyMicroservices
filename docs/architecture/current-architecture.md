@@ -32,6 +32,7 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 | HTTP framework | **Carter** (Minimal-API `ICarterModule`) | 10.0.0 |
 | ORM (relational) | EF Core | 10.0.9 — Postgres + Sqlite + SqlServer providers |
 | Document store | **Marten** | 8.37.0 — Catalog (4 docs) + Basket (per-tenant databases) |
+| Cache (distributed) | `Microsoft.Extensions.Caching.StackExchangeRedis` | 10.0.8 — shared `distributedcache` container; clients in `Basket.API` and `Catalog.API` |
 | Messaging | **MassTransit + RabbitMQ** | 8.5.10 — `rabbitmq:3-management` in compose |
 | Auth | **OpenIddict** | 7.5.0 — OIDC server + bearer validation in every service |
 | Mapping | **Mapster** | 10.0.7 |
@@ -40,8 +41,11 @@ Orderly is a **multi-brand, multi-restaurant** back office platform. It manages 
 | Time | **NodaTime** | 3.3.2 — `Instant` / `LocalDate` across the schema |
 | Gateway | **YARP** | 2.3.0 |
 | Resilience | `Microsoft.AspNetCore.RateLimiting` (built-in) | — Fixed-window on Identity (5/15min/IP) and YARP (10/1min/host) |
-| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,Rabbitmq,UI.Client}` | 9.0.0 (SqlServer/NpgSql/Redis) + 8.0.2 (Rabbitmq) — every service exposes `/health`. The Rabbitmq check is wired on `Kitchen.API`, `Ordering.API`, and `Basket.API` under entry `messagebroker` (tags `["broker", "ready"]`). |
+| Health | `AspNetCore.HealthChecks.{NpgSql,Redis,SqlServer,Rabbitmq,UI.Client}` | 9.0.0 (SqlServer/NpgSql/Redis) + 8.0.2 (Rabbitmq) — every service exposes `/health`. The Rabbitmq check is wired on `Kitchen.API`, `Ordering.API`, and `Basket.API` under entry `messagebroker` (tags `["broker", "ready"]`). Catalog exposes a Redis check (`/health` reports `redis: Healthy` when the cache client is reachable). |
+| Feature flags | `Microsoft.FeatureManagement.AspNetCore` | 4.5.0 — registered in Ordering, Kitchen, and Catalog; `OrderFullfilment` (Ordering) and `CatalogRedisCache` (Catalog) are the first two flags |
+| Decorator / DI helpers | **Scrutor** | 7.0.0 — `services.Decorate<TInterface, TDecorator>()` in `Basket.API` (`CachedBasketRepository`) and `Catalog.API` (`CachedMenuReader`) |
 | API style | Carter modules + MediatR commands/queries | — DTOs and validators co-located under `Features/<Entity>/` |
+| Test infra (services that need Postgres/Redis in tests) | `Testcontainers.PostgreSql` / `Testcontainers.Redis` | 4.1.0 — `Catalog.API.Tests` brings Postgres + Redis Testcontainers; `Ordering.API.Tests` brings MSSQL + RabbitMQ |
 | Logging | ASP.NET Core default `ILogger` | — |
 | Frontend | none in-repo | — |
 
@@ -58,7 +62,8 @@ orderly-microservices/
 ├── BuildingBlocks/                             # Shared lib (CQRS, Behaviors, Authorization, Multitenancy, Entities)
 ├── BuildingBlocks.Messaging/                   # MassTransit + IntegrationEvent base + Outbox dispatcher helper
 ├── Services/
-│   ├── Catalog/Catalog.API/                    # Brands, restaurants, tables, menus, reservations, snapshots
+│   ├── Catalog/Catalog.API/                    # Brands, restaurants, tables, menus, reservations, snapshots, Redis cache + Scrutor decorator
+│   ├── Catalog/Catalog.API.Tests/              # xUnit + FluentAssertions + NSubstitute + Testcontainers (Postgres + Redis) for the menu cache decorator + options validation
 │   ├── Basket/Basket.API/                      # Marten + Redis cache, gRPC client to Discount, publishes BasketCheckoutEvent
 │   ├── Discount/Discount.Grpc/                 # gRPC server, SQLite store, single Coupon entity
 │   ├── Identity/Identity.API/                  # OpenIddict + ASP.NET Identity + RBAC permissions
@@ -201,13 +206,13 @@ audit:view
 **Endpoints by feature (Carter modules, all under `/api/v1`):**
 `Brands`, `Restaurants`, `Tables`, `MergedTables`, `Reservations`, `WalkInQueues`, `MenuCategories`, `MenuSubCategories`, `MenuItems`, `MenuItemVariations`, `MenuItemIngredients`, `ComboItems`, `Ingredients`, `IngredientAlternatives`, `PriceHistories`, `CustomerFeedback`, `MenuItemAnalytics`.
 
-**Events published / consumed by Catalog.** None. Catalog registers no `IHostedService`, no MassTransit endpoint, no `IPublishEndpoint`.
+**Events published / consumed by Catalog.** None. Catalog registers no `IHostedService`, no MassTransit endpoint, no `IPublishEndpoint`. (Phase 2 wires the five Catalog-side integration events; Phase 3 wires the `OrderCompleted` consumer.)
 
-**Caching.** None. The Redis distributed cache is registered only in `Basket.API`.
+**Caching.** Redis-backed `IDistributedCache` (shared `distributedcache` container, connection string `ConnectionStrings__Redis`). The cache is **fail-open**: every read/write failure is logged at `Warning` and the call falls through to the source. Cache key formats: `catalog:menu:{rid}` (TTL `Catalog:MenuCacheTtlMinutes`, default 60 min) and `catalog:ingredients:{rid}` (TTL `Catalog:IngredientCacheTtlMinutes`, default 5 min — populated by the Phase 3 engine). Read-side: `IMenuReader` (in `Catalog.API/Readers/`) is a tree-building read path (categories → sub-categories → items with variations and ingredients); the Scrutor-decorated `CachedMenuReader` (`services.Decorate<IMenuReader, CachedMenuReader>()`) wraps it for cache-on-read, mirroring the Basket `CachedBasketRepository` pattern. Invalidation: every mutation handler (menu tree: `MenuCategories` CUD, `MenuSubCategories` CU, `MenuItems` CUD, `MenuItemVariations` CUD, `ComboItems` CD; ingredient tree: `Ingredients` CUD, `IngredientAlternatives` CUD, `MenuItemIngredients` AR) injects `ICatalogCache` and calls `InvalidateMenuAsync(restaurantId)` / `InvalidateIngredientsAsync(restaurantId)` after `SaveChangesAsync`. Drift repair: `CacheDriftRepairService` (`Catalog.API/Caching/CacheDriftRepairService.cs`, registered as `AddHostedService<CacheDriftRepairService>()`) is a `BackgroundService` that runs every `Catalog:CacheRepairIntervalMinutes` (default 5 min), enumerates restaurants from `MenuCategories`, and repopulates any missing `catalog:menu:{rid}` entries. The hosted service self-gates on the `CatalogRedisCache` feature flag (`FeatureManagement__CatalogRedisCache`, default `true`) so disabling the flag stops the loop without a redeploy. Configuration is bound via `services.AddOptions<CatalogOptions>().Bind(...).ValidateDataAnnotations().ValidateOnStart()`; `CatalogOptions` lives at `Catalog.API/Caching/CatalogOptions.cs`.
 
 **Auth.** `AddJwtAuthentication(authority: configuration["IdentityServiceUrl"] ?? "https://localhost:5057", audience: "OrderlyMicroservices")` plus `AddAuthorizationServices()` from BuildingBlocks.
 
-**Health:** `/health` via `AspNetCore.HealthChecks.NpgSql`.
+**Health:** `/health` via `AspNetCore.HealthChecks.NpgSql` plus `AspNetCore.HealthChecks.Redis` (Redis reachability). Phase 2 will split `/live` and `/ready` per K8s convention.
 
 ---
 
@@ -423,7 +428,7 @@ record BasketCheckoutEvent : IntegrationEvent
 | Postgres `kitchendb` | `postgres`, host `localhost:5436` | `Kitchen.API` — tables `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`, `outbox_messages`, `outbox_messages_dead` |
 | MS SQL `orderdb` | `mcr.microsoft.com/mssql/server:2022-latest`, `Server=localhost,1433`, user `sa` | `Ordering.API` — tables `Orders`, `OrderItems`, `OrderBills`, `Customers`, `MenuItems`, `outbox_messages`, `outbox_messages_dead` |
 | SQLite `discountdb` | file `Data Source=discountdb` | `Discount.Grpc` |
-| Redis `distributedcache` | `redis`, host `localhost:6379`, password `redisdev` | `Basket.API` cache only |
+| Redis `distributedcache` | `redis`, host `localhost:6379`, password `redisdev` | `Basket.API` cache (`CachedBasketRepository`) + `Catalog.API` cache (`CachedMenuReader` + `ICatalogCache` invalidation) |
 | RabbitMQ `messagebroker` | `rabbitmq:3-management`, ports `5672` / `15672`, `guest`/`guest` | `Basket.API` + `Ordering.Application` |
 
 ---
@@ -453,7 +458,7 @@ record BasketCheckoutEvent : IntegrationEvent
 - **NodaTime everywhere.** EF Core columns are configured with `InstantConverter`; `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime` is used. `ConfigureForNodaTime(DateTimeZoneProviders.Tzdb)` is set on JSON options, and `dataSourceBuilder.UseNodaTime()` is wired in Catalog.
 - **Feature flags.** `Microsoft.FeatureManagement.AspNetCore` exposes `OrderFullfilment` (default true per `appsettings.json`) which gates `OrderCreatedEventHandler`'s publish step.
 - **Interceptors.** `BuildingBlocks.Entities.Interceptors.AuditableEntityInterceptor` and `DispatchDomainEventsInterceptor` are registered in Ordering, Catalog, Basket (the latter via `Scrutor` decorator). `OrderingOutboxPublisher` (`Ordering.Infrastructure`) and `KitchenOutboxPublisher` (`Kitchen.API`) intercept `SaveChangesAsync` to write `outbox_messages` rows inside the same EF Core transaction as the aggregate mutation; the matching dispatcher hosted service relays the rows to `IPublishEndpoint`.
-- **Caching via Scrutor decorate.** `services.Decorate<IBasketRepository, CachedBasketRepository>()` is the only `IDistributedCache` consumer.
+- **Caching via Scrutor decorate.** `services.Decorate<IBasketRepository, CachedBasketRepository>()` and `services.Decorate<IMenuReader, CachedMenuReader>()` are the two `IDistributedCache` consumers (Basket + Catalog). The decorator pattern is fail-open: Redis read/write exceptions are caught and logged at `Warning`, never propagated to the caller. The `CatalogRedisCache` feature flag gates the `CacheDriftRepairService` `BackgroundService` that re-populates missing `catalog:menu:{rid}` entries from the DB every `Catalog:CacheRepairIntervalMinutes` (default 5 min). Mutation handlers inject `ICatalogCache` (a thin invalidation helper in `Catalog.API/Caching/ICatalogCache.cs`) and call `InvalidateMenuAsync(restaurantId)` / `InvalidateIngredientsAsync(restaurantId)` after `SaveChangesAsync`; cache-key formats live in `CacheKeys` (`catalog:menu:{rid}`, `catalog:ingredients:{rid}`).
 
 ---
 
@@ -478,7 +483,7 @@ record BasketCheckoutEvent : IntegrationEvent
 2. `cd orderly-microservices && docker compose up -d` — brings up `catalogdb`, `basketdb`, `identitydb`, `orderdb`, `kitchendb`, `distributedcache` (Redis), `messagebroker` (RabbitMQ), then each API container.
 3. The override file publishes ports **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HTTPS).
 4. Identity seeds the 8 roles, 25 permissions, role-permission mappings, and a `SuperAdmin` user (`admin@orderly.com` / `Admin@123456`) on first start.
-5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
+5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only). Catalog reads `ConnectionStrings__Redis` from env/compose (`distributedcache:6379`); when `FeatureManagement__CatalogRedisCache=true` the `CacheDriftRepairService` `BackgroundService` starts and begins repopulating missing `catalog:menu:{rid}` keys on the `Catalog:CacheRepairIntervalMinutes` cadence.
 6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required. The `TypedOrderItemCustomizationsJsonb` migration is empty at the SQL level (only the .NET property type changes; the on-disk column stays `nvarchar(max)` jsonb) and lands automatically with the existing migration set.
 6a. Kitchen.API migrates the `kitchendb` schema (3 tables + `outbox_messages`). Both services start their outbox dispatcher hosted services alongside the API; tests in either project flip `Outbox:Enabled=false` to skip the relay loop.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
@@ -502,6 +507,7 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 - `Ordering.API.Tests` (xUnit + FluentAssertions + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 22 `WebApplicationFactory` integration tests for the seven new Kitchen-tagged Carter endpoints (anonymous 401 / missing-permission 403 / unknown-id 404 / empty-reason 400 / happy 200-204), 2 `/health` checks, plus the F.3 multi-replica outbox row-claim proof (`OrderingOutboxMultiReplicaTests.ParallelDispatchers_EachRowClaimedExactlyOnce`), the poison-queue proof (`OrderingOutboxDeadLetterTests.FutureVersionRow_IsMovedToDeadTable`), and the F.5 wire-format-versioning proof (`OrderingOutboxWireVersioningTests.NewPayload_ExtraFields_RelayWithoutCrash` + `MessageVersionDefaults_ToOne`). Spins up MSSQL 2022 + RabbitMQ 3-management in Testcontainers per test run; `Outbox:Enabled=false` and `FeatureManagement:OrderFullfilment=false` keep the test host quiet.
 - `Identity.API.Tests` (xUnit + FluentAssertions + NSubstitute + EF Core InMemory).
 - `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 41 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster (the `StartItemPrepHandlerTests` adds 5 publish-once contract tests), plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check that asserts `entries.messagebroker.status == Healthy`).
+- `Catalog.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers — 22 unit tests on `CachedMenuReader` (hit / miss / null / fail-open paths via NSubstitute on `IDistributedCache.GetAsync`/`SetAsync`) and `CatalogOptions` `DataAnnotation` validation. Testcontainers packages (`Testcontainers.PostgreSql`, `Testcontainers.Redis`) are declared for the integration-test follow-up that exercises the full cache-decorator end-to-end path; the package inventory is in `Catalog.API.Tests.csproj` so the integration tests can land in Phase 1.8 without a project change.
 
 ---
 

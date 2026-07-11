@@ -4,6 +4,7 @@ using Marten;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +21,34 @@ builder.Services.AddJwtAuthentication(
 
 builder.Services.AddAuthorizationServices();
 
+// Feature management — the CatalogRedisCache flag (env: FeatureManagement__CatalogRedisCache)
+// gates the cache drift-repair hosted service and lets ops disable the cache without
+// a redeploy.
+builder.Services.AddFeatureManagement();
+
+// Cache subsystem (Phase 1).
+builder.Services.AddOptions<CatalogOptions>()
+    .Bind(builder.Configuration.GetSection(CatalogOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<ICatalogCache, RedisCatalogCache>();
+builder.Services.AddStackExchangeRedisCache(redisCache =>
+{
+    redisCache.Configuration = builder.Configuration.GetConnectionString("Redis")!;
+});
+
+// Menu read-side (Phase 1).
+// Scrutor's Decorate<TInterface, TDecorator>() wraps the inner IMenuReader with
+// the cache-on-read decorator; the same pattern is used by Basket.
+// https://github.com/khellang/Scrutor
+builder.Services.AddScoped<IMenuReader, MenuReader>();
+builder.Services.Decorate<IMenuReader, CachedMenuReader>();
+
+// Drift-repair hosted service (Phase 1). The tick logic self-gates on the
+// CatalogRedisCache feature flag, so the service can be registered
+// unconditionally and toggled at runtime.
+builder.Services.AddHostedService<CacheDriftRepairService>();
+
 builder.Services.AddCarter();
 builder.Services.AddMediatR(cfg =>
 {
@@ -30,7 +59,7 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.AddMarten(opt =>
 {
     opt.Connection(builder.Configuration.GetConnectionString("CatalogDB")!);
-    
+
     // Explicitly configure Marten to only handle document models (audit/logs)
     opt.Schema.For<OrderSnapshot>();
     opt.Schema.For<OrderModificationLog>();
@@ -47,7 +76,7 @@ builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>(
 builder.Services.AddDbContext<CatalogDbContext>(options =>
 {
     options.AddInterceptors(new AuditableEntityInterceptor());
-    options.UseNpgsql(dataSource, npgsqlOptions => 
+    options.UseNpgsql(dataSource, npgsqlOptions =>
     {
         npgsqlOptions.UseNodaTime();
     });
@@ -63,7 +92,8 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("CatalogDB")!);
+    .AddNpgSql(builder.Configuration.GetConnectionString("CatalogDB")!)
+    .AddRedis(builder.Configuration.GetConnectionString("Redis")!);
 
 var app = builder.Build();
 

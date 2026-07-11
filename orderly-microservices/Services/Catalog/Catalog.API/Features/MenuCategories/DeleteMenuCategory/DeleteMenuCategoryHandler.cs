@@ -14,7 +14,9 @@ public class DeleteMenuCategoryCommandValidator : AbstractValidator<DeleteMenuCa
     }
 }
 
-internal class DeleteMenuCategoryCommandHandler(CatalogDbContext dbContext) : ICommandHandler<DeleteMenuCategoryCommand, DeleteMenuCategoryResult>
+internal class DeleteMenuCategoryCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<DeleteMenuCategoryCommand, DeleteMenuCategoryResult>
 {
     public async Task<DeleteMenuCategoryResult> Handle(DeleteMenuCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -31,6 +33,8 @@ internal class DeleteMenuCategoryCommandHandler(CatalogDbContext dbContext) : IC
 
         dbContext.MenuCategories.Update(category);
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(category.RestaurantId, cancellationToken);
 
         return new DeleteMenuCategoryResult(true);
     }

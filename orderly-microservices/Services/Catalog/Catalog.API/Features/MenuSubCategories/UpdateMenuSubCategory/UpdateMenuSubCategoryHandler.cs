@@ -24,7 +24,9 @@ public class UpdateMenuSubCategoryCommandValidator : AbstractValidator<UpdateMen
     }
 }
 
-internal class UpdateMenuSubCategoryCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateMenuSubCategoryCommand, UpdateMenuSubCategoryResult>
+internal class UpdateMenuSubCategoryCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<UpdateMenuSubCategoryCommand, UpdateMenuSubCategoryResult>
 {
     public async Task<UpdateMenuSubCategoryResult> Handle(UpdateMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -34,14 +36,11 @@ internal class UpdateMenuSubCategoryCommandHandler(CatalogDbContext dbContext) :
             throw new MenuSubCategoryNotFoundException(command.Id);
         }
 
-        if (subCategory.CategoryId != command.CategoryId)
-        {
-            var categoryExists = await dbContext.MenuCategories.AnyAsync(c => c.Id == command.CategoryId, cancellationToken);
-            if (!categoryExists)
-            {
-                throw new MenuCategoryNotFoundException(command.CategoryId);
-            }
-        }
+        var newCategoryRestaurantId = (await dbContext.MenuCategories
+            .Where(c => c.Id == command.CategoryId)
+            .Select(c => (Guid?)c.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken))
+            ?? throw new MenuCategoryNotFoundException(command.CategoryId);
 
         subCategory.CategoryId = command.CategoryId;
         subCategory.Name = command.Name;
@@ -50,6 +49,8 @@ internal class UpdateMenuSubCategoryCommandHandler(CatalogDbContext dbContext) :
         subCategory.IsActive = command.IsActive;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await cache.InvalidateMenuAsync(newCategoryRestaurantId, cancellationToken);
 
         return new UpdateMenuSubCategoryResult(true);
     }

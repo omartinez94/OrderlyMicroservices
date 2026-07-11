@@ -22,7 +22,9 @@ public class UpdateMenuItemVariationCommandValidator : AbstractValidator<UpdateM
     }
 }
 
-internal class UpdateMenuItemVariationCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateMenuItemVariationCommand, UpdateMenuItemVariationResult>
+internal class UpdateMenuItemVariationCommandHandler(
+    CatalogDbContext dbContext,
+    ICatalogCache cache) : ICommandHandler<UpdateMenuItemVariationCommand, UpdateMenuItemVariationResult>
 {
     public async Task<UpdateMenuItemVariationResult> Handle(UpdateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
@@ -34,6 +36,11 @@ internal class UpdateMenuItemVariationCommandHandler(CatalogDbContext dbContext)
             throw new NotFoundException("MenuItemVariation", command.Id);
         }
 
+        var restaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == variation.MenuItemId && !m.IsDeleted)
+            .Select(m => m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
         variation.Name = command.Name;
         variation.VariationValue = command.VariationValue;
         variation.PriceModifier = command.PriceModifier;
@@ -41,6 +48,11 @@ internal class UpdateMenuItemVariationCommandHandler(CatalogDbContext dbContext)
         variation.DisplayOrder = command.DisplayOrder;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (restaurantId != Guid.Empty)
+        {
+            await cache.InvalidateMenuAsync(restaurantId, cancellationToken);
+        }
 
         return new UpdateMenuItemVariationResult(true);
     }

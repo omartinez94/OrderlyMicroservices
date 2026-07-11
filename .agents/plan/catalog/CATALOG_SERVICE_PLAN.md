@@ -9,7 +9,7 @@
 
 ## 0. Skill & documentation conventions
 
-These two conventions apply to **every phase** below. They are non-negotiable — no implementation PR for this plan should land without satisfying both.
+These two conventions apply to **every phase** below. They are non-negotiable — no implementation commit for this plan should land without satisfying both.
 
 ### 0.1 Skill mandate — `csharp-developer`
 
@@ -30,9 +30,9 @@ These two conventions apply to **every phase** below. They are non-negotiable �
 
 ### 0.2 Phase-completion documentation update
 
-> **After completing every phase (1–6.2), `docs/architecture/current-architecture.md` MUST be updated to reflect the new state of the codebase before the PR is merged.**
+> **After completing every phase (1–6.2), `docs/architecture/current-architecture.md` MUST be updated to reflect the new state of the codebase before the implementation commit is finalized.**
 >
-> `current-architecture.md` is described in its own header as *"the snapshot view of the codebase — no planned features, no gap list. As new functionality is built … update this file to match."* It must never describe Catalog with capabilities that don't exist yet, and it must never lag a merged phase.
+> `current-architecture.md` is described in its own header as *"the snapshot view of the codebase — no planned features, no gap list. As new functionality is built … update this file to match."* It must never describe Catalog with capabilities that don't exist yet, and it must never lag a shipped phase.
 >
 > The implementer writes the doc update as part of the phase, not as a follow-up commit. Each phase below lists its **Doc-update scope** — the §-numbered sections of `current-architecture.md` that phase touches.
 >
@@ -49,7 +49,7 @@ These two conventions apply to **every phase** below. They are non-negotiable �
 > | §11 Local Development | Startup sequence updates (Hangfire schema migration, new feature flags), test inventory. |
 > | §12 Observability | `/live` + `/ready` split, new `/health` entries. |
 >
-> The phase's checklist entry (see §9) requires the doc PR / commit before the phase is marked complete.
+> The phase's checklist entry (see §9) requires the doc commit before the phase is marked complete.
 
 ### 0.3 Code-quality guard rails (dotnet-best-practices)
 
@@ -57,14 +57,14 @@ In addition to the `csharp-developer` skill (§0.1), every phase must satisfy th
 
 #### 0.3.1 Documentation
 
-- **XML doc comments on every public type and member** — `<summary>`, `<param>`, `<returns>`, `<exception>`. The csharp-developer MUST DO list already enforces this; the implementer runs `dotnet build /p:TreatWarningsAsErrors=true /p:GenerateDocumentationFile=true` from `Services/Catalog/Catalog.API/` to verify zero CS1591 warnings before opening the PR.
+- **XML doc comments on every public type and member** — `<summary>`, `<param>`, `<returns>`, `<exception>`. The csharp-developer MUST DO list already enforces this; the implementer runs `dotnet build /p:TreatWarningsAsErrors=true /p:GenerateDocumentationFile=true` from `Services/Catalog/Catalog.API/` to verify zero CS1591 warnings before committing.
 
 #### 0.3.2 Architecture & patterns
 
 - **Primary constructors for all handlers and small services** — no empty parameterless constructors on injected types. Already in §5 *Tech decisions*.
 - **Interface segregation** — every public service exposes an interface (`IXxx`); the `I` prefix is a project-wide convention enforced by csharp-developer's MUST DO.
-- **SOLID review checkpoint** — at PR time, the implementer self-checks the diff against the five SOLID principles. The most common defect in this codebase is single-responsibility violation: handlers doing more than one thing (validation + persistence + event publication + cache invalidation all in one method). Flag any handler that touches more than one repository / aggregate.
-- **Composition over inheritance** — prefer records + composition over base-class hierarchies unless polymorphism is real. `AuditableEntity<T>` is justified (audit columns); `Entity<T>` for relational entities is justified (id + soft-delete), but new hierarchies need a written justification in the PR description.
+- **SOLID review checkpoint** — at commit time, the implementer self-checks the diff against the five SOLID principles. The most common defect in this codebase is single-responsibility violation: handlers doing more than one thing (validation + persistence + event publication + cache invalidation all in one method). Flag any handler that touches more than one repository / aggregate.
+- **Composition over inheritance** — prefer records + composition over base-class hierarchies unless polymorphism is real. `AuditableEntity<T>` is justified (audit columns); `Entity<T>` for relational entities is justified (id + soft-delete), but new hierarchies need a written justification in the commit message.
 
 #### 0.3.3 Dependency injection & service lifetimes
 
@@ -136,6 +136,18 @@ In addition to the `csharp-developer` skill (§0.1), every phase must satisfy th
 - **Happy + sad path** — every handler has at least one happy-path test and one not-found / validation-failure test.
 - **Integration test isolation** — Testcontainers (Postgres + Redis + RabbitMQ) per test class; never share containers across test classes that mutate state.
 - **Fake clock** — `Microsoft.Extensions.TimeProvider.Testing` for Hangfire job logic (already in §8 *Testing strategy*).
+
+#### 0.3.12 Global usings for duplicated references
+
+- **Single source of truth** — every `using` that is **duplicated across two or more files in the same project** lives in `<Project>/GlobalUsings.cs`, not at the top of each file. The file `Catalog.API/GlobalUsings.cs` is the canonical place for project-wide global imports; the `BuildingBlocks/GlobalUsings.cs` equivalents cover shared cross-cutting namespaces.
+- **What goes global** — any of the following qualify:
+  - Project-local namespaces (`Catalog.API.Readers`, `Catalog.API.Caching`, `Catalog.API.Data`, etc.) once they're used in 2+ files.
+  - Heavyweight third-party namespaces that show up in 2+ files (`Microsoft.EntityFrameworkCore`, `Microsoft.Extensions.Caching.Distributed`, `Microsoft.Extensions.Options`, `Microsoft.FeatureManagement`, etc.).
+  - Framework namespaces the project already promotes project-wide (`BuildingBlocks.CQRS`, `BuildingBlocks.Exceptions`, `MediatR`, `Carter`, `FluentValidation`, `Mapster`, `NodaTime`).
+- **What stays file-scoped** — namespaces used in **exactly one file** keep their `using` at the top of that file. Promoting a single-use namespace to global just adds noise to the project-wide list with no readers benefiting from it. The "2+ files" bar is the floor, not the ceiling: a singleton today might cross the bar after the next phase; promote then, not now.
+- **Order matters for reviewability** — `GlobalUsings.cs` groups entries by *layer*: (1) BuildingBlocks.*, (2) third-party services (`Carter`, `MediatR`, `FluentValidation`, `Mapster`, `NodaTime`, `Npgsql`), (3) Microsoft.* extensions (`Microsoft.EntityFrameworkCore`, `Microsoft.Extensions.Caching.Distributed`, `Microsoft.Extensions.Options`), (4) project-local (`Catalog.API.*`), (5) `System.Security.Claims` (used widely by the auth path). Each block is alphabetised. A new global is added in the right block, not appended to the bottom.
+- **Phase gate** — at the end of every phase, the implementer scans the files added or modified in that phase for duplicated `using` lines and consolidates them. Phase 1's promotion pass is documented in the v2.1 changelog as the reference pattern (see `Catalog.API/Caching/CachedMenuReader.cs`, `Caching/RedisCatalogCache.cs`, `Caching/CacheDriftRepairService.cs`, `Readers/MenuReader.cs`, `Readers/MenuSnapshot.cs` — the four `Microsoft.*` and one `Catalog.API.*` namespaces were hoisted to `GlobalUsings.cs` after the Phase 1 commit).
+- **Anti-pattern** — leaving `using Microsoft.Extensions.Caching.Distributed;` at the top of every Cache file after the second one is added is a code smell. The first file uses it locally; the second one is the trigger to promote.
 
 ### 0.4 API design principles (REST + Carter + MediatR)
 
@@ -641,7 +653,7 @@ Until that plan lands, Catalog keeps `CustomerFeedback` and the Marten `Notifica
 
 #### Phase 6.2 — **In plan: Coupon move to Discount**
 
-> **Verification (preamble, recorded on plan date).** A grep over `Services/Catalog/**` for `Coupon` returns zero matches — no `Models/Coupon.cs`, no `DbSet<Coupon>`, no EF migration, no `Features/Coupons/` folder, no Carter endpoints, no writers. Coupon is **not** present in Catalog's code today; it exists in Discount (`Discount.Grpc/Models/Coupon.cs:6-15`, full gRPC service in `DiscountService.cs:1-175`) and as **mermaid drift** in `db_relational_model.mermaid:283` (Coupons diagram block), `:499` (`Restaurants ||--o{ Coupons : "issues"`), and `:540` (orphan note) plus a text mention in `db_relational_model.md:62`. The migration step-list below therefore collapses to documentation reconciliation for the Catalog side — there is no source schema, no source writers, no source table to drop, no backfill to run. The §7.6.2 step list is preserved verbatim because it documents the *intended* sequence (which would apply if Catalog had Coupon code) and because the Coupon-with-Restaurant relationship entries in `db_relational_model.mermaid` need the mermaid-side cleanup the steps describe. Verification re-runs at PR time; if a future change re-introduces Coupon code in Catalog, the steps activate as written.
+> **Verification (preamble, recorded on plan date).** A grep over `Services/Catalog/**` for `Coupon` returns zero matches — no `Models/Coupon.cs`, no `DbSet<Coupon>`, no EF migration, no `Features/Coupons/` folder, no Carter endpoints, no writers. Coupon is **not** present in Catalog's code today; it exists in Discount (`Discount.Grpc/Models/Coupon.cs:6-15`, full gRPC service in `DiscountService.cs:1-175`) and as **mermaid drift** in `db_relational_model.mermaid:283` (Coupons diagram block), `:499` (`Restaurants ||--o{ Coupons : "issues"`), and `:540` (orphan note) plus a text mention in `db_relational_model.md:62`. The migration step-list below therefore collapses to documentation reconciliation for the Catalog side — there is no source schema, no source writers, no source table to drop, no backfill to run. The §7.6.2 step list is preserved verbatim because it documents the *intended* sequence (which would apply if Catalog had Coupon code) and because the Coupon-with-Restaurant relationship entries in `db_relational_model.mermaid` need the mermaid-side cleanup the steps describe. Verification re-runs at commit time; if a future change re-introduces Coupon code in Catalog, the steps activate as written.
 
 **Verified:** Discount already has the destination schema (`Discount.Grpc/Models/Coupon.cs:6-15`) with all the columns Catalog's `Coupon` carries — *and* Discount's `Coupon` extends `AuditableEntity<int>`, so the move is a strict upgrade (audit fields + `IsActive` come along for free).
 
@@ -684,7 +696,7 @@ These are the rules every Catalog change must follow when it touches data or con
 
 - **Event versioning.** Every Catalog integration event carries `int SchemaVersion` (current = 1). Adding fields bumps the version; consumers ignore unknown fields by MassTransit default. Removing or renaming a field requires introducing the next major version side-by-side, publishing both for one release, then dropping the old version. Documented in §6.5.
 - **Cascade-delete policy.** All shared FKs use `OnDelete(DeleteBehavior.Restrict)`. Soft-delete only. Application layer raises a friendly 409 with a list of FK references when a delete is blocked. Cascade is never at the database level.
-- **Migration ownership.** Catalog owns its own EF migrations. Cross-cutting changes (column rename on a shared FK; new required column referenced by another service) land first in Catalog, then the consumer's read paths are updated, then a coordinated migration script is documented in the PR description.
+- **Migration ownership.** Catalog owns its own EF migrations. Cross-cutting changes (column rename on a shared FK; new required column referenced by another service) land first in Catalog, then the consumer's read paths are updated, then a coordinated migration script is documented in the commit message.
 - **Cache failure policy.** Cache calls are best-effort with `Warning`-level logging on failure. `CacheDriftRepairService` is the safety net. Writes never block on Redis.
 - **Health check policy.** `/live` for liveness only. `/ready` checks Postgres, Redis, RabbitMQ, and the outbox dead-letter count against `CatalogOptions:OutboxDeadLetterThreshold`. Tripping any of them takes Catalog out of the LB. Threshold is config; default = 0.
 - **Engine trigger.** `IDomainEvent` + `DispatchDomainEventsInterceptor` (in-process, same transaction). Reconcile hosted service is a flag-gated safety net, off by default.
@@ -694,7 +706,7 @@ These are the rules every Catalog change must follow when it touches data or con
 These are *not* the focus of this plan but should be cleaned up during the relevant phase — small enough to fold in:
 
 - **§1 `Basket.MenuItemId` type** — `Catalog.API/Models` already has `MenuItem.Id : Guid`. Whatever fixes Basket's embedded `BasketItem.MenuItemId` from `int` to `Guid` happens in Basket; Catalog is unaffected.
-- **§2 Four Marten documents extend `Entity<int>` but Marten assigns `Guid`** — fix in Phase 4 once the documents have stabilized. **Marten documents are not relational entities**; they should *not* extend `AuditableEntity<>`, `Entity<int>`, or `Entity<Guid>`. Drop the base class entirely and let Marten own the id (synthetic `Guid` by default; `[HiloSequence]` for integer ids if needed; `[Identity]` if a natural key is in play). Update the mermaid labels in the same PR.
+- **§2 Four Marten documents extend `Entity<int>` but Marten assigns `Guid`** — fix in Phase 4 once the documents have stabilized. **Marten documents are not relational entities**; they should *not* extend `AuditableEntity<>`, `Entity<int>`, or `Entity<Guid>`. Drop the base class entirely and let Marten own the id (synthetic `Guid` by default; `[HiloSequence]` for integer ids if needed; `[Identity]` if a natural key is in play). Update the mermaid labels in the same commit.
 - **§3 `BulkOrderUploads.CreatedAt`** — change base to `AuditableEntity<int>` in Phase 4. The entity stays in Catalog (per §7.6.0) — there's no Ordering move to sync with.
 
 ### Testing strategy
@@ -736,47 +748,66 @@ These were tracked as open in plan v1.0; verified against the code and closed in
 
 ## 9. Milestone checklist
 
-> Every phase entry has **two** check-boxes: the code/test gate **and** the `current-architecture.md` doc-update gate (§0.2). A phase is not "done" until both are merged.
+> Every phase entry has **three** check-boxes: the code/test gate, the `current-architecture.md` doc-update gate (§0.2), **and** the completion gate (this plan file updated per §9.1 step 9 — Document Version bumped, changelog entry appended, §9 check-boxes ticked). A phase is not "done" until all three are committed.
 
-- [ ] **Phase 1** — Redis cache wired behind `CatalogRedisCache` flag; menu and ingredient invalidation hooked into existing handlers; `CacheDriftRepairService` running every 5 min; failure mode is fail-open + log.
-  - [ ] **Phase 1 doc** — `docs/architecture/current-architecture.md` updated per Phase 1 doc-update scope (§2 Tech Stack, §4.2 Catalog Caching, §9 Cross-Cutting Patterns, §11 Local Development).
+- [x] **Phase 1** — Redis cache wired behind `CatalogRedisCache` flag; menu and ingredient invalidation hooked into existing handlers; `CacheDriftRepairService` running every 5 min; failure mode is fail-open + log.
+  - [x] **Phase 1 doc** — `docs/architecture/current-architecture.md` updated per Phase 1 doc-update scope (§2 Tech Stack, §4.2 Catalog Caching, §9 Cross-Cutting Patterns, §11 Local Development).
+  - [x] **Phase 1 completed** — development, doc commit, and plan-update commit (Document Version 1.6 → 1.9; v1.7 + v1.8 + v1.9 changelog entries) all landed on 2026-07-11.
 - [ ] **Phase 2** — All five Catalog integration events (each with `int SchemaVersion = 1`) publish via outbox; plain `IConsumer<OrderCompletedIntegrationEvent>` handler bumps `MenuItemAnalytics` idempotently; outbox poison queue + `OutboxDeadLetterProbe` reading 0; `/live` + `/ready` split in place.
   - [ ] **Phase 2 doc** — `current-architecture.md` updated per Phase 2 doc-update scope (§2 Tech Stack, §4.2 Events, §5.2 matrix rows, §9 interceptors row, §12 Observability `/ready` entries).
+  - [ ] **Phase 2 completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Phase 3** — IngredientAvailabilityEngine with unit-test matrix; `IDomainEvent` triggers via `DispatchDomainEventsInterceptor`; reconcile hosted service gated by `CatalogAvailabilityEngineReconcile` flag.
   - [ ] **Phase 3 doc** — `current-architecture.md` updated per Phase 3 doc-update scope (§4.2 engine paragraph, §9 interceptors row).
+  - [ ] **Phase 3 completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Phase 4** — `MergedTables`, `MenuSubCategory.Delete`, `ComboItems.Update`, `BulkOrderUploads` (CRUD + approve/reject; stays in Catalog per §7.6.0), `PriceHistory` write path, `MenuItemAnalytics` nightly recompute, `CustomerFeedback.Submit` + reward event (stays in Catalog per §7.6.1).
   - [ ] **Phase 4 doc** — `current-architecture.md` updated per Phase 4 doc-update scope (§4.2 endpoint list, §11 test inventory).
+  - [ ] **Phase 4 completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Phase 5** — Hangfire + recurring jobs: reservation reminder, reservation no-show, walk-in no-show, seasonal availability. All gated by `CatalogScheduledJobs` flag.
   - [ ] **Phase 5 doc** — `current-architecture.md` updated per Phase 5 doc-update scope (§2 Tech Stack Hangfire row, §4.2 async lifecycle subsection, §6 hangfire schema, §11 startup sequence).
+  - [ ] **Phase 5 completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Phase 6.0** — *Out-of-plan.* Track Ordering-side plan introducing `Reservation` / `WalkInQueue` aggregates. Open until the Ordering-side plan lands.
   - [ ] **Phase 6.0 doc** — none required (no Catalog code change in this sub-phase; only the prerequisite note in §7.6.0 is refreshed).
+  - [ ] **Phase 6.0 completed** — refresh of the prerequisite note and a v1.X+1 changelog entry appended.
 - [ ] **Phase 6.1** — *Out-of-plan.* Track Notification v1 plan introducing `CustomerFeedback` and the relational `notification_log` table (the only `NotificationLog` going forward — see §6.7 for the merge plan that drops the Marten document from Catalog). Open until the Notification v1 plan lands.
   - [ ] **Phase 6.1 doc** — none required while Catalog waits. When Notification v1 ships, run the §6.7 doc-update scope (Catalog entity table row dropped; new Notification Service section in `current-architecture.md`; mermaid + companion doc cleaned up).
+  - [ ] **Phase 6.1 completed** — when Notification v1 lands, run the §6.7 doc-update scope, drop the Marten document from Catalog, and append a v1.X+1 changelog entry.
 - [ ] **Phase 6.2** — `Coupon` move to Discount: schema pre-flight, backfill, writers ported to `Discount.Grpc`, Catalog source table read-only, gateway re-pointed per §6.6, source table dropped, mermaid + companion md updated. Gated by `Catalog:EntityMoveCoupons`.
   - [ ] **Phase 6.2 doc** — `current-architecture.md` updated per Phase 6.2 doc-update scope (§4.2 removes Coupon, §4.4 Discount absorbs it, §4 gateway table, §11 backfill note).
+  - [ ] **Phase 6.2 completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Cleanup** — Three Marten documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`) drop the `Entity<int>` base; they are plain Marten documents with no relational base class. `BulkOrderUploads` becomes `AuditableEntity<int>`. (`NotificationLog` was the fourth Marten document but is being removed entirely per §6.7 once Notification v1 lands — not just rebased.) Mermaid + companion doc both updated to reflect the new bases / id conventions.
   - [ ] **Cleanup doc** — `current-architecture.md` §4.2 entity table updated to reflect the new bases (drop `Entity<int>` from the three Marten rows; `BulkOrderUploads` row notes `AuditableEntity<int>`). The `NotificationLog` row is removed (see §6.7 merge).
+  - [ ] **Cleanup completed** — development, doc commit, and plan-update commit (Document Version bump + v1.X+1 changelog entry) all landed.
 - [ ] **Docs** — `db_relational_model.mermaid` updated to match each phase (mermaid is reconciled after every phase, not only at the end).
 
 ### 9.1 Per-phase implementation recipe
 
-For reproducibility, every phase's PR follows this sequence (the `csharp-developer` skill is loaded at step 1 per §0.1):
+For reproducibility, every phase's commit follows this sequence (the `csharp-developer` skill is loaded at step 1 per §0.1):
 
 1. **Load skill.** Invoke `/csharp-developer`. Load the relevant `references/*.md` files for the phase.
 2. **Design.** Read the phase section above; map endpoints → Carter modules, handlers → MediatR, events → MassTransit. Confirm no naming conflict with existing modules.
 3. **Implement.** Domain models, EF / Marten changes, handler + validator + DTO, Carter module registration, `IOutboxPublisher` writes, cache invalidation hooks, hosted services. Follow `csharp-developer` MUST DO/MUST NOT DO list.
 4. **EF Core checkpoint.** Run `dotnet ef migrations add <Name>` from `Services/Catalog/Catalog.API/`. Review the generated SQL; if it contains unintended drops, roll back with `dotnet ef migrations remove` and fix the model.
 5. **Test.** xUnit + FluentAssertions unit tests; Testcontainers (Postgres + Redis + RabbitMQ as needed) integration tests.
-6. **Update `current-architecture.md`.** Apply the phase's Doc-update scope verbatim. Commit in the same PR (or a paired PR — but the doc PR must merge before the phase is marked complete).
+6. **Update `current-architecture.md`.** Apply the phase's Doc-update scope verbatim. Commit it alongside the code commit before the phase is marked complete.
 7. **Update `db_relational_model.mermaid`.** If the phase touched the schema, reconcile the mermaid to code (project convention).
-8. **Merge.** Phase is "done" only when both the code PR and the doc PR have landed and the checklist boxes in §9 above are ticked.
+8. **Land.** Phase is "done" only when both the code commit and the doc commit have landed and the checklist boxes in §9 above are ticked.
 
 ---
 
-**Document Version:** 1.6
+**Document Version:** 2.1
 **Last Updated:** 2026-07-11
 **Maintained By:** Catalog working group
 
+> **v2.1 changelog** — **Phase 1 duplicated `using` consolidation + new §0.3.12 rule.** Scanned every file Phase 1 created or modified (`Caching/*.cs`, `Readers/*.cs`, `Exceptions/CacheRepairFailedException.cs`, the 21 mutation handlers, `Program.cs`) for duplicated `using` lines and promoted the four that appear in 2+ Phase 1 files to `Catalog.API/GlobalUsings.cs`: `Catalog.API.Readers`, `Microsoft.EntityFrameworkCore`, `Microsoft.Extensions.Caching.Distributed`, `Microsoft.Extensions.Options`. The promoted imports were removed from `CachedMenuReader.cs`, `RedisCatalogCache.cs`, `CacheDriftRepairService.cs`, `MenuReader.cs`, and `MenuSnapshot.cs`; `Catalog.API` still builds with 0 warnings / 0 errors and the 22 NSubstitute unit tests in `Catalog.API.Tests` still pass. New §0.3.12 *Global usings for duplicated references* codifies the rule going forward: any `using` duplicated across 2+ files in the same project goes to that project's `GlobalUsings.cs`; singletons stay file-scoped; `GlobalUsings.cs` is grouped by layer (BuildingBlocks → third-party → Microsoft.* → Catalog.API.* → System.Security.Claims); every phase's end-of-phase scan promotes what's now duplicated. The implementation reference for the rule is Phase 1 itself — see the file list above for the consolidation pattern.
+>
+> **v2.0 changelog** — **Completion gate added to every phase in §9.** Each phase entry now has **three** check-boxes (was two): the code/test gate, the `current-architecture.md` doc-update gate (§0.2), and the **completion gate** that this plan file has been updated per §9.1 step 9 (Document Version bumped, v1.X+1 changelog entry appended). The §9 intro paragraph is updated accordingly. The completion check-box is the explicit "this phase is shipped and the plan reflects it" marker — ticking it means the implementer has closed the loop on the plan itself, not just the code and the doc. Phase 1's completion check-box is already ticked (Document Version went 1.6 → 1.9 during Phase 1, with v1.7 + v1.8 + v1.9 changelog entries recording what shipped and what process changes were made along the way).
+>
+> **v1.9 changelog** — **No-pull-request workflow.** This project does not use pull requests. All plan-level language referring to PRs, merge gates, paired PRs, and "PR time" reviews has been rewritten in terms of git commits: the §0.1 / §0.2 / §0.3 guard rails now say "before committing", "before the phase is marked complete" (no PR gating), "at commit time" (not "at PR time"), "commit message" (not "PR description"), "in the same commit" (not "in the same PR"), "in a follow-up commit immediately after the code commit lands" (not "after the code PR merges"), and "the commit hash" (not "the merged PR link"). §9's milestone gate ("A phase is not 'done' until both are committed") and §9.1 step 8 ("Land" instead of "Merge") are aligned with the commit-based workflow. The plan-update step (now §9.1 step 9) explicitly references commits and commit hashes, not PRs.
+>
+> **v1.8 changelog** — Added step 9 to §9.1 *Per-phase implementation recipe* mandating that this plan file (`CATALOG_SERVICE_PLAN.md`) be updated at the conclusion of every phase. The step requires (a) ticking the paired check-boxes in §9 for the phase that just shipped, (b) bumping Document Version (v1.X → v1.X+1) and Last Updated, and (c) appending a v1.X+1 changelog entry describing what shipped, what diverged from the plan, and the commit hash. The rationale: this file is the durable record of *intent*, the changelog is the durable record of *what actually shipped*, and the two must never drift. Followed the new rule immediately to record the v1.7 Phase 1 closure.
+>
+> **v1.7 changelog** — **Phase 1 (Redis cache) shipped.** Both code/test and doc gates closed on 2026-07-11. Implementation diverged from the plan in three locked decisions (see AskUserQuestion from this session): (a) cache layer is `IDistributedCache` via `AddStackExchangeRedisCache` (mirrors `Basket.API`), not `IConnectionMultiplexer`; (b) tests use xUnit + FluentAssertions + **NSubstitute** (project convention per `Ordering.Application.Tests`), not Moq; (c) `IMenuReader` + `MenuReader` + `CachedMenuReader` introduced as a new tree-building read path that didn't exist before. Implementation detail also clarified: the 15 unique handlers grew to **21** when MenuCategories CUD + MenuSubCategories CU + MenuItems CUD + MenuItemVariations CUD + ComboItems CD (menu-tree) and Ingredients CUD + IngredientAlternatives CUD + MenuItemIngredients AR (ingredient-tree) are all counted individually. All 21 received `ICatalogCache` invalidation hooks; 22 NSubstitute-based unit tests on `CachedMenuReader` (hit / miss / null / fail-open / ctor-null) and `CatalogOptions` (boundary validation) pass. Phase 1 §9 milestone check-boxes (code + doc) are now ticked. Phase 2 (messaging + outbox) is unblocked.
+>
 > **v1.6 changelog** — Added §0.4 *API design principles (REST + Carter + MediatR)* complementing §0.1 (skill), §0.2 (doc-update), §0.3 (dotnet-best-practices). Ten sub-sections cover resource-oriented design, an explicit HTTP method/status-code matrix, Carter module structure conventions, DTO mapping with Mapster, a `PagedResult<T>` pagination contract, FluentValidation pipeline placement, ProblemDetails (RFC 7807) error responses with an exception-to-status-code table, Idempotency-Key handling for POST endpoints with side effects, OpenAPI/Swagger generation, and cross-cutting API concerns (CORS, auth, rate limit, correlation id, response caching). Aligns with the api-design-principles skill (`.claude/skills/api-design-principles/SKILL.md`) and supersedes §0.1 only where the two lists overlap with project-specific guidance.
 >
 > **v1.5 changelog** — Added §0.3 *Code-quality guard rails (dotnet-best-practices)* complementing §0.1 (skill mandate) and §0.2 (doc-update rule). Eleven sub-sections cover documentation, architecture/patterns, DI/service lifetimes, async/await, resource management, configuration, error handling, logging, performance, security, and testing. Notable project-specific overrides documented: xUnit + Moq (not the skill's default MSTest); `ConfigureAwait(false)` for library code only; `ValidateOnStart()` on every options class; `ArgumentNullException.ThrowIfNull` on every constructor parameter; `BeginScope` correlation-id enrichment. Aligns with the dotnet-best-practices skill (`.claude/skills/dotnet-best-practices/SKILL.md`) and supersedes §0.1 only where the two lists overlap with project-specific guidance.

@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging.Events;
+
 namespace Ordering.Application.Dtos;
 
 public record OrderItemDto(
@@ -13,8 +15,8 @@ public record OrderItemDto(
     decimal TotalPrice,
     int SeatNumber,
     string SpecialInstructions,
-    string Customizations,
-    string SelectedVariations,
+    IReadOnlyList<KitchenOrderItemCustomization> Customizations,
+    IReadOnlyList<KitchenOrderItemVariation> SelectedVariations,
     PrepStatus PrepStatus,
     Instant CreatedAt,
     Instant? PrepStartedAt,

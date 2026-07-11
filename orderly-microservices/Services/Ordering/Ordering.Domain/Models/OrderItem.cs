@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging.Events;
+
 namespace Ordering.Domain.Models;
 
 public class OrderItem : Abstractions::Entity<OrderItemId>
@@ -13,8 +15,15 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
 
     public decimal BasePrice { get; set; }
     public Instant CreatedAt { get; set; }
-    /// <summary>JSON snapshot of additional customizations and extra charges</summary>
-    public string Customizations { get; set; } = string.Empty; // jsonb
+    /// <summary>
+    /// Typed customizations carried on this item. The aggregate is the
+    /// single source of truth for the on-disk jsonb column; the wire format
+    /// (and the kitchen integration event) uses the same
+    /// <see cref="KitchenOrderItemCustomization"/> record so no string
+    /// round-trip is needed at the boundary.
+    /// </summary>
+    public IReadOnlyList<KitchenOrderItemCustomization> Customizations { get; set; }
+        = Array.Empty<KitchenOrderItemCustomization>();
     public string MenuItemDescription { get; set; } = string.Empty;
     public string MenuItemImageUrl { get; set; } = string.Empty;
     public string MenuItemName { get; set; } = string.Empty;
@@ -25,8 +34,14 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
     public int Quantity { get; set; }
     /// <summary>Used for bill splitting by seat</summary>
     public int SeatNumber { get; set; }
-    /// <summary>JSON snapshot of selected variations and their prices</summary>
-    public string SelectedVariations { get; set; } = string.Empty; // jsonb
+    /// <summary>
+    /// Typed variations carried on this item. Mirrors
+    /// <see cref="Customizations"/>: aggregate owns the typed array, EF
+    /// Core serialises it to the existing <c>nvarchar(max)</c> jsonb
+    /// column.
+    /// </summary>
+    public IReadOnlyList<KitchenOrderItemVariation> SelectedVariations { get; set; }
+        = Array.Empty<KitchenOrderItemVariation>();
     public string SpecialInstructions { get; set; } = string.Empty;
     public decimal TotalPrice { get; set; }
     public decimal UnitPrice { get; set; }

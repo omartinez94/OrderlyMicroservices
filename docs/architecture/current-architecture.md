@@ -293,7 +293,7 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 - `Order.Add(menuItemId, quantity, price)` / `Order.Remove(menuItemId)`.
 - **State-transition methods** (each guarded by `InvalidOrderStateTransitionException` → HTTP 409 when the current `Status` does not permit the transition; each raises the matching `Order*Event` for downstream consumption):
   - `Confirm(confirmedByUserId, now)` — `Pending` → `Confirmed`. Used by `KitchenOrderAcceptedIntegrationEventHandler` and the `POST /orders/{id}/confirm` endpoint.
-  - `MarkPreparing(now)` — `Confirmed` → `Preparing`. Driven today by the `POST /orders/{id}/start-prep` endpoint (a `KitchenOrderPrepStartedIntegrationEvent` consumer does not exist yet).
+  - `MarkPreparing(now)` — `Confirmed` → `Preparing`. Driven in production by `KitchenOrderPrepStartedIntegrationEventHandler` (emitted when the kitchen's first-item-prep action lands on a still-`New` ticket); the `POST /orders/{id}/start-prep` endpoint is kept as a manual override.
   - `MarkReady(now)` — `Preparing` → `Ready`. Used by `KitchenOrderReadyIntegrationEventHandler` and the `POST /orders/{id}/mark-ready` endpoint.
   - `StartDelivery()` — `Ready` → `DeliveryStatus = Dispatched` (for delivery orders; aggregate `Status` stays at `Ready`).
   - `MarkDelivered(now)` — `Ready` → `Delivered`.
@@ -301,6 +301,7 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
   - `Cancel(reason, cancelledByUserId, now)` — any non-terminal → `Cancelled`. Used by `KitchenOrderCancelledIntegrationEventHandler` and the `POST /orders/{id}/cancel` endpoint.
 - `OrderItem.MarkItemPreparing(now)` — `Pending` → `Preparing`. Driven by `POST /orders/{id}/items/{itemId}/start-prep`. Throws `InvalidOrderItemStateTransitionException` (→ HTTP 409).
 - `OrderItem.MarkItemReady(now)` — `Preparing` → `Ready`. Driven by `POST /orders/{id}/items/{itemId}/mark-ready`. Throws `InvalidOrderItemStateTransitionException` (→ HTTP 409).
+- `OrderItem.Customizations` is `IReadOnlyList<KitchenOrderItemCustomization>` and `OrderItem.SelectedVariations` is `IReadOnlyList<KitchenOrderItemVariation>` — typed records stored as `nvarchar(max)` jsonb columns via `OrderItemConfiguration`'s `System.Text.Json`-backed value converter. The aggregate is the source of truth: the jsonb-string parser in `OrderExtensions` is gone.
 
 **Status enum (`BuildingBlocks/Enums/OrderEnums.cs`):**
 `OrderStatus { Ordering, Pending, Confirmed, Preparing, Ready, Delivered, Completed, Cancelled, OnHold }`, plus `OrderType { DineIn | Takeout | Delivery }`, `DeliveryStatus`, `PrepStatus`, `SplitType { Equal | Custom }`, `PaymentStatus { Pending | Paid | Void }`.
@@ -329,15 +330,16 @@ The seven Kitchen-tagged endpoints are grouped under `app.MapGroup("/api/v1").Wi
 
 **Cross-service HTTP/gRPC.** None. `Ordering.Infrastructure` and `Ordering.API` contain no `HttpClient` / `GrpcClient` / `AddHttpClient` registrations. The only external HTTP target is the Identity service for JWT validation. All coordination with Basket and Kitchen is via RabbitMQ events.
 
-**Consumers.** Five `IConsumer<T>` classes in `Ordering.Application/Orders/EventHandlers/Integration/`, all discovered by `MassTransit.AddMessageBroker(...)` scanning the Application assembly:
+**Consumers.** Six `IConsumer<T>` classes in `Ordering.Application/Orders/EventHandlers/Integration/`, all discovered by `MassTransit.AddMessageBroker(...)` scanning the Application assembly:
 
 - `BasketCheckoutEventHandler` — `IConsumer<BasketCheckoutEvent>` (basket checkout → `Order.Create`).
 - `KitchenOrderAcceptedIntegrationEventHandler` — fetch `Order` → `Order.Confirm(...)`.
+- `KitchenOrderPrepStartedIntegrationEventHandler` — fetch `Order` → `Order.MarkPreparing(...)`. Emitted exactly once per ticket by `Kitchen.API` on the first item-start action while the ticket is still `New`; the `POST /orders/{id}/start-prep` endpoint remains as a manual override.
 - `KitchenOrderReadyIntegrationEventHandler` — fetch `Order` → `Order.MarkReady(...)`.
 - `KitchenOrderBumpedIntegrationEventHandler` — log only (no aggregate change today).
 - `KitchenOrderCancelledIntegrationEventHandler` — fetch `Order` → `Order.Cancel(...)`.
 
-All four Kitchen-side consumers follow the "fetch latest aggregate, call guarded method" pattern; missing order → log + nack (`InvalidOrderStateTransitionException` on a re-attempted illegal transition is MassTransit-faulted and re-tried by the broker).
+All five Kitchen-side consumers follow the "fetch latest aggregate, call guarded method" pattern; missing order → log + nack (`InvalidOrderStateTransitionException` on a re-attempted illegal transition is MassTransit-faulted and re-tried by the broker).
 
 **Transactional outbox.** Aggregate events raised in domain methods are dispatched to `IOutboxPublisher` (the EF Core `SaveChangesInterceptor` writes an `outbox_messages` row inside the same transaction). `OrderingOutboxDispatcher` (hosted service) polls the table (1 s active / 5 s idle) and relays each row to `IPublishEndpoint.Publish(...)`, marking it `DispatchedAt` on success. Disabled in tests via `Outbox:Enabled=false`. Consumer-side idempotency keys off `IntegrationEvent.Id`. **Multi-replica safe** — the claim uses engine-native row locks (MSSQL `WITH (ROWLOCK, UPDLOCK, READPAST)` here; Postgres `FOR UPDATE SKIP LOCKED` on Kitchen) held inside an explicit transaction across the claim + broker publish + dispatched-on stamp. **Poison queue in place since F.4**: rows whose `SchemaVersion > OutboxOptions.MaxSupportedVersion` are copied to `outbox_messages_dead` (mirror shape of `outbox_messages` + `Reason` + `RejectedAt`) with `Reason = "unsupported_schema_version"` and skipped on publish. Operators triage from the dead table by bumping `Outbox:MaxSupportedVersion` (after a new consumer deploys) or by patching the payload and replaying.
 
@@ -385,12 +387,16 @@ There are no other `HttpClient` registrations across the services. No service-to
 | `BasketCheckoutEvent` | `Basket.API/CheckoutBasket/CheckoutBasketHandler` | `Ordering.Application/.../BasketCheckoutEventHandler` |
 | `OrderCreatedIntegrationEvent` | `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler` (gated by `OrderFullfilment` feature flag) | `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler` (M2) |
 | `KitchenOrderAcceptedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderAcceptedIntegrationEventHandler` → `Order.Confirm(event.ConfirmedByUserId, event.ConfirmedAt)` |
+| `KitchenOrderPrepStartedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/StartItemPrepHandler` — emitted exactly once per ticket, on the first item-start action while the ticket is still `New` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderPrepStartedIntegrationEventHandler` → `Order.MarkPreparing(event.StartedAt)` |
 | `KitchenOrderReadyIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/MarkOrderReadyHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderReadyIntegrationEventHandler` → `Order.MarkReady(event.ReadyAt)` |
 | `KitchenOrderBumpedIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/BumpOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderBumpedIntegrationEventHandler` (logs only — no aggregate change today) |
 | `KitchenOrderCancelledIntegrationEvent` | `Kitchen.API/Application/KitchenTickets/Commands/CancelOrderHandler` | `Ordering.Application/Orders/EventHandlers/Integration/KitchenOrderCancelledIntegrationEventHandler` → `Order.Cancel(event.Reason, event.CancelledByUserId, event.CancelledAt)` |
 
 **`OrderCreatedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs`):
 `OrderId`, `OrderNumber`, `RestaurantId`, `TableId?`, `OrderType`, `CustomerId`, `Subtotal`, `TotalAmount`, `TaxAmount`, `DiscountAmount`, `Currency`, `DiscountCode?`, `BillingAddress`, `DeliveryAddress?` (only when `OrderType.Delivery`), `Items: IReadOnlyList<KitchenOrderItemPreview>`, `EstimatedPrepTimeMinutes`, `Notes`. **No** `Payment*` / `Card*` / `Cvv` / `Expiration` fields — those stay internal to Ordering.
+
+**`KitchenOrderPrepStartedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/KitchenOrderPrepStartedIntegrationEvent.cs`, R.1):
+`OrderId`, `ItemId`, `StaffUserId`, `StartedAt`. Emitted exactly once per ticket by `StartItemPrepHandler` (when the aggregate's `StartedAt` is still `null` before the call), so Ordering's `MarkPreparing` is driven by the kitchen UI's first-item-prep action rather than the manual REST endpoint.
 
 **Event payload reference:**
 ```csharp
@@ -473,7 +479,7 @@ record BasketCheckoutEvent : IntegrationEvent
 3. The override file publishes ports **6000–6005, 6007** (HTTP) and **6060–6065, 6067** (HTTPS).
 4. Identity seeds the 8 roles, 25 permissions, role-permission mappings, and a `SuperAdmin` user (`admin@orderly.com` / `Admin@123456`) on first start.
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only).
-6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required.
+6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required. The `TypedOrderItemCustomizationsJsonb` migration is empty at the SQL level (only the .NET property type changes; the on-disk column stays `nvarchar(max)` jsonb) and lands automatically with the existing migration set.
 6a. Kitchen.API migrates the `kitchendb` schema (3 tables + `outbox_messages`). Both services start their outbox dispatcher hosted services alongside the API; tests in either project flip `Outbox:Enabled=false` to skip the relay loop.
 7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
 8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
@@ -492,10 +498,10 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
 
 ### Tests
 - `Ordering.Domain.Tests` (xUnit + FluentAssertions + NSubstitute).
-- `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee, every state-transition handler's happy + not-found path, and the four `KitchenOrder*IntegrationEventHandler` cases).
+- `Ordering.Application.Tests` (xUnit + FluentAssertions + NSubstitute — handler-level tests; includes the `OrderCreatedEventHandler` contract tests for "no `PaymentDto` on the bus" guarantee, every state-transition handler's happy + not-found path, the `KitchenOrder*IntegrationEventHandler` cases — including the `KitchenOrderPrepStartedIntegrationEventHandler` — and the `OrderExtensionsPhaseDTests` exercising typed `IReadOnlyList<>` round-trips through `ToOrderCreatedIntegrationEvent`).
 - `Ordering.API.Tests` (xUnit + FluentAssertions + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 22 `WebApplicationFactory` integration tests for the seven new Kitchen-tagged Carter endpoints (anonymous 401 / missing-permission 403 / unknown-id 404 / empty-reason 400 / happy 200-204), 2 `/health` checks, plus the F.3 multi-replica outbox row-claim proof (`OrderingOutboxMultiReplicaTests.ParallelDispatchers_EachRowClaimedExactlyOnce`), the poison-queue proof (`OrderingOutboxDeadLetterTests.FutureVersionRow_IsMovedToDeadTable`), and the F.5 wire-format-versioning proof (`OrderingOutboxWireVersioningTests.NewPayload_ExtraFields_RelayWithoutCrash` + `MessageVersionDefaults_ToOne`). Spins up MSSQL 2022 + RabbitMQ 3-management in Testcontainers per test run; `Outbox:Enabled=false` and `FeatureManagement:OrderFullfilment=false` keep the test host quiet.
 - `Identity.API.Tests` (xUnit + FluentAssertions + NSubstitute + EF Core InMemory).
-- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 36 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster, plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check that asserts `entries.messagebroker.status == Healthy`).
+- `Kitchen.API.Tests` (xUnit + FluentAssertions + NSubstitute + Testcontainers + `Microsoft.AspNetCore.Mvc.Testing` — 41 unit tests on the `KitchenTicket`/`KitchenTicketItem` aggregates + every command handler + the SignalR broadcaster (the `StartItemPrepHandlerTests` adds 5 publish-once contract tests), plus 12 `WebApplicationFactory` integration tests spinning up Postgres + RabbitMQ in Testcontainers: anonymous 401 paths, authenticated 200/404/400 paths, and a `/health` 200 happy-path check that asserts `entries.messagebroker.status == Healthy`).
 
 ---
 

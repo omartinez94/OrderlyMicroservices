@@ -3,11 +3,13 @@ using Ordering.Application.Extensions;
 namespace Ordering.Application.Tests.Extensions;
 
 /// <summary>
-/// <c>OrderExtensions.ToOrderCreatedIntegrationEvent</c>
-/// must surface <see cref="KitchenOrderItemVariation"/> and
-/// <see cref="KitchenOrderItemCustomization"/> as typed records (not raw
-/// strings), even when the source jsonb is richer than the legacy
-/// <c>string[]</c> shape that the aggregate still stores.
+/// Acceptance: <c>OrderExtensions.ToOrderCreatedIntegrationEvent</c>
+/// surfaces <see cref="KitchenOrderItemVariation"/> and
+/// <see cref="KitchenOrderItemCustomization"/> as typed records straight
+/// off the aggregate — no string-to-typed-record round trip on the bus.
+/// Tests asserted the jsonb-parse path in OrderExtensions;
+/// those workarounds are gone and the aggregate is now the single source
+/// of truth.
 /// </summary>
 public sealed class OrderExtensionsPhaseDTests
 {
@@ -23,19 +25,21 @@ public sealed class OrderExtensionsPhaseDTests
 
     private static OrderNumber ValidOrderNumber() => OrderNumber.Of("ORD-2026-0001");
 
-    private static Order CreateOrderWithItem(string selectedVariationsJson, string customizationsJson)
+    private static Order CreateOrderWithItem(
+        IReadOnlyList<KitchenOrderItemVariation>? variations = null,
+        IReadOnlyList<KitchenOrderItemCustomization>? customizations = null)
     {
         var order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
         var menuItemId = NewMenuItemId();
         order.Add(menuItemId, quantity: 2, price: 9.99m);
-        // Seed the jsonb columns directly. OrderItem has internal setters
-        // for these fields (no aggregate method) — they're populated by
-        // the BasketCheckoutEventHandler in production.
+        // Set the typed properties directly — OrderItem has public setters
+        // because the BasketCheckoutEventHandler populates them from the
+        // DTO before persisting.
         var item = order.OrderItems.Single();
-        item.SelectedVariations = selectedVariationsJson;
-        item.Customizations = customizationsJson;
+        item.SelectedVariations = variations ?? [];
+        item.Customizations = customizations ?? [];
         return order;
     }
 
@@ -48,16 +52,18 @@ public sealed class OrderExtensionsPhaseDTests
     [Fact]
     public void ToOrderCreatedIntegrationEvent_RichVariationsAndCustomizations_MapTyped()
     {
-        // Realistic Basket payload shape — each variation carries
-        // { Name, Price }; each customization carries { Label, Value, Price }.
-        const string variationsJson =
-            "[{\"Name\":\"Size: Large\",\"Price\":2.50}," +
-            "{\"Name\":\"Extra cheese\",\"Price\":1.00}]";
-        const string customizationsJson =
-            "[{\"Label\":\"No onions\",\"Value\":null,\"Price\":0}," +
-            "{\"Label\":\"Sauce\",\"Value\":\"Spicy\",\"Price\":0.50}]";
+        var variations = new List<KitchenOrderItemVariation>
+        {
+            new("Size: Large", 2.50m),
+            new("Extra cheese", 1.00m),
+        };
+        var customizations = new List<KitchenOrderItemCustomization>
+        {
+            new("No onions", null, 0m),
+            new("Sauce", "Spicy", 0.50m),
+        };
 
-        var order = CreateOrderWithItem(variationsJson, customizationsJson);
+        var order = CreateOrderWithItem(variations, customizations);
 
         var evt = order.ToOrderCreatedIntegrationEvent();
 
@@ -80,33 +86,6 @@ public sealed class OrderExtensionsPhaseDTests
     }
 
     /// <summary>
-    /// Backwards-compat: the legacy <c>string[]</c> jsonb shape still
-    /// produces one typed record per entry, with <c>Price</c> = 0. No
-    /// data is silently dropped.
-    /// </summary>
-    [Fact]
-    public void ToOrderCreatedIntegrationEvent_LegacyStringArray_MapsToTypedRecords()
-    {
-        const string variationsJson = "[\"Size: Large\", \"Extra cheese\"]";
-        const string customizationsJson = "[\"No onions\", \"Sauce: Spicy\"]";
-
-        var order = CreateOrderWithItem(variationsJson, customizationsJson);
-
-        var evt = order.ToOrderCreatedIntegrationEvent();
-
-        var preview = evt.Items[0];
-        preview.SelectedVariations.Should().HaveCount(2);
-        preview.SelectedVariations[0].Name.Should().Be("Size: Large");
-        preview.SelectedVariations[0].Price.Should().Be(0m);
-        preview.SelectedVariations[1].Name.Should().Be("Extra cheese");
-
-        preview.Customizations.Should().HaveCount(2);
-        preview.Customizations[0].Label.Should().Be("No onions");
-        preview.Customizations[0].Value.Should().BeNull();
-        preview.Customizations[1].Label.Should().Be("Sauce: Spicy");
-    }
-
-    /// <summary>
     /// Acceptance: an item with no variations / customizations still
     /// serializes with empty lists — never null. Downstream code can
     /// iterate unconditionally.
@@ -114,29 +93,12 @@ public sealed class OrderExtensionsPhaseDTests
     [Fact]
     public void ToOrderCreatedIntegrationEvent_NoVariationsOrCustomizations_EmitsEmptyLists()
     {
-        var order = CreateOrderWithItem(string.Empty, string.Empty);
+        var order = CreateOrderWithItem();
 
         var evt = order.ToOrderCreatedIntegrationEvent();
 
         var preview = evt.Items[0];
         preview.SelectedVariations.Should().NotBeNull().And.BeEmpty();
         preview.Customizations.Should().NotBeNull().And.BeEmpty();
-    }
-
-    /// <summary>
-    /// Malformed jsonb must NOT propagate an exception onto the bus.
-    /// The integration event is still emitted with empty lists so the
-    /// kitchen display degrades gracefully.
-    /// </summary>
-    [Fact]
-    public void ToOrderCreatedIntegrationEvent_MalformedJson_FallsBackToEmptyLists()
-    {
-        var order = CreateOrderWithItem("not valid json", "{not: [valid");
-
-        var evt = order.ToOrderCreatedIntegrationEvent();
-
-        var preview = evt.Items[0];
-        preview.SelectedVariations.Should().BeEmpty();
-        preview.Customizations.Should().BeEmpty();
     }
 }

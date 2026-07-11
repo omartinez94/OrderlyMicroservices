@@ -1,9 +1,9 @@
 namespace BuildingBlocks.Messaging.Events;
 
 /// <summary>
-/// Catalog-driven size / variant selection carried on
-/// <see cref="KitchenOrderItemPreview.SelectedVariations"/>. Pairs the
-/// variant <c>Name</c> with its <c>Price</c> delta so the kitchen display
-/// can render "<c>Size: Large (+$2.50)</c>" without an extra lookup.
+/// One selected variation carried on <see cref="KitchenOrderItemPreview.SelectedVariations"/>.
+/// Records the <c>Name</c> (e.g. "<c>Size: Large</c>") and the <c>Price</c>
+/// delta the variation adds to the line item so the kitchen display and
+/// the bill agree on the breakdown.
 /// </summary>
 public record KitchenOrderItemVariation(string Name, decimal Price);

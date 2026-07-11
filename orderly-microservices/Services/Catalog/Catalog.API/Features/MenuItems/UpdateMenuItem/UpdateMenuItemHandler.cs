@@ -39,7 +39,9 @@ internal class UpdateMenuItemCommandHandler(
     CatalogDbContext dbContext,
     ICatalogCache cache,
     IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<UpdateMenuItemCommand, UpdateMenuItemResult>
+    IFeatureManager featureManager,
+    IPriceHistoryRecorder priceHistory,
+    ICurrentUser currentUser) : ICommandHandler<UpdateMenuItemCommand, UpdateMenuItemResult>
 {
     public async Task<UpdateMenuItemResult> Handle(UpdateMenuItemCommand command, CancellationToken cancellationToken)
     {
@@ -50,6 +52,10 @@ internal class UpdateMenuItemCommandHandler(
         {
             throw new NotFoundException(nameof(MenuItem), command.Id);
         }
+
+        // Capture the old base price BEFORE the mutation so the audit row
+        // can be recorded against the current persisted value.
+        var oldBasePrice = menuItem.BasePrice;
 
         menuItem.SubCategoryId = command.SubCategoryId;
         menuItem.Name = command.Name;
@@ -67,6 +73,18 @@ internal class UpdateMenuItemCommandHandler(
         menuItem.PromoStartDate = command.PromoStartDate;
         menuItem.PromoEndDate = command.PromoEndDate;
         menuItem.DisplayOrder = command.DisplayOrder;
+
+        // Phase 4: append a PriceHistory row when the base price changed.
+        // The recorder skips no-op writes internally.
+        priceHistory.Record(
+            restaurantId: menuItem.RestaurantId,
+            priceType: PriceType.BasePrice,
+            oldPrice: oldBasePrice,
+            newPrice: command.BasePrice,
+            reason: $"MenuItem {menuItem.Id} base price update",
+            changedByUserId: currentUser.UserId,
+            menuItemId: menuItem.Id,
+            ct: cancellationToken);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

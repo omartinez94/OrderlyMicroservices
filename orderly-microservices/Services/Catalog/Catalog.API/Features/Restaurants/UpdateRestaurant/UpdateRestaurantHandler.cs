@@ -54,7 +54,9 @@ public class UpdateRestaurantCommandValidator : AbstractValidator<UpdateRestaura
 internal class UpdateRestaurantCommandHandler(
     CatalogDbContext dbContext,
     IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
+    IFeatureManager featureManager,
+    IPriceHistoryRecorder priceHistory,
+    ICurrentUser currentUser) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
@@ -74,6 +76,9 @@ internal class UpdateRestaurantCommandHandler(
         if (restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute) changedFields.Add(nameof(restaurant.AllowAutoSubstitute));
         if (restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes) changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
 
+        var oldTaxRate = restaurant.TaxRate;
+        var oldEstimatedTurnoverMinutes = restaurant.EstimatedTurnoverMinutes;
+
         restaurant.BrandId = command.BrandId;
         restaurant.Name = command.Name;
         restaurant.Address = command.Address;
@@ -86,6 +91,33 @@ internal class UpdateRestaurantCommandHandler(
         restaurant.AutoConfirmReservations = command.AutoConfirmReservations;
         restaurant.AllowAutoSubstitute = command.AllowAutoSubstitute;
         restaurant.EstimatedTurnoverMinutes = command.EstimatedTurnoverMinutes;
+
+        // Phase 4: append a PriceHistory-style audit row per numeric field
+        // that changed. Boolean / string / int fields are not represented
+        // by old/new numeric values, so they don't write rows — the
+        // integration event below already carries the changed-field names.
+        if (oldTaxRate != command.TaxRate)
+        {
+            priceHistory.Record(
+                restaurantId: restaurant.Id,
+                priceType: PriceType.RestaurantConfiguration,
+                oldPrice: oldTaxRate,
+                newPrice: command.TaxRate,
+                reason: "TaxRate",
+                changedByUserId: currentUser.UserId,
+                ct: cancellationToken);
+        }
+        if (oldEstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes)
+        {
+            priceHistory.Record(
+                restaurantId: restaurant.Id,
+                priceType: PriceType.RestaurantConfiguration,
+                oldPrice: oldEstimatedTurnoverMinutes,
+                newPrice: command.EstimatedTurnoverMinutes,
+                reason: "EstimatedTurnoverMinutes",
+                changedByUserId: currentUser.UserId,
+                ct: cancellationToken);
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

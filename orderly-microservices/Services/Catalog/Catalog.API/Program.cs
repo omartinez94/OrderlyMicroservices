@@ -23,6 +23,11 @@ builder.Services.AddJwtAuthentication(
 
 builder.Services.AddAuthorizationServices();
 
+// ICurrentUser abstraction. Scoped (one HTTP request → one user).
+// HttpContextAccessor is added implicitly by AddJwtAuthentication.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+
 // Feature management — the CatalogRedisCache flag (env: FeatureManagement__CatalogRedisCache)
 // gates the cache drift-repair hosted service and lets ops disable the cache without
 // a redeploy.
@@ -57,6 +62,15 @@ builder.Services.AddHostedService<CacheDriftRepairService>();
 // the loop is dormant in production until ops flip the flag.
 builder.Services.AddHostedService<IngredientAvailabilityReconcileService>();
 
+// Nightly MenuItemAnalytics drift-repair sweep. Re-validates
+// today's analytics rows so consumer-side drop-outs surface within 24h.
+// Options bound from `MenuItemAnalyticsNightly` config section.
+builder.Services.AddOptions<MenuItemAnalyticsNightlyRecomputeServiceOptions>()
+    .Bind(builder.Configuration.GetSection(MenuItemAnalyticsNightlyRecomputeServiceOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddHostedService<MenuItemAnalyticsNightlyRecomputeService>();
+
 // Infrastructure (Phase 2): outbox publisher + dispatcher + MassTransit
 // consumer discovery. AddInfrastructureServices also calls
 // services.AddMessageBroker(...) so the OrderCompletedIntegrationEventHandler
@@ -67,6 +81,11 @@ builder.Services.AddHostedService<IngredientAvailabilityReconcileService>();
 builder.Services.AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddCarter();
+
+// Internal helper that appends PriceHistory rows from each
+// price-mutating handler. Scoped — shares the request's DbContext so the
+// audit row commits in the same transaction as the mutation.
+builder.Services.AddScoped<IPriceHistoryRecorder, PriceHistoryRecorder>();
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
@@ -90,7 +109,7 @@ var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
 
-// Phase 3: domain-event dispatch interceptor (pre-commit drain). DI-resolved
+// Domain-event dispatch interceptor (pre-commit drain). DI-resolved
 // so the IMediator constructor injection works. Mirrors Ordering's setup
 // (Ordering.Infrastructure/DependencyInjection.cs lines 17-21).
 builder.Services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
@@ -135,7 +154,7 @@ app.MapCarter();
 
 app.UseExceptionHandler(options => { });
 
-// Phase 2: /live (always green; process up) and /ready (Postgres + Redis +
+// /live (always green; process up) and /ready (Postgres + Redis +
 // RabbitMQ + outbox dead-letter count). Tripping any check trips /ready →
 // the load balancer pulls Catalog out of rotation (per
 // CATALOG_SERVICE_PLAN.md §7 Phase 2 health-check spec).

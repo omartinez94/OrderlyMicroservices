@@ -27,7 +27,9 @@ public class UpdateIngredientAlternativeCommandValidator : AbstractValidator<Upd
 
 internal class UpdateIngredientAlternativeCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<UpdateIngredientAlternativeCommand, UpdateIngredientAlternativeResult>
+    ICatalogCache cache,
+    IPriceHistoryRecorder priceHistory,
+    ICurrentUser currentUser) : ICommandHandler<UpdateIngredientAlternativeCommand, UpdateIngredientAlternativeResult>
 {
     public async Task<UpdateIngredientAlternativeResult> Handle(UpdateIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
@@ -39,12 +41,26 @@ internal class UpdateIngredientAlternativeCommandHandler(
             throw new NotFoundException(nameof(IngredientAlternative), command.Id);
         }
 
+        var oldPriceModifier = ingredientAlternative.PriceModifier;
+
         ingredientAlternative.OriginalIngredientId = command.OriginalIngredientId;
         ingredientAlternative.AlternativeIngredientId = command.AlternativeIngredientId;
         ingredientAlternative.PriceModifier = command.PriceModifier;
         ingredientAlternative.AutoSubstitute = command.AutoSubstitute;
 
         dbContext.IngredientAlternatives.Update(ingredientAlternative);
+
+        // Phase 4: append a PriceHistory row when the alternative's price
+        // modifier changed. The recorder skips no-op writes internally.
+        priceHistory.Record(
+            restaurantId: ingredientAlternative.RestaurantId,
+            priceType: PriceType.IngredientAlternative,
+            oldPrice: oldPriceModifier,
+            newPrice: command.PriceModifier,
+            reason: $"IngredientAlternative {ingredientAlternative.Id} price modifier update",
+            changedByUserId: currentUser.UserId,
+            ingredientAlternativeId: ingredientAlternative.Id,
+            ct: cancellationToken);
 
         // Domain event BEFORE SaveChanges.
         ingredientAlternative.AddDomainEvent(new IngredientAlternativeChangedDomainEvent(

@@ -183,20 +183,20 @@ audit:view
 | `Table` | relational | Number/capacity/position/shape per restaurant |
 | `MergedTable` | relational | Parent-child table grouping |
 | `MenuCategory` | relational | Soft-delete (`!IsDeleted`) |
-| `MenuSubCategory` | relational | Child of category |
+| `MenuSubCategory` | relational | Child of category; soft-delete (`!IsDeleted`) — `DeleteMenuSubCategory` |
 | `MenuItem` | relational | `RestaurantId`, base price, prep times, availability, soft-delete |
 | `MenuItemVariation` | relational | Size / spice / price modifier |
 | `ComboItem` | relational | Combo definition referencing child menu items |
 | `Ingredient` | relational | Per restaurant, stock + availability + min stock |
 | `MenuItemIngredient` | relational | Quantity required + optional flag |
 | `IngredientAlternative` | relational | Original→alternative mapping, auto-substitute flag |
-| `PriceHistory` | relational | Audit of price changes (read-only API) |
+| `PriceHistory` | relational | Audit of price changes; auto-populated by `IPriceHistoryRecorder` from every price-mutating handler (Phase 4) |
 | `Reservation` | relational | Status workflow via endpoints (`POST` create, `PUT …/{id}/seat|confirm|cancel`) |
 | `WalkInQueue` | relational | `POST` create, `PUT …/{id}/seat|notify`, `DELETE …/{id}` |
-| `CustomerFeedback` | relational | Read-only API (`GET …/feedback`, `GET …/{id}`) |
-| `MenuItemAnalytics` | relational | Read-only aggregated stats |
+| `CustomerFeedback` | relational | `GET …/feedback`, `GET …/{id}`, `POST …/feedback` (SubmitFeedback — Phase 4) |
+| `MenuItemAnalytics` | relational | Read-only aggregated stats; nightly `MenuItemAnalyticsNightlyRecomputeService` re-validates today (Phase 4); `POST …/analytics/menu-items/recompute-today` admin action |
 | `OrderTimingAnalytics` | relational | DbSet |
-| `BulkOrderUpload` | relational | DbSet |
+| `BulkOrderUpload` | relational | `AuditableEntity<int>` (Phase 4 — added audit columns); `POST …/bulk-order-uploads` upload, `GET …/{id}`, `POST …/{id}/approve`, `POST …/{id}/reject` |
 | `User` | relational | Domain mirror of the Identity user (Role enum + `RestaurantId` FK) |
 | `OrderSnapshot` | Marten document | — |
 | `OrderModificationLog` | Marten document | — |
@@ -214,9 +214,20 @@ audit:view
 | `IngredientAvailabilityChangedIntegrationEvent` | publish | `MenuItemId`, `RestaurantId`, `AvailabilityStatus`, optional `AutoSubstituteOf` (int — alternative `Ingredient.Id`) |
 | `TableStatusChangedIntegrationEvent` | publish | `TableId`, `RestaurantId`, `NewStatus`, optional `CurrentOrderId` |
 | `RestaurantConfigurationChangedIntegrationEvent` | publish | `RestaurantId`, `ChangedFields: IReadOnlyList<string>` |
+| `FeedbackSubmittedIntegrationEvent` | publish (Phase 4) | `FeedbackId`, `RestaurantId`, `OrderId`, `OverallRating`, `Comments`, `RewardType`, `RewardDescription`, `RewardValue` — emitted by `SubmitFeedback` when `OverallRating ≥ 4`. Notification service is the intended consumer (out-of-plan per §7.6.1) |
 | `OrderCompletedIntegrationEvent` | consume | `OrderId`, `RestaurantId`, `CompletedAt`, `Items: IReadOnlyList<OrderCompletedItem>` |
 
 **Ingredient Availability Engine (Phase 3).** Pure-function calculator at `Catalog.API/Availability/IngredientAvailabilityEngine.cs` that takes a menu item's recipe (`MenuItemIngredient` rows), the availability of every referenced ingredient + alternative target, and `Restaurant.AllowAutoSubstitute`; returns `IngredientAvailabilityProfile` (`Available` | `Limited(autoSubstituteOf?)` | `Unavailable`). Allocation-free in steady state (per §0.3.9). Triggered by in-process `IDomainEvent` raised on `Ingredient` / `IngredientAlternative` / `MenuItemIngredient` mutations, drained by `DispatchDomainEventsInterceptor` (pre-commit, mirror of Ordering/Kitchen) via MediatR. `IngredientAvailabilityChangedDomainEventHandler` (single `INotificationHandler<IDomainEvent>` switch) loads the engine inputs, calls the engine, writes `MenuItem.AvailabilityStatus` via a nested `SaveChangesAsync`, invalidates the menu cache, and publishes `IngredientAvailabilityChangedIntegrationEvent` via `IOutboxPublisher` — all in the same transaction. `IngredientAvailabilityReconcileService` (BackgroundService) is the safety-net sweep: enumerates every menu item, dispatches synthetic `MenuItemIngredientChangedDomainEvent`s, and lets the existing handler recompute. Self-gates on `FeatureManagement__CatalogAvailabilityEngineReconcile` (default `false`); cadence `Catalog:AvailabilityRecurrenceIntervalMinutes` (default 1). Domain-event abstractions (`IDomainEvent`, `IAggregate`, `Aggregate<TId>`, `AuditableAggregate<TId>`) are Catalog-local (per-service duplication, mirrors Kitchen); only `BuildingBlocks.Entities.Contracts.Entity<TId>` / `AuditableEntity<TId>` is shared.
+
+**Phase 4 — Complete vertical slices.** Six new endpoint groups ship:
+- `DeleteMenuSubCategory` (`DELETE /api/v1/menu-sub-categories/{id}`) — soft-delete (idempotent on already-deleted rows).
+- `UpdateComboItem` (`PUT /api/v1/combo-items/{id}`) — quantity / `isOptional`; validates `IncludedMenuItemId` still exists.
+- `BulkOrderUploads` (`POST /restaurants/{rid}/bulk-order-uploads`, `GET …/{id}`, `POST …/{id}/approve`, `POST …/{id}/reject`) — uploads are parsed client-side to JSON rows; the handler runs lightweight validation (menu item ids exist, table availability) and persists the batch envelope with `ErrorLog`. Approve / reject are idempotent on already-completed / already-failed rows. `BulkOrderUpload` base class flipped from `Entity<int>` to `AuditableEntity<int>` to carry the audit columns. The handler resolves the operator via `ICurrentUser` (Catalog-local abstraction mirroring `Kitchen.API`'s).
+- `RecomputeTodayAnalytics` (`POST /api/v1/restaurants/{rid}/analytics/menu-items/recompute-today`) — admin drift-repair action.
+- `MenuItemAnalyticsNightlyRecomputeService` — `BackgroundService` that runs daily at `MenuItemAnalyticsNightly:RunAtHour` (default `3`, `[Range(0, 23)]`); re-validates today's analytics rows for negative values.
+- `SubmitFeedback` (`POST /api/v1/restaurants/{rid}/feedback`) — accepts the four ratings + comments + `OrderId`; issues a 10% reward code on `OverallRating ≥ 4` and publishes `FeedbackSubmittedIntegrationEvent` (gated by `FeatureManagement__CatalogFeedbackEvents`).
+
+The shared `IPriceHistoryRecorder` (Scoped, in `Catalog.API/Features/PriceHistories/CreatePriceHistory/`) is invoked by every price-mutating handler — `UpdateMenuItem` (`BasePrice`), `UpdateMenuItemVariation` (`PriceModifier`), `UpdateIngredientAlternative` (`PriceModifier`), and `UpdateRestaurant` (`TaxRate` / `EstimatedTurnoverMinutes` via the new `PriceType.RestaurantConfiguration` enum value). The recorder skips no-op writes when `oldPrice == newPrice`. All audit rows commit in the same EF Core transaction as the mutation.
 
 The four publish events live under `BuildingBlocks.Messaging/Events/Catalog/`. The `OrderCompletedIntegrationEvent` lives at `BuildingBlocks.Messaging/Events/OrderCompletedIntegrationEvent.cs` (introduced by Catalog's Phase 2 because Catalog is the first consumer; Ordering's publish side lands in a separate Ordering plan). Publishing is at-least-once via the `IOutboxPublisher` pattern — handlers call `await outbox.PublishAsync(new XxxIntegrationEvent { ... }, ct)` after `await dbContext.SaveChangesAsync(...)` and the same EF Core transaction persists both the aggregate mutation and the `outbox_messages` row. The `CatalogOutboxDispatcher` (Postgres `FOR UPDATE SKIP LOCKED` claim, multi-replica safe) relays rows to RabbitMQ via MassTransit. The `OrderCompletedIntegrationEventHandler` (`Catalog.API/Messaging/EventHandlers/`) is idempotent on `(OrderId, MenuItemId)` via a `processed_order_items` table — composite PK throws on duplicate, the handler catches `PostgresException.SqlState == "23505"` and skips. The handler upserts `MenuItemAnalytics` rows keyed by `(MenuItemId, AnalysisDate = UTC date)`.
 

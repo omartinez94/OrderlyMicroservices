@@ -36,4 +36,8 @@
     <ProjectReference Include="..\..\..\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="Catalog.API.Tests" />
+  </ItemGroup>
+
 </Project>

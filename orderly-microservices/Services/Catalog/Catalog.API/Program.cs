@@ -1,4 +1,6 @@
 using BuildingBlocks.Entities.Interceptors;
+using Catalog.API.Health;
+using Catalog.API.Infrastructure;
 using HealthChecks.UI.Client;
 using Marten;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -49,6 +51,15 @@ builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 // unconditionally and toggled at runtime.
 builder.Services.AddHostedService<CacheDriftRepairService>();
 
+// Infrastructure (Phase 2): outbox publisher + dispatcher + MassTransit
+// consumer discovery. AddInfrastructureServices also calls
+// services.AddMessageBroker(...) so the OrderCompletedIntegrationEventHandler
+// in Catalog.API/Messaging/EventHandlers is registered as a MassTransit
+// consumer at startup. Tests flip `Outbox:Enabled=false` to skip the
+// dispatcher hosted service while keeping the publisher and consumer
+// registration active (mirrors Ordering.Infrastructure).
+builder.Services.AddInfrastructureServices(builder.Configuration);
+
 builder.Services.AddCarter();
 builder.Services.AddMediatR(cfg =>
 {
@@ -92,8 +103,13 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
 builder.Services.AddHealthChecks()
-    .AddNpgSql(builder.Configuration.GetConnectionString("CatalogDB")!)
-    .AddRedis(builder.Configuration.GetConnectionString("Redis")!);
+    .AddNpgSql(builder.Configuration.GetConnectionString("CatalogDB")!, tags: new[] { "ready" })
+    .AddRedis(builder.Configuration.GetConnectionString("Redis")!, tags: new[] { "ready" })
+    .AddRabbitMQ(
+        rabbitConnectionString: $"amqp://{builder.Configuration["MessageBroker:UserName"]}:{builder.Configuration["MessageBroker:Password"]}@{builder.Configuration["MessageBroker:Host"]?.Replace("amqp://", "")}",
+        name: "messagebroker",
+        tags: new[] { "ready", "broker" })
+    .AddCheck<OutboxDeadLetterProbe>("outbox_dlq", tags: new[] { "ready" });
 
 var app = builder.Build();
 
@@ -108,9 +124,15 @@ app.MapCarter();
 
 app.UseExceptionHandler(options => { });
 
-app.UseHealthChecks("/health",
-    new HealthCheckOptions {
-        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
-    });
+// Phase 2: /live (always green; process up) and /ready (Postgres + Redis +
+// RabbitMQ + outbox dead-letter count). Tripping any check trips /ready →
+// the load balancer pulls Catalog out of rotation (per
+// CATALOG_SERVICE_PLAN.md §7 Phase 2 health-check spec).
+app.MapHealthChecks("/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
+});
 
 app.Run();

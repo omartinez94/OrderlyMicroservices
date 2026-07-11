@@ -16,7 +16,9 @@ public class DeleteMenuItemVariationCommandValidator : AbstractValidator<DeleteM
 
 internal class DeleteMenuItemVariationCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteMenuItemVariationCommand, DeleteMenuItemVariationResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<DeleteMenuItemVariationCommand, DeleteMenuItemVariationResult>
 {
     public async Task<DeleteMenuItemVariationResult> Handle(DeleteMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
@@ -41,6 +43,16 @@ internal class DeleteMenuItemVariationCommandHandler(
         if (restaurantId != Guid.Empty)
         {
             await cache.InvalidateMenuAsync(restaurantId, cancellationToken);
+
+            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+            {
+                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+                {
+                    MenuItemId = variation.MenuItemId,
+                    RestaurantId = restaurantId,
+                    ChangeType = MenuItemChangeType.Updated,
+                }, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return new DeleteMenuItemVariationResult(true);

@@ -17,7 +17,9 @@ public class RemoveMenuItemIngredientCommandValidator : AbstractValidator<Remove
 
 internal class RemoveMenuItemIngredientCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<RemoveMenuItemIngredientCommand, RemoveMenuItemIngredientResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<RemoveMenuItemIngredientCommand, RemoveMenuItemIngredientResult>
 {
     public async Task<RemoveMenuItemIngredientResult> Handle(RemoveMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
@@ -49,6 +51,17 @@ internal class RemoveMenuItemIngredientCommandHandler(
         if (ingredientRestaurantId is { } ingredientRid)
         {
             await cache.InvalidateIngredientsAsync(ingredientRid, cancellationToken);
+        }
+
+        if (menuRestaurantId is { } menuRid2 &&
+            await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+            {
+                MenuItemId = command.MenuItemId,
+                RestaurantId = menuRid2,
+                ChangeType = MenuItemChangeType.Updated,
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         return new RemoveMenuItemIngredientResult(true);

@@ -32,12 +32,20 @@ public class UpdateTableCommandValidator : AbstractValidator<UpdateTableCommand>
     }
 }
 
-internal class UpdateTableCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateTableCommand, UpdateTableResult>
+internal class UpdateTableCommandHandler(
+    CatalogDbContext dbContext,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<UpdateTableCommand, UpdateTableResult>
 {
     public async Task<UpdateTableResult> Handle(UpdateTableCommand command, CancellationToken cancellationToken)
     {
         var table = await dbContext.Tables.FindAsync([command.Id], cancellationToken)
             ?? throw new TableNotFoundException(command.Id);
+
+        // Capture the prior status so we only emit TableStatusChanged when the
+        // status actually flipped — the consumer (Ordering reservation/order
+        // placement) only cares about the transition, not table renumbering.
+        var previousStatus = table.Status;
 
         table.TableNumber = command.TableNumber;
         table.Capacity = command.Capacity;
@@ -48,6 +56,18 @@ internal class UpdateTableCommandHandler(CatalogDbContext dbContext) : ICommandH
         table.CurrentOrderId = command.CurrentOrderId;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (previousStatus != command.Status &&
+            await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new TableStatusChangedIntegrationEvent
+            {
+                TableId = table.Id,
+                RestaurantId = table.RestaurantId,
+                NewStatus = command.Status.ToString(),
+                CurrentOrderId = table.CurrentOrderId,
+            }, cancellationToken).ConfigureAwait(false);
+        }
 
         return new UpdateTableResult(true);
     }

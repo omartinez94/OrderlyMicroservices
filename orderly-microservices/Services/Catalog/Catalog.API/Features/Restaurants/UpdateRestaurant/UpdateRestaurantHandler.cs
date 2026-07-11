@@ -51,11 +51,28 @@ public class UpdateRestaurantCommandValidator : AbstractValidator<UpdateRestaura
     }
 }
 
-internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
+internal class UpdateRestaurantCommandHandler(
+    CatalogDbContext dbContext,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<UpdateRestaurantCommand, UpdateRestaurantResult>
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
         var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken) ?? throw new RestaurantNotFoundException(command.Id);
+
+        // Track which configuration columns actually changed so the
+        // RestaurantConfigurationChangedIntegrationEvent carries only the
+        // names that consumers care about (Identity re-issues claims when
+        // role-bound config flips; Discount deactivates coupons whose
+        // currency no longer matches; Notification refreshes receipt
+        // templates for tax/currency placeholders).
+        var changedFields = new List<string>(capacity: 6);
+        if (restaurant.TaxRate != command.TaxRate) changedFields.Add(nameof(restaurant.TaxRate));
+        if (restaurant.Currency != command.Currency) changedFields.Add(nameof(restaurant.Currency));
+        if (restaurant.TimeZone != command.TimeZone) changedFields.Add(nameof(restaurant.TimeZone));
+        if (restaurant.AutoConfirmReservations != command.AutoConfirmReservations) changedFields.Add(nameof(restaurant.AutoConfirmReservations));
+        if (restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute) changedFields.Add(nameof(restaurant.AllowAutoSubstitute));
+        if (restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes) changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
 
         restaurant.BrandId = command.BrandId;
         restaurant.Name = command.Name;
@@ -71,6 +88,16 @@ internal class UpdateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
         restaurant.EstimatedTurnoverMinutes = command.EstimatedTurnoverMinutes;
 
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (changedFields.Count > 0 &&
+            await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new RestaurantConfigurationChangedIntegrationEvent
+            {
+                RestaurantId = restaurant.Id,
+                ChangedFields = changedFields,
+            }, cancellationToken).ConfigureAwait(false);
+        }
 
         return new UpdateRestaurantResult(true);
     }

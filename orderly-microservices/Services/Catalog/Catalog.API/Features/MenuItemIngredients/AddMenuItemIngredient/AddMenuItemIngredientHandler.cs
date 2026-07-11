@@ -22,7 +22,9 @@ public class AddMenuItemIngredientCommandValidator : AbstractValidator<AddMenuIt
 
 internal class AddMenuItemIngredientCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
 {
     public async Task<AddMenuItemIngredientResult> Handle(AddMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
@@ -58,6 +60,16 @@ internal class AddMenuItemIngredientCommandHandler(
         if (ingredientRestaurantId is { } ingredientRid)
         {
             await cache.InvalidateIngredientsAsync(ingredientRid, cancellationToken);
+        }
+
+        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+            {
+                MenuItemId = command.MenuItemId,
+                RestaurantId = menuRestaurantId.Value,
+                ChangeType = MenuItemChangeType.Updated,
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         return new AddMenuItemIngredientResult(link.Id);

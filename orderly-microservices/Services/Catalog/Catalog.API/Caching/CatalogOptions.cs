@@ -37,4 +37,17 @@ public sealed class CatalogOptions
     /// <remarks>Allowed range: 1 to 1440 (1 minute to 24 hours).</remarks>
     [Range(1, 1440)]
     public int IngredientCacheTtlMinutes { get; set; } = 5;
+
+    /// <summary>
+    /// Maximum number of dead-letter rows (<c>outbox_messages_dead</c>) tolerated
+    /// before the <c>/ready</c> health check trips and the load balancer pulls
+    /// Catalog out of rotation. Read by <c>OutboxDeadLetterProbe</c> in <c>Catalog.API/Health/</c>.
+    /// </summary>
+    /// <remarks>
+    /// Default <c>0</c> — any dead-letter message trips <c>/ready</c>. Raise
+    /// during a planned broker outage or schema-version rollover to avoid
+    /// flapping. Allowed range: 0 to <see cref="int.MaxValue"/>.
+    /// </remarks>
+    [Range(0, int.MaxValue)]
+    public int OutboxDeadLetterThreshold { get; set; } = 0;
 }

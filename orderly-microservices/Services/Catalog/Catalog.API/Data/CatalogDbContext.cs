@@ -4,9 +4,17 @@ namespace Catalog.API.Data;
 
 /// <summary>
 /// Database context for the Catalog Service
-/// Manages: Restaurants, Tables, Menu, Ingredients
+/// Manages: Restaurants, Tables, Menu, Ingredients, Outbox
 /// </summary>
-public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)
+/// <remarks>
+/// Implements <see cref="IOutboxDbContext"/> so the
+/// <c>BuildingBlocks.Messaging.Outbox.OutboxPublisher&lt;CatalogDbContext&gt;</c>
+/// and <c>OutboxDispatcher&lt;CatalogDbContext&gt;</c> can share the same
+/// <c>outbox_messages</c> / <c>outbox_messages_dead</c> tables (per
+/// <c>CATALOG_SERVICE_PLAN.md</c> §7 Phase 2).
+/// </remarks>
+public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
+    : DbContext(options), IOutboxDbContext
 {
     public DbSet<User> Users => Set<User>();
 
@@ -16,14 +24,14 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     public DbSet<Restaurant> Restaurants => Set<Restaurant>();
     public DbSet<Brand> Brands => Set<Brand>();
     public DbSet<Table> Tables => Set<Table>();
-    
+
     /// <summary>
     /// Tracks when multiple tables are pushed together to accommodate larger parties.
     /// </summary>
     public DbSet<MergedTable> MergedTables => Set<MergedTable>();
-    
+
     public DbSet<Reservation> Reservations => Set<Reservation>();
-    
+
     /// <summary>
     /// Manages the waitlist queue for walk-in customers waiting for an available table.
     /// </summary>
@@ -35,20 +43,20 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     public DbSet<MenuCategory> MenuCategories => Set<MenuCategory>();
     public DbSet<MenuSubCategory> MenuSubCategories => Set<MenuSubCategory>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
-    
+
     /// <summary>
     /// Tracks variations or sizes for a single menu item (e.g., Small vs Large, Mild vs Spicy).
     /// </summary>
     public DbSet<MenuItemVariation> MenuItemVariations => Set<MenuItemVariation>();
-    
+
     /// <summary>
     /// Defines which individual menu items are bundled together to form a combo meal.
     /// </summary>
     public DbSet<ComboItem> ComboItems => Set<ComboItem>();
-    
+
     public DbSet<Ingredient> Ingredients => Set<Ingredient>();
     public DbSet<MenuItemIngredient> MenuItemIngredients => Set<MenuItemIngredient>();
-    
+
     /// <summary>
     /// Specifies substitute ingredients that can be used if a primary ingredient is out of stock.
     /// </summary>
@@ -63,25 +71,53 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbCo
     // ANALYTICS
     // ═══════════════════════════════════════════════════
     public DbSet<CustomerFeedback> CustomerFeedbacks => Set<CustomerFeedback>();
-    
+
     /// <summary>
     /// Records detailed timestamps for each phase of an order to analyze service speed and prep times.
     /// </summary>
     public DbSet<OrderTimingAnalytics> OrderTimingAnalytics => Set<OrderTimingAnalytics>();
-    
+
     /// <summary>
     /// Aggregates statistics on how often items are ordered, prep times, and revenue generation.
     /// </summary>
     public DbSet<MenuItemAnalytics> MenuItemAnalytics => Set<MenuItemAnalytics>();
-    
+
     /// <summary>
     /// Tracks asynchronous background tasks for uploading and importing bulk orders from files.
     /// </summary>
     public DbSet<BulkOrderUpload> BulkOrderUploads => Set<BulkOrderUpload>();
 
+    // ═══════════════════════════════════════════════════
+    // OUTBOX (Phase 2 — transactional messaging)
+    // ═══════════════════════════════════════════════════
+
+    /// <summary>Live outbox table — rows the dispatcher claims with <c>FOR UPDATE SKIP LOCKED</c>.</summary>
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
+
+    /// <summary>Dead-letter table — rows whose <c>SchemaVersion</c> exceeded <c>OutboxOptions.MaxSupportedVersion</c>.</summary>
+    public DbSet<OutboxDeadMessage> OutboxDeadMessages => Set<OutboxDeadMessage>();
+
+    /// <summary>Idempotency log for <c>OrderCompletedIntegrationEvent</c> processing.</summary>
+    public DbSet<ProcessedOrderItem> ProcessedOrderItems => Set<ProcessedOrderItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        // Outbox tables — apply the BuildingBlocks configurations verbatim so
+        // the dispatcher and publisher share the schema with Ordering/Kitchen.
+        modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+        modelBuilder.ApplyConfiguration(new OutboxDeadMessageConfiguration());
+
+        // processed_order_items — composite PK (OrderId, MenuItemId); the
+        // OrderCompletedIntegrationEventHandler relies on the unique
+        // violation as an idempotency gate.
+        modelBuilder.Entity<ProcessedOrderItem>(b =>
+        {
+            b.ToTable("processed_order_items");
+            b.HasKey(p => new { p.OrderId, p.MenuItemId });
+            b.Property(p => p.ProcessedAt).HasColumnType("timestamp with time zone");
+        });
 
         // ═══════════════════════════════════════════════════
         // RESTAURANT CONFIGURATION

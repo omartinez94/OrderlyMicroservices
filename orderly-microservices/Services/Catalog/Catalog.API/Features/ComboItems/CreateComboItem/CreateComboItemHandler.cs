@@ -22,7 +22,9 @@ public class CreateComboItemCommandValidator : AbstractValidator<CreateComboItem
 
 internal class CreateComboItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
 {
     public async Task<CreateComboItemResult> Handle(CreateComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -47,6 +49,16 @@ internal class CreateComboItemCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
+
+        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+            {
+                MenuItemId = command.ComboMenuItemId,
+                RestaurantId = restaurantId.Value,
+                ChangeType = MenuItemChangeType.Updated,
+            }, cancellationToken).ConfigureAwait(false);
+        }
 
         return new CreateComboItemResult(comboItem.Id);
     }

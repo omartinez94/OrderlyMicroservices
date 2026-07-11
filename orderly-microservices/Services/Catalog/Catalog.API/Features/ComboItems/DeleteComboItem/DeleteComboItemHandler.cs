@@ -16,7 +16,9 @@ public class DeleteComboItemCommandValidator : AbstractValidator<DeleteComboItem
 
 internal class DeleteComboItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
 {
     public async Task<DeleteComboItemResult> Handle(DeleteComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -39,6 +41,16 @@ internal class DeleteComboItemCommandHandler(
         if (restaurantId is not null)
         {
             await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
+
+            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+            {
+                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+                {
+                    MenuItemId = comboItem.ComboMenuItemId,
+                    RestaurantId = restaurantId.Value,
+                    ChangeType = MenuItemChangeType.Updated,
+                }, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return new DeleteComboItemResult(true);

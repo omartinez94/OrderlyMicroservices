@@ -37,7 +37,9 @@ public class UpdateMenuItemCommandValidator : AbstractValidator<UpdateMenuItemCo
 
 internal class UpdateMenuItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<UpdateMenuItemCommand, UpdateMenuItemResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<UpdateMenuItemCommand, UpdateMenuItemResult>
 {
     public async Task<UpdateMenuItemResult> Handle(UpdateMenuItemCommand command, CancellationToken cancellationToken)
     {
@@ -69,6 +71,20 @@ internal class UpdateMenuItemCommandHandler(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         await cache.InvalidateMenuAsync(menuItem.RestaurantId, cancellationToken);
+
+        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+        {
+            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+            {
+                MenuItemId = menuItem.Id,
+                RestaurantId = menuItem.RestaurantId,
+                ChangeType = MenuItemChangeType.Updated,
+                Name = menuItem.Name,
+                BasePrice = menuItem.BasePrice,
+                IsAvailable = menuItem.IsAvailable,
+                AvailabilityStatus = menuItem.AvailabilityStatus.ToString(),
+            }, cancellationToken).ConfigureAwait(false);
+        }
 
         return new UpdateMenuItemResult(true);
     }

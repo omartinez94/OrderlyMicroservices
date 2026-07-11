@@ -24,7 +24,9 @@ public class UpdateMenuItemVariationCommandValidator : AbstractValidator<UpdateM
 
 internal class UpdateMenuItemVariationCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<UpdateMenuItemVariationCommand, UpdateMenuItemVariationResult>
+    ICatalogCache cache,
+    IOutboxPublisher outbox,
+    IFeatureManager featureManager) : ICommandHandler<UpdateMenuItemVariationCommand, UpdateMenuItemVariationResult>
 {
     public async Task<UpdateMenuItemVariationResult> Handle(UpdateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
@@ -52,6 +54,16 @@ internal class UpdateMenuItemVariationCommandHandler(
         if (restaurantId != Guid.Empty)
         {
             await cache.InvalidateMenuAsync(restaurantId, cancellationToken);
+
+            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
+            {
+                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
+                {
+                    MenuItemId = variation.MenuItemId,
+                    RestaurantId = restaurantId,
+                    ChangeType = MenuItemChangeType.Updated,
+                }, cancellationToken).ConfigureAwait(false);
+            }
         }
 
         return new UpdateMenuItemVariationResult(true);

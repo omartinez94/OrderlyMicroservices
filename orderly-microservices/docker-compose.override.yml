@@ -82,6 +82,10 @@ services:
       - Catalog__CacheRepairIntervalMinutes=5
       - Catalog__MenuCacheTtlMinutes=60
       - Catalog__IngredientCacheTtlMinutes=5
+      - Catalog__OutboxDeadLetterThreshold=0
+      - MessageBroker__Host=amqp://messagebroker:5672
+      - MessageBroker__UserName=guest
+      - MessageBroker__Password=guest
     ports:
       - "6000:8080"
       - "6060:8081"
@@ -89,6 +93,7 @@ services:
       - catalogdb
       - distributedcache
       - identity.api
+      - messagebroker
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro

@@ -280,6 +280,12 @@ erDiagram
         %% No CreatedAt — BulkOrderUpload extends Entity<int> (not Auditable).
     }
 
+    %% NOTE: `Coupons` is owned by the Discount service (Discount.Grpc/Models/Coupon.cs)
+    %% and is not a Catalog relational entity. Coupon was never implemented in Catalog;
+    %% the relational block previously shown here represented mermaid drift only.
+    %% Per CATALOG_SERVICE_PLAN.md §7.6.2 (Phase 6.2), the Coupon entity moves to
+    %% Discount; the `Restaurants ||--o{ Coupons : "issues"` relationship below is
+    %% removed (see that row for the migration note).
     Coupons {
         int Id PK
         uuid RestaurantId FK
@@ -296,9 +302,8 @@ erDiagram
     %% ----------------------------------------------------------------
     OrderSnapshot {
         %% MARTEN DOCUMENT — stored in mt_doc_order_snapshot
-        %% Code declares Entity<int> but Marten assigns synthetic Guid Ids
-        %% (code-vs-storage mismatch left as-is).
-        uuid Id PK "Marten synthetic — code declares Entity<int>"
+        %% Cleanup (2026-07-11): code matches storage — Guid Id, no relational base.
+        uuid Id PK "Marten synthetic"
         uuid OrderId FK
         jsonb FullOrderData "Complete order snapshot JSON"
         jsonb MenuPricesSnapshot "All menu prices at order time"
@@ -311,7 +316,7 @@ erDiagram
 
     OrderModificationLog {
         %% MARTEN DOCUMENT — stored in mt_doc_order_modification_log
-        %% Code declares Entity<int> but Marten assigns synthetic Guid Ids.
+        %% Cleanup (2026-07-11): code matches storage — Guid Id, no relational base.
         uuid Id PK "Marten synthetic"
         uuid OrderId FK
         uuid ModifiedByUserId
@@ -329,7 +334,7 @@ erDiagram
 
     OrderItemPriceAudit {
         %% MARTEN DOCUMENT — stored in mt_doc_order_item_price_audit
-        %% Code declares Entity<int> but Marten assigns synthetic Guid Ids.
+        %% Cleanup (2026-07-11): code matches storage — Guid Id, no relational base.
         uuid Id PK "Marten synthetic"
         int OrderItemId FK
         uuid MenuItemId
@@ -496,7 +501,9 @@ erDiagram
     Restaurants ||--o{ Reservations : accepts
     Restaurants ||--o{ WalkInQueue : manages
     Restaurants ||--o{ PriceHistory : tracks
-    Restaurants ||--o{ Coupons : "issues"
+    %% NOTE: `Restaurants ||--o{ Coupons : "issues"` was removed in Phase 6.2
+    %% (2026-07-11). Coupon ownership moved to the Discount service.
+    %% See CATALOG_SERVICE_PLAN.md §7.6.2 + §6.6.
 
     %% Tables
     Tables ||--o{ Orders : "assigned to"
@@ -536,8 +543,6 @@ erDiagram
     %% Cross-aggregate feedback & reservations
     Reservations ||--o{ NotificationLog : triggers
     CustomerFeedback ||--o{ Orders : "redeems reward in"
-
-    %% Coupon relationship is to Restaurant (issued above).
 
     %% Basket is a standalone document; its relationship to a user is
     %% expressed as Basket.UserId PK (no FK edge needed — User is in the

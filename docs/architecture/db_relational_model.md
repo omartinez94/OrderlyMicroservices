@@ -59,7 +59,9 @@ from base classes.
 ### `BuildingBlocks.Entities.Contracts.AuditableEntity<TId>`
 
 Used by: `Brand`, `Restaurant`, `Table`, `User`, `MenuItem`, `MenuCategory`,
-`Reservation`, `WalkInQueue`, `Ingredient`, `Coupon`, `Customer`.
+`Reservation`, `WalkInQueue`, `Ingredient`, `Customer`. (`Coupon` was removed in
+Phase 6.2 — 2026-07-11; Coupon is now owned by Discount, see
+`CATALOG_SERVICE_PLAN.md` §7.6.2.)
 
 Adds:
 
@@ -73,8 +75,16 @@ Adds:
 
 Used by: `MergedTable`, `MenuSubCategory`, `MenuItemVariation`, `ComboItem`,
 `MenuItemIngredient`, `IngredientAlternative`, `PriceHistory`, `BulkOrderUpload`,
-`CustomerFeedback`, `MenuItemAnalytics`, `OrderTimingAnalytics`, and the four Catalog
-Marten documents.
+`CustomerFeedback`, `MenuItemAnalytics`, `OrderTimingAnalytics`.
+
+The Catalog Marten documents (`OrderSnapshot`, `OrderModificationLog`,
+`OrderItemPriceAudit`) do **not** extend any relational base class — they are
+plain Marten documents with a synthetic `Guid Id` (Cleanup milestone 2026-07-11;
+the code-vs-storage mismatch flagged in §137-148 of this doc is resolved).
+`NotificationLog` (the fourth Catalog Marten document) is being removed entirely
+per §6.7 of `CATALOG_SERVICE_PLAN.md` once the Notification v1 plan lands — at
+that point the `Entity<TId>` list loses its trailing "and Marten documents"
+phrase entirely.
 
 Adds only `TId Id`. No audit fields.
 

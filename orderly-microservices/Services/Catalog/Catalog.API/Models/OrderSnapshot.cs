@@ -1,7 +1,13 @@
 namespace Catalog.API.Models;
 
-public class OrderSnapshot : Entity<int>
+/// <summary>
+/// Marten document capturing a complete point-in-time order snapshot.
+/// Marten assigns a synthetic <see cref="Guid"/> id (no relational base class).
+/// </summary>
+public class OrderSnapshot
 {
+    /// <summary>Marten synthetic primary key.</summary>
+    public Guid Id { get; set; }
     public Instant CreatedAt { get; set; }
     /// <summary>JSON snapshot of applied discount rules</summary>
     public string DiscountRules { get; set; } = string.Empty;

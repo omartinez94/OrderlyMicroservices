@@ -1,7 +1,13 @@
 namespace Catalog.API.Models;
 
-public class OrderItemPriceAudit : Entity<int>
+/// <summary>
+/// Marten document capturing the per-item price breakdown captured at order time.
+/// Marten assigns a synthetic <see cref="Guid"/> id (no relational base class).
+/// </summary>
+public class OrderItemPriceAudit
 {
+    /// <summary>Marten synthetic primary key.</summary>
+    public Guid Id { get; set; }
     public decimal AppliedBasePrice { get; set; }
     public Instant CapturedAt { get; set; }
     public Guid CapturedByUserId { get; set; }

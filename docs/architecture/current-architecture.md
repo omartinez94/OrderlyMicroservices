@@ -199,10 +199,10 @@ audit:view
 | `OrderTimingAnalytics` | relational | DbSet |
 | `BulkOrderUpload` | relational | `AuditableEntity<int>` (Phase 4 — added audit columns); `POST …/bulk-order-uploads` upload, `GET …/{id}`, `POST …/{id}/approve`, `POST …/{id}/reject` |
 | `User` | relational | Domain mirror of the Identity user (Role enum + `RestaurantId` FK) |
-| `OrderSnapshot` | Marten document | — |
-| `OrderModificationLog` | Marten document | — |
-| `OrderItemPriceAudit` | Marten document | — |
-| `NotificationLog` | Marten document | — |
+| `OrderSnapshot` | Marten document | Cleanup 2026-07-11: synthetic `Guid Id`, no relational base class (previously `: Entity<int>`) |
+| `OrderModificationLog` | Marten document | Cleanup 2026-07-11: synthetic `Guid Id`, no relational base class (previously `: Entity<int>`) |
+| `OrderItemPriceAudit` | Marten document | Cleanup 2026-07-11: synthetic `Guid Id`, no relational base class (previously `: Entity<int>`) |
+| `NotificationLog` | Marten document | Out-of-plan: being removed entirely per §6.7 of `CATALOG_SERVICE_PLAN.md` once Notification v1 lands (synthetic `Guid Id`, no relational base; no `Entity<int>` to drop on this one) |
 
 **Endpoints by feature (Carter modules, all under `/api/v1`):**
 `Brands`, `Restaurants`, `Tables`, `MergedTables`, `Reservations`, `WalkInQueues`, `MenuCategories`, `MenuSubCategories`, `MenuItems`, `MenuItemVariations`, `MenuItemIngredients`, `ComboItems`, `Ingredients`, `IngredientAlternatives`, `PriceHistories`, `CustomerFeedback`, `MenuItemAnalytics`.
@@ -313,6 +313,8 @@ The repository queries by both `UserId` and `RestaurantId`; `[Identity]` is on `
 - `RedeemDiscount(RedeemDiscountRequest) → RedeemDiscountResponse` (increments `RedeemAmount`; rejects when `MaxRedeemAmount` reached)
 
 Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOUNT20` (20 off, restaurantId `22222222…`).
+
+**Phase 6.2 (2026-07-11):** Coupon ownership confirmed as Discount-only. Catalog never implemented Coupon — the entity existed only as mermaid drift in `db_relational_model.mermaid` (block + `Restaurants ||--o{ Coupons : "issues"` relationship row). The move was documentation-only on the Catalog side (mermaid + companion md cleanup); no YARP route change required because the existing `/discount-api/{**catch-all}` catch-all on `discount-cluster` already covers `/discount-api/coupons/*`. See `CATALOG_SERVICE_PLAN.md` §7.6.2 + §6.6.
 
 ---
 
@@ -525,7 +527,7 @@ record BasketCheckoutEvent : IntegrationEvent
 5. Catalog migrates and seeds `Brand`/`Restaurant`/menu data via `InitializeMartenWith<CatalogInitialData>()` (dev only). Catalog reads `ConnectionStrings__Redis` from env/compose (`distributedcache:6379`); when `FeatureManagement__CatalogRedisCache=true` the `CacheDriftRepairService` `BackgroundService` starts and begins repopulating missing `catalog:menu:{rid}` keys on the `Catalog:CacheRepairIntervalMinutes` cadence. **Phase 5**: Hangfire's `hangfire` schema is auto-created in the same `catalogdb` on first `AddHangfireServer` startup (Hangfire's `UsePostgreSqlStorage` runs the schema migration as part of its bootstrap); the four recurring jobs schedule themselves via `RecurringJob.AddOrUpdate` once the host is built. The Hangfire dashboard is mounted at `/catalog-api/hangfire` (admin/manager only via `HangfireAdminOnlyFilter`).
 6. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required. The `TypedOrderItemCustomizationsJsonb` migration is empty at the SQL level (only the .NET property type changes; the on-disk column stays `nvarchar(max)` jsonb) and lands automatically with the existing migration set.
 6a. Kitchen.API migrates the `kitchendb` schema (3 tables + `outbox_messages`). Both services start their outbox dispatcher hosted services alongside the API; tests in either project flip `Outbox:Enabled=false` to skip the relay loop.
-7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`.
+7. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`. **Phase 6.2:** Coupon is the single Discount entity (no Catalog-side writers, no backfill). `db_relational_model.mermaid` and `db_relational_model.md` updated to drop the Catalog-side Coupon block and the `Restaurants ||--o{ Coupons` relationship row; the `Coupon` entry is removed from the `AuditableEntity<TId>` user list in the companion doc.
 8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
 
 ### YARP, called from outside the compose network

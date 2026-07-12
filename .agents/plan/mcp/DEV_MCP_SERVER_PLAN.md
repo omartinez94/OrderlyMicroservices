@@ -277,18 +277,120 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 ---
 
-## 9. Next Steps
+## 9. Development Phases
 
-1.  Initialize the Node.js project in `Orderly.DevMCP.Server`.
-2.  Install dependencies: `@modelcontextprotocol/sdk`, `zod`, `pg`, `mssql`, `ioredis`, `amqplib`, `jsonwebtoken`, `typescript`.
-3.  Implement `config/env.ts`, `config/services.ts`, `config/databases.ts` with the real port mapping from `docker-compose.override.yml`.
-4.  Implement `index.ts` with `StreamableHTTPServerTransport` from `@modelcontextprotocol/sdk/server/streamableHttp`.
-5.  Implement tools in order of impact:
-    1. `get_api_schema` — lowest risk, highest immediate value
-    2. `generate_dev_token` — unblocks authenticated API testing
-    3. `get_system_snapshot` — gives full situational awareness in one call
-    4. `seed_test_menu` + `create_mock_order`
-    5. `inspect_basket` + `inspect_order_pipeline`
-    6. Remaining tool groups
-6.  Test with MCP Inspector: `npx @modelcontextprotocol/inspector http://localhost:8080/mcp`.
-7.  Distribute SSE URL to frontend repos as described in section 7.
+### Phase overview
+
+| Phase | Name | Tool groups delivered | Goal |
+|:---:|---|---|---|
+| **1** | Foundation & Scaffold | — | Runnable MCP server, zero tools, all infra wired |
+| **2** | Core Developer Tools | §6.1 · §6.3 · §6.4 · §6.9 | AI can discover APIs, authenticate, and read system state |
+| **3** | Data & Event Tools | §6.2 · §6.5 · §6.6 · §6.7 | AI can seed data, manipulate the event bus, and reset the environment |
+| **4** | Flow Intelligence | §6.8 + log tracing | AI can trace full end-to-end flows and debug autonomously |
+
+---
+
+### Phase 1 — Foundation & Scaffold
+
+**Goal**: A running MCP server that connects to all databases and passes an MCP Inspector health check. No tools registered yet — only the skeleton.
+
+**Deliverables**:
+
+- [ ] Initialize `Orderly.DevMCP.Server/` with `package.json`, `tsconfig.json`, `.env.example`, `.gitignore`.
+- [ ] Install all dependencies: `@modelcontextprotocol/sdk`, `zod`, `pg`, `mssql`, `ioredis`, `amqplib`, `jsonwebtoken`, `typescript`, `tsx` (dev runner), `@types/*`.
+- [ ] Implement `config/env.ts` — zod-validated env schema. Server exits on startup if any required variable is missing or `NODE_ENV !== "development"`.
+- [ ] Implement `config/services.ts` — typed map of service name → base URL, derived from `docker-compose.override.yml` ports.
+- [ ] Implement `config/databases.ts` — connection factories for `pg` (×4 instances), `mssql`, `ioredis`, `amqplib`.
+- [ ] Implement `db/postgres-client.ts`, `db/mssql-client.ts`, `db/redis-client.ts`, `db/rabbitmq-client.ts`.
+- [ ] Implement `index.ts` — boots `McpServer` with `StreamableHTTPServerTransport`, registers zero tools, verifies all DB connections on startup and logs status.
+- [ ] Add `Orderly.DevMCP.Server/` to root `.dockerignore`.
+- [ ] Verify with: `npx @modelcontextprotocol/inspector http://localhost:8080/mcp` — inspector connects, no tools listed.
+
+**Exit criteria**: Inspector connects. All 4 PostgreSQL pools, SQL Server, Redis, and RabbitMQ report `connected` in startup logs.
+
+---
+
+### Phase 2 — Core Developer Tools
+
+**Goal**: The AI can immediately become situationally aware of the running backend, generate auth tokens, and read API contracts — the minimum viable toolset for starting frontend development.
+
+**Deliverables**:
+
+- [ ] **`tools/api-discovery.ts`** — `get_api_schema(serviceName)` (§6.1)
+  - Fetches and normalises Swagger JSON for all 5 services.
+  - Returns descriptive error when service is not reachable or not in `Development` mode.
+
+- [ ] **`tools/auth.ts`** — `generate_dev_token` + `verify_token` (§6.4)
+  - Signs JWTs with `jsonwebtoken` using `JWT_SECRET` from env.
+  - `verify_token` decodes without an API call.
+
+- [ ] **`tools/state-inspection.ts`** — `inspect_basket` + `inspect_order_pipeline` (§6.3)
+  - `inspect_basket`: reads from Redis, diff-prints on repeated calls.
+  - `inspect_order_pipeline`: cross-queries SQL Server + RabbitMQ Management API + Kitchen PostgreSQL.
+
+- [ ] **`tools/snapshot.ts`** — `get_system_snapshot` + `watch_system` (§6.9)
+  - All sub-queries run in parallel via `Promise.allSettled` with 3-second individual timeouts.
+  - `watch_system` streams snapshots over SSE at the requested interval.
+
+- [ ] **`tools/log-tracing.ts`** — `get_recent_logs(serviceName, lines?, level?)` (§6.4 of original plan)
+  - Shells out to `docker logs --tail {lines} {containerName}`.
+  - Severity filter for `Warning`/`Error` when `level: "error"` is passed.
+
+**Exit criteria**: A connected AI assistant can call `get_system_snapshot()`, receive a full cross-service report, then call `generate_dev_token("Admin", ...)` and use the token to hit a live API endpoint successfully.
+
+---
+
+### Phase 3 — Data & Event Tools
+
+**Goal**: The AI can independently set up any test scenario — seeding menus, creating orders in specific states, publishing events, and resetting the environment — without any manual developer intervention.
+
+**Deliverables**:
+
+- [ ] **`resources/seeds/catalog-seed.json`** — canonical test menu with ≥3 categories, ≥10 items, variations, and ingredient customizations.
+- [ ] **`resources/seeds/order-seed.json`** — canonical order payload matching `BasketCheckoutEvent` shape.
+
+- [ ] **`tools/data-seeding.ts`** — `seed_test_menu` + `create_mock_order` (§6.2)
+  - `seed_test_menu`: upserts into Marten `mt_doc_*` JSONB tables. Supports `dryRun` flag.
+  - `create_mock_order`: transactional insert into `Orders` + `OrderItems` + `OrderAddress`. Returns `OrderId`.
+
+- [ ] **`tools/event-bus.ts`** — `publish_integration_event` + `inspect_dead_letters` (§6.5)
+  - MassTransit exchange naming lookup table populated from all types in `BuildingBlocks.Messaging/Events/`.
+  - Auto-injects `Id`, `OccurredOn`, `MessageVersion` fields.
+  - `inspect_dead_letters` calls RabbitMQ Management API (`15672`).
+
+- [ ] **`tools/infrastructure.ts`** — `reset_databases` + `simulate_service_outage` (§6.6)
+  - `reset_databases`: requires `confirm: true`. Runs schema drops per target. Only connects to `localhost`/`DEV_HOST`.
+  - `simulate_service_outage`: Docker stop/start. Allowlist enforced — API containers only.
+
+- [ ] **`tools/jobs.ts`** — `seed_historical_sales` + `trigger_scheduled_jobs` (§6.7)
+  - `seed_historical_sales`: deterministic bulk insert into `OrderDb`.
+  - `trigger_scheduled_jobs`: HTTP POST to backend dev-trigger endpoint.
+
+**Exit criteria**: An AI assistant can call `reset_databases(["catalog", "ordering"], true)` → `seed_test_menu(restaurantId)` → `create_mock_order(restaurantId, "Pending")` → `get_system_snapshot()` and receive a snapshot showing the newly seeded data with zero errors.
+
+---
+
+### Phase 4 — Flow Intelligence
+
+**Goal**: The AI can autonomously execute, document, and verify complete end-to-end business flows. This is the phase that makes the server genuinely powerful for writing frontend code — the AI can validate assumptions about the full backend pipeline before writing a single UI component.
+
+**Deliverables**:
+
+- [ ] **`resources/flows/checkout.mmd`** — Mermaid sequence diagram for the checkout flow.
+- [ ] **`resources/flows/kitchen-order-lifecycle.mmd`** — Mermaid sequence diagram for kitchen order states.
+- [ ] **`resources/flows/discount-application.mmd`** — Mermaid sequence diagram for gRPC discount flow.
+
+- [ ] **`tools/flow-tracing.ts`** — `trace_business_flow` + `get_flow_architecture` + `verify_flow_state` (§6.8)
+  - `trace_business_flow("checkout")`: executes the full scripted HTTP sequence, returns each req/res pair.
+  - `get_flow_architecture(flowName)`: reads and returns the `.mmd` file for the named flow.
+  - `verify_flow_state(entityId, expectedState)`: cross-queries all systems, returns pass/fail per system.
+
+- [ ] **End-to-end smoke test**: run `trace_business_flow("checkout")` start-to-finish against a live backend and confirm all steps return 200s and the kitchen order is created.
+
+- [ ] **README for `Orderly.DevMCP.Server/`**: documents how to start the server, configure `.env`, connect an AI client, and the full list of available tools.
+
+- [ ] **Distribute SSE URL** to frontend repositories (Web CRM, Mobile App) by adding the MCP server config snippet to their respective AI config files.
+
+**Exit criteria**: An AI assistant in the Web CRM repository (separate repo, different machine) can call `trace_business_flow("checkout")` over the SSE connection at `http://192.168.1.65:8080/sse` and receive the full golden-path document with all steps green.
+
+

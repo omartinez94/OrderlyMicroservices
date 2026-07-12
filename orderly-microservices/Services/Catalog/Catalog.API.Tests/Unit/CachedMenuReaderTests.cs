@@ -2,9 +2,6 @@ using System.Text;
 using System.Text.Json;
 using Catalog.API.Readers;
 using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using NodaTime;
 
 namespace Catalog.API.Tests.Unit;
 
@@ -36,7 +33,7 @@ public sealed class CachedMenuReaderTests
     private static MenuSnapshot BuildSnapshot(Guid restaurantId) =>
         new(
             RestaurantId: restaurantId,
-            SnapshotAt: SystemClock.Instance.GetCurrentInstant(),
+            SnapshotAt: NodaTime.SystemClock.Instance.GetCurrentInstant(),
             Categories: []);
 
     private static CachedMenuReader BuildSut(

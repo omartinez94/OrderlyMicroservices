@@ -236,3 +236,10 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
 });
 
 app.Run();
+
+/// <summary>
+/// Exposes the top-level-statements entry point as a public type so the
+/// integration test project can build the host via
+/// <c>WebApplicationFactory&lt;Program&gt;</c> (Catalog.API.Tests/Integration).
+/// </summary>
+public partial class Program { }

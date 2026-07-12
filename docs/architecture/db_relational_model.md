@@ -41,13 +41,14 @@ not EF Core:
 Embedded arrays in Marten documents are documented inline as
 `jsonb <Field> "embedded <Type>[]"` plus a sub-shape comment block.
 
-> **Code-vs-storage mismatch in Catalog documents.** The four Catalog Marten documents
-> (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`, `NotificationLog`) all
-> extend `Entity<int>` (so the C# property is `int Id`), but Marten assigns a **synthetic
-> Guid** as the actual document id. The diagram uses `uuid Id PK` with the comment
-> `"Marten synthetic — code declares Entity<int>"`. This is a known code smell to be fixed
-> in a separate task (the entities should either move to `Entity<Guid>` or extend a Marten
-> document base class).
+> **Code-vs-storage alignment in Catalog documents (Cleanup milestone, 2026-07-11).** The
+> three Catalog Marten documents (`OrderSnapshot`, `OrderModificationLog`,
+> `OrderItemPriceAudit`) no longer extend any relational base class — they are plain Marten
+> documents declaring `Guid Id`, which matches the synthetic Guid Marten assigns. The former
+> `Entity<int>` code-vs-storage mismatch is resolved; the diagram uses `uuid Id PK "Marten
+> synthetic"`. `NotificationLog` (the fourth Catalog Marten document) is out of plan — it is
+> being removed entirely per §6.7 of `CATALOG_SERVICE_PLAN.md` once the Notification v1 plan
+> lands, so it is not rebased.
 
 ---
 
@@ -146,14 +147,17 @@ The following are intentionally not modelled in this diagram:
 
 ## Mismatches flagged for follow-up
 
-These were intentionally NOT fixed in the diagram reconciliation — they're real code
-issues that need a separate code change:
+These are real code issues flagged during diagram reconciliation. Item 1 remains open;
+items 2–3 were resolved by the Catalog Cleanup / Phase 4 work (2026-07-11) and are kept
+here with their resolution note for traceability:
 
 1. **`Basket.MenuItemId` type** — code stores `int`, but `MenuItem.Id` (Catalog) is
    `Guid`. Diagram flags this with `"TODO: should be uuid to match MenuItem.Id"` on the
    embedded `BasketItem` shape.
-2. **Catalog Marten documents using `Entity<int>`** — should be `Entity<Guid>` or a
-   proper Marten document base class to match Marten's synthetic Guid id.
-3. **`BulkOrderUploads.CreatedAt`** — code has only `ApprovedAt` / `CompletedAt` (no
-   `CreatedAt`) because the entity extends `Entity<int>` (not `AuditableEntity`). The
-   diagram reflects this; a code change to add `CreatedAt` is recommended.
+2. **Catalog Marten documents using `Entity<int>`** — ✅ **Resolved (Cleanup milestone,
+   2026-07-11).** `OrderSnapshot`, `OrderModificationLog`, and `OrderItemPriceAudit` now
+   drop the relational base class entirely and declare `Guid Id`, matching Marten's
+   synthetic Guid document id.
+3. **`BulkOrderUploads.CreatedAt`** — ✅ **Resolved (Phase 4, 2026-07-11).** The entity base
+   flipped from `Entity<int>` to `AuditableEntity<int>`, so it now carries `CreatedAt` /
+   `CreatedBy` / `LastModifiedAt` / `LastModifiedBy`; the diagram reflects the audit columns.

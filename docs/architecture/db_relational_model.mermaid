@@ -277,7 +277,13 @@ erDiagram
         uuid ApprovedByAdminId
         timestamp ApprovedAt
         timestamp CompletedAt
-        %% No CreatedAt — BulkOrderUpload extends Entity<int> (not Auditable).
+        %% Cleanup (Phase 4, 2026-07-11): base flipped to AuditableEntity<int>.
+        %% Audit columns from base: CreatedBy (string), CreatedAt (Instant),
+        %% LastModifiedBy (string), LastModifiedAt (Instant?).
+        timestamp CreatedAt
+        string CreatedBy
+        timestamp LastModifiedAt
+        string LastModifiedBy
     }
 
     %% NOTE: `Coupons` is owned by the Discount service (Discount.Grpc/Models/Coupon.cs)

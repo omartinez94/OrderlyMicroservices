@@ -24,6 +24,7 @@ global using Catalog.API.Features.PriceHistories.CreatePriceHistory;
 global using Catalog.API.Models;
 global using Catalog.API.Readers;
 global using FluentValidation;
+global using Hangfire;
 global using Mapster;
 global using MediatR;
 global using Microsoft.Extensions.Caching.Distributed;

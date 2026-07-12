@@ -2,6 +2,8 @@ using BuildingBlocks.Entities.Interceptors;
 using Catalog.API.Health;
 using Catalog.API.Infrastructure;
 using Catalog.API.Infrastructure.Interceptors;
+using Catalog.API.Scheduling;
+using Hangfire.PostgreSql;
 using HealthChecks.UI.Client;
 using Marten;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -44,20 +46,20 @@ builder.Services.AddStackExchangeRedisCache(redisCache =>
     redisCache.Configuration = builder.Configuration.GetConnectionString("Redis")!;
 });
 
-// Menu read-side (Phase 1).
+// Menu read-side.
 // Scrutor's Decorate<TInterface, TDecorator>() wraps the inner IMenuReader with
 // the cache-on-read decorator; the same pattern is used by Basket.
 // https://github.com/khellang/Scrutor
 builder.Services.AddScoped<IMenuReader, MenuReader>();
 builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 
-// Drift-repair hosted service (Phase 1). The tick logic self-gates on the
+// Drift-repair hosted service. The tick logic self-gates on the
 // CatalogRedisCache feature flag, so the service can be registered
 // unconditionally and toggled at runtime.
 builder.Services.AddHostedService<CacheDriftRepairService>();
 
 // Phase 3: Ingredient Availability Engine reconcile hosted service. Same
-// feature-flag-gated pattern as CacheDriftRepairService (Phase 1). The
+// feature-flag-gated pattern as CacheDriftRepairService. The
 // default flag value (`CatalogAvailabilityEngineReconcile=false`) means
 // the loop is dormant in production until ops flip the flag.
 builder.Services.AddHostedService<IngredientAvailabilityReconcileService>();
@@ -71,7 +73,7 @@ builder.Services.AddOptions<MenuItemAnalyticsNightlyRecomputeServiceOptions>()
     .ValidateOnStart();
 builder.Services.AddHostedService<MenuItemAnalyticsNightlyRecomputeService>();
 
-// Infrastructure (Phase 2): outbox publisher + dispatcher + MassTransit
+// Infrastructure: outbox publisher + dispatcher + MassTransit
 // consumer discovery. AddInfrastructureServices also calls
 // services.AddMessageBroker(...) so the OrderCompletedIntegrationEventHandler
 // in Catalog.API/Messaging/EventHandlers is registered as a MassTransit
@@ -86,6 +88,36 @@ builder.Services.AddCarter();
 // price-mutating handler. Scoped — shares the request's DbContext so the
 // audit row commits in the same transaction as the mutation.
 builder.Services.AddScoped<IPriceHistoryRecorder, PriceHistoryRecorder>();
+
+// Phase 5: Hangfire + recurring jobs. Jobs self-gate on the
+// FeatureManagement__CatalogScheduledJobs flag (default false), so the
+// schedule is armed even when the flag is off — the flag just makes every
+// job tick a no-op. Storage is the `hangfire` schema in the same
+// `catalogdb` Postgres instance (no new database).
+builder.Services.AddOptions<HangfireOptions>()
+    .Bind(builder.Configuration.GetSection(HangfireOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddHangfire(cfg => cfg
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(
+        builder.Configuration.GetConnectionString("CatalogDB")!)));
+
+builder.Services.AddHangfireServer(opts =>
+{
+    var hfOptions = builder.Configuration.GetSection(HangfireOptions.SectionName).Get<HangfireOptions>() ?? new HangfireOptions();
+    opts.WorkerCount = hfOptions.WorkerCount;
+});
+
+// Job classes are resolved per-tick from the DI container, so each tick
+// opens its own scope and gets its own DbContext.
+builder.Services.AddScoped<ReservationReminderJob>();
+builder.Services.AddScoped<ReservationNoShowJob>();
+builder.Services.AddScoped<WalkInNoShowJob>();
+builder.Services.AddScoped<SeasonalAvailabilityJob>();
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
@@ -152,12 +184,50 @@ app.UseAuthorization();
 
 app.MapCarter();
 
+// Hangfire recurring-job registration. Each job class is resolved
+// from the DI scope on every tick (the registration is the schedule;
+// RecurringJob.AddOrUpdate is the firing mechanism). Cron expressions come
+// from HangfireOptions (validated at startup). Tests / local-dev opt out
+// via `Catalog:Hangfire:Enabled=false`.
+var hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
+if (hangfireEnabled)
+{
+    var hfOptions = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
+
+    RecurringJob.AddOrUpdate<ReservationReminderJob>(
+        "reservation-reminder",
+        job => job.RunAsync(CancellationToken.None),
+        hfOptions.ReservationReminderCron);
+
+    RecurringJob.AddOrUpdate<ReservationNoShowJob>(
+        "reservation-no-show",
+        job => job.RunAsync(CancellationToken.None),
+        hfOptions.ReservationNoShowCron);
+
+    RecurringJob.AddOrUpdate<WalkInNoShowJob>(
+        "walk-in-no-show",
+        job => job.RunAsync(CancellationToken.None),
+        hfOptions.WalkInNoShowCron);
+
+    RecurringJob.AddOrUpdate<SeasonalAvailabilityJob>(
+        "seasonal-availability",
+        job => job.RunAsync(CancellationToken.None),
+        hfOptions.SeasonalAvailabilityCron);
+}
+
+// Hangfire dashboard — admin-only (gated on the JWT role claim "Admin").
+// The dashboard is on the same /api path style as the rest of Catalog so
+// it goes through the gateway prefix /catalog-api/hangfire.
+app.MapHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireAdminOnlyFilter() },
+});
+
 app.UseExceptionHandler(options => { });
 
 // /live (always green; process up) and /ready (Postgres + Redis +
 // RabbitMQ + outbox dead-letter count). Tripping any check trips /ready →
-// the load balancer pulls Catalog out of rotation (per
-// CATALOG_SERVICE_PLAN.md §7 Phase 2 health-check spec).
+// the load balancer pulls Catalog out of rotation.
 app.MapHealthChecks("/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/ready", new HealthCheckOptions
 {

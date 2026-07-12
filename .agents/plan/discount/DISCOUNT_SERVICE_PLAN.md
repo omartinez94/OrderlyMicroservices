@@ -13,9 +13,9 @@
 > | 5 | `DiscountRule` shape | **A** — Separate aggregate, FK from Coupon, `RuleDataJson` for conditions. One rule per coupon. | Matches architecture §3; rules stay indexable in SQL; the JSON column keeps rule kinds flexible. |
 > | 6 | `RewardCode` generation | **A** — Hardcoded 4★/5★ rule in `FeedbackSubmittedConsumer`. No `RewardRule` aggregate. | Architecture describes behavior, not a rule table. Defer the aggregate until per-restaurant tuning arrives. |
 > | 7 | Async lifecycle | **B + C** — `IHostedService` sweep (`DiscountExpirySweepService`, default 5 min) + lazy-evaluation gate at every read. Two-condition semantic: `IsActive && (ExpirationDate IS NULL OR ExpirationDate >= UtcNow)`. | Two complementary guarantees: storage hygiene (queries see clean rows) + read correctness (no race window between sweep ticks). Total cost: ~90 LOC + ~6 tests. Hangfire rejected (no business need, SQLite flakiness, dashboard needs HTTP surface we explicitly rejected in (4)). |
-> | 8 | Outbox wiring | **A** — Mirror Catalog. Implement first `OutboxDispatcher<TContext>` for SQLite (single-replica, `claim_id` GUID column for atomic claim). Use the existing `BuildingBlocks.Messaging.Outbox.IOutboxDbContext` / `IOutboxPublisher`. | Q3's history decision leans on "transactional publish" semantics. Plain MassTransit publish (option B) drops the guarantee; MassTransit's built-in `EntityFrameworkOutbox` (option C) diverges from the solution-wide pattern. |
+> | 8 | Outbox wiring | **A** — Mirror Catalog. Implement first `OutboxDispatcher<TContext>` for SQLite (single-replica, `claim_id` GUID column for atomic claim). Use the existing `BuildingBlocks.Messaging.Outbox.IOutboxDbContext` / `IOutboxPublisher`. Every `I*IntegrationEvent` carries `int MessageVersion` (initial = 1) inherited from `BuildingBlocks.Messaging.Events.IntegrationEvent`; `OutboxPublisher` copies `MessageVersion` into the outbox row's `SchemaVersion` column on stage — the wire-level version is `MessageVersion`, the storage-level version is `SchemaVersion`, and the two are kept in lockstep. | Q3's history decision leans on "transactional publish" semantics. Plain MassTransit publish (option B) drops the guarantee; MassTransit's built-in `EntityFrameworkOutbox` (option C) diverges from the solution-wide pattern. The `MessageVersion` ↔ `SchemaVersion` distinction avoids a name collision with the EventType / SchemaVersion column pattern some other transports use. |
 > | 9 | Tests strategy | **C** — xUnit + FluentAssertions + NSubstitute (unit); SQLite `:memory:` for integration tests; `MassTransit.InMemoryTestHarness` for consumer tests. | Catalog pattern uses Testcontainers Postgres; Discount is on SQLite. SQLite-in-memory is production-equivalent engine, container-free, fast. The hand-rolled pieces (claim SQL, lazy gate, sweep) need real engine tests, not mocks. |
-> | 10 | Auth | `AddJwtBearer` + ASP.NET Core gRPC integration (mirrors Catalog). **Pattern 2** for bus-triggered consumers: synthetic `ClaimsPrincipal` carrying `restaurantId` claim extracted from the event payload + actor=`discount-service`. New permissions: `coupon:read/create/edit/delete/redeem`, `reward:read/create/edit/delete/redeem`, `discount-rule:read/edit` (Identity-side follow-up). | Mirrors every other API. Synthetic claims beat `AllowAnonymous` on consumers — the audit trail records the actual restaurant context, not a generic service actor. |
+> | 10 | Auth | `AddJwtBearer` + ASP.NET Core gRPC integration (mirrors Catalog). **Pattern 2** for bus-triggered consumers: synthetic `ClaimsPrincipal` carrying `restaurantId` claim extracted from the event payload + actor=`discount-service`. New permissions: `coupon:read/create/edit/delete/redeem`, `reward-code:read/create/edit/delete/redeem`, `discount-rule:read/edit` (Identity-side follow-up). | Mirrors every other API. Synthetic claims beat `AllowAnonymous` on consumers — the audit trail records the actual restaurant context, not a generic service actor. |
 > | 11 | Multi-tenancy | **A** — Activate `BuildingBlocks.Multitenancy.ITenantEntity` + apply the global query filter. Fix `ITenantEntity.RestaurantId : int → Guid` (pre-existing drift; Catalog entities use Guid). JWT claims feed `ICurrentRestaurantProvider` at RPC entry; synthetic claims from (10) feed it at consumer entry. | BuildingBlocks primitive is dormant; Discount becomes the first adopter. Global filter blocks the "easy-to-leak" footgun in B; C doubles the surfaces. |
 > | 12 | Cache | **A** — None. SQLite indexed reads on `(RestaurantId, Code)` are sub-ms; the Basket checkout hot path never bottlenecks the DB. | A cache layer at this scale is cost > benefit. |
 > | 13 | Event phasing | Phase 1 publishes `DiscountHistoryAppendedIntegrationEvent` only. The three architecture-named publishes (`DiscountApplied`, `RewardGenerated`, `RewardRedeemed`) have no listed consumer today → **deferred** until one exists. Phase 1 consumes `MenuItemChangedIntegrationEvent` and `RestaurantConfigurationChangedIntegrationEvent` (Catalog ships these today). `FeedbackSubmitted` + `OrderCreated` consumes are stub-and-flag — wire to the bus with `MassTransit` filter `Where(...).Disable()` until Notification v1 / Ordering plans ship. | Don't pollute the bus with no-consumer publishes; don't gate Phase 1 on services that don't exist. |
@@ -118,6 +118,50 @@ The "2+ files" promotion rule from CATALOG_SERVICE_PLAN §0.3.12 applies. `Disco
 - **Connection lifetime** — register `DiscountContext` as `Scoped` with `AddDbContext<DiscountContext>(...)`. SQLite's `Data Source=discountdb` is a file; the lock is serialized across processes via file lock. Single-replica deployment assumption carries forward into the outbox claim SQL design (Phase 1).
 - **Money** — `decimal` for `Amount`. SQLite stores it as TEXT per IEEE 754; EF Core's `HasConversion<string>()` is unnecessary on .NET 8+ (decimal maps to TEXT automatically and round-trips losslessly). Verify on first run.
 
+#### 0.3.3 Validation rules (single source of truth)
+
+The plan asserts "FluentValidation in handlers" but does not enumerate which rules. This section is the locked list. A phase is not "done" until every rule below ships a validator in that phase's commit, and the phase's Doc-update scope cites this section verbatim.
+
+- **`CreateDiscountCommand` / `UpdateDiscountCommand`** (Phase 1):
+  - `Code` — non-empty, ≤ 64 chars, unique per `(RestaurantId, Code)`. Uniqueness check queries `DiscountContext.Coupons` ignoring the current `Id` on update.
+  - `Amount` — `> 0` (a $0 coupon is a footgun, not a feature).
+  - `MaxRedeemAmount` — `> 0` when set.
+  - `RedeemAmount` — `>= 0`, `<= MaxRedeemAmount` when the latter is set.
+  - `ExpirationDate` — `> clock.GetCurrentInstant()` when set.
+- **`RedeemDiscountCommand`** (Phase 1):
+  - `Code` — non-empty.
+  - `OrderId` — non-empty Guid.
+  - `RestaurantId` — non-empty Guid; mismatch against `ICurrentRestaurantProvider` returns `StatusCode.PermissionDenied` from the handler before the DB call.
+  - `Quantity` — `>= 1`, `<= 100` (sanity cap; multi-quantity redemption is a future-proofing field).
+- **`CreateDiscountRuleCommand` / `UpdateDiscountRuleCommand`** (Phase 2):
+  - `CouponId` — exists in the same tenant (the global query filter handles it; the validator confirms the lookup returns non-null).
+  - `RuleType` — must be a defined enum value.
+  - `RuleDataJson` — deserializes to a non-empty `RuleData` shape; the validator runs the deserializer and asserts non-empty. For `RequiredMenuItems`, every `MenuItemId` must be a non-empty Guid. For `TimeWindow`, `StartTime < EndTime` and `DayOfWeekMask` is in `[0, 127]`.
+  - **UK guard**: only one `DiscountRule` per `(RestaurantId, CouponId)` — the rule FK already enforces this at the DB level, but the validator surfaces `StatusCode.FailedPrecondition` with `Metadata["rule-already-exists"]` instead of `DbUpdateException`.
+- **`EvaluateDiscountRulesRequest`** (Phase 2):
+  - `OrderTotal` — `> 0` when set.
+  - `MenuItemIds` — non-null (empty list is valid: an order with no items triggers only `MinOrderAmount` / `TimeWindow` rules).
+- **`CreateRewardCodeCommand` / `UpdateRewardCodeCommand`** (Phase 3):
+  - `Code` — non-empty, ≤ 120 chars, unique per `(RestaurantId, Code)`.
+  - `RestaurantId` — non-empty Guid.
+  - `Value` — kind-specific (see §7 Phase 3 for the exact rule set; locked in code, not in the prose).
+  - `ExpirationDate` — `> clock.GetCurrentInstant()` when set.
+  - `MaxRedeemAmount` — `> 0` when set.
+- **`RedeemRewardCodeCommand`** (Phase 3):
+  - Same shape as `RedeemDiscountCommand`. `Kind = FreeItem` is excluded from quantity-multi-redemption (`Quantity` must be `1`).
+
+The list above is the contract. If a phase's commit adds a command not on this list, the implementer extends this section in the same commit. If a phase's commit removes a rule, the implementer strikes it here and notes the rationale in the v1.X+1 changelog.
+
+#### 0.3.4 Consumer-side idempotency — choice matrix
+
+| Consumer | Idempotency mechanism | Why |
+|---|---|---|
+| `MenuItemChangedConsumer` | `processed_inbound_events` table (unique-key violation on `EventId`) | Rule-update path has no natural uniqueness violation to lean on; bus redelivery could re-flip `IsActive` after a partial failure. |
+| `RestaurantConfigurationChangedConsumer` | `processed_inbound_events` table (same shape) | The effect is more idempotent (flipping `IsActive=false` is monotonic) but the table guard is cheap and keeps the story in one place. |
+| `FeedbackSubmittedConsumer` | `RewardCode.Code` unique constraint via the `Code*()` deterministic helpers | The handler dispatches `CreateRewardCodeCommand`; a duplicate `Code` raises a uniqueness violation that the `ISender` pipeline translates to a known result code the consumer swallows. No separate table needed. |
+
+The two strategies are complementary, not redundant. The rule for picking one: **if the handler's own side-effect can be made unique-key-deterministic, use that. Otherwise, gate on `processed_inbound_events`.** Future consumers pick from this matrix in their phase's commit and update this section in lockstep.
+
 ### 0.4 gRPC + MassTransit design principles
 
 This section enforces the gRPC + MassTransit conventions every Discount endpoint follows. It is the protocol-shape counterpart to §0.1 / §0.2 / §0.3.
@@ -149,6 +193,8 @@ This section enforces the gRPC + MassTransit conventions every Discount endpoint
             Convert.ToHexString(HMACSHA256.HashData(_key, Encoding.UTF8.GetBytes(envelope)));
     }
     ```
+
+  **Dev experience:** a fresh clone (`git clone` + `dotnet run` with no other setup) must not crash on a missing `Discount:IdempotencyKey`. The provider is wrapped in a dev-only fallback: when `IHostEnvironment.IsDevelopment()` is true AND the config value is missing, the provider generates a 32-byte random key at startup, logs a `WARN` (`"Discount:IdempotencyKey not configured; using a per-process random key. Idempotency cache entries are valid only for this process lifetime."`), and registers the random key. Production keeps the hard-fail behavior (no fallback — missing config in prod is a deployment error and must surface loudly). The dev fallback keeps the test pyramid green and makes the README's "clone and run" path work without manual `dotnet user-secrets` setup; the `README.md` of the service still documents the `dotnet user-secrets set Discount:IdempotencyKey <hex>` command for the case where the dev wants persistent idempotency across process restarts.
 
   Redis is the same shared instance Basket and Catalog use — **discount:* namespace** to avoid collision.
 
@@ -233,9 +279,30 @@ Generated C# lands in three namespaces: `Discount.Grpc.Coupon`, `Discount.Grpc.R
 
 `dotnet build` generates stubs into `obj/Debug/net10.0/Protos/{coupon.cs, reward_code.cs, discount_rule.cs}` plus the aggregator's compiled output; **never edit generated files.**
 
+#### 0.4.3.1 `IsActiveNow` helper — locked shape
+
+Every Discount aggregate that has an `ExpirationDate` (Coupon, RewardCode) exposes the same lazy-eval gate so the read path has a single canonical answer to "is this active right now?":
+
+```csharp
+public static class ActiveNow
+{
+    public static bool Coupon(Coupon c, TimeProvider clock)
+        => c.DeletedAt == null
+        && c.IsActive
+        && (c.ExpirationDate is null || c.ExpirationDate >= clock.GetCurrentInstant());
+
+    public static bool RewardCode(RewardCode r, TimeProvider clock)
+        => r.DeletedAt == null
+        && r.IsActive
+        && (r.ExpirationDate is null || r.ExpirationDate >= clock.GetCurrentInstant());
+}
+```
+
+Lives in `Discount.Grpc/Domain/ActiveNow.cs` (or similar — pin the namespace in the implementation commit, not here). DiscountRule does **not** have an `IsActiveNow` because it has no `ExpirationDate`; rule activation is the user's responsibility, the sweep service doesn't deactivate rules. The two helpers are called from every read RPC (`GetDiscount`, `GetRewardCode`, the list responses' projected model), from `RedeemDiscount` / `RedeemRewardCode` after the conditional UPDATE succeeds, and from the sweep service. A divergent copy in any handler is a code-review red flag.
+
 #### 0.4.4 Event versioning on the bus
 
-Mirrors Catalog §6.5. Every `I*IntegrationEvent` from Discount carries `int SchemaVersion = 1`, `Guid EventId`, `Instant OccurredAt`, `Guid RestaurantId`. The `BuildingBlocks.Messaging/Outbox/OutboxMessage.cs:36` `SchemaVersion` column pins it. When the consumer (`DiscountHistoryAppendedIntegrationEvent` → Catalog) ignores unknown major versions, it's MassTransit's default behavior; we don't need extra code.
+Mirrors Catalog §6.5. Every `I*IntegrationEvent` from Discount carries `int MessageVersion = 1` (inherited from `BuildingBlocks.Messaging.Events.IntegrationEvent`), `Guid EventId`, `Instant OccurredOn`, `Guid RestaurantId`. The `BuildingBlocks.Messaging/Outbox/OutboxMessage.cs:36` `SchemaVersion` column stores the same value (the `OutboxPublisher` copies `MessageVersion` → `SchemaVersion` on stage; the column name on the storage side stays `SchemaVersion` to match the existing index naming, but the field on the event record is `MessageVersion`). When the consumer (`DiscountHistoryAppendedIntegrationEvent` → Catalog) ignores unknown major versions, it's MassTransit's default behavior; we don't need extra code.
 
 #### 0.4.5 Cross-cutting gRPC concerns
 
@@ -272,7 +339,7 @@ A detailed gap inventory is in `docs/architecture/_discount_gap_inventory.md` (a
 
 Bring `Discount.Grpc` to the level `architecture.md` describes (modulo the Coupon-collapse from §3) by:
 
-1. **Adding JWT bearer auth** to the gRPC service; permission policies for the eleven new permission strings (counterpart to the `kitchen:*` and `menu:*` families the rest of the project already has).
+1. **Adding JWT bearer auth** to the gRPC service; permission policies for the eleven new permission strings (counterpart to the `kitchen:*` and `menu:*` families the rest of the project already has). Permission naming uses a hyphenated entity prefix throughout (`coupon:`, `reward-code:`, `discount-rule:`) so the three families read consistently.
 2. **Activating multi-tenancy** via the dormant `BuildingBlocks.Multitenancy.ITenantEntity` primitive; fixing the `int → Guid` drift on `ITenantEntity.RestaurantId`.
 3. **Wiring MassTransit + RabbitMQ + the existing outbox** for `DiscountHistoryAppendedIntegrationEvent`; implementing the first SQLite `OutboxDispatcher<TContext>` in BuildingBlocks. Emitting the consumer contract for Catalog (separate plan).
 4. **Adding `RewardCode` and `DiscountRule` aggregates** with full gRPC CRUD + event consumers (`MenuItemChangedIntegrationEvent`, `RestaurantConfigurationChangedIntegrationEvent`).
@@ -401,7 +468,7 @@ Basket calls Discount gRPC at checkout
 | Cache | **None** for `GetDiscount` | Per Q12 — SQLite indexed reads are sub-ms; cache layer would cost > benefit. |
 | **`Idempotency-Key`** | Redis (`idempotency:{rId}:{sha256(key+rId+code)}`, 24h TTL) | For state-transition RPCs (`RedeemDiscount`, `UpdateDiscount`, `RedeemRewardCode`). Mirrors Catalog §0.4.8. |
 | Messaging | `MassTransit` via `BuildingBlocks.Messaging.MassTransit.AddMessageBroker` (modified signature `AddMessageBroker(this IServiceCollection, Assembly? consumers = null)` so Discount can pass `typeof(FeedbackSubmittedConsumer).Assembly`). | Reuse; consumer assembly hint needed because Discount's consumer types live in `Discount.Grpc`, not the default `BuildingBlocks.Messaging` scan target. |
-| Event versioning | `int SchemaVersion` on every integration event (initial = 1) | Mirrors Catalog §6.5. |
+| Event versioning | `int MessageVersion` on every integration event (initial = 1), inherited from `IntegrationEvent`; outbox row stores it under `SchemaVersion` | Mirrors Catalog §6.5. |
 | Outbox | First SQLite `OutboxDispatcher<DiscountContext>` in BuildingBlocks (single-replica, `claim_id` GUID column atomic-claim pattern) | Per Q8. |
 | Async lifecycle | `IHostedService` (no Hangfire) | Per Q7. |
 | Engine trigger | `IConsumer<T>` with **Pattern 2** (synthetic ClaimsPrincipal from event payload) for bus-triggered consumers; primary JWT for RPC-triggered callers | Per Q10. |
@@ -434,7 +501,7 @@ orderly-microservices/Services/Discount/Discount.Grpc/
     RewardCodeService.cs                   -- Phase 3
     DiscountRuleService.cs                 -- Phase 2
   Authorization/
-    DiscountPermissions.cs                 -- constants: coupon:read/create/edit/delete/redeem, reward:read/create/edit/delete/redeem, discount-rule:read/edit
+    DiscountPermissions.cs                 -- constants: coupon:read/create/edit/delete/redeem, reward-code:read/create/edit/delete/redeem, discount-rule:read/edit
     DiscountActors.cs                       -- const strings: System="discount-system", Sweep="discount-sweep", Service="discount-service"
     AuthorizationPolicies.cs               -- extension methods: AddDiscountPolicies(IServiceCollection)
     ICurrentRestaurantProvider.cs          -- interface (Phase 1)
@@ -509,13 +576,13 @@ Three handshakes bridge this plan with sibling plans:
 ### 6.6.2 With Identity: eleven permission strings
 
 **Identity will own:**
-- Eleven new rows in the `Permissions` table (or `RolePermissions` registrations), six on `coupon:*`, five on `reward:*`, two on `discount-rule:*`. Existing roles seeded (`Manager`, `Waiter`, `Cashier`, `SuperAdmin`) get appropriate role→permission mappings:
+- Eleven new rows in the `Permissions` table (or `RolePermissions` registrations), six on `coupon:*`, five on `reward-code:*`, two on `discount-rule:*`. Existing roles seeded (`Manager`, `Waiter`, `Cashier`, `SuperAdmin`) get appropriate role→permission mappings:
   - `coupon:read` → all restaurant roles + SuperAdmin
   - `coupon:create` / `coupon:edit` / `coupon:delete` → `Manager` + `SuperAdmin`
   - `coupon:redeem` → `Cashier` + `Manager` + `SuperAdmin` (the actor that redeems)
-  - `reward:read` / `reward:edit` → `Manager` + `SuperAdmin`
-  - `reward:redeem` → `Cashier` + `Manager` + `SuperAdmin`
-  - `reward:create` → `SuperAdmin` only (only feedback flow creates rewards for now)
+  - `reward-code:read` / `reward-code:edit` → `Manager` + `SuperAdmin`
+  - `reward-code:redeem` → `Cashier` + `Manager` + `SuperAdmin`
+  - `reward-code:create` → `SuperAdmin` only (only feedback flow creates rewards for now)
   - `discount-rule:read` / `discount-rule:edit` → `Manager` + `SuperAdmin`
 
 **This plan owns:**
@@ -682,8 +749,15 @@ The phases are ordered so each is independently shippable and any earlier phase'
 This is the heaviest phase. It establishes every cross-cutting primitive on which Phases 2 / 3 / 4 layer new features. Plan target: ~25 tests passing.
 
 - **BuildingBlocks fix:** `BuildingBlocks.Multitenancy.ITenantEntity.RestaurantId : int → Guid`. Trivial; one line. Justifies Phase 1's own tenancy work.
+- **Soft-delete columns** added to `Coupon` alongside `IsActive`:
+  ```csharp
+  public Instant? DeletedAt   { get; set; }
+  public string?  DeletedBy   { get; set; }
+  ```
+  Reason: `IsActive` is overloaded in this plan across three concerns — "user-deleted", "sweep-deactivated", "rule-deactivated". Conflating them with a single boolean means a rule reactivation could resurrect a row the admin just deleted. The contract is: **`IsActive` reflects the current business state (deactivatable by sweep / rule); `DeletedAt` / `DeletedBy` reflect the soft-delete event and are not reset by any rule or sweep.** A row with `DeletedAt != null` is excluded from all list / get / evaluate RPCs regardless of `IsActive`. `RestoreCoupon` is **not** in this plan — once soft-deleted, a Coupon stays deleted; the user creates a new one. `DeleteDiscount` sets both `IsActive = false` and `DeletedAt = now`, `DeletedBy = caller`. The `DiscountExpirySweepService` only sets `IsActive = false` (never `DeletedAt`). The `MenuItemChangedConsumer` rule path only sets `IsActive` on non-deleted rows (`Where(c => c.DeletedAt == null && ...)`). Phases 2 and 3 inherit the same pattern on `DiscountRule` and `RewardCode`.
 - **JWT auth wired** in `Program.cs`:
   - `AddJwtBearer` against Identity authority (`https://localhost:5057`), audience `OrderlyMicroservices`.
+  - The existing 5 Coupon RPCs grow to **6** with the addition of `ListDiscounts(ListDiscountsRequest) → ListDiscountsResponse` (paged, `PagedResult<CouponModel>` with `page` / `page_size` query fields, default 50, max 200). The List RPC was missing from the original surface; Phases 2 and 3 add `ListDiscountRules` / `ListRewardCodes` from day one, so symmetry requires the Coupon-side counterpart now rather than as a Phase 2/3 carry-over. Permission gate: `coupon:read`. The query path runs through the global tenant filter — no explicit `Where(RestaurantId == ...)` in the handler.
   - `Authorization/DiscountPermissions.cs` is the single source of truth:
 
     ```csharp
@@ -694,18 +768,18 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
         public const string CouponEdit     = "coupon:edit";
         public const string CouponDelete   = "coupon:delete";
         public const string CouponRedeem   = "coupon:redeem";
-        public const string RewardRead     = "reward:read";
-        public const string RewardCreate   = "reward:create";
-        public const string RewardEdit     = "reward:edit";
-        public const string RewardDelete   = "reward:delete";
-        public const string RewardRedeem   = "reward:redeem";
+        public const string RewardCodeRead     = "reward-code:read";
+        public const string RewardCodeCreate   = "reward-code:create";
+        public const string RewardCodeEdit     = "reward-code:edit";
+        public const string RewardCodeDelete   = "reward-code:delete";
+        public const string RewardCodeRedeem   = "reward-code:redeem";
         public const string DiscountRuleRead  = "discount-rule:read";
         public const string DiscountRuleEdit  = "discount-rule:edit";
 
         public static readonly IReadOnlyList<string> All =
         [
             CouponRead, CouponCreate, CouponEdit, CouponDelete, CouponRedeem,
-            RewardRead, RewardCreate, RewardEdit, RewardDelete, RewardRedeem,
+            RewardCodeRead, RewardCodeCreate, RewardCodeEdit, RewardCodeDelete, RewardCodeRedeem,
             DiscountRuleRead, DiscountRuleEdit,
         ];
     }
@@ -801,9 +875,25 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
   if (rowsAffected == 0)
       throw new ConcurrentRedemptionException(id, correlationId);
   ```
+
+  **`RedeemDiscountRequest` proto shape (locked):**
+  ```proto
+  message RedeemDiscountRequest {
+    string code = 1;                 // Coupon.Code (UK per tenant)
+    string restaurant_id = 2;        // Guid; double-checked against ICurrentRestaurantProvider
+    string order_id = 3;             // Guid; the order the redemption is attributed to
+    int32  quantity = 4;             // default 1; allows multi-quantity redemption paths
+  }
+  message RedeemDiscountResponse {
+    CouponModel coupon = 1;          // post-redemption state
+    string redemption_event_id = 2;  // for client correlation
+  }
+  ```
+  The `Idempotency-Key` header is read by the gRPC interceptor (per §0.4.1) before the handler is invoked. The handler does not parse the header itself. The `restaurant_id` field on the request is a defense-in-depth check against the JWT-derived tenant — a mismatch returns `StatusCode.PermissionDenied` with `Metadata["tenant-mismatch"] = "true"`.
   **Audit interceptor caveat:** `Database.ExecuteSqlInterpolatedAsync` bypasses EF Core's change tracker, so the `AuditableEntityInterceptor` registered at `Program.cs:12` does **not** fire to set `LastModifiedAt` / `LastModifiedBy`. The SQL above sets them explicitly. `LastModifiedBy = 'discount-system'` (not `'discount-sweep'` — that string is reserved for the sweep service; distinguish the two actors in audit logs). `LastModifiedBy` is the actor string per `BuildingBlocks.Entities.Contracts.AuditableEntity<int>`; the JWT `sub` claim is appended at audit-log write time elsewhere, but here we don't have one. The optional `_tenantProvider.RestaurantId` predicate is a defense-in-depth backup while the global query filter is in place (the filter already restricts, but a raw `UPDATE` ignores it; the predicate re-applies the tenant constraint at SQL level).
   
   Map `ConcurrentRedemptionException` to `StatusCode.Aborted` (retry once internally; second failure surfaces `FailedPrecondition`).
+- **`UpdateDiscount` / `UpdateDiscountRule` / `UpdateRewardCode` concurrency:** the conditional-UPDATE pattern is purpose-built for `Redeem*` (a counter increment with a predicate). Plain updates use a different mechanism: every Discount entity gains a `uint Version` (or `byte[] RowVersion`) column that EF Core maps as a concurrency token (`[ConcurrencyCheck]` / `[Timestamp]`). The `Update*` handler reads the row inside an explicit transaction with `SELECT ... FOR UPDATE` semantics (SQLite serializes on the write lock; same effect), mutates, and `SaveChanges` — if the version mismatches, EF Core throws `DbUpdateConcurrencyException`, mapped to `StatusCode.Aborted` with `Metadata["retry-after-ms"]`. **Last-writer-wins is rejected** as the default — settings-style updates are a real use case (admin edits a description) but they're rare enough that 409-style retry is acceptable. The same `Version` column is added to all three aggregates from day one (Phase 1 for Coupon, Phase 2/3 by extension).
 - **`/live` + `/ready` split for Discount:**
   - `/live` always green; liveness only.
   - `/ready` checks: SQLite file reachable (try-`open`), RabbitMQ broker reachable (`MassTransit` health check), outbox dead-letter count against `DiscountOptions:OutboxDeadLetterThreshold` (default 0). The custom probe is a `IHealthCheck` reading `_dbContext.OutboxDeadMessages.CountAsync()`.
@@ -837,7 +927,7 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 - **Schema:** `DiscountRules` table with FK to `Coupons`, UK `(RestaurantId, CouponId)`. The FK uses `OnDelete(DeleteBehavior.Restrict)` per the project-wide rule (Catalog §8 / "Cascade-delete policy").
 - **Two new consumers** wired to `DiscountRuleProtoService` lifecycle + bus:
   - **`MenuItemChangedConsumer : IConsumer<MenuItemChangedIntegrationEvent>`.** Pattern 2 (synthetic claims from event). Logic: for `ChangeType ∈ {Updated, Deleted}`, find `DiscountRule`s whose `RuleDataJson.RequiredMenuItemIds` includes `event.MenuItemId`. For each affected `Coupon`, recompute via `Coupon.IsActiveNow(...)` and persist `IsActive` based on whether at least one rule still holds. **Idempotency**: bus redelivery protection lives in a `processed_inbound_events` table (`EventId TEXT PK, ConsumerType TEXT, ConsumedAt INTEGER NOT NULL`, populated inside the same transaction as the rule update). The consumer reads `event.Id` from `IntegrationEvent`, runs `INSERT INTO processed_inbound_events (EventId, ConsumerType) VALUES (?, 'MenuItemChanged')`; on a unique-constraint violation (`Microsoft.Data.Sqlite.SqliteException.SqlState == "23505"`), the consumer returns without dispatching (the bus already retried with a stale copy). Do **not** use an in-process dictionary — those die on restart and double-fire when the bus redelivers.
-  - **`RestaurantConfigurationChangedConsumer : IConsumer<RestaurantConfigurationChangedIntegrationEvent>`.** Pattern 2. Logic: if `ChangedFields` contains `"Currency"`, find `Coupon` for `RestaurantId`, flip `IsActive=false`. Otherwise no-op.
+  - **`RestaurantConfigurationChangedConsumer : IConsumer<RestaurantConfigurationChangedIntegrationEvent>`.** Pattern 2. Logic: if `ChangedFields` contains `"Currency"`, find `Coupon` for `RestaurantId`, flip `IsActive=false`. Otherwise no-op. **Same `processed_inbound_events` idempotency contract as `MenuItemChangedConsumer`**: a `RestaurantConfigurationChanged` event is more idempotent in effect (flipping `IsActive=false` is monotonic), but the bus can still redeliver, and a redelivery followed by a partial failure can leave the system in a state where the second delivery observes a different `ChangedFields` shape (Catalog emitting a follow-up). The table guard is cheap; the parity with `MenuItemChangedConsumer` keeps the consumer-side idempotency story in one place.
 - **Tests:** xUnit + NSubstitute unit tests for `EvaluateDiscountRules` (MinOrderAmount, RequiredMenuItems, TimeWindow matchers); SQLite-in-memory integration for the `MenuItemChangedConsumer` end-to-end (set up a coupon + rule, fire event with `ChangeType=Deleted`, assert `Coupon.IsActive=false`); `InMemoryTestHarness` for the same consumer.
 
 **Doc-update scope (§0.2):**
@@ -885,9 +975,49 @@ This is the heaviest phase. It establishes every cross-cutting primitive on whic
 
   public enum RewardKind { Percentage = 0, FixedAmount = 1, FreeItem = 2, Points = 3 }
   ```
+  **`RewardCode.Value` is overloaded across `RewardKind`** — the column holds the percentage (10 for 10%), the fixed currency amount, the menu item id (Guid cast to decimal — broken; see validator below), or the points count. A free-item reward with `Value = 0m` is the realistic case (Phase 5's appetizer reward). The FluentValidation rule pins the kind↔value relationship at command boundary so the proto doesn't get frozen with a generic `Value` that's only meaningful for two of four kinds:
+  ```csharp
+  public class CreateRewardCodeCommandValidator : AbstractValidator<CreateRewardCodeCommand>
+  {
+      public CreateRewardCodeCommandValidator()
+      {
+          RuleFor(x => x.Code).NotEmpty().MaximumLength(120);
+          RuleFor(x => x.RestaurantId).NotEmpty();
+          RuleFor(x => x.Value).GreaterThan(0m)
+              .When(x => x.Kind != RewardKind.FreeItem)
+              .WithMessage("Value must be > 0 for Percentage, FixedAmount, or Points rewards.");
+          RuleFor(x => x.Value).Equal(0m)
+              .When(x => x.Kind == RewardKind.FreeItem)
+              .WithMessage("FreeItem rewards carry the menu item id in Description, not Value.");
+          RuleFor(x => x.Value).LessThanOrEqualTo(100m)
+              .When(x => x.Kind == RewardKind.Percentage)
+              .WithMessage("Percentage rewards must be <= 100.");
+          RuleFor(x => x.ExpirationDate).GreaterThan(_clock.GetCurrentInstant())
+              .When(x => x.ExpirationDate.HasValue)
+              .WithMessage("ExpirationDate, if set, must be in the future.");
+      }
+  }
+  ```
+  The free-item's target menu item id is carried in `Description` as `free-item:{menuItemId}` — not a clean typed field, but Phase 3 keeps the proto simple. A future `RewardTargetMenuItemId` field is a v2 of the proto (bump `MessageVersion` and follow the deprecation cycle in §6.4).
+  ```
   **Naming note:** the enum is intentionally `RewardKind`, not `RewardType` — the latter collides semantically with the type's class name and reads ambiguously (`reward.Kind = RewardKind.Percentage`). `DiscountRuleType` is fine as an enum name on `DiscountRule` because there's no separate `Rule` type to confuse it with; same symmetry applies elsewhere.
-- **New RPC service `RewardCodeProtoService`:** `CreateRewardCode`, `GetRewardCode`, `ListRewardCodes` (paged), `UpdateRewardCode`, `DeleteRewardCode`, `RedeemRewardCode(RedeemRewardCodeRequest) → RedeemRewardCodeResponse`. Permissions `reward:read/create/edit/delete/redeem`. Apply `ITenantEntity` + global filter.
-- **Race-fix pattern re-applied to `RedeemRewardCode`** — same conditional UPDATE as `RedeemDiscount` in Phase 1.
+- **New RPC service `RewardCodeProtoService`:** `CreateRewardCode`, `GetRewardCode`, `ListRewardCodes` (paged), `UpdateRewardCode`, `DeleteRewardCode`, `RedeemRewardCode(RedeemRewardCodeRequest) → RedeemRewardCodeResponse`. Permissions `reward-code:read/create/edit/delete/redeem`. Apply `ITenantEntity` + global filter.
+
+  **`RedeemRewardCodeRequest` proto shape (locked):**
+  ```proto
+  message RedeemRewardCodeRequest {
+    string code = 1;                 // RewardCode.Code (UK per tenant)
+    string restaurant_id = 2;        // Guid; double-checked against ICurrentRestaurantProvider
+    string order_id = 3;             // Guid; the order the redemption is attributed to
+    int32  quantity = 4;             // default 1
+  }
+  message RedeemRewardCodeResponse {
+    RewardCodeModel reward_code = 1;  // post-redemption state
+    string redemption_event_id = 2;
+  }
+  ```
+  Mirrors `RedeemDiscountRequest` exactly — same `Idempotency-Key` header path, same tenant-mismatch `StatusCode.PermissionDenied` behavior.
+- **Race-fix pattern re-applied to `RedeemRewardCode`** — same conditional UPDATE as `RedeemDiscount` in Phase 1. The handler sets `RedeemedInOrderId` and `RedeemedAt` in the same UPDATE.
 - **Lazy-eval gate + sweep pattern reused** — `RewardCode.IsActiveNow(IClock)`. `DiscountExpirySweepService` extends to also flip `RewardCode.IsActive=false` on expiry (single sweep, two UPDATEs).
 - **Outbox publishes** — every RewardCode CUD + redeem writes a `DiscountHistoryAppendedIntegrationEvent` row (per Q3's history decision; `EntityType=RewardCode`).
 - **Tests:** xUnit + NSubstitute unit + SQLite-in-memory integration for the same patterns as Phase 1/2.
@@ -926,49 +1056,55 @@ This phase is mostly "fill in the rest of the publish points" for the entities c
 
 - **`FeedbackSubmittedConsumer : IConsumer<FeedbackSubmittedIntegrationEvent>`** lives at `Discount.Grpc/Messaging/EventHandlers/FeedbackSubmittedConsumer.cs`.
 - **Pattern 2 synthetic claims:** consumer constructs `ClaimsPrincipal` with `RestaurantId` from `event.RestaurantId`, `actor=discount-service`. The principal is attached to an `ICurrentRestaurantProvider` scope for the duration of `Consume`.
-- **Hardcoded 4★/5★ logic per Q6**, applied by **dispatching the existing `CreateRewardCode` gRPC path** through an internal `ICreateRewardCodeCommandHandler` so the consumer respects the same validator, ITenantEntity gate, outbox publish, and audit columns that a REST/CLI caller would. Do **not** build `new RewardCode { ... }` instances inline — that bypasses every cross-cutting guard the rest of the plan stands up:
+- **Hardcoded 4★/5★ logic per Q6**, applied by **sending the existing `CreateRewardCodeCommand` through MediatR `ISender`** so the consumer respects the same validator (`FluentValidation` pipeline behaviour), `ITenantEntity` gate, outbox publish, and audit columns that an RPC caller would. Do **not** build `new RewardCode { ... }` instances inline, and do **not** `new` a handler — both bypass every cross-cutting guard the rest of the plan stands up:
   ```csharp
-  public async Task Consume(ConsumeContext<FeedbackSubmittedIntegrationEvent> context)
+  public sealed class FeedbackSubmittedConsumer(
+      ISender sender,
+      TimeProvider clock,
+      ICurrentRestaurantProvider tenant,
+      ILogger<FeedbackSubmittedConsumer> logger) : IConsumer<FeedbackSubmittedIntegrationEvent>
   {
-      var evt = context.Message;
-      var restaurantId = evt.RestaurantId;
-
-      var creator = new CreateRewardCodeCommandHandler(_dbContext, _outbox, _tenant, _clock, _logger);
-
-      if (evt.OverallRating >= 4 && evt.OverallRating < 5)
-          await creator.HandleAsync(new CreateRewardCodeCommand(
-              RestaurantId: restaurantId,
-              Code:         RewardCode.Code4StarPct10(restaurantId, evt.Id, _clock),
-              Kind:         RewardKind.Percentage,
-              Value:        10m,
-              Description:  "10% off for 4★ feedback",
-              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
-              context.CancellationToken);
-      else if (evt.OverallRating >= 5)
+      public async Task Consume(ConsumeContext<FeedbackSubmittedIntegrationEvent> context)
       {
-          await creator.HandleAsync(new CreateRewardCodeCommand(
-              RestaurantId: restaurantId,
-              Code:         RewardCode.Code5StarPct15(restaurantId, evt.Id, _clock),
-              Kind:         RewardKind.Percentage,
-              Value:        15m,
-              Description:  "15% off for 5★ feedback",
-              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
-              context.CancellationToken);
-          await creator.HandleAsync(new CreateRewardCodeCommand(
-              RestaurantId: restaurantId,
-              Code:         RewardCode.Code5StarAppetizer(restaurantId, evt.Id, _clock),
-              Kind:         RewardKind.FreeItem,
-              Value:        0m,
-              Description:  "Free appetizer for 5★ feedback",
-              ExpirationDate: _clock.GetCurrentInstant() + Duration.FromDays(30)),
-              context.CancellationToken);
+          var evt = context.Message;
+          var restaurantId = evt.RestaurantId;
+          tenant.Attach(new ClaimsPrincipalBuilder().WithRestaurant(restaurantId).WithActor("discount-service").Build());
+
+          if (evt.OverallRating >= 4 && evt.OverallRating < 5)
+              await sender.Send(new CreateRewardCodeCommand(
+                  RestaurantId:    restaurantId,
+                  Code:            RewardCode.Code4StarPct10(restaurantId, evt.Id, clock),
+                  Kind:            RewardKind.Percentage,
+                  Value:           10m,
+                  Description:     "10% off for 4★ feedback",
+                  ExpirationDate:  clock.GetCurrentInstant() + Duration.FromDays(30)),
+                  context.CancellationToken);
+          else if (evt.OverallRating >= 5)
+          {
+              await sender.Send(new CreateRewardCodeCommand(
+                  RestaurantId:    restaurantId,
+                  Code:            RewardCode.Code5StarPct15(restaurantId, evt.Id, clock),
+                  Kind:            RewardKind.Percentage,
+                  Value:           15m,
+                  Description:     "15% off for 5★ feedback",
+                  ExpirationDate:  clock.GetCurrentInstant() + Duration.FromDays(30)),
+                  context.CancellationToken);
+              await sender.Send(new CreateRewardCodeCommand(
+                  RestaurantId:    restaurantId,
+                  Code:            RewardCode.Code5StarAppetizer(restaurantId, evt.Id, clock),
+                  Kind:            RewardKind.FreeItem,
+                  Value:           0m,
+                  Description:     "Free appetizer for 5★ feedback",
+                  ExpirationDate:  clock.GetCurrentInstant() + Duration.FromDays(30)),
+                  context.CancellationToken);
+          }
+          // The handler writes both the RewardCode row and the outbox row.
+          // No additional DiscountHistoryAppendedIntegrationEvent publish here —
+          // the handler already does it on Created.
       }
-      // The handler writes both the RewardCode row and the outbox row.
-      // No additional DiscountHistoryAppendedIntegrationEvent publish here —
-      // the handler already does it on Created.
   }
   ```
-  The `Code*()` helpers are deterministic (e.g., `RWD-{restaurantId:N}-4STAR-PCT10-{yyyyMMdd}`) so re-delivery of the same `FeedbackSubmittedIntegrationEvent` is detected by the uniqueness constraint on `Code` and the duplicate-Create is swallowed. Idempotent by design — no separate `processed_inbound_events` check needed beyond what the handler's own uniqueness violation already provides.
+  The `Code*()` helpers are deterministic (e.g., `RWD-{restaurantId:N}-4STAR-PCT10-{yyyyMMdd}-{feedbackEventId:N}`) so re-delivery of the same `FeedbackSubmittedIntegrationEvent` is detected by the uniqueness constraint on `Code` and the duplicate-Create is swallowed. Idempotent by design — no separate `processed_inbound_events` check needed beyond what the handler's own uniqueness violation already provides. (For reference, Phase 2's `MenuItemChangedConsumer` *does* use `processed_inbound_events` because the rule-update path has no natural uniqueness violation to lean on; the two strategies are complementary, not redundant — see §0.3.4 for the project's consumer-side idempotency choice matrix.)
 - **Disabled by default** via `DiscountOptions:EnableFeedbackSubmittedConsumer=false`. MassTransit 8.x does not expose `ConfigureConsumer.DisableConsumer<T>(...)`; the modern idiom is **conditional registration** in `Program.cs`:
 
   ```csharp
@@ -1019,7 +1155,8 @@ This phase is **mostly documentation** with two small code touchpoints.
 - **Mermaid updates:** add `RewardCodes` and `DiscountRules` blocks under the CATALOG block (Discount mermaid lives in `db_relational_model.mermaid` under that header even though Discount owns the tables — same authoring pattern as Catalog's NotificationLog residue).
 - **`/ready` probe config knob:** confirm `DiscountOptions:OutboxDeadLetterThreshold` is `ValidateOnStart()`; verify an unreachable RabbitMQ flips `/ready` to unready in tests.
 - **All Phase 1–6 doc-update scopes audited.** Verifies every phase's checklist box is matched by a committed doc change.
-- **Final smoke test:** 0 warnings / 0 errors; full test pyramid (unit + SQLite-in-mem + InMemoryHarness) green; SQL migrations apply cleanly; build for both Debug and Release configurations.
+- **Final smoke test:** 0 warnings / 0 errors; full test pyramid (unit + SQLite-in-mem + InMemoryHarness + gRPC integration) green; SQL migrations apply cleanly; build for both Debug and Release configurations.
+- **Yarp gRPC routing verification:** hit the Yarp gateway (`http://localhost:5000` for the dev environment) from a `Grpc.Net.Client` `GrpcChannel` with a real `Metadata["authorization"]` Bearer token, target `DiscountProtoService.GetDiscount` (or a new no-auth probe RPC if `GetDiscount` requires a permission), and assert the call lands on port 6002 with the JWT surviving the hop. Two failure modes to catch here: (1) the gateway strips the `authorization` header (the JWT flow breaks silently, every RPC returns `StatusCode.Unauthenticated`); (2) the gateway terminates HTTP/2 incorrectly and the gRPC frames don't survive (every call returns `StatusCode.Internal` with a "protocol error" detail). The verification step lives in `Discount.Grpc.Tests/Integration/YarpGatewaySmokeTest.cs` and runs against the docker-compose dev stack.
 
 **Doc-update scope (§0.2):** everything touched by Phases 1–6 audited for consistency. The drift memo is the canonical post-Phase-7 reference.
 
@@ -1029,7 +1166,7 @@ This phase is **mostly documentation** with two small code touchpoints.
 
 ### Cross-service coordination rules (mirror Catalog §8)
 
-- **Event versioning.** Every Discount integration event carries `int SchemaVersion` (current = 1). Adding fields bumps the version. Removing or renaming a field requires introducing the next major version side-by-side, publishing both for one release, then dropping the old version. Documented in §6.5.
+- **Event versioning.** Every Discount integration event carries `int MessageVersion` (current = 1), inherited from `BuildingBlocks.Messaging.Events.IntegrationEvent`. The outbox row stores the same value under the column name `SchemaVersion` (the `OutboxPublisher` does the copy on stage; see §0.4.4 for the rationale). Adding fields bumps `MessageVersion`. Removing or renaming a field requires introducing the next major version side-by-side, publishing both for one release, then dropping the old version. Documented in §6.5.
 - **Cascade-delete policy.** All FKs use `OnDelete(DeleteBehavior.Restrict)`. Soft-delete only. Application layer raises a friendly 409 via `StatusCode.FailedPrecondition` when a delete is blocked. The conditional UPDATE race-fix in `RedeemDiscount` is one example.
 - **Outbox ownership.** Discount owns its own `outbox_messages` table. Cross-cutting schema changes (column rename on a shared FK; new required column referenced by another service) land first in Discount, then consumer read paths update, then a coordinated migration script is documented in the commit message.
 - **Cache failure policy.** N/A — per Q12, no cache.
@@ -1060,7 +1197,20 @@ Unlike Catalog's `db_relational_model.md §137-148` carry-over list (`BasketItem
 - **Unit tests** (xUnit + FluentAssertions + NSubstitute): pure logic — handler happy paths, validation, the lazy-eval gate. No infrastructure. Fast.
 - **SQLite `:memory:` integration** for the outbox dispatcher (claim SQL roundtrip), the lazy-eval gate (`UpdateSQLiteDatabase(); insert coupon with past expiry; assert Coupon.IsActiveNow returns false`), the sweep service (fake `TimeProvider`), and the race-fix conditional UPDATE pattern.
 - **`MassTransit.InMemoryTestHarness`** for `FeedbackSubmittedConsumer`, `MenuItemChangedConsumer`, `RestaurantConfigurationChangedConsumer`. The InMemoryHarness config is registered per-test and asserts both consumer dispatch and the publish-side `DiscountHistoryAppendedIntegrationEvent` end-to-end (the publisher's handler is a no-op stub that records the message; the test asserts its presence and shape).
-- **NSubstitute for handler tests** that don't need real infrastructure (pure JWT-claim scenarios).
+- **gRPC integration tests** (xUnit + `Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>` + `Grpc.Net.Client`): the layer that exercises the actual wire. None of the layers above cover:
+  - Proto generation (a missing `<Protobuf Include=...>` element surfaces as a build error, but a typo in the package name surfaces as a runtime `RpcException` with `StatusCode.Unimplemented`).
+  - `DiscountAuthorizationInterceptor` registration and the `[Permission(...)]` attribute read from `MethodInfo`.
+  - JWT propagation from gRPC `Metadata["authorization"]` into `HttpContext.User` (the interceptor's `GetHttpContext()` call only works when `AddJwtBearer` is wired AND the request is HTTP/2).
+  - The `ExceptionInterceptor` mapping `DomainException` → `StatusCode.NotFound` and friends (the unit tests can substitute the handler; the gRPC tests exercise the actual `ServerCallContext` boundary).
+  - The pagination `page_size` cap and `Idempotency-Key` middleware read.
+
+  Add `Discount.Grpc.Tests/Integration/RpcEndpointTests.cs` with at least one test per RPC family: `Coupon` (Create / Get / List / Update / Delete / Redeem), `RewardCode` (Phase 3), `DiscountRule` (Phase 2, including `Evaluate`). Each test:
+  1. Spins up `WebApplicationFactory<Program>` with `Discount:IdempotencyKey` seeded in test config.
+  2. Mints a test JWT against Identity's dev endpoint (or a `TestJwtBearerHandler` in the test host that bypasses the signature check and synthesizes the `ClaimsPrincipal` directly).
+  3. Calls the RPC via `GrpcChannel.ForAddress(...)` and asserts `Status` and the response shape.
+  4. Negative paths: missing JWT → `StatusCode.Unauthenticated`; wrong permission → `StatusCode.PermissionDenied`; cross-tenant → `StatusCode.PermissionDenied`; expired coupon → `StatusCode.FailedPrecondition`; redemption race lost → `StatusCode.Aborted`.
+
+  NSubstitute for handler tests that don't need real infrastructure (pure JWT-claim scenarios).
 
 ### Observability
 
@@ -1130,7 +1280,7 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 1.2
+**Document Version:** 1.3
 **Last Updated:** 2026-07-11
 **Maintained By:** Discount working group
 
@@ -1197,3 +1347,31 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 > No cross-plan code changes ship with Discount's plan; the docs land here so siblings can plan against the contract.
 
 For the schema-level drift baseline, see `db-model-drift-reports.md` (Discount chapter rewritten in Phase 7) and the project convention `mermaid-code-review-convention.md`.
+
+> **v1.3 changelog — `api-design-principles` review pass.** All 14 findings applied:
+>
+> **High (5):**
+> - **H-L15** Permission-prefix naming normalized: `reward:read/create/edit/delete/redeem` → `reward-code:read/create/edit/delete/redeem` so the three permission families read consistently (`coupon:`, `reward-code:`, `discount-rule:`). Updated in: preamble Q10, §2 Goal, §6.6.2 Identity hand-off, §7 Phase 1 `DiscountPermissions` constants. The Identity follow-up plan reads the same string list, so the rename must propagate there in lockstep.
+> - **H-L16** Added `ListDiscounts(ListDiscountsRequest) → ListDiscountsResponse` (paged) to Phase 1's Coupon RPCs. The existing 5 RPCs had no List; Phases 2 and 3 add List for the new entities from day one. Symmetry restored; the api-design-principles "always paginate large collections" rule honored. Permission gate: `coupon:read`; query path runs through the global tenant filter.
+> - **H-L17** Phase 5 `FeedbackSubmittedConsumer` rewritten to inject `ISender` and dispatch `CreateRewardCodeCommand` through `_sender.Send(...)`. The previous `new CreateRewardCodeCommandHandler(...)` skipped the MediatR validation pipeline. Constructor now takes `(ISender sender, TimeProvider clock, ICurrentRestaurantProvider tenant, ILogger<...> logger)`. The `ISender` path runs FluentValidation, logging, and any future cross-cutting behaviour.
+> - **H-L18** `SchemaVersion` ↔ `MessageVersion` prose pass: the event record inherits `int MessageVersion` from `IntegrationEvent`; the outbox column is `SchemaVersion`; `OutboxPublisher` copies one to the other on stage. Updated in: preamble Q8, §5 Tech decisions, §0.4.4. The earlier prose read as if the event carried `SchemaVersion` directly — that was misleading.
+> - **H-L19** New gRPC integration test layer added to §8 testing strategy: `WebApplicationFactory<Program>` + `Grpc.Net.Client` + per-RPC negative-path assertions. None of the existing layers (xUnit, SQLite-in-mem, InMemoryTestHarness) cover the actual gRPC wire — proto generation, `DiscountAuthorizationInterceptor`, JWT propagation, `StatusCode` mapping. `Discount.Grpc.Tests/Integration/RpcEndpointTests.cs` exercises at least one RPC of each kind (Create / Get / List / Update / Delete / Redeem / Evaluate).
+>
+> **Medium (6):**
+> - **M-L20** `RedeemDiscountRequest` and `RedeemRewardCodeRequest` proto shapes locked in §7 Phase 1 / §7 Phase 3. Fields: `code`, `restaurant_id`, `order_id`, `quantity`. The `restaurant_id` field is double-checked against `ICurrentRestaurantProvider`; mismatch returns `StatusCode.PermissionDenied` with `Metadata["tenant-mismatch"]`. `RedeemRewardCodeResponse` mirrors `RedeemDiscountResponse` exactly.
+> - **M-L21** Phase 1 `Coupon` entity gains `Instant? DeletedAt` and `string? DeletedBy` columns to separate "deleted by user" from "deactivated by sweep/rule". Both are required because the previous single `IsActive` flag allowed rule reactivations to resurrect a deleted row. Phases 2 and 3 inherit the pattern on `DiscountRule` and `RewardCode`.
+> - **M-L22** Phase 1 adds optimistic-concurrency handling for the `Update*` family: every Discount entity gains a `uint Version` column mapped as `[ConcurrencyCheck]`. `DbUpdateConcurrencyException` maps to `StatusCode.Aborted` with `Metadata["retry-after-ms"]`. `RedeemDiscount` and `RedeemRewardCode` keep their conditional-UPDATE pattern (different concern). The plan explicitly rejects "last-writer-wins" as the default.
+> - **M-L23** §7 Phase 2 `RestaurantConfigurationChangedConsumer` now uses the same `processed_inbound_events` table as `MenuItemChangedConsumer`. The effect is more idempotent, but the table guard is cheap and keeps the consumer-side idempotency story in one place.
+> - **M-L24** `RewardCode.Value` kind-specific validation pinned in §7 Phase 3. The column is overloaded across four semantic shapes; the validator enforces `Value > 0` for Percentage / FixedAmount / Points, `Value == 0` for FreeItem (target menu item id is in `Description`), `<= 100` for Percentage, and `ExpirationDate > now` when set. A future `RewardTargetMenuItemId` field is a v2 proto bump.
+> - **M-L25** §0.3.3 added — a locked, single-source-of-truth list of validation rules per command. The implementer extends it (with rationale) in the same commit as a new command. A phase is not "done" until every applicable rule ships a validator.
+>
+> **Low (3):**
+> - **L-L26** §0.3.4 added — a consumer-side idempotency choice matrix that pins the two strategies (`processed_inbound_events` table vs. handler-side unique-key violation) and the rule for picking between them.
+> - **L-L27** §0.4.3.1 added — `IsActiveNow` helper signature locked (`ActiveNow.Coupon(c, clock)` / `ActiveNow.RewardCode(r, clock)`). The two implementations cannot drift. DiscountRule has no `IsActiveNow` because it has no `ExpirationDate`.
+> - **L-L28** §7 Phase 7 gains a Yarp gRPC routing verification step: `Discount.Grpc.Tests/Integration/YarpGatewaySmokeTest.cs` hits the dev gateway from a `Grpc.Net.Client` `GrpcChannel` with a real `Metadata["authorization"]` Bearer token and asserts the call lands on port 6002 with the JWT intact. Catches the two failure modes (gateway strips auth header / gateway breaks HTTP/2) that the unit tests would miss.
+>
+> **Cross-cutting observations (2):**
+> - **O-L29** §0.4.1 `Idempotency-Key` provider gets a dev-only fallback: when `IHostEnvironment.IsDevelopment()` is true and the config value is missing, the provider generates a 32-byte random key at startup, logs a `WARN`, and registers it. Production keeps the hard-fail behavior. The `README.md` still documents `dotnet user-secrets` for the case where the dev wants persistent idempotency across restarts.
+> - **O-L30** `FeedbackSubmittedConsumer` construction-time call to `tenant.Attach(syntheticPrincipal)` documents the Pattern 2 contract at the consumer boundary; future bus-triggered consumers copy the same shape.
+>
+> Document Version bumped from 1.2 → 1.3. No additional documents affected. Mem-bind: the corrections listed here affect only `DISCOUNT_SERVICE_PLAN.md`; sibling plans (Catalog, Identity, Notification v1) are unchanged by this pass. **Action item for siblings**: the `reward:read` → `reward-code:read` rename in H-L15 must be mirrored in the Identity plan's `Permissions` table seed list; no other cross-plan change ships.

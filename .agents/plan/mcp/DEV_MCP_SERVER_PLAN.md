@@ -12,9 +12,27 @@
 > The server will be built using TypeScript and the `@modelcontextprotocol/sdk`. It will connect to the local instances of the microservices' databases (PostgreSQL/Marten, Redis, SQLite) and/or their APIs.
 
 ### 0.2 Code-quality guard rails
-- **TypeScript Strict Mode**: The project must use strict TypeScript configurations to ensure type safety, especially when defining tool schemas.
+- **TypeScript — mandatory**: All source files must be `.ts`. No plain `.js` files in `src/`. The project is compiled with `tsc` before running.
+- **Strict `tsconfig.json`**: The following compiler options are required:
+  ```json
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "Node16",
+      "moduleResolution": "Node16",
+      "outDir": "dist",
+      "rootDir": "src",
+      "strict": true,
+      "noUncheckedIndexedAccess": true,
+      "noImplicitOverride": true,
+      "exactOptionalPropertyTypes": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true
+    }
+  }
+  ```
 - **Local Development Only**: This server is explicitly for development environments. It will NOT be deployed to production.
-- **Zod for Schemas**: Use `zod` alongside the MCP SDK to validate inputs and strongly type tool arguments.
+- **Zod for Schemas**: Use `zod` alongside the MCP SDK to validate inputs and strongly type tool arguments. All tool input schemas must be defined as `z.ZodObject` types — no `any` or untyped objects.
 
 ---
 
@@ -52,9 +70,13 @@ By exposing these tools, the AI can independently setup scenarios, verify contra
 | Decision | Choice | Reason |
 | :--- | :--- | :--- |
 | **Runtime** | **Node.js (TypeScript)** | Best ecosystem for MCP tooling via the official `@modelcontextprotocol/sdk`. Fast to write and iterate. |
-| **Database Access** | `pg` (PostgreSQL) + `ioredis` | To connect directly to the local Catalog/Basket databases for rapid seeding and inspection. |
+| **PostgreSQL access** | `pg` | Connects to Catalog (`5433`), Basket (`5434`), Kitchen (`5436`), and Identity (`5435`) — all Marten-backed PostgreSQL instances. |
+| **SQL Server access** | `mssql` | Connects to Ordering (`1433`) — EF Core Clean Architecture database. |
+| **Redis access** | `ioredis` | Connects to the distributed cache (`6379`). Password from env (`redisdev` default). |
+| **RabbitMQ access** | `amqplib` | Connects via AMQP (`5672`) to publish integration events and inspect queues. Management API (`15672`) used for DLQ inspection. |
 | **HTTP Client** | Native `fetch` | To make requests to the running .NET APIs (e.g., to fetch Swagger schemas). |
 | **Tool Input Validation** | `zod` | Standard schema definition library used in MCP TypeScript examples. |
+| **JWT Generation** | `jsonwebtoken` | Signs dev tokens using the same secret as the Identity service — loaded from `.env`, never hard-coded. |
 | **Transport** | **HTTP / SSE (Server-Sent Events)** | Because the backend runs on a local server (`192.168.1.65`), the MCP server will expose an HTTP SSE endpoint (e.g., `http://192.168.1.65:8080/sse`) rather than `stdio`. This allows AI clients on other network machines to connect seamlessly. |
 
 ---
@@ -68,35 +90,154 @@ OrderlyMicroservices/
   Orderly.DevMCP.Server/
     package.json
     tsconfig.json
+    .env.example               -- mirrors orderly-microservices/.env.example
     src/
-      index.ts                 -- MCP Server initialization
-      config/                  -- DB connection strings (defaulting to localhost)
+      index.ts                 -- MCP Server initialization + SSE transport
+      config/
+        services.ts            -- base URLs for all 7 APIs + gateway (mapped from docker-compose ports)
+        databases.ts           -- pg / mssql / redis / amqp connection factories
+        env.ts                 -- zod-parsed environment variables
       tools/
         api-discovery.ts       -- Tools for reading swagger docs
         data-seeding.ts        -- Tools for inserting mock data
         state-inspection.ts    -- Tools for querying current DB/Redis state
         log-tracing.ts         -- Tools for reading local container logs
+        auth.ts                -- JWT generation + verification
+        event-bus.ts           -- RabbitMQ publish + DLQ inspection
+        infrastructure.ts      -- DB reset + outage simulation
+        jobs.ts                -- Historical seeding + scheduled job triggers
+        flow-tracing.ts        -- Golden-path execution + architecture diagrams
+        snapshot.ts            -- Live cross-service system snapshot
       db/
-        postgres-client.ts     -- Connection to local Marten/EF databases
-        redis-client.ts        -- Connection to local Redis cache
+        postgres-client.ts     -- pg Pool factory (catalog / basket / kitchen / identity)
+        mssql-client.ts        -- mssql connection factory (ordering)
+        redis-client.ts        -- ioredis factory
+        rabbitmq-client.ts     -- amqplib factory (event-bus tools)
+      resources/
+        seeds/
+          catalog-seed.json    -- canonical test menu structure
+          order-seed.json      -- canonical order payload
+        flows/
+          checkout.mmd         -- Mermaid sequence diagram for checkout flow
+          kitchen-order-lifecycle.mmd
+          discount-application.mmd
 ```
 
 ---
 
-## 6. Initial Tool Specification
+## 6. Tool Specification
 
 The MCP server will register the following tools on startup:
 
 ### 6.1 API Discovery Tools
-*   `get_api_schema(serviceName)`: Fetches and parses the swagger.json for a given service (`Catalog`, `Basket`, `Ordering`). Returns the endpoint paths and payload schemas.
+
+*   **`get_api_schema(serviceName)`**: Calls `http://localhost:{port}/swagger/v1/swagger.json` for the given service and normalises the response into a compact, LLM-friendly shape: endpoint path → HTTP method → summary → request/response schemas. Strips `servers[]` and `x-*` noise before returning. Includes a `schema_version` field so the AI can detect backend contract changes.
+    - `serviceName` maps to real ports: `Catalog`→`6000`, `Basket`→`6001`, `Ordering`→`6003`, `Kitchen`→`6005`, `Identity`→`6007`.
+    - Returns a descriptive error if the service is not in `Development` mode (Swagger unavailable).
 
 ### 6.2 Data Seeding Tools
-*   `seed_test_menu(restaurantId)`: Injects a standard set of categories, items, and ingredients into the Catalog DB for a specific restaurant.
-*   `create_mock_order(restaurantId, status)`: Creates a fake order in the Ordering DB/Basket DB to allow the UI to test different order states (e.g., Pending, Completed).
+
+*   **`seed_test_menu(restaurantId, dryRun?)`**: Inserts a canonical restaurant menu (categories, items, variations, ingredient customizations) directly into `Catalogdb` via raw `pg` queries. Marten stores documents in `mt_doc_<typename>` JSONB tables — the tool upserts these rows to be idempotent. Canonical seed data lives in `resources/seeds/catalog-seed.json`. When `dryRun: true`, returns the SQL that *would* be executed without touching the database.
+
+*   **`create_mock_order(restaurantId, status)`**: Creates a fake order with the given status (`Pending`, `Processing`, `Completed`, `Cancelled`) in SQL Server `OrderDb`. Inserts rows transactionally into the `Orders`, `OrderItems`, and `OrderAddress` tables (EF Core relational schema — see `docs/architecture/db_relational_model.mermaid`). Returns the new `OrderId` GUID so it can be chained immediately to a state-inspection call.
 
 ### 6.3 State Inspection Tools
-*   `inspect_basket(basketId)`: Directly queries Redis to return the current state of a user's basket.
-*   `get_recent_logs(serviceName)`: Fetches the last 50 log lines from a specific service's docker container for instant debugging.
+
+*   **`inspect_basket(basketId)`**: Connects to Redis (`ioredis`, port `6379`, password from env) and fetches the key `basket-{basketId}`. Deserialises the JSON blob and returns a structured view of items, quantities, applied discounts, and total. When called twice with the same ID, diff-prints the two states to make mutations obvious.
+
+*   **`inspect_order_pipeline(orderId)`**: Runs a coordinated query across SQL Server (`OrderDb`) + RabbitMQ Management API + Kitchen PostgreSQL (`Kitchendb`) to show the full lifecycle of an order — from `Orders` table status → broker queued/acked events → kitchen order row. Covers the `BasketCheckoutEvent` → `OrderCreatedIntegrationEvent` → `KitchenOrder*` chain.
+
+### 6.4 Authentication & Authorization
+
+*   **`generate_dev_token(role, restaurantId, userId)`**: Creates a signed JWT using the same `Jwt:Secret`, `Jwt:Issuer`, and `Jwt:Audience` values as the Identity service. Claims include `sub`, `restaurantId`, `role` (`Admin`, `Manager`, `Staff`, `Customer`), and `exp` (1h default, configurable). Uses the `jsonwebtoken` npm package. The secret must come from the MCP server's `.env` — server refuses to start if `JWT_SECRET` is not set.
+
+*   **`verify_token(token)`**: Decodes and validates a JWT without making any API call. Returns the decoded claims or a descriptive error.
+
+### 6.5 Async Messaging & Event Bus
+
+*   **`publish_integration_event(eventName, payload)`**: Connects to RabbitMQ (AMQP `5672`) via `amqplib` and publishes a JSON message to the MassTransit fanout exchange for that event type. Exchange names follow MassTransit's convention: `BuildingBlocks.Messaging.Events:{EventTypeName}` (e.g., `BuildingBlocks.Messaging.Events:BasketCheckoutEvent`). All known event types from `BuildingBlocks.Messaging/Events/` are enumerated in a lookup table to enable auto-complete via the tool schema. The `Id`, `OccurredOn`, and `MessageVersion` fields from `IntegrationEvent` are injected automatically.
+
+*   **`inspect_dead_letters()`**: Calls the RabbitMQ Management HTTP API (`http://localhost:15672/api/queues`) to find dead-letter queues and returns the failed message payloads, their error reasons, and retry counts.
+
+### 6.6 Environment & Infrastructure Controls
+
+*   **`reset_databases(targets?, confirm)`**: Drops and recreates schemas for one or more databases. `targets` is an array of `"catalog"`, `"basket"`, `"ordering"`, `"kitchen"`, `"identity"` (defaults to all). Also flushes Redis with `FLUSHALL`. Requires `confirm: true` in the input schema to prevent accidental use. For Marten databases: runs `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`. For EF Core SQL Server: drops and recreates the database, then re-applies migrations via SQL.
+
+*   **`simulate_service_outage(serviceName, durationSeconds?)`**: Runs `docker stop {containerName}` then, after `durationSeconds` (default `30`), runs `docker start {containerName}`. Use `durationSeconds: 0` for a permanent stop. Only allowed on API containers — never on `messagebroker` or database containers, to avoid corrupting stateful volumes.
+
+### 6.7 Advanced Data & Job Management
+
+*   **`seed_historical_sales(restaurantId, daysBack)`**: Bulk-inserts synthetic completed orders into `OrderDb` spanning the past `daysBack` days. Each day gets a random but deterministic volume of orders (seed = `restaurantId + daysBack` for reproducibility) with realistic timestamps, item mixes, and amounts. Uses `mssql` bulk copy for performance.
+
+*   **`trigger_scheduled_jobs(jobName)`**: Makes an HTTP POST to a dedicated dev-only endpoint on the relevant service to immediately execute a background job. Known jobs: `clear-abandoned-baskets`, `daily-reconciliation`, `outbox-relay`. Note: this requires a companion dev-trigger endpoint in the backend service.
+
+### 6.8 Flow Documentation & Tracing
+
+*   **`trace_business_flow(flowName)`**: Executes a scripted sequence of HTTP calls representing a complete business flow and returns each request/response pair (URL, headers, body, status) as a structured "golden path" document. Known flows:
+    - `checkout`: Add items → Apply discount → Checkout → Verify order created → Verify kitchen order created
+    - `kitchen-order-lifecycle`: Publish `KitchenOrderAccepted` → `PrepStarted` → `Ready` → Verify `OrderCompleted`
+    - `discount-application`: Call Discount gRPC → Verify reduced price in basket
+
+*   **`get_flow_architecture(flowName)`**: Returns a Mermaid.js sequence diagram showing microservice interactions, database writes, and EventBus messages for the named flow. Diagrams are stored as static `.mmd` files in `resources/flows/` and read at call time — not generated by the AI.
+
+*   **`verify_flow_state(entityId, expectedState)`**: Given an `OrderId` or `BasketId`, queries all relevant databases and RabbitMQ queues to assert whether the entity is in the expected state. Returns a pass/fail report with the actual state found in each system — quickly determines if a bug is a frontend rendering issue or a backend integration failure.
+
+### 6.9 Live System Snapshot ✨
+
+*   **`get_system_snapshot(restaurantId?)`**: Produces a single unified, read-only "state of the world" report for the entire Orderly backend in one MCP call. All queries run in parallel via `Promise.allSettled` so a single failing service does not block the rest — partial results with error flags are returned instead. Each sub-query has a 3-second timeout. When `restaurantId` is omitted, returns aggregate stats across all restaurants.
+
+    Returns:
+    ```json
+    {
+      "generatedAt": "2026-07-12T10:28:00Z",
+      "restaurantId": "...",
+      "catalog": {
+        "menuItemCount": 42,
+        "categoryCount": 8,
+        "cacheStatus": "warm",
+        "lastSyncedAt": "..."
+      },
+      "activeSessions": {
+        "basketCount": 3,
+        "baskets": [
+          { "basketId": "...", "itemCount": 2, "totalAmount": 35.50 }
+        ]
+      },
+      "orders": {
+        "pending": 2,
+        "processing": 1,
+        "completed_today": 14,
+        "recentOrders": []
+      },
+      "kitchen": {
+        "activeOrders": 3,
+        "oldestActiveOrderAge": "00:12:30"
+      },
+      "eventBus": {
+        "pendingMessages": 0,
+        "deadLetterCount": 0,
+        "queues": [
+          { "name": "ordering-api", "messages": 0, "consumers": 1 }
+        ]
+      },
+      "infrastructure": {
+        "containers": [
+          { "name": "catalog.api", "status": "running", "uptime": "2h 14m" }
+        ],
+        "redis": { "status": "ok", "keyCount": 3 }
+      }
+    }
+    ```
+
+    Queries in parallel:
+    - Catalog summary from `Catalogdb` (PostgreSQL `5433`)
+    - Active baskets from Redis (`6379`)
+    - Order summary from `OrderDb` (SQL Server `1433`)
+    - Kitchen queue depth from `Kitchendb` (PostgreSQL `5436`)
+    - RabbitMQ stats from Management API (`15672`)
+    - Docker container status via `docker ps`
+
+*   **`watch_system(intervalSeconds, restaurantId?)`**: Streams repeated snapshots at `intervalSeconds` intervals over SSE. The AI can call this while running `trace_business_flow` to observe the order count increment and kitchen queue fill in real time.
 
 ---
 
@@ -120,10 +261,34 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 ---
 
-## 8. Next Steps
+## 8. Security Guardrails
+
+> [!CAUTION]
+> This server is **strictly forbidden from running in any environment other than a local development machine**. It has direct read/write access to every database, can publish arbitrary events to the message broker, and can generate valid auth tokens. Treat a running instance of this server with the same sensitivity as a raw database credential.
+
+| Risk | Mitigation |
+|---|---|
+| **Server starting in production** | `index.ts` reads `NODE_ENV` at process startup and calls `process.exit(1)` immediately if the value is anything other than `"development"`. No tools are registered before this check. |
+| **Accidental inclusion in production Docker Compose** | `Orderly.DevMCP.Server` must **never** be added to `docker-compose.yml` or `docker-compose.override.yml`. Add the directory to `.dockerignore`. The `package.json` must not expose a `start` script — only a `dev` script — to make accidental production deployment obvious. |
+| `reset_databases()` wiping production | Hard-coded check: only allow connections to `localhost` or the configured `DEV_HOST`. Reject any other hostname at the connection factory level before any query runs. |
+| Token generation with wrong secret | `.env` validation on startup — server refuses to start if `JWT_SECRET` is not set. |
+| `simulate_service_outage` on wrong container | Allowlist enforced in `infrastructure.ts` — only API containers accepted, never databases or `messagebroker`. |
+| MCP server exposed on public network | Document that port `8080` must be firewall-restricted to the LAN only (`192.168.1.0/24`). |
+
+---
+
+## 9. Next Steps
 
 1.  Initialize the Node.js project in `Orderly.DevMCP.Server`.
-2.  Install `@modelcontextprotocol/sdk` (including the express/SSE transport packages), `zod`, `pg`, and `ioredis`.
-3.  Implement the skeleton `index.ts` that starts the HTTP SSE server.
-4.  Implement the first tool: `get_api_schema`.
-5.  Test the connection locally using an MCP inspector or Claude Desktop configured for the SSE endpoint.
+2.  Install dependencies: `@modelcontextprotocol/sdk`, `zod`, `pg`, `mssql`, `ioredis`, `amqplib`, `jsonwebtoken`, `typescript`.
+3.  Implement `config/env.ts`, `config/services.ts`, `config/databases.ts` with the real port mapping from `docker-compose.override.yml`.
+4.  Implement `index.ts` with `StreamableHTTPServerTransport` from `@modelcontextprotocol/sdk/server/streamableHttp`.
+5.  Implement tools in order of impact:
+    1. `get_api_schema` — lowest risk, highest immediate value
+    2. `generate_dev_token` — unblocks authenticated API testing
+    3. `get_system_snapshot` — gives full situational awareness in one call
+    4. `seed_test_menu` + `create_mock_order`
+    5. `inspect_basket` + `inspect_order_pipeline`
+    6. Remaining tool groups
+6.  Test with MCP Inspector: `npx @modelcontextprotocol/inspector http://localhost:8080/mcp`.
+7.  Distribute SSE URL to frontend repos as described in section 7.

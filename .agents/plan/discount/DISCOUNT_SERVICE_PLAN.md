@@ -122,12 +122,16 @@ The "2+ files" promotion rule from CATALOG_SERVICE_PLAN §0.3.12 applies. `Disco
 
 The plan asserts "FluentValidation in handlers" but does not enumerate which rules. This section is the locked list. A phase is not "done" until every rule below ships a validator in that phase's commit, and the phase's Doc-update scope cites this section verbatim.
 
-- **`CreateDiscountCommand` / `UpdateDiscountCommand`** (Phase 1):
+- **`CreateDiscountCommand` / `UpdateDiscountCommand`** (Phase 1, extended in Phase 8):
   - `Code` — non-empty, ≤ 64 chars, unique per `(RestaurantId, Code)`. Uniqueness check queries `DiscountContext.Coupons` ignoring the current `Id` on update.
-  - `Amount` — `> 0` (a $0 coupon is a footgun, not a feature).
+  - `Amount` — `> 0` always.
+  - `DiscountType` — must be a defined enum value of `DiscountType { Percentage, FixedAmount }` (Phase 8 add). When omitted on update, the existing value is preserved.
+  - `Amount` — `> 0 && <= 100` when `DiscountType = Percentage`. A 0% "free preview" coupon is allowed by the lower bound (admin-promotion flow); a 100% "everything for free" coupon is the upper bound. Decimal-precise with `MidpointRounding.ToEven` (locks rounding policy across Basket preview + Ordering at checkout).
+  - `Amount` — `> 0` when `DiscountType = FixedAmount`. No upper bound; the floor-at-zero clamp at apply time prevents negative basket totals (applied in `ApplyDiscountsHelper.Apply`).
   - `MaxRedeemAmount` — `> 0` when set.
   - `RedeemAmount` — `>= 0`, `<= MaxRedeemAmount` when the latter is set.
   - `ExpirationDate` — `> clock.GetCurrentInstant()` when set.
+  - **Note:** the new `DiscountType` enum is **separate** from `RewardCode.RewardKind { Percentage, FixedAmount, FreeItem, Points }` (Phase 3). The two are intentionally distinct: a Coupon is admin-controlled promotional code; a RewardCode is customer-feedback-generated. Phase 8 does *not* unify them. A future consolidation to a shared `BuildingBlocks.Discounts.DiscountKind` enum is tracked as a v2 BuildingBlocks contribution (out of this plan's scope).
 - **`RedeemDiscountCommand`** (Phase 1):
   - `Code` — non-empty.
   - `OrderId` — non-empty Guid.
@@ -546,7 +550,7 @@ Single source of truth for which event Discount publishes / consumes. Both sides
 | `MenuItemChangedIntegrationEvent` | Catalog (ships) | 1 | Find `DiscountRule`s where `IsActive=true`, `RestaurantId == event.RestaurantId`, and `RuleDataJson.RequiredMenuItemIds` includes `event.MenuItemId`. If any rule exists that targets the now-removed MenuItem (ChangeType=Deleted), flip the related `Coupon.IsActive=false`. No state change for non-affected rules. |
 | `RestaurantConfigurationChangedIntegrationEvent` | Catalog (ships) | 1 | If `ChangedFields` contains `Currency`: find `Coupon` for `event.RestaurantId` whose `Amount` would be in the old currency; if the new currency differs, `IsActive=false`. Other `ChangedFields` are no-op for Discount. |
 | `FeedbackSubmittedIntegrationEvent` | Notification v1 (does not ship) | 1 | Per Q6 hardcoded rule: `rating >= 4 && < 5` → `RewardCode { Type: "percentage", Value: 10 }`; `rating == 5` → `RewardCode { Type: "percentage", Value: 15 }` + `RewardCode { Type: "free_item", Value: "appetizer" }`. Both for the feedback's `RestaurantId`. Idempotent on `(OrderId, RewardType, RewardValue)` — guard with an `Idempotency-Key` header variant on the bus (MassTransit `MessageId` is sufficient). Stub consumer ships wired-but-disabled via `DiscountOptions:EnableFeedbackSubmittedConsumer=false`. |
-| `OrderCreatedIntegrationEvent` | Ordering (does not ship) | 1 | Auto-apply lookup; emit `DiscountAppliedIntegrationEvent`. **Not implemented in this plan** — flagged as a follow-up when Ordering plan ships. |
+| `OrderCreatedIntegrationEvent` | Ordering (does not ship) | 1 | Auto-apply lookup; emit `DiscountAppliedIntegrationEvent`. **Phase 8 ships a stub consumer wired-but-disabled** via `DiscountOptions:EnableOrderCreatedConsumer=false`; flips on when Ordering plan's publisher contract lands (per §6.6.4). Stub behavior: evaluate rules → `RedeemDiscount` (conditional UPDATE) per applicable coupon → emit `DiscountAppliedIntegrationEvent` per redemption. |
 
 **Migration rule when this matrix changes (mirrors Catalog §6.5):**
 - Adding a field → bump SchemaVersion; consumers ignore unknown fields by MassTransit default.
@@ -603,6 +607,32 @@ Three handshakes bridge this plan with sibling plans:
 - Tests in `Discount.Grpc.Tests/Integration/FeedbackSubmittedConsumerTests.cs` using `InMemoryTestHarness` — when `EnableFeedbackSubmittedConsumer=true`, fire a `FeedbackSubmittedIntegrationEvent` with `OverallRating=5`, assert two `RewardCode` rows are written for the feedback's `RestaurantId`. Without the flag, the consumer doesn't run; tests are gated by the same flag.
 
 **Sync point:** this plan ships, Notification v1 ships independently. When both exist in the same deploy, the flag flips; no code change required in Discount.
+
+### 6.6.4 With Ordering: `OrderCreatedIntegrationEvent` → auto-apply at checkout
+
+Phase 8 introduces this handshake. The plan's design intent (per the v1.4 grilling decision C): Discount stays a stateless pricing service. The deduction math lives in a shared `BuildingBlocks.Discounts.ApplyDiscountsHelper` consumed by Basket (cart preview) and Ordering (finalized order). Discount owns lookups + redemption counters; callers own the order-total arithmetic.
+
+**Ordering will own:**
+- The publisher (`OrderCreatedConsumer` in Ordering emits `OrderCreatedIntegrationEvent` carrying `Guid Id`, `Guid RestaurantId`, `Guid CustomerId`, `IReadOnlyList<Guid> MenuItemIds`, `decimal OrderTotal`, `Instant CreatedAt`).
+- The final deduction step: Ordering calls Discount's `EvaluateDiscountRules(EvaluateDiscountRulesRequest { RestaurantId, OrderTotal, MenuItemIds })` RPC, walks the returned `ApplicableCouponIds`, and for each one issues `RedeemDiscount(RedeemDiscountRequest { code, restaurant_id, order_id, quantity: 1 })`. The atomic conditional-UPDATE from Phase 1 §7 increments `RedeemAmount`.
+- The order-total mutation: Ordering computes the final `Order.AppliedDiscountTotal` by calling `ApplyDiscountsHelper.Apply(orderTotalBeforeDiscount, appliedCoupons)` and persists it. Same helper, same rounding, same floor-at-zero clamp — both callers see identical math.
+
+**This plan owns:**
+- The stub consumer side (`OrderCreatedConsumer : IConsumer<OrderCreatedIntegrationEvent>` in `Discount.Grpc/Messaging/EventHandlers/`) **at the Discount service end** to round out the bus-flow contract: when enabled, it performs the same `EvaluateDiscountRules` → `RedeemDiscount` chain above and additionally emits `DiscountAppliedIntegrationEvent` per applied coupon (also stub-and-flag — see Phase 6). The stub runs only when `DiscountOptions:EnableOrderCreatedConsumer=true`. Default = `false` until Ordering ships.
+- A new `BuildingBlocks.Discounts.ApplyDiscountsHelper` BuildingBlocks contribution — pure static functions for stacking math. See Phase 8 for the API surface.
+- The new `Coupon.DiscountType` enum + migration. See Phase 8.
+
+**Why two callers (Basket preview + Ordering at checkout) and not Discount doing the math:**
+- A customer may store / re-store a cart freely. Calling `RedeemDiscount` from Basket preview would exhaust `MaxRedeemAmount` before the order is even placed. The preview-time deduction must be read-only.
+- The finalized-order path is the only place where `RedeemDiscount` increments. Ordering owns that call.
+- Discount never holds a "cart total" or "order total" reference. The math helper is stateless and lives in BuildingBlocks so both callers see the same result.
+
+**Sync point:** Discount ships Phase 8's stub consumer disabled; Ordering ships its publisher separately. When both exist in the same deploy, flip the flag + ship a follow-up commit re-enabling `RedeemDiscount` from the consumer (currently the stub deliberately goes through `RedeemDiscount` to validate the wire path end-to-end — see the test below — but a future ADR can move the redemption call fully into Ordering and reduce Discount's consumer to a no-op audit-log emit).
+
+**Tests:**
+- `OrderCreatedConsumer` happy path with `DiscountOptions:EnableOrderCreatedConsumer=true`: fire `OrderCreatedIntegrationEvent` with `OrderTotal=100m`, `MenuItemIds=[seed-item-guid]`; assert one `RedeemDiscount` gRPC call lands; assert one `DiscountAppliedIntegrationEvent` row in the outbox.
+- Disabled-flag path: same event with `EnableOrderCreatedConsumer=false`; assert zero `RedeemDiscount` calls and zero outbox rows.
+- `ApplyDiscountsHelper` unit tests (in `BuildingBlocks.Tests/Discounts/ApplyDiscountsHelperTests.cs`): ten stacking combinations, one floor-at-zero edge case (e.g. subtotal `$10` + two `100%` coupons must clamp at `$0`, not `-$110`), one rounding edge case.
 
 ---
 
@@ -1160,6 +1190,264 @@ This phase is **mostly documentation** with two small code touchpoints.
 
 **Doc-update scope (§0.2):** everything touched by Phases 1–6 audited for consistency. The drift memo is the canonical post-Phase-7 reference.
 
+### Phase 8 — Apply-surface (Basket deduction + Ordering auto-apply stub)
+
+Closes the `#warning TODO` in `Basket.API/Basket/StoreBasket/StoreBasketHandler.cs:41`, pins coupon-discount semantics, and ships the Ordering-driven auto-apply path as a stub consumer. Discount stays a stateless pricing service (lookup + counter); the deduction math lives in a new `BuildingBlocks.Discounts.ApplyDiscountsHelper` consumed by Basket (cart preview) and Ordering (finalized order).
+
+#### 8.1 Schema changes
+
+- **`Coupon.DiscountType { Percentage, FixedAmount }` enum** in `Discount.Grpc/Models/DiscountType.cs`:
+  ```csharp
+  public enum DiscountType { Percentage = 0, FixedAmount = 1 }
+  ```
+- **EF Core migration `AddDiscountTypeToCoupon`** in `Discount.Grpc/Migrations/`: adds `DiscountType INTEGER NOT NULL DEFAULT 0` (default = `Percentage` per the Q1 decision — re-classifies seeded `DISCOUNT10` / `DISCOUNT20` as percentages on this migration). Generated column is `INTEGER` per SQLite's `enum ↔ int` mapping. **Risk note (locked):** the seed reclassification silently changes the semantic of any pre-existing row's `Amount` from "currency" to "percentage". A pre-migration audit table lives at `docs/discounts/discount-type-seed-audit.md` listing every row whose `Amount` value was interpreted as currency; operators review before shipping the migration to any non-dev environment. The plan ships the migration; the audit doc is the operator's responsibility and lives outside the codebase.
+- **Basket-side migration `AddAppliedDiscountBreakdownToBasket`** in `Basket.API/Migrations/` (Phase 8 is the first cross-service Basket write in this plan; landed in lockstep with the Basket plan owner per §6.6.4 sync point):
+  - **`Basket.EffectiveSubtotal` column** — `decimal NOT NULL DEFAULT 0`. Original `Subtotal` preserved for audit; customer sees `EffectiveSubtotal`. Handler fills the column from `ApplyDiscountsHelper.Apply(...)`.
+  - **New child entity `Basket.API/Models/BasketAppliedDiscount.cs`:** `int Id PK`, `Guid BasketId FK`, `int CouponId`, `string Code`, `int DiscountType` (persisted as `int`; the Basket side knows the enum from `BuildingBlocks.Discounts`), `decimal RequestedAmount`, `decimal AppliedAmount`, `Instant AppliedAt` (stamp from `clock.GetCurrentInstant()` in the handler). One row per applied coupon per basket write. EF migration creates the table; cascade-delete on the parent `Basket`.
+  - The handler uses this child collection for both insertion (Build → Track → SaveChangesAsync in the same transaction as `basketRepository.StoreBasketAsync` — see §8.3) and round-tripping on every `GetBasket` call (the basket repo hydrates the children). Admin UIs read the children directly; no further aggregation table needed.
+
+#### 8.2 `ApplyDiscountsHelper` — BuildingBlocks contribution
+
+`BuildingBlocks/Discounts/ApplyDiscountsHelper.cs`. Pure static; no DB / no I/O. Currency-agnostic (one Currency per basket; multi-currency baskets stay out of scope). Stacking math locked here so Basket preview + Ordering finalize compute identical numbers.
+
+```csharp
+namespace BuildingBlocks.Discounts;
+
+public static class ApplyDiscountsHelper
+{
+    /// <summary>
+    /// Applies all discounts sequentially (additive stack) against the running subtotal.
+    /// Floor-at-zero clamp on the final effective subtotal.
+    /// Per-line rounding: MidpointRounding.ToEven (banker's rounding).
+    /// Final clamp is exact (no further rounding).
+    /// </summary>
+    public static ApplyDiscountsResult Apply(
+        decimal subtotal,
+        IReadOnlyList<AppliedDiscount> applied);
+
+    /// <summary>Single-coupon helper used by tests + the stub consumer.</summary>
+    public static ApplyDiscountsResult ApplyOne(
+        decimal subtotal,
+        DiscountType type,
+        decimal amount);
+}
+
+public sealed record AppliedDiscount(
+    DiscountType Type,
+    decimal Amount,
+    int CouponId,
+    string Code,
+    bool IsActive);
+
+public sealed record ApplyDiscountsResult(
+    decimal OriginalSubtotal,
+    decimal TotalReduction,
+    decimal EffectiveSubtotal,
+    IReadOnlyList<AppliedDiscountBreakdown> Breakdown);
+
+public sealed record AppliedDiscountBreakdown(
+    int CouponId,
+    string Code,
+    DiscountType Type,
+    decimal RequestedAmount,
+    decimal AppliedAmount);
+```
+
+Behavior contract (locked; tests pin every case below):
+- Empty `applied` list → `EffectiveSubtotal = subtotal`, `TotalReduction = 0`, empty `Breakdown`.
+- One `Percentage` coupon with `Amount = 10m` against `$100` → `$10` off, `EffectiveSubtotal = $90`.
+- One `FixedAmount` coupon with `Amount = $10` against `$100` → `$10` off, `EffectiveSubtotal = $90`.
+- Stack of `Percentage(10)` + `FixedAmount(5)` against `$100` → `$10 + $5 = $15` off, `EffectiveSubtotal = $85`.
+- Stack of two `Percentage(100)` coupons against `$10` → first reductions bring to `$0`; second coupon is a **no-op** (no negative application); `Breakdown[1].AppliedAmount = 0m`; `EffectiveSubtotal` clamped at `$0`, not `-$110`.
+- An inactive coupon in `applied` → recorded in `Breakdown` with `AppliedAmount = 0m`, no reduction. The helper does not filter — the caller decides whether to include inactive rows.
+
+#### 8.3 Basket-side deduction (resolves the `#warning TODO`)
+
+`Basket.API/Basket/StoreBasket/StoreBasketHandler.cs` replaces the `#warning TODO` block with the deduction math + child-entity persistence:
+
+```csharp
+public sealed class StoreBasketHandler(
+    IBasketRepository basketRepository,
+    DiscountProtoService.DiscountProtoServiceClient discountService,
+    TimeProvider clock,
+    ILogger<StoreBasketHandler> logger) : ICommandHandler<StoreBasketCommand, StoreBasketResult>
+{
+    public async Task<StoreBasketResult> Handle(StoreBasketCommand command, CancellationToken ct)
+    {
+        var applied = new List<AppliedDiscount>(command.Basket.AppliedDiscounts.Count);
+        foreach (var code in command.Basket.AppliedDiscounts)
+        {
+            var discountResponse = await discountService.GetDiscountAsync(new GetDiscountRequest
+            {
+                RestaurantId = command.Basket.RestaurantId.ToString(),
+                Code = code,
+            }, cancellationToken: ct);
+
+            if (discountResponse.Coupon.IsActive is false || string.IsNullOrEmpty(discountResponse.Coupon.Code))
+                continue;
+
+            applied.Add(new AppliedDiscount(
+                Type:     (DiscountType)(int)discountResponse.Coupon.DiscountType,
+                Amount:   (decimal)discountResponse.Coupon.Amount,
+                CouponId: discountResponse.Coupon.Id,
+                Code:     discountResponse.Coupon.Code,
+                IsActive: discountResponse.Coupon.IsActive));
+        }
+
+        var result = ApplyDiscountsHelper.Apply(
+            subtotal: command.Basket.Subtotal,
+            applied:  applied);
+
+        command.Basket.Subtotal         = result.OriginalSubtotal;
+        command.Basket.EffectiveSubtotal = result.EffectiveSubtotal;
+        command.Basket.AppliedDiscountBreakdown = result.Breakdown
+            .Select(b => new Basket.API.Models.BasketAppliedDiscount
+            {
+                CouponId        = b.CouponId,
+                Code            = b.Code,
+                DiscountType    = (int)b.Type,
+                RequestedAmount = b.RequestedAmount,
+                AppliedAmount   = b.AppliedAmount,
+                AppliedAt       = clock.GetCurrentInstant(),
+            })
+            .ToList();
+
+        logger.LogInformation(
+            "StoreBasket applied {Count} coupons; subtotal={Subtotal} effective={Effective} reduction={Reduction}",
+            result.Breakdown.Count, result.OriginalSubtotal, result.EffectiveSubtotal, result.TotalReduction);
+
+        var basket = await basketRepository.StoreBasketAsync(command.Basket, ct);
+        return new StoreBasketResult(basket.UserId, basket.RestaurantId);
+    }
+}
+```
+
+Notes:
+- **`GetDiscountAsync` is read-only at this call site.** Basket does NOT call `RedeemDiscount` from preview. `RedeemDiscount` is Ordering's exclusive call site at finalized-order time (§6.6.4). Justification: a customer may store / re-store their cart freely; only the finalized order should increment `RedeemAmount`. This is a hard contract — code review flag for any future preview-path redemption call.
+- **JWT forwarding via gRPC interceptor** — per the Q2 decision, Basket **forwards the customer's JWT** through the gRPC call chain. Implementation:
+  - `Basket.API/Auth/JwtForwardingInterceptor.cs` is a `Interceptor` subclass that reads `IHttpContextAccessor.HttpContext.Request.Headers["Authorization"]` on the outbound call, copies the `Bearer <jwt>` value into `Metadata["authorization"]`, and returns `Tasks.CompletedTask` from `AsyncClientStreamingCall` / `AsyncUnaryCall` overrides.
+  - Registered in `Program.cs` via `builder.Services.AddGrpcClient<DiscountProtoService.DiscountProtoServiceClient>(o => o.Interceptors.Add<JwtForwardingInterceptor>());`. Basket's HTTP-side ASP.NET Core JWT validation is unchanged — the gateway / Yarp already validates the inbound JWT for Basket. The interceptor only attaches the same JWT to the outbound gRPC call. Two failure modes the implementation must catch: (1) no inbound `Authorization` header → interceptor logs `WARN` and proceeds without `Metadata["authorization"]` — Discount's `AuthenticationInterceptor` returns `StatusCode.Unauthenticated` from the gRPC layer (Phase 1 §0.4.5 path); (2) malformed inbound token → same path; the interceptor does NOT validate the JWT itself (validation lives on the Discount side per Phase 1's `AddJwtBearer`).
+  - Tests for the interceptor in `Basket.API.Tests/Unit/Auth/JwtForwardingInterceptorTests.cs` (per §8.6).
+- **`DiscountType` cast.** `Coupon.DiscountType` is a protobuf-side enum; the proto field reads `(int)` and casts to the BuildingBlocks `DiscountType`. The proto-side `CouponModel` gains an `int32 discount_type = 9;` field; `DiscountModel.ToProtoModel(coupon)` writes `(int)coupon.DiscountType`.
+- **`Basket.EffectiveSubtotal` write** happens before `basketRepository.StoreBasketAsync(...)`. The Basket repository serializes both fields + cascades the children; customers see `EffectiveSubtotal` in the UI. Round-trip on `GetBasket` rehydrates the children via the EF Core `Include(b => b.AppliedDiscountBreakdown)` chain.
+- **Inactive coupons are filtered** (the `continue` above). Phase 8 does **not** show inactive rows in the breakdown — the customer-visible deduction only ever references real, currently-active codes. Audit trails are at the gRPC layer.
+- **Persistence is per-row (Q3 decision)** — the `BasketAppliedDiscount` child entity captures every applied coupon's breakdown at apply time. Re-pricing a basket with a since-deactivated coupon is deliberately a different result (the deactivated coupon vanishes from `applied` and re-computation reflects reality); this matches the floor-at-zero + `IsActive` filter semantics in §8.2. An admin UI reading historical baskets sees the breakdown recorded at that moment.
+
+#### 8.4 Ordering-side auto-apply stub (`OrderCreatedConsumer`)
+
+`Discount.Grpc/Messaging/EventHandlers/OrderCreatedConsumer.cs`. Disabled by default (`DiscountOptions:EnableOrderCreatedConsumer=false`). When enabled, the consumer performs the full `EvaluateDiscountRules → RedeemDiscount → DiscountAppliedIntegrationEvent` chain.
+
+```csharp
+public sealed class OrderCreatedConsumer(
+    DiscountRuleProtoService.DiscountRuleProtoServiceClient ruleClient,
+    DiscountProtoService.DiscountProtoServiceClient couponClient,
+    IOutboxPublisher outbox,
+    ICurrentRestaurantProvider tenant,
+    IOptions<DiscountOptions> options,
+    TimeProvider clock,
+    ILogger<OrderCreatedConsumer> logger) : IConsumer<OrderCreatedIntegrationEvent>
+{
+    public async Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
+    {
+        if (!options.Value.EnableOrderCreatedConsumer)
+            return;
+
+        var evt = context.Message;
+        tenant.Attach(new ClaimsPrincipalBuilder()
+            .WithRestaurant(evt.RestaurantId)
+            .WithActor(DiscountActors.Service)
+            .Build());
+
+        var evaluate = await ruleClient.EvaluateDiscountRulesAsync(new EvaluateDiscountRulesRequest
+        {
+            RestaurantId = evt.RestaurantId.ToString(),
+            OrderTotal   = (double)evt.OrderTotal,
+            MenuItemIds  = { evt.MenuItemIds.Select(g => g.ToString()) },
+        }, context.CancellationToken);
+
+        foreach (var applicableCouponId in evaluate.ApplicableCouponIds)
+        {
+            var coupon = await couponClient.GetDiscountAsync(new GetDiscountRequest
+            {
+                RestaurantId = evt.RestaurantId.ToString(),
+                CouponId     = applicableCouponId,
+            }, context.CancellationToken);
+
+            if (coupon.Coupon is null || coupon.Coupon.IsActive is false)
+                continue;
+
+            var redeem = await couponClient.RedeemDiscountAsync(new RedeemDiscountRequest
+            {
+                Code         = coupon.Coupon.Code,
+                RestaurantId = evt.RestaurantId.ToString(),
+                OrderId      = evt.Id.ToString(),
+                Quantity     = 1,
+            }, context.CancellationToken);
+
+            if (options.Value.EnableDiscountAppliedPublishing)
+            {
+                await outbox.WriteOutboxMessageAsync(new DiscountAppliedIntegrationEvent(
+                    EntityType:   "Coupon",
+                    EntityId:     redeem.Coupon.Id,
+                    RestaurantId: evt.RestaurantId,
+                    OrderId:      evt.Id,
+                    AppliedAt:    clock.GetCurrentInstant()));
+            }
+        }
+    }
+}
+```
+
+Notes:
+- **Three flags gate this consumer's behavior:** `EnableOrderCreatedConsumer` (master switch), `EnableDiscountAppliedPublishing` (Phase 6 flag — also referenced here so a single operator action re-enables the whole chain).
+- **`DiscountAppliedIntegrationEvent` field additions.** The Phase 4 record shape gains `Guid OrderId` and `Instant AppliedAt`. SchemaVersion bumps `1 → 2`; Catalog's consumer (own plan) ignores unknown fields per MassTransit default. Documented in the migration rule on §6.5.
+
+#### 8.5 `DiscountOptions` additions
+
+```csharp
+// Phase 8 additions to DiscountOptions:
+public bool EnableOrderCreatedConsumer { get; set; } = false;   // Phase 8 stub switch
+public string? AppliedDiscountCurrency { get; set; }           // Phase 8 currency pin
+```
+
+`AppliedDiscountCurrency` is a future-proofing knob. Default `null` means "use the currency the basket already pinned." Reading this from `IOptions<DiscountOptions>` lets a future multi-currency rollout opt in without recomputing the helper API.
+
+#### 8.6 Tests
+
+- **xUnit + FluentAssertions unit for `ApplyDiscountsHelper`** (in `BuildingBlocks.Tests/Discounts/ApplyDiscountsHelperTests.cs`):
+  - Empty `applied` → returns identity result.
+  - One `Percentage(10)` against `$100` → `-10`, `EffectiveSubtotal=90`.
+  - One `FixedAmount(5)` against `$100` → `-5`, `EffectiveSubtotal=95`.
+  - Stack of `Percentage(10)` + `FixedAmount(5)` → `-15`, `EffectiveSubtotal=85`.
+  - Stack of two `Percentage(100)` against `$10` → clamp at `$0` (no negative).
+  - Inactive coupon in `applied` → no-op, `AppliedAmount=0m`, breakdown still records the row.
+  - `MidpointRounding.ToEven` parity: `$0.005 + $0.005` rounding edge (sum = `$1.00`, not `$1.01` or `$0.99`).
+  - Three additional combinator rows for asymmetric stacks (Percentage + FixedAmount + Percentage against varied subtotals) — these are the "10-row count" the plan budgets. The seven cases above are the locked contract; the three combinator rows are living documentation of behavior across the input space.
+- **xUnit + FluentAssertions + NSubstitute unit for `JwtForwardingInterceptor`** (in `Basket.API.Tests/Unit/Auth/JwtForwardingInterceptorTests.cs`):
+  - Inbound `Authorization: Bearer <valid-jwt>` header → outbound gRPC `Metadata["authorization"]` carries the same value.
+  - No inbound `Authorization` header → interceptor logs `WARN` and proceeds without setting `Metadata["authorization"]`. (The Discount side returns `StatusCode.Unauthenticated` per Phase 1 §0.4.5.)
+  - Malformed inbound token (`Basic xxx`, missing `Bearer` prefix) → same as missing; interceptor does NOT validate.
+  - Token contains comma-separated `restaurantId` claim → forwarded verbatim (the tenant resolution happens on Discount side).
+- **Basket-side integration test** (Basket owns this; no Discount-side change):
+  - Spin up `StoreBasketHandler` with `DiscountProtoServiceClient` stubbed to return a `Percentage(15)` coupon and a `FixedAmount(3)` coupon.
+  - Send a basket with `Subtotal=100, AppliedDiscounts=[P15, F3]` plus a fake `IHttpContextAccessor` carrying `Authorization: Bearer <jwt>`.
+  - Assert `basket.EffectiveSubtotal = 82`.
+  - Assert `basket.AppliedDiscountBreakdown` has two child rows with correct `CouponId`, `Code`, `DiscountType`, `RequestedAmount`, `AppliedAmount`.
+  - Assert the `AppliedAt` column on each child is within `FakeTimeProvider`'s clock range.
+  - Assert the outbound `DiscountProtoServiceClient.GetDiscountAsync` was called with `Metadata["authorization"]` set to the forwarded JWT (verified via a recording `Interceptor` test double).
+- **`InMemoryTestHarness` for `OrderCreatedConsumer`** (Discount-side):
+  - With flag `true`: fire `OrderCreatedIntegrationEvent { OrderTotal = 100m, MenuItemIds = [seed-item] }`; assert one `RedeemDiscount` gRPC call (verifiable via NSubstitute-mocked `DiscountProtoServiceClient`) and one `DiscountAppliedIntegrationEvent` outbox row.
+  - With flag `false`: same event; assert zero calls, zero outbox rows.
+- **`DiscountOptionsAuditor` test extension** — extend the Phase 1 auditor with the new `EnableOrderCreatedConsumer` flag. Drift guard.
+
+#### 8.7 Doc-update scope (§0.2)
+
+- §4.4 Discount Service — note `Coupon.DiscountType` column + `EnableOrderCreatedConsumer` flag; reservations for a future `coupon:apply` permission (not implemented here).
+- §5.1 Synchronous — add "Ordering.API → Discount.Grpc" rows for `EvaluateDiscountRules` and `RedeemDiscount` (the auto-apply call path).
+- §5.2 Asynchronous — mark the `OrderCreatedIntegrationEvent` row as "Phase 8 stub wired-but-disabled"; `DiscountAppliedIntegrationEvent` row notes the `SchemaVersion 1 → 2` bump for `OrderId` + `AppliedAt`.
+- §6 Data Stores — note `Coupons.DiscountType` column + Basket `EffectiveSubtotal` column; BuildingBlocks contributor list updates from two to three (the new `ApplyDiscountsHelper`).
+- §9 Cross-Cutting Patterns — note `ApplyDiscountsHelper` as a BuildingBlocks contribution; note the floor-at-zero + `MidpointRounding.ToEven` rounding policy (currency-agnostic until Phase 9+).
+
 ---
 
 ## 8. Cross-cutting notes
@@ -1181,12 +1469,13 @@ This phase is **mostly documentation** with two small code touchpoints.
 
 ### Cross-cutting BuildingBlocks contributions
 
-This plan ships **two** BuildingBlocks contributions:
+This plan ships **three** BuildingBlocks contributions:
 
 1. **First SQLite `OutboxDispatcher<TContext>` implementation** — `DiscountOutboxDispatcher` in `Services/Discount/Discount.Grpc/Messaging/Outbox/` extends `OutboxDispatcher<DiscountContext>`. The `BuildClaimSql` SQLite variant is documented in §6.7. Future services on SQLite adopt the same pattern.
 2. **`ITenantEntity.RestaurantId : int → Guid` fix** — single-line change in `BuildingBlocks/Multitenancy/ITenantEntity.cs`. Justifies the dormant primitive; nothing implements `ITenantEntity` today; Discount becomes the first.
+3. **`ApplyDiscountsHelper` pure-function math** — new `BuildingBlocks/Discounts/ApplyDiscountsHelper.cs` shipped by Phase 8. Stacking math + floor-at-zero clamp + `MidpointRounding.ToEven` rounding policy, consumed by Basket (cart preview) and Ordering (finalized order). The Discount-published enum `DiscountType` lives here as well, imported by both `Coupon` (Discount) and any future apply-surface callers; for now only `Coupon` uses it (`RewardCode.RewardKind` remains a separate enum until the v2 consolidation tracked at the end of §0.3.3).
 
-Both contributions are scoped to this plan's PR. Subsequent services adopt them as references.
+All three contributions are scoped to this plan's PR. Subsequent services adopt them as references.
 
 ### Code-smell carryovers (none today)
 
@@ -1261,6 +1550,9 @@ These were settled during the initial grilling and locked at the top of this pla
 - [ ] **Phase 7** — Drift memo rewrite; mermaid `RewardCodes` / `DiscountRules` blocks added; all Phase 1–6 docs audited; final smoke test green.
   - [ ] **Phase 7 doc** — `current-architecture.md` updated.
   - [ ] **Phase 7 completed** — dev, doc, plan-update commit (Document Version bump + v1.X+1 changelog).
+- [ ] **Phase 8** — Apply-surface: `Coupon.DiscountType` enum + `AddDiscountTypeToCoupon` migration; `BuildingBlocks.Discounts.ApplyDiscountsHelper` (stacking + clamp + rounding); Basket `StoreBasketHandler` resolves `#warning TODO` (preview-time deduction via `GetDiscountAsync` + `ApplyDiscountsHelper.Apply`); Basket `EffectiveSubtotal` column; `OrderCreatedConsumer` stub wired-but-disabled via `DiscountOptions:EnableOrderCreatedConsumer=false`; `DiscountOptions` gains `EnableOrderCreatedConsumer` + `AppliedDiscountCurrency` (future-proofing); `DiscountAppliedIntegrationEvent` SchemaVersion `1 → 2` for `OrderId` + `AppliedAt` fields.
+  - [ ] **Phase 8 doc** — `current-architecture.md` updated per Phase 8.7 doc-update scope; §4.4 / §5.1 / §5.2 / §6 / §9 row updates land in the same commit as the code.
+  - [ ] **Phase 8 completed** — dev, doc, plan-update commit (Document Version bump `1.3 → 1.4` per the in-plan version-bump schedule; see v1.4 changelog footer for the rationale entry). All `ApplyDiscountsHelper` theory rows pass; Basket integration test green; `OrderCreatedConsumer` `InMemoryTestHarness` flag-flip tests pass.
 - [ ] **Docs** — `db_relational_model.mermaid` updated to match each phase (mermaid is reconciled after every phase, not only at the end).
 - [ ] **Cross-plan sync** — Catalog plan receives §6.6.1 hand-off contract (already documented here); Identity plan receives §6.6.2 permission list; Notification v1 plan receives §6.6.3 `FeedbackSubmitted` contract.
 
@@ -1280,8 +1572,8 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 1.3
-**Last Updated:** 2026-07-11
+**Document Version:** 1.4
+**Last Updated:** 2026-07-13
 **Maintained By:** Discount working group
 
 > **v1.2 changelog — `dotnet-best-practices` review pass.** All 12 findings applied (plus 2 cross-cutting observations):
@@ -1375,3 +1667,42 @@ For the schema-level drift baseline, see `db-model-drift-reports.md` (Discount c
 > - **O-L30** `FeedbackSubmittedConsumer` construction-time call to `tenant.Attach(syntheticPrincipal)` documents the Pattern 2 contract at the consumer boundary; future bus-triggered consumers copy the same shape.
 >
 > Document Version bumped from 1.2 → 1.3. No additional documents affected. Mem-bind: the corrections listed here affect only `DISCOUNT_SERVICE_PLAN.md`; sibling plans (Catalog, Identity, Notification v1) are unchanged by this pass. **Action item for siblings**: the `reward:read` → `reward-code:read` rename in H-L15 must be mirrored in the Identity plan's `Permissions` table seed list; no other cross-plan change ships.
+
+> **v1.4 changelog — Apply-surface phase.** Phase 8 added after Phase 7 in response to the user-stewarded grilling on 2026-07-13 that resolved the long-standing `#warning TODO` in `Basket.API/Basket/StoreBasket/StoreBasketHandler.cs:41` and surfaced the missing auto-apply hook on `OrderCreatedIntegrationEvent`. Four design decisions locked (A–D) and reflected in §0.3.3, §6.5, §6.6.4, §7 Phase 8, §8 BuildingBlocks contributions, §9 milestone checklist.
+>
+> **Decision A — `Coupon.DiscountType { Percentage, FixedAmount }` enum.** Phase 8 adds the column (default `Percentage` to re-classify seeded `DISCOUNT10`/`DISCOUNT20` as percentages on the `AddDiscountTypeToCoupon` migration). Validator splits per §0.3.3: Percentage → `Amount ∈ [0, 100]`; FixedAmount → `Amount > 0` (no upper bound; floor-at-zero clamp at apply time). Two-enums-by-design: the new `DiscountType` is intentionally separate from Phase 3's `RewardCode.RewardKind { Percentage, FixedAmount, FreeItem, Points }` — a Coupon is admin-controlled promotional code, a RewardCode is customer-feedback-generated. Future consolidation to a shared `BuildingBlocks.Discounts.DiscountKind` enum is tracked as a v2 BuildingBlocks contribution (out of this plan).
+>
+> **Decision B — Stack (additive).** `ApplyDiscountsHelper.Apply` walks `applied` sequentially; each row reduces the running subtotal by the per-line amount; final `EffectiveSubtotal` clamps at `0m` (no negative basket totals). Rounding: `MidpointRounding.ToEven` per line; the floor-at-zero clamp is exact (no rounding). Behavior contract is locked in Phase 8.2 and pinned by 10 unit-test `Theory` rows.
+>
+> **Decision C — Basket preview + Ordering at checkout.** Discount stays stateless w.r.t. order total. Two callers, one math helper:
+>   - `StoreBasketHandler` resolves `Basket.AppliedDiscounts` via `GetDiscountAsync` + runs `ApplyDiscountsHelper.Apply(...)` to set `Basket.EffectiveSubtotal`. No `RedeemDiscount` from preview — the customer may store/re-store freely, so redemption counters would burn out under cart-thrash.
+>   - `OrderCreatedConsumer` (Phase 8 stub) calls `EvaluateDiscountRules → RedeemDiscount` per applicable coupon + emits `DiscountAppliedIntegrationEvent`. Stub wired-but-disabled via `DiscountOptions:EnableOrderCreatedConsumer=false`; flips when Ordering ships its publisher (separate plan).
+>
+> **Decision D — Phase 8 placement: new phase after Phase 7.** Document Version bumps 1.3 → 1.4. Existing phases (1–7) unchanged. Phase 8 = Basket deduction + Ordering stub + BuildingBlocks `ApplyDiscountsHelper` contribution + 10 unit tests + floor-at-zero edge coverage.
+>
+> **§6.5 row update.** `OrderCreatedIntegrationEvent` row goes from "Deferred — Not implemented" → "Phase 8 stub wired-but-disabled". The consumer code lives at `Discount.Grpc/Messaging/EventHandlers/OrderCreatedConsumer.cs`. `DiscountAppliedIntegrationEvent` SchemaVersion bumps `1 → 2` for the `OrderId` and `AppliedAt` field additions; Catalog's consumer ignores unknown fields per MassTransit default, so the SchemaVersion bump is a courtesy for downstream auditors.
+>
+> **§6.6.4 added.** New cross-service handshake "With Ordering: `OrderCreatedIntegrationEvent` → auto-apply at checkout". Locks the read-only-at-preview / redeem-at-checkout contract.
+>
+> **§8 BuildingBlocks contributions count: 2 → 3.** The third contribution is `BuildingBlocks.Discounts.ApplyDiscountsHelper`. The `DiscountType` enum (used by `Coupon`) lives in `BuildingBlocks.Discounts` alongside the helper; future apply-surface services adopt it without depending on Discount.
+>
+> **§9 milestone checklist: Phase 8 added** with three check-boxes (code / doc / completed) mirroring the existing phase pattern. The doc-update commit lands alongside the code commit per §0.2.
+>
+> **Out of scope (still).** Multi-currency baskets, a unified `DiscountKind` enum across Coupon + RewardCode (tracked as v2 BuildingBlocks), and the Ordering-side publisher for `OrderCreatedIntegrationEvent` (lives in the Ordering plan).
+>
+> Document Version bumped from 1.3 → 1.4. No additional documents affected by this pass beyond the in-flight §4.4 / §5.1 / §5.2 / §6 / §9 doc updates landing in Phase 8's commit. Mem-bind: the v1.4 additions affect only `DISCOUNT_SERVICE_PLAN.md`; the Basket migration `AddEffectiveSubtotalToBasket` and the Ordering publisher contract land in their respective sibling plans (Basket and Ordering plans pick up the contract here as a §6.6.4 follow-up).
+>
+> **v1.4 decision resolutions** — three pre-implementation questions answered 2026-07-13, reflected inline in §8.1, §8.3, §8.6:
+>
+> **Q1 — Seed reclassification: Default to `Percentage`.** The `AddDiscountTypeToCoupon` migration declares `DiscountType INTEGER NOT NULL DEFAULT 0` (`Percentage`); pre-existing rows silently flip semantic. A seed-audit table at `docs/discounts/discount-type-seed-audit.md` (operator-owned, not in the codebase) lists every row whose `Amount` was interpreted as currency. Operators review before shipping the migration to non-dev environments. Implementation commit must include the audit doc with a populated dev-environment copy; non-dev promotions add prod-specific rows.
+>
+> **Q2 — JWT propagation: Basket forwards the customer's JWT.** Per the call-chain trust model. New `Basket.API/Auth/JwtForwardingInterceptor.cs` reads `IHttpContextAccessor.HttpContext.Request.Headers["Authorization"]`, copies the `Bearer <jwt>` value into `Metadata["authorization"]` on every outbound gRPC call. Registered in `Program.cs` via `AddGrpcClient<DiscountProtoService.DiscountProtoServiceClient>(o => o.Interceptors.Add<JwtForwardingInterceptor>())`. Discount's `ICurrentRestaurantProvider` then resolves tenant context from the forwarded JWT. Two failure modes tested in §8.6: missing header → `WARN` + proceed without `Metadata["authorization"]` → Discount returns `StatusCode.Unauthenticated`; malformed token → same path. The interceptor never validates the JWT (validation is Discount's job per Phase 1).
+>
+> **Q3 — Breakdown persistence: Persisted columns (full audit).** New `Basket.API/Models/BasketAppliedDiscount.cs` child entity — `int Id PK`, `Guid BasketId FK`, `int CouponId`, `string Code`, `int DiscountType`, `decimal RequestedAmount`, `decimal AppliedAmount`, `Instant AppliedAt`. EF migration `AddAppliedDiscountBreakdownToBasket`. Cascade-delete on the parent `Basket`. Round-trip via `Include(b => b.AppliedDiscountBreakdown)` on every `GetBasket`. Re-pricing a basket with a since-deactivated coupon re-computes from current state; historical baskets still show the breakdown recorded at that moment. Full audit trail + admin UI simplicity outweigh the extra columns.
+>
+> **Other v1.4 plan-text refinements applied in the same pass:**
+> - §8.6 test count reconciled: 7 locked-contract rows + 3 combinator rows = 10 total (matches the prose budget).
+> - §8.3 added an explicit `JwtForwardingInterceptor` registration callout + the failure-mode contract.
+> - §8.1 expanded to surface the seed-audit risk note inline (not just in the changelog), so the implementer catches it during migration review.
+>
+> Document Version remains 1.4 — refinements stay within the v1.4 changelog block because no architectural decisions changed (only the implementation contract got crisper). The next version bump (v1.5) lands with Phase 1's actual code, not here.

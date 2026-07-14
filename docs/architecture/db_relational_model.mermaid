@@ -291,17 +291,9 @@ erDiagram
     %% the relational block previously shown here represented mermaid drift only.
     %% Per CATALOG_SERVICE_PLAN.md §7.6.2 (Phase 6.2), the Coupon entity moves to
     %% Discount; the `Restaurants ||--o{ Coupons : "issues"` relationship below is
-    %% removed (see that row for the migration note).
-    Coupons {
-        int Id PK
-        uuid RestaurantId FK
-        string Code UK
-        string Description
-        decimal Amount
-        int RedeemAmount "Current redemptions (extra in code)"
-        int MaxRedeemAmount
-        timestamp ExpirationDate
-    }
+    %% removed (see that row for the migration note). The relational `Coupons`
+    %% entity block was deleted on 2026-07-13 (Phase 6.2 reconciliation) — the
+    %% diagram no longer renders a Catalog-owned Coupon table.
 
     %% ----------------------------------------------------------------
     %% CATALOG — Marten documents (NOT relational tables)

@@ -68,6 +68,11 @@ internal sealed class PriceHistoryRecorder(
             return;
         }
 
+        // Single "now" from the injected clock so the audit row's timestamps
+        // are consistent and controllable under a fake TimeProvider in tests
+        // (per §0.3.11 fake-clock rule). Do not read SystemClock statically here.
+        var now = Instant.FromDateTimeOffset(clock.GetUtcNow());
+
         var row = new PriceHistory
         {
             RestaurantId = restaurantId,
@@ -79,8 +84,8 @@ internal sealed class PriceHistoryRecorder(
             MenuItemId = menuItemId,
             VariationId = variationId,
             IngredientAlternativeId = ingredientAlternativeId,
-            EffectiveDate = effectiveDate ?? SystemClock.Instance.GetCurrentInstant(),
-            CreatedAt = SystemClock.Instance.GetCurrentInstant(),
+            EffectiveDate = effectiveDate ?? now,
+            CreatedAt = now,
         };
 
         dbContext.PriceHistories.Add(row);

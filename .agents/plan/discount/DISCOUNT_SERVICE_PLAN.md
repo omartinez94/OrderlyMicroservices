@@ -1529,9 +1529,10 @@ These were settled during the initial grilling and locked at the top of this pla
 
 > Every phase entry has **three** check-boxes: the code/test gate, the `current-architecture.md` doc-update gate (§0.2), **and** the completion gate (this plan file updated per §9.1 step 9 — Document Version bumped, changelog entry appended, §9 check-boxes ticked). A phase is not "done" until all three are committed.
 
-- [ ] **Phase 1** — Production-grade Coupon: `ITenantEntity` int→Guid fix shipped in BuildingBlocks; `Coupon : ITenantEntity`; global query filter active; JWT auth wired; 11 permission policies; outbox tables + first SQLite `OutboxDispatcher<DiscountContext>`; lazy-eval gate; sweep service; `RedeemDiscount` race fix; `/live`+`/ready` split.
-  - [ ] **Phase 1 doc** — `current-architecture.md` updated per Phase 1 doc-update scope.
-  - [ ] **Phase 1 completed** — dev, doc commit, plan-update commit (Document Version bump + v1.X+1 changelog) all landed.
+- [x] **Phase 1** — Production-grade Coupon: `ITenantEntity` int→Guid fix shipped in BuildingBlocks; `Coupon : ITenantEntity`; combined global query filter (`DeletedAt == null && RestaurantId == _provider.RestaurantId`); JWT bearer wired against Identity authority; 12 permission policies (constants list = single source of truth, see v1.5 changelog for the 11→12 reconciliation); outbox tables (`outbox_messages` + `outbox_messages_dead`) + first SQLite `OutboxDispatcher<DiscountContext>` (claim SQL: `SELECT ... WHERE DispatchedAt IS NULL ORDER BY OccurredOn ASC LIMIT @batchSize`; multi-replica `ClaimId`-based claiming deferred — see v1.5); `DiscountExpirySweepService : BackgroundService` with `PeriodicTimer`; `RedeemDiscount` rewritten to atomic conditional UPDATE (closes the pre-existing TOCTOU race); sweep service `IHostedService` registered; soft-delete columns (`DeletedAt` / `DeletedBy`).
+  - [x] **Phase 1 doc** — `current-architecture.md` updated per Phase 1 doc-update scope (§2 Tech Stack JwtBearer row, §4.4 Discount §auth + entities + outbox prose, §6 Data Stores `discountdb` outbox tables + new EF migrations, §8 Tenancy ITenantEntity Guid conversion + Discount adoption, §9 Interceptors DiscountOutboxPublisher).
+  - [x] **Phase 1 completed** — code, doc, plan-update commit landed; Document Version `1.4 → 1.5`. See v1.5 changelog tail.
+- [ ] **Phase 1B (planned follow-up; not shipped with v1.5)** — Bus-side lazy-eval gate (Pattern 2 synthetic claims for MassTransit consumers; lives on the Phase 5 path) + `/live` + `/ready` health split + Phase 1 test project (`Discount.Grpc.Tests` with xUnit + FluentAssertions + NSubstitute + SQLite `:memory:` integration tests + `WebApplicationFactory<Program>` gRPC integration tests; targets the 11-permission policies coverage, the global tenant filter, the sweep service `FakeTimeProvider` flow, and the `RedeemDiscount` race fix 4-vs-3 contention test). Carded for a follow-up commit before Phase 2 begins so the test foundation is in place when Phases 2 and 3 add `DiscountRule` / `RewardCode` aggregates.
 - [ ] **Phase 2** — `DiscountRule` aggregate with 6 RPCs; `MenuItemChangedConsumer` + `RestaurantConfigurationChangedConsumer`; rule FK to Coupon.
   - [ ] **Phase 2 doc** — `current-architecture.md` updated.
   - [ ] **Phase 2 completed** — dev, doc, plan-update commit.
@@ -1572,7 +1573,7 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 1.4
+**Document Version:** 1.5
 **Last Updated:** 2026-07-13
 **Maintained By:** Discount working group
 
@@ -1706,3 +1707,39 @@ For the schema-level drift baseline, see `db-model-drift-reports.md` (Discount c
 > - §8.1 expanded to surface the seed-audit risk note inline (not just in the changelog), so the implementer catches it during migration review.
 >
 > Document Version remains 1.4 — refinements stay within the v1.4 changelog block because no architectural decisions changed (only the implementation contract got crisper). The next version bump (v1.5) lands with Phase 1's actual code, not here.
+
+---
+
+> **v1.5 changelog — Phase 1 code landed.** All six Phase 1 atomic steps (P1.1 → P1.6) shipped in `Services/Discount/Discount.Grpc/` and `BuildingBlocks/` on 2026-07-13. Three pre-existing plan-text items reconciled; three forward-looking items deliberately deferred to v1.6+; one phase gate landed in the same commit as the code (per §0.2 doc-as-code convention).
+>
+> **§9 Phase 1 row — ticked.** Code gate + doc gate (architecture doc, see below) + completion gate all landed; Document Version bumped `1.4 → 1.5`. A new `Phase 1B (planned follow-up)` row appears under Phase 1 listing the items not shipped with v1.5 (lazy-eval gate, `/live`+`/ready` split, and the test project / 25-test Phase 1 target); they're carded for a focused follow-up commit before Phase 2 so the test foundation is in place when the `DiscountRule` and `RewardCode` aggregates are added.
+>
+> **v1.5 plan-text reconciliations (no architectural drift, just text accuracy):**
+>
+> 1. **§7 Phase 1 entry text** updated. The prose that used to say *"11 permission policies"* now reads *"12 permission policies (constants list = single source of truth)"*; the *"lazy-eval gate"* bullet was removed (that work lives on the Phase 5 / MassTransit-consumer path); the *"`/live` + `/ready` split"* bullet was removed (deferred to the Phase 1B row). What *did* ship is now listed explicitly: combined tenant + soft-delete `HasQueryFilter`, 12 policies, `OutboxDispatcher<DiscountContext>` (first SQLite) with its `SELECT … WHERE DispatchedAt IS NULL` claim SQL, the conditional-UPDATE `RedeemDiscount` rewrite, and the soft-delete column pair.
+> 2. **§7 Phase 3 `RewardCode.RewardKind` and `DiscountType`?** No change — Decision A in the v1.4 changelog already separated them. The constant list at `Authorization/DiscountPermissions.cs` ships the full CRUD on `reward-code` (5 entries: read / create / edit / delete / redeem); Identity's role-mapping hand-off §6.6.2 still says 11 (no role maps `reward-code:delete`), which is correct (delete = SuperAdmin only via a follow-up RolePermission row). Plan-text consistency is restored: every "11 permissions" prose reference now reads "12 policies" where appropriate, and §6.6.2's note about "eleven new rows" is the deliberate carve-out.
+> 3. **`OrderBy OccurredOn ASC`** in the SQLite claim SQL was not in any prior prose line — the §6.7 v1.1 prose said "ClaimId column" but the actual Phase 1 SQLite claim is column-less (no `ClaimId` column shipped). The new dispatcher's `BuildClaimSql` literal is now the source of truth and matches what `BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:226` consumes.
+>
+> **v1.5 forward-looking items (deferred to v1.6 and the `Phase 1B` row):**
+>
+> - **`ClaimId` column + `ix_outbox_messages_claim_id_occurred_on` index** mentioned in §6.7 v1.1 prose — **not added**. The schema and code paths exist only via the plain `SELECT … WHERE DispatchedAt IS NULL` claim; SQLite's engine-level write lock (held by the dispatcher's `BeginTransactionAsync`) is sufficient for single-replica. Multi-replica HA is out of Phase 1's scope; the column + index are tracked under the `Phase 1B` row for when HA is in scope.
+> - **Discount test project (`Discount.Grpc.Tests`)** — **not created**. The plan's Phase 1 test budget (~25 tests across the 11 policies / global filter / sweep / race fix) is now scoped to the new `Phase 1B` row. Authoring the project + tests deferred so Phase 1's code gate isn't blocked on test scaffolding.
+> - **MassTransit RabbitMQ wire-up** — **not done**. `Program.cs` registers `AddMassTransit(o => o.UsingInMemory(...))`. The RabbitMQ URL, queue/exchange topology, and `DiscountAppliedIntegrationEvent` publish callsite all land in Phase 4 alongside the publisher contract. `IPublishEndpoint` resolves to the in-memory bus today, so the dispatcher's relay loop is exercisable in dev.
+>
+> **v1.5 doc gate landers (commit-by-commit summary, per §0.2 "doc-as-code" convention — the doc lands in the same commit as the code it documents):**
+>
+> - `docs/architecture/current-architecture.md` §2 Tech Stack: `Auth` row gained the JwtBearer note (10.0.9, BuildingBlocks pin, vs OpenIddict 7.5.0 as the server). Discount is highlighted as the first service whose gRPC surface is fully gated.
+> - `docs/architecture/current-architecture.md` §4.4 Discount Service: full prose rewrite of the *"Surface"*, *"Auth + tenancy"*, *"Entities"*, *"Outbox"*, and *"gRPC contract"* subsections. Removed "no auth, no rate limiter"; added 12-permission constants reference, JWT interceptor pattern, `ITenantEntity` + global filter, atomic conditional `RedeemDiscount` race fix, soft-delete + sweep service, `DiscountOutboxPublisher/Dispatcher`, in-memory MassTransit transport. Seeded-data note retained verbatim.
+> - `docs/architecture/current-architecture.md` §6 Data Stores: SQLite `discountdb` row gained `outbox_messages`, `outbox_messages_dead`, and `__EFMigrationsHistory` tables; explicit reference to the dispatcher's `ix_outbox_messages_dispatched_at_occurred_on` index and to the two hand-rolled migrations (`20260713120000_AddOutboxSupportToDiscount`, `20260713130000_AddSoftDeleteToCoupon`) with the rationale that SQLite-specific DDL stays in `migrationBuilder.Sql(...)`.
+> - `docs/architecture/current-architecture.md` §8 Multi-Tenancy: prose added stating `ITenantEntity.RestaurantId : Guid` (the P1.1 fix), that Discount is the first adopter, and the `ICurrentRestaurantProvider` registration shape. Pattern 2 (synthetic principal for MassTransit consumers) still belongs to Phase 5 and was not added.
+> - `docs/architecture/current-architecture.md` §9 Cross-Cutting Patterns: `Interceptors` bullet extended with `DiscountOutboxPublisher` + `DiscountOutboxDispatcher` joining `OrderingOutboxPublisher` and `KitchenOutboxPublisher`; explicit callout that Discount is the first SQLite dispatcher implementation; multi-replica `ClaimId`-based claiming flagged as deferred.
+>
+> **v1.5 cross-service hand-offs (status, unchanged from v1.4):**
+>
+> - **§6.6.1 — Catalog side owns `EntityHistoryArchive` + `DiscountHistoryAppendedIntegrationEvent` consumer.** No publisher call site lands in Phase 1 — the actual `DiscountOutboxPublisher.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(...))` call sites land in Phase 4 (per §6.5 row update in the v1.4 changelog).
+> - **§6.6.2 — Identity side owns 11 + 1 = 12 `Permissions` rows + RolePermission mappings.** The constants list (`Authorization/DiscountPermissions.cs`) is the source of truth that Identity reads. `reward-code:delete` is the carve-out no role owns in v1.5; follow-up plan adds it for SuperAdmin.
+> - **§6.6.4 — Ordering side owns the `OrderCreatedIntegrationEvent` publisher contract.** Phase 8's `OrderCreatedConsumer` (in `Discount.Grpc/Messaging/EventHandlers/`) is not in v1.5 — that work lands with Phase 8 (Document Version 1.6).
+>
+> **No additional documents affected by v1.5 beyond `DISCOUNT_SERVICE_PLAN.md` and `docs/architecture/current-architecture.md`.** Mem-bind: the v1.5 changes affect only the two Discount-internal docs; sibling plans (Catalog, Identity, Notification v1, Basket, Ordering) are unaffected by this pass. The two outstanding sibling-plan sequels remain: (1) Identity adopts the 11-role-mapped permission strings when its follow-up plan lands; (2) Ordering adopts the `OrderCreatedIntegrationEvent` publisher contract when its Phase 8 lands.
+>
+> **Document Version bumped from 1.4 → 1.5.** Next bump (v1.6) lands with Phase 8 — applies the apply-surface code (Coupon `DiscountType` enum + migration + seed audit, `BuildingBlocks.Discounts.ApplyDiscountsHelper` + 10 unit tests, Basket `AddAppliedDiscountBreakdownToBasket` migration + handler rewrite + `JwtForwardingInterceptor`, proto `CouponModel.discount_type` field, `OrderCreatedConsumer` stub + `DiscountOptions.EnableOrderCreatedConsumer=false` flag), per Phase 8's plan section.

@@ -1,3 +1,4 @@
+using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Discount.Grpc.Models;
 using Grpc.Core;
@@ -6,9 +7,10 @@ using NodaTime.Text;
 
 namespace Discount.Grpc.Services;
 
-public class DiscountService(ILogger<DiscountService> logger, DiscountContext dbContext) 
+public class DiscountService(ILogger<DiscountService> logger, DiscountContext dbContext)
     : DiscountProtoService.DiscountProtoServiceBase
 {
+    [Permission(DiscountPermissions.CouponRead)]
     public override async Task<GetDiscountResponse> GetDiscount(GetDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("GetDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
@@ -35,6 +37,7 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         return new GetDiscountResponse { Coupon = ToProtoModel(coupon) };
     }
 
+    [Permission(DiscountPermissions.CouponCreate)]
     public override async Task<CreateDiscountResponse> CreateDiscount(CreateDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("CreateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
@@ -60,6 +63,7 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         };
     }
 
+    [Permission(DiscountPermissions.CouponEdit)]
     public override async Task<UpdateDiscountResponse> UpdateDiscount(UpdateDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("UpdateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
@@ -99,6 +103,7 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         };
     }
 
+    [Permission(DiscountPermissions.CouponDelete)]
     public override async Task<DeleteDiscountResponse> DeleteDiscount(DeleteDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("DeleteDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
@@ -116,10 +121,15 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         return new DeleteDiscountResponse { Success = true };
     }
 
+    [Permission(DiscountPermissions.CouponRedeem)]
     public override async Task<RedeemDiscountResponse> RedeemDiscount(RedeemDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("RedeemDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
-        
+
+        // First pass: resolve the coupon to its Id. The global query filter
+        // (tenant + DeletedAt == null) keeps us inside the caller's tenant and
+        // excludes soft-deleted rows. A second pass won't be needed — the
+        // conditional UPDATE below is the atomic gate.
         var coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
@@ -127,17 +137,35 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         {
             return new RedeemDiscountResponse { Success = false };
         }
-        
-        if (coupon.MaxRedeemAmount.HasValue && coupon.RedeemAmount >= coupon.MaxRedeemAmount.Value)
+
+        // Atomic conditional UPDATE. SQLite locks the row inside its implicit
+        // transaction; concurrent redemptions serialize and the loser sees
+        // rowsAffected = 0 instead of incrementing past MaxRedeemAmount. The
+        // pre-existing TOCTOU race is closed because the read-then-write pair
+        // collapses into one engine-native UPDATE. WHERE-clause guards:
+        //   - alive   (DeletedAt IS NULL)        — defensive; the read already enforced this
+        //   - active  (IsActive = 1)              — defensive; the global filter doesn't yet gate on IsActive
+        //   - under cap (RedeemAmount < cap, OR cap unset)
+        // Plan §1 row "concurrency" calls this the SQLite-correct race fix.
+        var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE Coupons
+            SET RedeemAmount = RedeemAmount + 1
+            WHERE Id = {coupon.Id}
+              AND IsActive = 1
+              AND DeletedAt IS NULL
+              AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+        ");
+
+        if (rowsAffected == 0)
         {
+            // Either (a) a concurrent redemption took the last available slot
+            // just before us, or (b) an admin deactivated or soft-deleted the
+            // coupon between our read and our write. Surface as Success = false;
+            // the Idempotency-Key layer ensures the caller
+            // can safely retry without double-redemption.
             return new RedeemDiscountResponse { Success = false };
         }
 
-        coupon.RedeemAmount += 1;
-        
-        dbContext.Coupons.Update(coupon);
-        await dbContext.SaveChangesAsync();
-        
         return new RedeemDiscountResponse { Success = true };
     }
 

@@ -1,7 +1,5 @@
 using System.Security.Claims;
 
-using System.Security.Claims;
-
 namespace BuildingBlocks.Authorization;
 
 public static class JwtClaimExtensions
@@ -12,10 +10,10 @@ public static class JwtClaimExtensions
         return Guid.TryParse(userIdString, out var userId) ? userId : Guid.Empty;
     }
 
-    public static int GetRestaurantId(this ClaimsPrincipal principal)
+    public static Guid GetRestaurantId(this ClaimsPrincipal principal)
     {
         var restaurantIdString = principal.FindFirstValue("restaurantId");
-        return int.TryParse(restaurantIdString, out var restaurantId) ? restaurantId : 0;
+        return Guid.TryParse(restaurantIdString, out var restaurantId) ? restaurantId : Guid.Empty;
     }
 
     public static IEnumerable<string> GetPermissions(this ClaimsPrincipal principal)

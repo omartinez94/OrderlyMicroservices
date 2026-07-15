@@ -1,5 +1,7 @@
+using BuildingBlocks.Messaging.Outbox;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
+using Discount.Grpc.Messaging.Events;
 using Discount.Grpc.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
@@ -8,7 +10,10 @@ using NodaTime.Text;
 
 namespace Discount.Grpc.Services;
 
-public class DiscountService(ILogger<DiscountService> logger, DiscountContext dbContext)
+public class DiscountService(
+    ILogger<DiscountService> logger,
+    DiscountContext dbContext,
+    IOutboxPublisher outbox)
     : DiscountProtoService.DiscountProtoServiceBase
 {
     [Permission(DiscountPermissions.CouponRead)]
@@ -53,12 +58,24 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         }
 
         var coupon = ToEntity(request.Coupon);
-        
+
         dbContext.Coupons.Add(coupon);
         await dbContext.SaveChangesAsync();
 
-        return new CreateDiscountResponse 
-        { 
+        // History publish (Phase 4) — every Coupon CUD writes a
+        // DiscountHistoryAppendedIntegrationEvent with EntityType=Coupon.
+        // NewValues is the serialized proto model so Catalog's consumer
+        // can hydrate a Marten EntityHistoryArchive document.
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(Coupon),
+            EntityId: coupon.Id,
+            RestaurantId: coupon.RestaurantId,
+            ChangeType: "Created",
+            OldValues: null,
+            NewValues: SerializeNewValues(coupon)));
+
+        return new CreateDiscountResponse
+        {
             Coupon = ToProtoModel(coupon),
             Success = true
         };
@@ -72,19 +89,23 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         var coupon = await dbContext.Coupons.FindAsync(request.Coupon.Id);
         if (coupon is null)
         {
-            return new UpdateDiscountResponse 
-            { 
+            return new UpdateDiscountResponse
+            {
                 Coupon = request.Coupon,
                 Success = false
             };
         }
+
+        // Capture OldValues before mutation so the history publish
+        // (Phase 4) can serialize the pre-image.
+        var oldValues = SerializeNewValues(coupon);
 
         coupon.RestaurantId = Guid.Parse(request.Coupon.RestaurantId);
         coupon.Code = request.Coupon.Code;
         coupon.Description = request.Coupon.Description;
         coupon.Amount = (decimal)request.Coupon.Amount;
         coupon.MaxRedeemAmount = request.Coupon.MaxRedeemAmount == 0 ? null : request.Coupon.MaxRedeemAmount;
-        
+
         if (!string.IsNullOrEmpty(request.Coupon.ExpirationDate))
         {
             coupon.ExpirationDate = InstantPattern.ExtendedIso.Parse(request.Coupon.ExpirationDate).Value;
@@ -97,8 +118,16 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         dbContext.Coupons.Update(coupon);
         await dbContext.SaveChangesAsync();
 
-        return new UpdateDiscountResponse 
-        { 
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(Coupon),
+            EntityId: coupon.Id,
+            RestaurantId: coupon.RestaurantId,
+            ChangeType: "Updated",
+            OldValues: oldValues,
+            NewValues: SerializeNewValues(coupon)));
+
+        return new UpdateDiscountResponse
+        {
             Coupon = ToProtoModel(coupon),
             Success = true
         };
@@ -117,8 +146,27 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
             return new DeleteDiscountResponse { Success = false };
         }
 
+        // Capture OldValues before hard-delete so the history publish
+        // (Phase 4) can serialize the pre-image. Hard-delete is the
+        // Coupon path; DiscountRule + RewardCode soft-delete via
+        // DeletedAt and serialize the post-image with DeletedAt set.
+        var oldValues = SerializeNewValues(coupon);
+
         dbContext.Coupons.Remove(coupon);
         await dbContext.SaveChangesAsync();
+
+        // NewValues is empty "{}" on hard-delete — the row no longer
+        // exists, so there's no post-image. The plan §6.5 contract
+        // declares NewValues as non-nullable string; an empty object
+        // keeps the wire shape stable while signaling "no post-image."
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(Coupon),
+            EntityId: coupon.Id,
+            RestaurantId: coupon.RestaurantId,
+            ChangeType: "Deleted",
+            OldValues: oldValues,
+            NewValues: "{}"));
+
         return new DeleteDiscountResponse { Success = true };
     }
 
@@ -154,6 +202,13 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         // explicitly here. The actor is `DiscountActors.System` (distinct from
         // `DiscountActors.Sweep`, which is reserved for the expiry-sweep host)
         // per plan §v1.1 L11.
+        // Capture OldValues before the conditional UPDATE so the history
+        // publish (Phase 4) can serialize the pre-image. The post-image
+        // is re-fetched below — raw ExecuteSqlInterpolatedAsync bypasses
+        // the EF tracker, so the in-memory `coupon` doesn't reflect the
+        // RedeemAmount increment.
+        var oldValues = SerializeNewValues(coupon);
+
         var now = SystemClock.Instance.GetCurrentInstant();
         var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
             UPDATE Coupons
@@ -175,6 +230,19 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
             // can safely retry without double-redemption.
             return new RedeemDiscountResponse { Success = false };
         }
+
+        // Re-fetch for the post-redemption NewValues payload.
+        var updated = await dbContext.Coupons
+            .AsNoTracking()
+            .FirstAsync(c => c.Id == coupon.Id);
+
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(Coupon),
+            EntityId: updated.Id,
+            RestaurantId: updated.RestaurantId,
+            ChangeType: "Redeemed",
+            OldValues: oldValues,
+            NewValues: SerializeNewValues(updated)));
 
         return new RedeemDiscountResponse { Success = true };
     }
@@ -259,5 +327,16 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
             MaxRedeemAmount = model.MaxRedeemAmount == 0 ? null : model.MaxRedeemAmount,
             ExpirationDate = string.IsNullOrEmpty(model.ExpirationDate) ? null : InstantPattern.ExtendedIso.Parse(model.ExpirationDate).Value
         };
+    }
+
+    /// <summary>Serializes the entity to a JSON string for the outbox
+    /// <c>NewValues</c> / <c>OldValues</c> payload. Plan §6.5 + v1.1 M9
+    /// lock the wire format as <c>string?</c> (serialized JSON), not
+    /// <c>JsonObject</c> — Catalog's consumer parses back to
+    /// <c>JsonObject</c> on insert via <c>JsonNode.Parse</c>.</summary>
+    private static string SerializeNewValues(Coupon coupon)
+    {
+        var model = ToProtoModel(coupon);
+        return System.Text.Json.JsonSerializer.Serialize(model);
     }
 }

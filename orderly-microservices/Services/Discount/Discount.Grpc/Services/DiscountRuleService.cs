@@ -1,5 +1,7 @@
+using BuildingBlocks.Messaging.Outbox;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
+using Discount.Grpc.Messaging.Events;
 using Discount.Grpc.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +15,15 @@ namespace Discount.Grpc.Services;
 /// <c>CreateDiscountRule</c>, <c>GetDiscountRule</c>, <c>ListDiscountRules</c>,
 /// <c>UpdateDiscountRule</c>, <c>DeleteDiscountRule</c>, <c>EvaluateDiscountRules</c>.
 /// Reads run through the global tenant filter; CUD writes the audit
-/// columns via <c>AuditableEntityInterceptor</c>.
+/// columns via <c>AuditableEntityInterceptor</c>. CUD paths also publish
+/// a <see cref="DiscountHistoryAppendedIntegrationEvent"/> to the outbox
+/// (Phase 4) so Catalog's consumer can write a Marten
+/// <c>EntityHistoryArchive</c> document.
 /// </summary>
 public class DiscountRuleService(
     ILogger<DiscountRuleService> logger,
-    DiscountContext dbContext)
+    DiscountContext dbContext,
+    IOutboxPublisher outbox)
     : DiscountRuleProtoService.DiscountRuleProtoServiceBase
 {
     private const int MaxPageSize = 200;
@@ -50,6 +56,16 @@ public class DiscountRuleService(
 
         dbContext.DiscountRules.Add(rule);
         await dbContext.SaveChangesAsync();
+
+        // History publish (Phase 4) — every DiscountRule CUD writes a
+        // DiscountHistoryAppendedIntegrationEvent with EntityType=DiscountRule.
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(DiscountRule),
+            EntityId: rule.Id,
+            RestaurantId: rule.RestaurantId,
+            ChangeType: "Created",
+            OldValues: null,
+            NewValues: SerializeNewValues(rule)));
 
         return new CreateDiscountRuleResponse
         {
@@ -122,11 +138,23 @@ public class DiscountRuleService(
             return new UpdateDiscountRuleResponse { Success = false };
         }
 
+        // Capture OldValues before mutation so the history publish
+        // (Phase 4) can serialize the pre-image.
+        var oldValues = SerializeNewValues(rule);
+
         rule.RuleType = (DiscountRuleKind)request.Rule.RuleType;
         rule.RuleDataJson = request.Rule.RuleDataJson;
         rule.IsActive = request.Rule.IsActive;
 
         await dbContext.SaveChangesAsync();
+
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(DiscountRule),
+            EntityId: rule.Id,
+            RestaurantId: rule.RestaurantId,
+            ChangeType: "Updated",
+            OldValues: oldValues,
+            NewValues: SerializeNewValues(rule)));
 
         return new UpdateDiscountRuleResponse
         {
@@ -154,11 +182,22 @@ public class DiscountRuleService(
         }
 
         // Soft-delete (mirrors Coupon's soft-delete).
+        var oldValues = SerializeNewValues(rule);
+
         var now = NodaTime.SystemClock.Instance.GetCurrentInstant();
         rule.DeletedAt = now;
         rule.DeletedBy = DiscountActors.Service;
 
         await dbContext.SaveChangesAsync();
+
+        await outbox.PublishAsync(new DiscountHistoryAppendedIntegrationEvent(
+            EntityType: nameof(DiscountRule),
+            EntityId: rule.Id,
+            RestaurantId: rule.RestaurantId,
+            ChangeType: "Deleted",
+            OldValues: oldValues,
+            NewValues: SerializeNewValues(rule)));
+
         return new DeleteDiscountRuleResponse { Success = true };
     }
 
@@ -294,5 +333,16 @@ public class DiscountRuleService(
             IsActive = rule.IsActive,
         };
         return model;
+    }
+
+    /// <summary>Serializes the entity to a JSON string for the outbox
+    /// <c>NewValues</c> / <c>OldValues</c> payload. Plan §6.5 + v1.1 M9
+    /// lock the wire format as <c>string?</c> (serialized JSON), not
+    /// <c>JsonObject</c> — Catalog's consumer parses back to
+    /// <c>JsonObject</c> on insert via <c>JsonNode.Parse</c>.</summary>
+    private static string SerializeNewValues(DiscountRule rule)
+    {
+        var model = ToProtoModel(rule);
+        return System.Text.Json.JsonSerializer.Serialize(model);
     }
 }

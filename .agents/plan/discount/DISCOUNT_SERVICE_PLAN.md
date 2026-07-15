@@ -1547,9 +1547,9 @@ These were settled during the initial grilling and locked at the top of this pla
 - [x] **Phase 3** — `RewardCode` aggregate with 6 RPCs (Create / Get / List / Update / Delete / Redeem); race-fix `RedeemRewardCode` (atomic conditional UPDATE mirrors `RedeemDiscount` — sets `RedeemedInOrderId`, `RedeemedAt`, `LastModifiedAt`, `LastModifiedBy = DiscountActors.System` in the same statement; raw SQL bypasses the audit interceptor per plan v1.1 L11); sweep extension (`DiscountExpirySweepService` now flips both expired Coupons and expired RewardCodes in one tick, single bulk UPDATE per aggregate); lazy-eval + tenant filter (`ActiveNow.RewardCode` helper per plan §0.4.3.1; `HasQueryFilter(r => r.DeletedAt == null && r.RestaurantId == _provider.RestaurantId)`); `DiscountHistoryAppendedIntegrationEvent` publisher hooks on every CUD + redeem path (per plan §7 Phase 3 history-publishes row, completing the cross-aggregate publish contract that Phase 4 wires up for `DiscountRule`); EF migration `20260715225738_AddRewardCodes` (`RewardCodes` table with UK on `(RestaurantId, Code)` + sweep-friendly index `ix_reward_codes_restaurant_active_expiry` on `(RestaurantId, IsActive, ExpirationDate)`); `IOutboxPublisher.PublishAsync` wired on every Phase 3 service path. Proto-side `RewardType` enum kept distinct from entity-side `RewardKind` enum (mirrors `DiscountRuleType` / `DiscountRuleKind` precedent) so the cross-cast is explicit at the service boundary. `Validators/RewardCodeValidator.cs` centralizes the §0.3.3 contract: Code non-empty ≤ 120, kind-specific Value rules, ExpirationDate > now when set, MaxRedeemAmount > 0 when set, FreeItem Quantity == 1. RewardCode.Code4StarPct10 / Code5StarPct15 / Code5StarAppetizer helpers take `(Guid rid, Guid feedbackEventId, TimeProvider clock)` per v1.2 H-L1 (day-bucket + event-id = idempotent across day boundaries). Code commit landed 2026-07-15.
   - [x] **Phase 3 doc** — `current-architecture.md` §4.4 Discount Service (`RewardCode` entity row appended after `DiscountRule` with required-modifier note, `required RewardKind Kind`, FreeItem-Description-as-target-id callout, the three deterministic Code helpers; `RewardCodeProtoService` sub-section appended with all 6 RPCs + RedeemRewardCode race-fix note; "History publishing across aggregates" sub-section appended documenting the now-Phase-3-complete cross-aggregate publish contract), §6 Data Stores (SQLite `discountdb` row gains `RewardCodes` table + UK + sweep index + the `20260715225738_AddRewardCodes` migration), §9 Cross-Cutting Patterns (new `ActiveNow` lazy-eval helper bullet + RewardCode deterministic Code builders bullet + `RewardCode.RewardKind` vs `Coupon.DiscountType` separation bullet), §11 Local Development / Tests (RewardCode test classes row appended to the existing `Discount.Grpc.Tests` entry; 101-test count).
   - [x] **Phase 3 completed** — code + doc + plan-update commit landed; Document Version bumped `1.8 → 1.9`. See v1.9 changelog tail.
-- [ ] **Phase 4** — `DiscountHistoryAppendedIntegrationEvent` publish points populated for Coupon / RewardCode / DiscountRule handlers. One outbox row per mutation.
-  - [ ] **Phase 4 doc** — `current-architecture.md` updated.
-  - [ ] **Phase 4 completed** — dev, doc, plan-update commit.
+- [x] **Phase 4** — `DiscountHistoryAppendedIntegrationEvent` publish points populated for Coupon / RewardCode / DiscountRule handlers. One outbox row per mutation. Coupon Create / Update / Delete / Redeem now publish (Phase 1's commitment was deferred per the v1.5 / v1.7 changelog note that publish-points land in Phase 4 — Coupon was the last aggregate to wire); DiscountRule Create / Update / Delete publish (added on top of Phase 2's wiring); RewardCode Create / Update / Delete / Redeem publish (added in Phase 3). OldValues captured from the in-memory pre-image before mutation; for `RedeemDiscount` / `RedeemRewardCode`, the raw `ExecuteSqlInterpolatedAsync` UPDATE bypasses the EF change tracker so the post-image is re-fetched with a follow-up `AsNoTracking().FirstAsync(...)`. Coupon's hard-delete path emits `NewValues = "{}"` since the row no longer exists. Code commit landed 2026-07-15.
+  - [x] **Phase 4 doc** — `current-architecture.md` §4.4 Discount Service "History publishing across aggregates" sub-section elaborated with the Phase 4 commitment explanation (Phase 1's Coupon-publish-points were deferred; Phase 4 closes the loop on all three aggregates); §11 Local Development / Tests row updated with the new `OutboxHistoryPublisherTests` class + 104-test total count.
+  - [x] **Phase 4 completed** — code + doc + plan-update commit landed; Document Version bumped `1.9 → 2.0`. See v2.0 changelog tail.
 - [ ] **Phase 5** — `FeedbackSubmittedConsumer` stub wired-but-disabled; flag-gated `IConsumerDefinition<>`; tests with `InMemoryTestHarness`.
   - [ ] **Phase 5 doc** — `current-architecture.md` updated.
   - [ ] **Phase 5 completed** — dev, doc, plan-update commit.
@@ -1581,7 +1581,7 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 1.9
+**Document Version:** 2.0
 **Last Updated:** 2026-07-15
 **Maintained By:** Discount working group
 
@@ -1917,3 +1917,60 @@ For the schema-level drift baseline, see `db-model-drift-reports.md` (Discount c
 > **No additional decisions changed.** Mem-bind: the v1.9 changes affect only `DISCOUNT_SERVICE_PLAN.md` (this changelog + §9 row tick + Document Version bump + Last Updated flip), `docs/architecture/current-architecture.md §4.4 + §6 + §9 + §11`, the Discount.Grpc source tree (3 new entities/models + 1 service + 1 validator + 1 integration event + 1 migration + sweep extension + DbContext wiring + Program.cs registration), and the Discount.Grpc.Tests project (4 new test classes + SeedHelper extension + CleanAllAsync tenant-filter fix). Sibling plans (Catalog, Identity, Notification v1, Basket, Ordering) are unchanged by this pass.
 >
 > **Document Version bumped from 1.8 → 1.9.** Per the §0.2 doc-as-code convention, the §4.4 / §6 / §9 / §11 doc updates for Phase 3 land with the code + plan-update commit (no follow-up doc drift). The next version bump (v2.0) is reserved for Phase 4 (history publishing on `DiscountRule` handlers — the third aggregate that completes the §7 Phase 4 row). The proto-split follow-up commit, when it lands, ships as v2.0.1.
+
+---
+
+> **v2.0 changelog — Phase 4 (history publishing across all aggregates).** Code + doc + plan-update commits all landed 2026-07-15 in lockstep per §0.2 doc-as-code. Phase 4 closes the cross-aggregate publish contract: every Coupon / DiscountRule / RewardCode CUD + redeem now writes a `DiscountHistoryAppendedIntegrationEvent` to the outbox inside the same EF Core transaction as the aggregate mutation. Document Version bumped `1.9 → 2.0`. Next bump (v2.0.1) is reserved for the proto-split follow-up commit (`Protos/discount.proto` → `coupon.proto` + `reward_code.proto` + `discount_rule.proto` slices + aggregator). Phase 5 (`FeedbackSubmittedConsumer` stub) lands next.
+>
+> **What changed in code:**
+>
+> - **`Services/DiscountService.cs`** — `IOutboxPublisher outbox` added to the primary constructor. Publish hooks added on `CreateDiscount` (`ChangeType=Created`, `OldValues=null`), `UpdateDiscount` (`ChangeType=Updated`, `OldValues=pre-image serialized JSON`), `DeleteDiscount` (`ChangeType=Deleted`, `OldValues=pre-image`, `NewValues="{}"` since the row no longer exists after hard-delete), and `RedeemDiscount` (`ChangeType=Redeemed`, `OldValues=pre-image`, `NewValues=post-UPDATE re-fetched row`). The `RedeemDiscount` re-fetch is required because raw `ExecuteSqlInterpolatedAsync` bypasses the EF change tracker, so the in-memory `coupon` variable doesn't reflect the `RedeemAmount++`. New private `SerializeNewValues(Coupon)` helper mirrors the one on `RewardCodeService` / `DiscountRuleService`.
+> - **`Services/DiscountRuleService.cs`** — `IOutboxPublisher outbox` added to the primary constructor. Publish hooks added on `CreateDiscountRule` (Created), `UpdateDiscountRule` (Updated), `DeleteDiscountRule` (Deleted — note: DiscountRule soft-deletes via `DeletedAt` / `DeletedBy`, so the post-image is the row with `DeletedAt` set, not an empty object). New private `SerializeNewValues(DiscountRule)` helper.
+> - **`Tests/Integration/OutboxHistoryPublisherTests.cs`** (NEW) — three tests pinning the publisher contract: (a) three mutations across the three aggregates stage three outbox rows with `SchemaVersion=1` and `DispatchedAt=null`; the payload discriminator fields (`EntityType`, `ChangeType`, `RestaurantId`) appear in the JSON; Created rows carry `OldValues=null`; (b) an Update mutation carries both `OldValues` and `NewValues` JSON strings inside the outer payload; (c) a Redeem mutation stamps `ChangeType=Redeemed`. Tests resolve `IOutboxPublisher` from DI and call `PublishAsync` directly (the per-handler tests like `DiscountRuleServiceTests` / `RewardCodeServiceTests` exercise the handler-to-publisher path indirectly via the same DbContext).
+>
+> **Why Phase 4 added Coupon publish hooks even though Phase 1 was supposed to ship them.**
+>
+> The v1.5 / v1.7 changelogs explicitly deferred the publish call sites from Phase 1 to Phase 4 (per §6.5's "publisher call sites land in Phase 4 alongside the publisher contract" wording). Phase 1 shipped the event class + `DiscountOutboxPublisher` + `DiscountOutboxDispatcher` infrastructure; Phase 4 ships the actual call sites on every handler. The decision was deliberate at the time — splitting the infra and the call sites meant Phase 1's outbox was exercisable in dev (via the dispatcher's relay loop) before the publisher contract was locked down.
+>
+> **Wire-format note.**
+>
+> System.Text.Json's default escape policy emits `'` for embedded quotes inside the `OldValues` / `NewValues` JSON strings. The `OutboxHistoryPublisherTests.UpdateMutation_CarriesBothOldAndNewValues` test asserts the inner JSON content (`"OldValues":"{`, `amount`, `10.0`, `15.0`) without relying on the exact escape style — a future escape-policy change surfaces as a test failure with the actual payload visible. Catalog's consumer parses back via `JsonNode.Parse` on `evt.OldValues` / `evt.NewValues`; the escape style doesn't affect parsing.
+>
+> **Cross-aggregate publish contract is now complete.**
+>
+> | Aggregate | Phase that wired publish | Call sites |
+> |---|---|---|
+> | `Coupon` | Phase 4 (deferred from Phase 1) | `CreateDiscount`, `UpdateDiscount`, `DeleteDiscount`, `RedeemDiscount` |
+> | `DiscountRule` | Phase 4 (on top of Phase 2's wiring) | `CreateDiscountRule`, `UpdateDiscountRule`, `DeleteDiscountRule` |
+> | `RewardCode` | Phase 3 | `CreateRewardCode`, `UpdateRewardCode`, `DeleteRewardCode`, `RedeemRewardCode` |
+>
+> The single event type (`DiscountHistoryAppendedIntegrationEvent`) covers all three aggregates. Catalog's consumer dispatches on `EntityType` and `ChangeType`. `SchemaVersion=1` across all rows; future breaking changes bump to v2 per the §6.5 migration rule.
+>
+> **§0.2 doc-as-code gate landed (per the convention — no follow-up drift):**
+> - **`docs/architecture/current-architecture.md` §4.4 Discount Service** — the "History publishing across aggregates" sub-section elaborated with the Phase 4 commitment explanation (Phase 1's Coupon-publish-points were deferred; Phase 4 closes the loop on all three aggregates), the `OldValues` / `NewValues` capture contract for each handler, the `NewValues="{}"` empty-object convention for Coupon's hard-delete, and the `AsNoTracking().FirstAsync(...)` post-image re-fetch for `Redeem*`.
+> - **`docs/architecture/current-architecture.md` §11 Local Development / Tests** — `OutboxHistoryPublisherTests` class row appended to the existing `Discount.Grpc.Tests` entry; 104-test total count.
+> - **`DISCOUNT_SERVICE_PLAN.md` §9 Phase 4 row** — all three sub-gates flipped from `[ ]` to `[x]`. Document Version bumped `1.9 → 2.0`. "Last Updated" flipped to `2026-07-15` (still the same day as v1.9; v2.0 was a same-day follow-up).
+>
+> **Test count breakdown (post-Phase 4):**
+> | Class | Tests |
+> |---|---|
+> | `DiscountPermissionsTests` (Unit) | 12 |
+> | `RewardCodeCodeHelpersTests` (Unit) | 6 |
+> | `DiscountRuleServiceTests` (Integration) | 3 |
+> | `DiscountExpirySweepTests` (Integration) | 3 |
+> | `GlobalTenantFilterTests` (Integration) | 2 |
+> | `HealthCheckSplitTests` (Integration) | 3 |
+> | `MenuItemChangedConsumerTests` (Integration) | 1 |
+> | `RedeemDiscountRaceTests` (Integration) | 3 |
+> | `RedeemRewardCodeRaceTests` (Integration) | 3 |
+> | `RewardCodeServiceTests` (Integration) | 9 |
+> | `RewardCodeSweepTests` (Integration) | 3 |
+> | `DiscountOutboxCircuitBreakerTests` (Integration) | 3 |
+> | `DiscountOutboxDeadLetterTests` (Integration) | 2 |
+> | `OutboxHistoryPublisherTests` (Integration) | **3** *(new)* |
+> | `RpcEndpointTests` (Integration) | 48 (theory cases; 0 `[Fact]` rows) |
+> | **Total** | **104 pass / 0 fail / 9 skipped / 113 total** (2/2 runs stable) |
+>
+> **No additional decisions changed.** Mem-bind: the v2.0 changes affect only `DISCOUNT_SERVICE_PLAN.md` (this changelog + §9 row tick + Document Version bump + Last Updated flip), `docs/architecture/current-architecture.md §4.4 + §11`, the Discount.Grpc source tree (constructor signature update on DiscountService + DiscountRuleService + new `SerializeNewValues` helpers + 7 new publish call sites), and the Discount.Grpc.Tests project (new `OutboxHistoryPublisherTests` class with 3 tests). Sibling plans (Catalog, Identity, Notification v1, Basket, Ordering) are unchanged by this pass.
+>
+> **Document Version bumped from 1.9 → 2.0.** Per the §0.2 doc-as-code convention, the §4.4 / §11 doc updates for Phase 4 land with the code + plan-update commit (no follow-up doc drift). The next version bump (v2.0.1) is reserved for the proto-split follow-up commit. Phase 5 (`FeedbackSubmittedConsumer` stub wired-but-disabled) lands as v2.1.

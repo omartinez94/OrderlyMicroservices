@@ -4,6 +4,8 @@ option csharp_namespace = "Discount.Grpc";
 
 package discount;
 
+import "google/protobuf/timestamp.proto";
+
 service DiscountProtoService {
   rpc GetDiscount (GetDiscountRequest) returns (GetDiscountResponse);
   rpc CreateDiscount (CreateDiscountRequest) returns (CreateDiscountResponse);
@@ -11,6 +13,15 @@ service DiscountProtoService {
   rpc DeleteDiscount (DeleteDiscountRequest) returns (DeleteDiscountResponse);
   rpc RedeemDiscount (RedeemDiscountRequest) returns (RedeemDiscountResponse);
   rpc ListDiscounts (ListDiscountsRequest) returns (ListDiscountsResponse);
+}
+
+service DiscountRuleProtoService {
+  rpc CreateDiscountRule (CreateDiscountRuleRequest) returns (CreateDiscountRuleResponse);
+  rpc GetDiscountRule (GetDiscountRuleRequest) returns (GetDiscountRuleResponse);
+  rpc ListDiscountRules (ListDiscountRulesRequest) returns (ListDiscountRulesResponse);
+  rpc UpdateDiscountRule (UpdateDiscountRuleRequest) returns (UpdateDiscountRuleResponse);
+  rpc DeleteDiscountRule (DeleteDiscountRuleRequest) returns (DeleteDiscountRuleResponse);
+  rpc EvaluateDiscountRules (EvaluateDiscountRulesRequest) returns (EvaluateDiscountRulesResponse);
 }
 
 message CouponModel {
@@ -74,7 +85,7 @@ message RedeemDiscountResponse {
 // The query path runs through the global tenant filter (no manual
 // `Where(RestaurantId == ...)` in the handler). `page` is 1-based;
 // `page_size` is clamped server-side to `[1, 200]` with a default of 50.
-// Tag 10 is reserved for the future `discount_type` field addition.
+// `discount_type` field addition.
 message ListDiscountsRequest {
   string restaurant_id = 1;
   int32 page = 2;
@@ -84,4 +95,88 @@ message ListDiscountsRequest {
 message ListDiscountsResponse {
   repeated CouponModel coupons = 1;
   int32 total_count = 2;
+}
+
+// ============================================================================
+// DiscountRule aggregate. Permission: `discount-rule:read` for
+// read/list/evaluate; `discount-rule:edit` for CUD.
+// `RuleDataJson` is kept as a JSON-encoded payload keyed by RuleType so
+// future rule shapes land without a proto-bump. FluentValidation enforces
+// the shape at the handler boundary.
+// ============================================================================
+
+message DiscountRuleModel {
+  int32 id = 1;
+  string restaurant_id = 2;
+  int32 coupon_id = 3;
+  DiscountRuleType rule_type = 4;
+  string rule_data_json = 5;
+  bool is_active = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp last_modified_at = 8;
+}
+
+enum DiscountRuleType {
+  DISCOUNT_RULE_TYPE_UNSPECIFIED = 0;
+  MIN_ORDER_AMOUNT = 1;
+  REQUIRED_MENU_ITEMS = 2;
+  TIME_WINDOW = 3;
+  BOGO = 4;
+}
+
+message CreateDiscountRuleRequest {
+  DiscountRuleModel rule = 1;
+}
+
+message CreateDiscountRuleResponse {
+  DiscountRuleModel rule = 1;
+  bool success = 2;
+}
+
+message GetDiscountRuleRequest {
+  int32 rule_id = 1;
+  string restaurant_id = 2;
+}
+
+message GetDiscountRuleResponse {
+  DiscountRuleModel rule = 1;
+}
+
+message ListDiscountRulesRequest {
+  string restaurant_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListDiscountRulesResponse {
+  repeated DiscountRuleModel rules = 1;
+  int32 total_count = 2;
+}
+
+message UpdateDiscountRuleRequest {
+  DiscountRuleModel rule = 1;
+}
+
+message UpdateDiscountRuleResponse {
+  DiscountRuleModel rule = 1;
+  bool success = 2;
+}
+
+message DeleteDiscountRuleRequest {
+  int32 rule_id = 1;
+  string restaurant_id = 2;
+}
+
+message DeleteDiscountRuleResponse {
+  bool success = 1;
+}
+
+message EvaluateDiscountRulesRequest {
+  string restaurant_id = 1;
+  double order_total = 2;
+  repeated string menu_item_ids = 3;
+}
+
+message EvaluateDiscountRulesResponse {
+  repeated int32 applicable_coupon_ids = 1;
 }

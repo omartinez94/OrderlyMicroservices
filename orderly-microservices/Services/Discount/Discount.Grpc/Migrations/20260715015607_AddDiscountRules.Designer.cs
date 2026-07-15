@@ -3,6 +3,7 @@ using System;
 using Discount.Grpc.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Discount.Grpc.Migrations
 {
     [DbContext(typeof(DiscountContext))]
-    partial class DiscountContextModelSnapshot : ModelSnapshot
+    [Migration("20260715015607_AddDiscountRules")]
+    partial class AddDiscountRules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
@@ -229,26 +232,6 @@ namespace Discount.Grpc.Migrations
                         .HasDatabaseName("ix_discount_rules_restaurant_active");
 
                     b.ToTable("DiscountRules");
-                });
-
-            modelBuilder.Entity("Discount.Grpc.Models.ProcessedInboundevent", b =>
-                {
-                    b.Property<Guid>("EventId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ConsumerType")
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("ConsumedAt")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("EventId", "ConsumerType");
-
-                    b.HasIndex("ConsumerType", "ConsumedAt")
-                        .HasDatabaseName("ix_processed_inbound_consumer_time");
-
-                    b.ToTable("ProcessedInboundevents");
                 });
 
             modelBuilder.Entity("Discount.Grpc.Models.DiscountRule", b =>

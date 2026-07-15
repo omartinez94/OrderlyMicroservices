@@ -5,6 +5,7 @@ using BuildingBlocks.Multitenancy;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Discount.Grpc.Health;
+using Discount.Grpc.Messaging;
 using Discount.Grpc.Messaging.Outbox;
 using Discount.Grpc.Options;
 using Discount.Grpc.Services;
@@ -49,10 +50,37 @@ builder.Services.AddDbContext<DiscountContext>((sp, options) =>
 // publisher + the dispatcher as a hosted service. The dispatcher injects
 // BrokerHealthState so the broker-circuit /ready probe can read the counter.
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
+
+// Bind DiscountOptions before AddMassTransit so the conditional
+// AddConsumer<> reads the flag values that DiscountOptions would've
+// bound via AddOptions + ValidateDataAnnotations + ValidateOnStart.
+// (MassTransit's configuration callback fires during service
+// registration, before AddOptions validation — so we read the raw
+// Configuration section directly here.)
+var discountOptionsSection = builder.Configuration.GetSection(DiscountOptions.SectionName);
+var enableMenuItem = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableMenuItemChangedConsumer));
+var enableRestaurantConfig = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableRestaurantConfigChangedConsumer));
+
 builder.Services.AddMassTransit(o =>
 {
     o.UsingInMemory((ctx, cfg) => cfg.ConfigureEndpoints(ctx));
+
+    // Conditional AddConsumer — flipping the config
+    // flag to false stops the bus from creating a fresh queue on the
+    // next boot, retiring the consumer without a code change. Default
+    // values are true; consumers wire up automatically unless an
+    // operator explicitly disables them.
+    if (enableMenuItem)
+    {
+        o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.MenuItemChangedConsumer>();
+    }
+
+    if (enableRestaurantConfig)
+    {
+        o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.RestaurantConfigurationChangedConsumer>();
+    }
 });
+
 builder.Services.AddScoped<IOutboxPublisher, DiscountOutboxPublisher>();
 builder.Services.AddSingleton<BrokerHealthState>();
 builder.Services.AddHostedService<DiscountOutboxDispatcher>();
@@ -65,7 +93,7 @@ builder.Services.AddOptions<DiscountOptions>()
     .ValidateOnStart();
 
 // Idempotency-Key provider (HMAC-SHA256 server-side secret). Wired to a
-// middleware; for Phase 1B it ships registered as a singleton
+// middleware; it ships registered as a singleton
 // so the wiring commit is additive.
 builder.Services.AddSingleton<IIdempotencyKeyProvider, IdempotencyKeyProvider>();
 
@@ -83,6 +111,7 @@ var app = builder.Build();
 app.UseMigration();
 
 app.MapGrpcService<DiscountService>();
+app.MapGrpcService<DiscountRuleService>();
 
 // gRPC reflection — development only. The package reference is on
 // unconditionally; the registration is gated.

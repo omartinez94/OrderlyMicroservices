@@ -15,6 +15,17 @@ public class DiscountContext(
 
     public DbSet<Coupon> Coupons { get; set; } = default!;
 
+    /// <summary>Eligibility predicates attached to <see cref="Coupon"/> rows.
+    /// One rule per coupon per UK on <c>(RestaurantId, CouponId)</c>.</summary>
+    public DbSet<DiscountRule> DiscountRules { get; set; } = default!;
+
+    /// <summary>Consumer-side idempotency log. Composite PK on
+    /// <c>(EventId, ConsumerType)</c>; duplicate inserts from a bus
+    /// redelivery hit the unique constraint and the consumer swallows
+    /// the violation (unique-key dedup is the cheaper side of the
+    /// handler's idempotency contract).</summary>
+    public DbSet<ProcessedInboundevent> ProcessedInboundevents { get; set; } = default!;
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages { get; set; } = default!;
 
@@ -53,7 +64,7 @@ public class DiscountContext(
             c.RestaurantId == _restaurantProvider.RestaurantId);
 
         modelBuilder.Entity<Coupon>().HasData(
-            new 
+            new
             {
                 Id = 1,
                 RestaurantId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -68,7 +79,7 @@ public class DiscountContext(
                 LastModifiedBy = "System",
                 IsActive = true
             },
-            new 
+            new
             {
                 Id = 2,
                 RestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
@@ -84,6 +95,45 @@ public class DiscountContext(
                 IsActive = true
             }
         );
+
+        modelBuilder.Entity<DiscountRule>(entity =>
+        {
+            // FK → Coupons. Restrict cascade (cascade-delete policy)
+            // so an admin must delete the rule before deleting the coupon.
+            entity.HasOne<Coupon>()
+                .WithMany()
+                .HasForeignKey(r => r.CouponId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // UK (RestaurantId, CouponId) — one rule per coupon per tenant.
+            // Matches the "one rule per coupon" invariant.
+            entity.HasIndex(r => new { r.RestaurantId, r.CouponId })
+                .IsUnique()
+                .HasDatabaseName("ux_discount_rules_restaurant_coupon");
+
+            // Practical filter indexes for the consumer's
+            // RequiredMenuItemIds match query (filter by RestaurantId,
+            // JSON-touched predicate). CouponId is the PK-side of the
+            // match path; the consumer reads via JsonContains or
+            // LIKE-on-JSON, both of which are SQLite-sequential without
+            // a JSON1 extension — acceptable for traffic shape.
+            entity.HasIndex(r => new { r.RestaurantId, r.IsActive })
+                .HasDatabaseName("ix_discount_rules_restaurant_active");
+        });
+
+        modelBuilder.Entity<ProcessedInboundevent>(entity =>
+        {
+            // Composite PK on (EventId, ConsumerType) — the idempotency
+            // key. Insertion race-resolution is enforced by the PK + the
+            // handler's catch on SqliteException.SqlState == "1555"
+            // (SQLITE_CONSTRAINT_PRIMARYKEY).
+            entity.HasKey(p => new { p.EventId, p.ConsumerType });
+
+            // Diagnostic index — operators may want to find all rows
+            // consumed by a given consumer type ordered by time.
+            entity.HasIndex(p => new { p.ConsumerType, p.ConsumedAt })
+                .HasDatabaseName("ix_processed_inbound_consumer_time");
+        });
     }
 }
 

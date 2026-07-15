@@ -1,3 +1,4 @@
+using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Microsoft.EntityFrameworkCore;
 using NodaTime;
@@ -85,7 +86,7 @@ public sealed class DiscountExpirySweepService(
             return;
         }
 
-        const string actor = "discount-sweep";
+        const string actor = DiscountActors.Sweep;
         foreach (var coupon in candidates)
         {
             coupon.DeletedAt = now;

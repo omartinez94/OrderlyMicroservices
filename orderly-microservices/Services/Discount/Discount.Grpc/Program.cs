@@ -4,9 +4,13 @@ using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
+using Discount.Grpc.Health;
 using Discount.Grpc.Messaging.Outbox;
+using Discount.Grpc.Options;
 using Discount.Grpc.Services;
+using HealthChecks.UI.Client;
 using MassTransit;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -21,8 +25,14 @@ builder.Services.AddJwtAuthentication(
     audience: builder.Configuration["Jwt:Audience"] ?? "OrderlyMicroservices");
 builder.Services.AddDiscountPolicies();
 
-builder.Services.AddGrpc(o => o.Interceptors.Add<DiscountAuthorizationInterceptor>());
-
+// gRPC + dev-only reflection service. MapGrpcReflectionService is registered
+// only in Development so production doesn't leak the schema to anyone who
+// can reach the port.
+builder.Services.AddGrpc();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddGrpcReflection();
+}
 builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
 
 // Tenant scoping: IHttpContextAccessor feeds ClaimsRestaurantProvider which
@@ -34,16 +44,33 @@ builder.Services.AddDbContext<DiscountContext>((sp, options) =>
     options.UseSqlite(builder.Configuration.GetConnectionString("Database"))
         .AddInterceptors(new AuditableEntityInterceptor()));
 
-// Outbox: bind options, configure MassTransit with an in-memory bus (Phase 1
-// dev transport — RabbitMQ wiring is the Phase 4 cross-service hand-off), and
-// register the scoped publisher + the dispatcher as a hosted service.
+// Outbox: bind options, configure
+// MassTransit with an in-memory bus, register the scoped
+// publisher + the dispatcher as a hosted service. The dispatcher injects
+// BrokerHealthState so the broker-circuit /ready probe can read the counter.
 builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(OutboxOptions.SectionName));
 builder.Services.AddMassTransit(o =>
 {
     o.UsingInMemory((ctx, cfg) => cfg.ConfigureEndpoints(ctx));
 });
 builder.Services.AddScoped<IOutboxPublisher, DiscountOutboxPublisher>();
+builder.Services.AddSingleton<BrokerHealthState>();
 builder.Services.AddHostedService<DiscountOutboxDispatcher>();
+
+// Discount service options: bind + [Range] + ValidateOnStart. The
+// options class itself is in Discount.Grpc.Options.DiscountOptions.
+builder.Services.AddOptions<DiscountOptions>()
+    .Bind(builder.Configuration.GetSection(DiscountOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+// Idempotency-Key provider (HMAC-SHA256 server-side secret). Wired to a
+// middleware; for Phase 1B it ships registered as a singleton
+// so the wiring commit is additive.
+builder.Services.AddSingleton<IIdempotencyKeyProvider, IdempotencyKeyProvider>();
+
+// Readiness probes — /live + /ready split (mirrors Catalog).
+builder.Services.AddDiscountHealthChecks();
 
 // Expiry sweep — soft-deletes coupons whose ExpirationDate has passed.
 builder.Services.Configure<DiscountExpirySweepOptions>(
@@ -57,6 +84,29 @@ app.UseMigration();
 
 app.MapGrpcService<DiscountService>();
 
+// gRPC reflection — development only. The package reference is on
+// unconditionally; the registration is gated.
+if (app.Environment.IsDevelopment())
+{
+    app.MapGrpcReflectionService();
+}
+
+// Health endpoints. /live is liveness-only (no checks attached);
+// /ready is tagged "ready" and uses UIResponseWriter for JSON body
+// shape parity with Catalog's /health endpoint.
+app.MapHealthChecks("/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+});
+app.MapHealthChecks("/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
+});
+
 app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
 
 app.Run();
+
+// Mark the entry point class for WebApplicationFactory<Program> in tests.
+public partial class Program;

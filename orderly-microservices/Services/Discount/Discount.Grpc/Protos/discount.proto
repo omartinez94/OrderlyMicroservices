@@ -10,6 +10,7 @@ service DiscountProtoService {
   rpc UpdateDiscount (UpdateDiscountRequest) returns (UpdateDiscountResponse);
   rpc DeleteDiscount (DeleteDiscountRequest) returns (DeleteDiscountResponse);
   rpc RedeemDiscount (RedeemDiscountRequest) returns (RedeemDiscountResponse);
+  rpc ListDiscounts (ListDiscountsRequest) returns (ListDiscountsResponse);
 }
 
 message CouponModel {
@@ -67,4 +68,20 @@ message RedeemDiscountRequest {
 
 message RedeemDiscountResponse {
   bool success = 1;
+}
+
+// Paged list of coupons for the active restaurant. Permission: `coupon:read`.
+// The query path runs through the global tenant filter (no manual
+// `Where(RestaurantId == ...)` in the handler). `page` is 1-based;
+// `page_size` is clamped server-side to `[1, 200]` with a default of 50.
+// Tag 10 is reserved for the future `discount_type` field addition.
+message ListDiscountsRequest {
+  string restaurant_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListDiscountsResponse {
+  repeated CouponModel coupons = 1;
+  int32 total_count = 2;
 }

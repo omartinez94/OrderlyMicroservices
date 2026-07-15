@@ -3,6 +3,7 @@ using Discount.Grpc.Data;
 using Discount.Grpc.Models;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 using NodaTime.Text;
 
 namespace Discount.Grpc.Services;
@@ -147,9 +148,18 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         //   - active  (IsActive = 1)              — defensive; the global filter doesn't yet gate on IsActive
         //   - under cap (RedeemAmount < cap, OR cap unset)
         // Plan §1 row "concurrency" calls this the SQLite-correct race fix.
+        //
+        // Audit-column note: raw ExecuteSqlInterpolatedAsync bypasses the
+        // AuditableEntityInterceptor, so we set LastModifiedAt + LastModifiedBy
+        // explicitly here. The actor is `DiscountActors.System` (distinct from
+        // `DiscountActors.Sweep`, which is reserved for the expiry-sweep host)
+        // per plan §v1.1 L11.
+        var now = SystemClock.Instance.GetCurrentInstant();
         var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
             UPDATE Coupons
-            SET RedeemAmount = RedeemAmount + 1
+            SET RedeemAmount    = RedeemAmount + 1,
+                LastModifiedAt  = {now},
+                LastModifiedBy  = {DiscountActors.System}
             WHERE Id = {coupon.Id}
               AND IsActive = 1
               AND DeletedAt IS NULL
@@ -167,6 +177,57 @@ public class DiscountService(ILogger<DiscountService> logger, DiscountContext db
         }
 
         return new RedeemDiscountResponse { Success = true };
+    }
+
+    /// <summary>
+    /// Paged list of coupons for the active restaurant. The query path
+    /// runs through the global tenant filter (no manual
+    /// <c>Where(RestaurantId == ...)</c>) so the cross-tenant-deny default
+    /// kicks in if <see cref="ICurrentRestaurantProvider"/> can't resolve a
+    /// restaurant. Per plan §0.4.1 H-L16.
+    /// </summary>
+    /// <remarks>
+    /// Pagination contract: <c>page</c> is 1-based; <c>page_size</c> is
+    /// clamped server-side to <c>[1, 200]</c> with a default of 50 (an
+    /// out-of-range or zero <c>page_size</c> falls back to the default).
+    /// The <c>total_count</c> on the response is the count of *alive*
+    /// (DeletedAt IS NULL) rows for the active tenant — matches the row
+    /// set the caller can page through.
+    /// </remarks>
+    [Permission(DiscountPermissions.CouponRead)]
+    public override async Task<ListDiscountsResponse> ListDiscounts(ListDiscountsRequest request, ServerCallContext context)
+    {
+        logger.LogInformation(
+            "ListDiscounts called for RestaurantId: {RestaurantId}, page: {Page}, pageSize: {PageSize}.",
+            request.RestaurantId, request.Page, request.PageSize);
+
+        var page = request.Page <= 0 ? 1 : request.Page;
+        var pageSize = request.PageSize switch
+        {
+            <= 0 => 50,                                       // default
+            > 200 => 200,                                     // plan §0.4.1 cap
+            _ => request.PageSize,
+        };
+
+        // The global query filter (tenant + DeletedAt IS NULL) handles
+        // tenant scoping without an explicit WHERE here. Total count
+        // reflects the same filter so the paged total matches what the
+        // caller can navigate to.
+        var baseQuery = dbContext.Coupons.AsNoTracking();
+        var totalCount = await baseQuery.CountAsync();
+
+        var pageRows = await baseQuery
+            .OrderBy(c => c.Code)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var response = new ListDiscountsResponse
+        {
+            TotalCount = totalCount,
+        };
+        response.Coupons.AddRange(pageRows.Select(ToProtoModel));
+        return response;
     }
 
     private static CouponModel ToProtoModel(Coupon coupon)

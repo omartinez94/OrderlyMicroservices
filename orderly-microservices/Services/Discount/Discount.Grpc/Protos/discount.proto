@@ -24,6 +24,15 @@ service DiscountRuleProtoService {
   rpc EvaluateDiscountRules (EvaluateDiscountRulesRequest) returns (EvaluateDiscountRulesResponse);
 }
 
+service RewardCodeProtoService {
+  rpc CreateRewardCode (CreateRewardCodeRequest) returns (CreateRewardCodeResponse);
+  rpc GetRewardCode (GetRewardCodeRequest) returns (GetRewardCodeResponse);
+  rpc ListRewardCodes (ListRewardCodesRequest) returns (ListRewardCodesResponse);
+  rpc UpdateRewardCode (UpdateRewardCodeRequest) returns (UpdateRewardCodeResponse);
+  rpc DeleteRewardCode (DeleteRewardCodeRequest) returns (DeleteRewardCodeResponse);
+  rpc RedeemRewardCode (RedeemRewardCodeRequest) returns (RedeemRewardCodeResponse);
+}
+
 message CouponModel {
   int32 id = 1;
   string restaurant_id = 2;
@@ -179,4 +188,110 @@ message EvaluateDiscountRulesRequest {
 
 message EvaluateDiscountRulesResponse {
   repeated int32 applicable_coupon_ids = 1;
+}
+
+// ============================================================================
+// RewardCode aggregate. Permission: `reward-code:read` for
+// read/list; `reward-code:edit` for CUD; `reward-code:redeem` for redeem.
+// `kind` (proto RewardType) discriminates `value`'s semantic shape;
+// FluentValidation enforces the kind-specific contract at the handler
+// boundary (plan §0.3.3). FreeItem rewards carry the target menu-item id
+// in `description` as `free-item:{menuItemId}` (proto v1 stays simple;
+// v2 bumps `RewardTargetMenuItemId` per plan §0.4.3).
+//
+// Proto enum naming follows the DiscountRuleType / DiscountRuleKind
+// precedent: the wire-format enum is `RewardType` (distinct from the
+// entity-side `RewardKind` enum in `Discount.Grpc.Models`) so the two
+// namespaces don't collide and the cross-cast is explicit.
+// ============================================================================
+
+message RewardCodeModel {
+  int32 id = 1;
+  string restaurant_id = 2;
+  string code = 3;
+  RewardType kind = 4;
+  double value = 5;
+  string description = 6;
+  string expiration_date = 7;
+  int32 redeem_amount = 8;
+  int32 max_redeem_amount = 9;
+  string redeemed_in_order_id = 10;
+  string redeemed_at = 11;
+  bool is_active = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp last_modified_at = 14;
+}
+
+enum RewardType {
+  REWARD_TYPE_UNSPECIFIED = 0;
+  PERCENTAGE = 1;
+  FIXED_AMOUNT = 2;
+  FREE_ITEM = 3;
+  POINTS = 4;
+}
+
+message CreateRewardCodeRequest {
+  RewardCodeModel reward_code = 1;
+}
+
+message CreateRewardCodeResponse {
+  RewardCodeModel reward_code = 1;
+  bool success = 2;
+}
+
+message GetRewardCodeRequest {
+  int32 reward_code_id = 1;
+  string restaurant_id = 2;
+}
+
+message GetRewardCodeResponse {
+  RewardCodeModel reward_code = 1;
+}
+
+// Paged list of reward codes for the active restaurant. Permission:
+// `reward-code:read`. `page` is 1-based; `page_size` clamped to `[1, 200]`
+// with a default of 50 — same shape as ListDiscounts / ListDiscountRules.
+message ListRewardCodesRequest {
+  string restaurant_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListRewardCodesResponse {
+  repeated RewardCodeModel reward_codes = 1;
+  int32 total_count = 2;
+}
+
+message UpdateRewardCodeRequest {
+  RewardCodeModel reward_code = 1;
+}
+
+message UpdateRewardCodeResponse {
+  RewardCodeModel reward_code = 1;
+  bool success = 2;
+}
+
+message DeleteRewardCodeRequest {
+  int32 reward_code_id = 1;
+  string restaurant_id = 2;
+}
+
+message DeleteRewardCodeResponse {
+  bool success = 1;
+}
+
+// `restaurant_id` is double-checked against ICurrentRestaurantProvider;
+// mismatch returns `StatusCode.PermissionDenied` with
+// `Metadata["tenant-mismatch"] = "true"`. `Quantity` defaults to 1;
+// FreeItem rewards require Quantity == 1 (plan §0.3.3).
+message RedeemRewardCodeRequest {
+  string restaurant_id = 1;
+  int32 reward_code_id = 2;
+  string order_id = 3;
+  int32 quantity = 4;
+}
+
+message RedeemRewardCodeResponse {
+  RewardCodeModel reward_code = 1;
+  bool success = 2;
 }

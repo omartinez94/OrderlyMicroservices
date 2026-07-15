@@ -112,6 +112,7 @@ app.UseMigration();
 
 app.MapGrpcService<DiscountService>();
 app.MapGrpcService<DiscountRuleService>();
+app.MapGrpcService<RewardCodeService>();
 
 // gRPC reflection — development only. The package reference is on
 // unconditionally; the registration is gated.

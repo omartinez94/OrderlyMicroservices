@@ -75,15 +75,67 @@ public static class SeedHelper
     /// Truncates every Discount-owned table so a test can start with a
     /// clean baseline. Cascade not configured (Discount has no FKs
     /// into other tables yet), so a single <c>ExecuteDeleteAsync</c> per
-    /// table is sufficient.
+    /// table is sufficient. Order matters: outbox tables first so the
+    /// test's prior history-publish rows don't leak across fixtures.
+    /// <c>IgnoreQueryFilters()</c> is required on the tenant-scoped
+    /// tables (Coupon, RewardCode) because the global query filter
+    /// scopes ExecuteDeleteAsync to the active caller's tenant — without
+    /// it, prior tests' cross-tenant rows survive and pollute counts.
     /// </summary>
     public static async Task CleanAllAsync(this DiscountWebApplicationFactory factory)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-        await db.Coupons.ExecuteDeleteAsync();
         await db.OutboxMessages.ExecuteDeleteAsync();
         await db.OutboxDeadMessages.ExecuteDeleteAsync();
+        await db.RewardCodes.IgnoreQueryFilters().ExecuteDeleteAsync();
+        await db.DiscountRules.ExecuteDeleteAsync();
+        await db.ProcessedInboundevents.ExecuteDeleteAsync();
+        await db.Coupons.IgnoreQueryFilters().ExecuteDeleteAsync();
+    }
+
+    /// <summary>
+    /// Inserts a reward-code row directly via the production scope.
+    /// Returns the saved <see cref="RewardCode"/> with its assigned
+    /// <see cref="Models.RewardCode.Id"/>. Mirrors <see cref="SeedCouponAsync"/>'s
+    /// shape: bypasses the global tenant filter for the insert (EF Core's
+    /// <c>Add</c> path doesn't apply query filters on insert) and stamps
+    /// <c>IsActive=1</c> via a follow-up raw UPDATE so the conditional
+    /// UPDATE in <c>RedeemRewardCode</c> matches the row.
+    /// </summary>
+    public static async Task<RewardCode> SeedRewardCodeAsync(
+        this DiscountWebApplicationFactory factory,
+        Guid restaurantId,
+        string code,
+        RewardKind kind = RewardKind.Percentage,
+        decimal value = 10m,
+        string? description = null,
+        Instant? expirationDate = null,
+        int? maxRedeemAmount = null,
+        bool isActive = true)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+
+        var row = new RewardCode
+        {
+            RestaurantId = restaurantId,
+            Code = code,
+            Kind = kind,
+            Value = value,
+            Description = description,
+            ExpirationDate = expirationDate,
+            MaxRedeemAmount = maxRedeemAmount,
+        };
+        db.RewardCodes.Add(row);
+        await db.SaveChangesAsync();
+
+        await db.Database.ExecuteSqlInterpolatedAsync($@"
+            UPDATE RewardCodes SET IsActive = {(isActive ? 1 : 0)} WHERE Id = {row.Id}
+        ");
+
+        await db.Entry(row).ReloadAsync();
+        return row;
     }
 
     /// <summary>

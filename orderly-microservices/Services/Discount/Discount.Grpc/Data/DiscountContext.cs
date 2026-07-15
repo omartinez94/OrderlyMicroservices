@@ -19,6 +19,15 @@ public class DiscountContext(
     /// One rule per coupon per UK on <c>(RestaurantId, CouponId)</c>.</summary>
     public DbSet<DiscountRule> DiscountRules { get; set; } = default!;
 
+    /// <summary>Customer-feedback-generated rewards. UK on
+    /// <c>(RestaurantId, Code)</c>; C# 11 <c>required</c> modifier on
+    /// <c>Code</c> enforces non-null at construction. The deterministic
+    /// <c>Code*Star*</c> helpers on <see cref="RewardCode"/> produce codes
+    /// that collide on the same UK row across day boundaries when the
+    /// <c>feedbackEventId</c> is identical — the natural-idempotency
+    /// guarantee for the <c>FeedbackSubmittedConsumer</c> (Phase 5).</summary>
+    public DbSet<RewardCode> RewardCodes { get; set; } = default!;
+
     /// <summary>Consumer-side idempotency log. Composite PK on
     /// <c>(EventId, ConsumerType)</c>; duplicate inserts from a bus
     /// redelivery hit the unique constraint and the consumer swallows
@@ -62,6 +71,13 @@ public class DiscountContext(
         modelBuilder.Entity<Coupon>().HasQueryFilter(c =>
             c.DeletedAt == null &&
             c.RestaurantId == _restaurantProvider.RestaurantId);
+
+        // RewardCode: same combined global query filter shape as Coupon —
+        // alive + tenant-scoped. The sweep service uses IgnoreQueryFilters
+        // to soft-delete across tenants on expiry.
+        modelBuilder.Entity<RewardCode>().HasQueryFilter(r =>
+            r.DeletedAt == null &&
+            r.RestaurantId == _restaurantProvider.RestaurantId);
 
         modelBuilder.Entity<Coupon>().HasData(
             new
@@ -133,6 +149,25 @@ public class DiscountContext(
             // consumed by a given consumer type ordered by time.
             entity.HasIndex(p => new { p.ConsumerType, p.ConsumedAt })
                 .HasDatabaseName("ix_processed_inbound_consumer_time");
+        });
+
+        modelBuilder.Entity<RewardCode>(entity =>
+        {
+            // UK (RestaurantId, Code) — natural-key lookup per tenant
+            // and the natural-idempotency collision target for the
+            // Phase 5 FeedbackSubmittedConsumer (the deterministic
+            // Code4StarPct10/Code5StarPct15/Code5StarAppetizer helpers
+            // collide on the same UK row across day boundaries when the
+            // inbound FeedbackSubmittedIntegrationEvent.Id is identical).
+            entity.HasIndex(r => new { r.RestaurantId, r.Code })
+                .IsUnique()
+                .HasDatabaseName("ux_reward_codes_restaurant_code");
+
+            // Practical filter index — sweep service scans by
+            // (RestaurantId, IsActive, ExpirationDate). RestaurantId is
+            // the leading column for index-only scans.
+            entity.HasIndex(r => new { r.RestaurantId, r.IsActive, r.ExpirationDate })
+                .HasDatabaseName("ix_reward_codes_restaurant_active_expiry");
         });
     }
 }

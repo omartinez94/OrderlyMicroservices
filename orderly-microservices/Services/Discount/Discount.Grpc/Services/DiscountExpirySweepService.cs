@@ -6,21 +6,22 @@ using NodaTime;
 namespace Discount.Grpc.Services;
 
 /// <summary>
-/// Background service that soft-deletes coupons whose <see cref="Models.Coupon.ExpirationDate"/>
-/// has passed. Runs on a <see cref="PeriodicTimer"/> interval driven by
+/// Background service that soft-deletes <see cref="Models.Coupon"/> and
+/// <see cref="Models.RewardCode"/> rows whose <c>ExpirationDate</c> has
+/// passed. Runs on a <see cref="PeriodicTimer"/> interval driven by
 /// <see cref="DiscountExpirySweepOptions.SweepInterval"/> (default 5 minutes).
 ///
 /// Soft-delete (not hard-delete) preserves the audit trail — redemption events
-/// already cite coupon Ids from finalized orders, and a coupon can also be
-/// re-activated by clearing <c>DeletedAt</c>. The global query filter excludes
-/// soft-deleted rows from every read path; admin tooling can opt in via
-/// <c>IgnoreQueryFilters()</c> if it needs to see them.
+/// already cite coupon / reward-code Ids from finalized orders, and a row
+/// can also be re-activated by clearing <c>DeletedAt</c>. The global query
+/// filter excludes soft-deleted rows from every read path; admin tooling
+/// can opt in via <c>IgnoreQueryFilters()</c> if it needs to see them.
 ///
 /// Why a sweep rather than per-request filters: every Catalog / Basket read
-/// would otherwise pay the filter cost on every coupon lookup, and missed
-/// expiries are silent (no error) — bad UX. A periodic sweep keeps the read
-/// path tight and gives operators a single audit log (DeletedAt column) for
-/// "why did this coupon stop being available?".
+/// would otherwise pay the filter cost on every lookup, and missed expiries
+/// are silent (no error) — bad UX. A periodic sweep keeps the read path
+/// tight and gives operators a single audit log (DeletedAt column) for
+/// "why did this row stop being available?".
 /// </summary>
 public sealed class DiscountExpirySweepService(
     IServiceProvider services,
@@ -87,38 +88,53 @@ public sealed class DiscountExpirySweepService(
         // Per-tick scope so a DbContext failure is contained. IgnoreQueryFilters
         // is intentional — we need to see expiring rows even if the calling
         // tenant would otherwise filter them out. The sweep operates across all
-        // tenants; Coupon.RestaurantId scoping is not relevant for soft-delete.
+        // tenants; Coupon.RestaurantId / RewardCode.RestaurantId scoping is not
+        // relevant for soft-delete.
         using var scope = services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
 
         var now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
-        // Anchor: only sweep expirable (ExpirationDate != null) coupons that are
-        // still alive (DeletedAt == null) and have crossed their expiry. The
-        // .IgnoreQueryFilters() call below sees soft-deleted rows too, but the
-        // DeletedAt == null predicate already excludes them from the candidate set.
-        var candidates = await dbContext.Coupons
+
+        // Coupon sweep — unchanged from Phase 1. Keeps the audit trail
+        // (DeletedAt column) and lets admin tooling re-activate by clearing
+        // DeletedAt if needed.
+        var couponCandidates = await dbContext.Coupons
             .IgnoreQueryFilters()
             .Where(c => c.DeletedAt == null && c.ExpirationDate != null && c.ExpirationDate <= now)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (candidates.Count == 0)
+        // RewardCode sweep — mirrors the Coupon path. Phase 3 adds this
+        // aggregate; Phase 1's sweep needed an update.
+        var rewardCodeCandidates = await dbContext.RewardCodes
+            .IgnoreQueryFilters()
+            .Where(r => r.DeletedAt == null && r.ExpirationDate != null && r.ExpirationDate <= now)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (couponCandidates.Count == 0 && rewardCodeCandidates.Count == 0)
         {
             return;
         }
 
         const string actor = DiscountActors.Sweep;
-        foreach (var coupon in candidates)
+        foreach (var coupon in couponCandidates)
         {
             coupon.DeletedAt = now;
             coupon.DeletedBy = actor;
+        }
+        foreach (var rewardCode in rewardCodeCandidates)
+        {
+            rewardCode.DeletedAt = now;
+            rewardCode.DeletedBy = actor;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
-            "Discount expiry sweep soft-deleted {Count} expired coupon(s) at {Now}.",
-            candidates.Count,
+            "Discount expiry sweep soft-deleted {CouponCount} expired coupon(s) and {RewardCount} expired reward code(s) at {Now}.",
+            couponCandidates.Count,
+            rewardCodeCandidates.Count,
             now);
     }
 }

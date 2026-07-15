@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/Services/Discount/">
     <Project Path="Services/Discount/Discount.Grpc/Discount.Grpc.csproj" Id="29da9e26-d599-4769-8ce2-2914f31f479b" />
+    <Project Path="Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj" />
   </Folder>
   <Folder Name="/Services/Identity/">
     <Project Path="Services/Identity/Identity.API/Identity.API.csproj" />

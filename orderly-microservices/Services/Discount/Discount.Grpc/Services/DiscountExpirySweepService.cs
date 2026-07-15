@@ -61,6 +61,27 @@ public sealed class DiscountExpirySweepService(
         logger.LogInformation("Discount expiry sweep stopped.");
     }
 
+    /// <summary>
+    /// Test-only seam: drives a single sweep iteration synchronously,
+    /// honoring the <see cref="DiscountExpirySweepOptions.Enabled"/>
+    /// flag (matches production <see cref="ExecuteAsync"/> semantics).
+    /// Visible because <c>Discount.Grpc.Tests</c> is registered via
+    /// <c>InternalsVisibleTo</c>; production code calls <c>ExecuteAsync</c>
+    /// via the hosted-service loop. Tests then query the db for the
+    /// post-sweep state.
+    /// </summary>
+    internal async Task SweepNowForTestsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!options.Value.Enabled)
+        {
+            logger.LogInformation(
+                "SweepNowForTests skipped — DiscountExpirySweepOptions.Enabled = false.");
+            return;
+        }
+
+        await SweepOnceAsync(cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task SweepOnceAsync(CancellationToken cancellationToken)
     {
         // Per-tick scope so a DbContext failure is contained. IgnoreQueryFilters

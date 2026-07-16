@@ -1,4 +1,5 @@
-﻿global using BuildingBlocks.CQRS;
+﻿global using BuildingBlocks.Correlation;
+global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Enums;
 global using BuildingBlocks.Exceptions;
 global using BuildingBlocks.Messaging.Events;

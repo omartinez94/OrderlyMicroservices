@@ -55,6 +55,15 @@ public record OrderDto(
     Instant? ReadyAt,
 
     string Notes,
-    IReadOnlyList<OrderItemDto> OrderItems
+    IReadOnlyList<OrderItemDto> OrderItems,
+
+    /// <summary>
+    /// Chronological activity feed (one row per state transition + per-item
+    /// prep transition). Ordered by <c>OccurredAt ASC, Id ASC</c> for
+    /// stable rendering. Each row carries the actor id (where available)
+    /// and the per-request <c>CorrelationId</c> so log-trace correlation
+    /// works end-to-end.
+    /// </summary>
+    IReadOnlyList<OrderActivityDto> Activities
 );
 

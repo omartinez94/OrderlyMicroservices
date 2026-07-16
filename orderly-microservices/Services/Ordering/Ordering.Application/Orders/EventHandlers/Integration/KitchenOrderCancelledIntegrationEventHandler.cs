@@ -16,25 +16,36 @@ public class KitchenOrderCancelledIntegrationEventHandler(
     public async Task Consume(ConsumeContext<KitchenOrderCancelledIntegrationEvent> context)
     {
         var message = context.Message;
-        logger.LogInformation(
-            "Integration Event handled: {IntegrationEvent} for Order {OrderId}",
-            nameof(KitchenOrderCancelledIntegrationEvent),
-            message.OrderId);
+        var correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        CorrelationContext.Set(correlationId);
 
-        var order = await dbContext.Orders.FindAsync(
-            [OrderId.Of(message.OrderId)], context.CancellationToken);
-
-        if (order is null)
+        try
         {
-            logger.LogWarning(
-                "Skipping {Event} — Order {OrderId} not found.",
+            logger.LogInformation(
+                "Integration Event handled: {IntegrationEvent} for Order {OrderId} (CorrelationId: {CorrelationId})",
                 nameof(KitchenOrderCancelledIntegrationEvent),
-                message.OrderId);
-            return;
+                message.OrderId,
+                correlationId);
+
+            var order = await dbContext.Orders.FindAsync(
+                [OrderId.Of(message.OrderId)], context.CancellationToken);
+
+            if (order is null)
+            {
+                logger.LogWarning(
+                    "Skipping {Event} — Order {OrderId} not found.",
+                    nameof(KitchenOrderCancelledIntegrationEvent),
+                    message.OrderId);
+                return;
+            }
+
+            order.Cancel(message.Reason, message.CancelledByUserId, message.CancelledAt);
+
+            await dbContext.SaveChangesAsync(context.CancellationToken);
         }
-
-        order.Cancel(message.Reason, message.CancelledByUserId, message.CancelledAt);
-
-        await dbContext.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            CorrelationContext.Clear();
+        }
     }
 }

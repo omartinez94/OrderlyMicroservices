@@ -1,6 +1,3 @@
-using MassTransit;
-using Microsoft.EntityFrameworkCore;
-
 namespace Ordering.Application.Tests.EventHandlers.Integration;
 
 /// <summary>
@@ -100,5 +97,36 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
         dbContext.Orders.FindAsync(Arg.Any<object[]>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Order?>(order));
         return dbContext;
+    }
+
+    /// <summary>
+    /// The consumer stamps the activity row's <c>CorrelationId</c> from the
+    /// bus <c>ConsumeContext.CorrelationId</c> so log-trace correlation
+    /// works end-to-end. Locks in the v1 contract that the ambient id
+    /// survives into the aggregate transition.
+    /// </summary>
+    [Fact]
+    public async Task Consume_StampsCorrelationIdFromBusContext_OnActivityRow()
+    {
+        var order = CreatePendingOrder();
+        var dbContext = NewDbContextWith(order);
+
+        var consumer = new KitchenOrderAcceptedIntegrationEventHandler(
+            dbContext, NullLogger<KitchenOrderAcceptedIntegrationEventHandler>.Instance);
+
+        var correlationGuid = Guid.NewGuid();
+        var message = new KitchenOrderAcceptedIntegrationEvent
+        {
+            OrderId = order.Id.Value,
+            ConfirmedByUserId = Guid.NewGuid(),
+            ConfirmedAt = SystemClock.Instance.GetCurrentInstant(),
+        };
+        var context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
+        context.Message.Returns(message);
+        context.CorrelationId.Returns(correlationGuid);
+
+        await consumer.Consume(context);
+
+        order.Activities.Single().CorrelationId.Should().Be(correlationGuid.ToString());
     }
 }

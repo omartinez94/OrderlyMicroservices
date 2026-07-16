@@ -57,6 +57,14 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
             order.Add(MenuItemId.Of(item.MenuItemId), item.Quantity, item.UnitPrice);
         }
 
+        // Append the OrderCreated activity row. Order.Create cannot call
+        // RecordActivity itself (the aggregate isn't in scope of the
+        // factory); this is the application-side entry point that does.
+        order.RecordActivity(
+            Ordering.Domain.Enums.OrderActivityType.OrderCreated,
+            actorUserId: dto.CreatedByUserId,
+            occurredAt: SystemClock.Instance.GetCurrentInstant());
+
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync(cancellationToken);
 

@@ -1,5 +1,3 @@
-using BuildingBlocks.Messaging.Events;
-
 namespace Ordering.Application.Extensions;
 
 public static class OrderExtensions
@@ -68,7 +66,18 @@ public static class OrderExtensions
                 CreatedAt: oi.CreatedAt,
                 PrepStartedAt: oi.PrepStartedAt,
                 PrepCompletedAt: oi.PrepCompletedAt
-            ))]
+            ))],
+            Activities: [.. order.Activities
+                .OrderBy(a => a.OccurredAt)
+                .ThenBy(a => a.Id.Value)
+                .Select(a => new OrderActivityDto(
+                    Id: a.Id.Value,
+                    ActivityType: a.ActivityType,
+                    ActorUserId: a.ActorUserId,
+                    OccurredAt: a.OccurredAt,
+                    CorrelationId: a.CorrelationId,
+                    Notes: a.Notes,
+                    Metadata: a.Metadata))]
         );
     }
 

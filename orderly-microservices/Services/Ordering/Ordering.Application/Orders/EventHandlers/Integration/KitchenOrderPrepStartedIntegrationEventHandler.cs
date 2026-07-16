@@ -17,26 +17,37 @@ public class KitchenOrderPrepStartedIntegrationEventHandler(
     public async Task Consume(ConsumeContext<KitchenOrderPrepStartedIntegrationEvent> context)
     {
         var message = context.Message;
-        logger.LogInformation(
-            "Integration Event handled: {IntegrationEvent} for Order {OrderId} (item {ItemId})",
-            nameof(KitchenOrderPrepStartedIntegrationEvent),
-            message.OrderId,
-            message.ItemId);
+        var correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        CorrelationContext.Set(correlationId);
 
-        var order = await dbContext.Orders.FindAsync(
-            [OrderId.Of(message.OrderId)], context.CancellationToken);
-
-        if (order is null)
+        try
         {
-            logger.LogWarning(
-                "Skipping {Event} — Order {OrderId} not found.",
+            logger.LogInformation(
+                "Integration Event handled: {IntegrationEvent} for Order {OrderId} (item {ItemId}, CorrelationId: {CorrelationId})",
                 nameof(KitchenOrderPrepStartedIntegrationEvent),
-                message.OrderId);
-            return;
+                message.OrderId,
+                message.ItemId,
+                correlationId);
+
+            var order = await dbContext.Orders.FindAsync(
+                [OrderId.Of(message.OrderId)], context.CancellationToken);
+
+            if (order is null)
+            {
+                logger.LogWarning(
+                    "Skipping {Event} — Order {OrderId} not found.",
+                    nameof(KitchenOrderPrepStartedIntegrationEvent),
+                    message.OrderId);
+                return;
+            }
+
+            order.MarkPreparing(message.StartedAt);
+
+            await dbContext.SaveChangesAsync(context.CancellationToken);
         }
-
-        order.MarkPreparing(message.StartedAt);
-
-        await dbContext.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            CorrelationContext.Clear();
+        }
     }
 }

@@ -18,25 +18,36 @@ public class KitchenOrderAcceptedIntegrationEventHandler(
     public async Task Consume(ConsumeContext<KitchenOrderAcceptedIntegrationEvent> context)
     {
         var message = context.Message;
-        logger.LogInformation(
-            "Integration Event handled: {IntegrationEvent} for Order {OrderId}",
-            nameof(KitchenOrderAcceptedIntegrationEvent),
-            message.OrderId);
+        var correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        CorrelationContext.Set(correlationId);
 
-        var order = await dbContext.Orders.FindAsync(
-            [OrderId.Of(message.OrderId)], context.CancellationToken);
-
-        if (order is null)
+        try
         {
-            logger.LogWarning(
-                "Skipping {Event} — Order {OrderId} not found.",
+            logger.LogInformation(
+                "Integration Event handled: {IntegrationEvent} for Order {OrderId} (CorrelationId: {CorrelationId})",
                 nameof(KitchenOrderAcceptedIntegrationEvent),
-                message.OrderId);
-            return;
+                message.OrderId,
+                correlationId);
+
+            var order = await dbContext.Orders.FindAsync(
+                [OrderId.Of(message.OrderId)], context.CancellationToken);
+
+            if (order is null)
+            {
+                logger.LogWarning(
+                    "Skipping {Event} — Order {OrderId} not found.",
+                    nameof(KitchenOrderAcceptedIntegrationEvent),
+                    message.OrderId);
+                return;
+            }
+
+            order.Confirm(message.ConfirmedByUserId, message.ConfirmedAt);
+
+            await dbContext.SaveChangesAsync(context.CancellationToken);
         }
-
-        order.Confirm(message.ConfirmedByUserId, message.ConfirmedAt);
-
-        await dbContext.SaveChangesAsync(context.CancellationToken);
+        finally
+        {
+            CorrelationContext.Clear();
+        }
     }
 }

@@ -1,6 +1,3 @@
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using BuildingBlocks.Enums;
-
 namespace Ordering.Infrastructure.Data.Configurations;
 
 public class OrderConfiguration : IEntityTypeConfiguration<Order>
@@ -14,6 +11,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasMany(o => o.OrderItems)
             .WithOne()
             .HasForeignKey(oi => oi.OrderId);
+
+        builder.HasMany(o => o.Activities)
+            .WithOne()
+            .HasForeignKey(a => a.OrderId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne<Customer>()
             .WithMany()

@@ -7,6 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Test projects + the MassTransit consumer code that needs to manipulate
+         the ambient CorrelationContext (Set/Clear are intentionally internal so
+         domain code and unrelated services can only read the value). -->
+    <InternalsVisibleTo Include="Ordering.Application" />
+    <InternalsVisibleTo Include="Ordering.Domain.Tests" />
+    <InternalsVisibleTo Include="Ordering.Application.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />

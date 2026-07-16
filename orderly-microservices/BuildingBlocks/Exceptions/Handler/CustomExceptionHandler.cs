@@ -41,6 +41,11 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status409Conflict
             ),
+            _ when IsActivityInvariantException(exception) => (
+                exception.Message ?? "The activity payload is invalid.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status422UnprocessableEntity
+            ),
             _ => (
                 exception.Message ?? "An unexpected error occurred.",
                 exception.GetType().Name ?? "Internal Server Error.",
@@ -87,6 +92,16 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
     /// </summary>
     private static bool IsStateTransitionException(Exception exception) =>
         exception.GetType().Name.EndsWith("StateTransitionException", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Matches <c>OrderActivityInvariantException</c> (and any future
+    /// activity-feed invariant exception). Surfaces a 422 because the
+    /// request is well-formed but the activity payload cannot be
+    /// persisted as-is — the caller must reshape it (e.g. truncate
+    /// notes, drop the unknown enum value).
+    /// </summary>
+    private static bool IsActivityInvariantException(Exception exception) =>
+        exception.GetType().Name.EndsWith("ActivityInvariantException", StringComparison.Ordinal);
 
     private static object? TryGetProperty(object target, string propertyName) =>
         target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target);

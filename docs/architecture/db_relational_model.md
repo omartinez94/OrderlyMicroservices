@@ -7,6 +7,14 @@ inline at the top of the diagram.
 
 **Last reconciled to code:** 2026-06-30 (code is source of truth).
 
+**Updates from `ORDER_ACTIVITY_PLAN.md` (v0.3, 2026-07-15):**
+
+- New relational entity `OrderActivities` added to the ORDERING block. Child of `Orders.Id` (cascade delete), loaded via `Order.Activities` navigation; **no** `DbSet<OrderActivity>` on `IApplicationDbContext`. Strongly-typed `OrderActivityId : Guid` value object (renders as `uuid` per the convention below). Columns: `Id`, `OrderId`, `ActivityType` (string-backed enum), `ActorUserId?`, `OccurredAt`, `CorrelationId?`, `Notes?`, `Metadata?` (jsonb). See `db_model_drift_report.md` §P0-1.
+- New index `IX_order_activities_OrderId_OccurredAt` on `(OrderId, OccurredAt)` — covering index for the read pattern `WHERE OrderId = @id ORDER BY OccurredAt ASC`. Configured in `OrderActivityConfiguration.cs` (Phase 1 of the plan).
+- New relationship `Orders ||--o{ OrderActivities : "audit-trail of"`.
+- The `Metadata` jsonb column carries a typed `OrderActivityMetadata` record with nullable `OrderStatus?` / `PrepStatus?` / `DeliveryStatus?` enum pairs. `JsonStringEnumConverter` is registered in `OrderActivityJson.Options` so enum values serialize as strings (`"Confirmed"`, not `2`). Mirrors the existing pattern for `OrderItem.SelectedVariations` / `OrderItem.Customizations` jsonb columns.
+- Catalog's three Marten documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit`) are documented in the diagram but are **independent** of the Ordering activity feed. See `ORDER_ACTIVITY_PLAN.md §3 + §7` for the four-reason storage decision and the explicit "do not merge" note.
+
 ---
 
 ## Type mappings

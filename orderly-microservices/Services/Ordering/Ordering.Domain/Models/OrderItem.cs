@@ -49,30 +49,71 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
     public Instant? PrepStartedAt { get; set; }
 
     /// <summary>
+    /// Back-reference to the owning <see cref="Order"/> aggregate. Set by
+    /// <c>Order.Add</c> after construction so this item can call back
+    /// into <c>Order.RecordActivity</c> on every prep transition.
+    /// </summary>
+    internal Order Parent { get; set; } = default!;
+
+    /// <summary>
     /// <c>Pending -&gt; Preparing</c>. Mutates the per-item prep state.
     /// The parent <see cref="Order"/>'s status is unaffected — that's the
-    /// kitchen display's responsibility to track.
+    /// kitchen display's responsibility to track. Appends one
+    /// <c>OrderItemPrepStarted</c> activity row to the parent.
     /// </summary>
     public void MarkItemPreparing(Instant now)
     {
         if (PrepStatus != PrepStatus.Pending)
             throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemPreparing));
 
+        var previousPrepStatus = PrepStatus;
         PrepStatus = PrepStatus.Preparing;
         PrepStartedAt = now;
+
+        Parent.RecordActivity(
+            Enums.OrderActivityType.OrderItemPrepStarted,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: Id.Value,
+                OrderItemName: MenuItemName,
+                PreviousOrderStatus: null,
+                NewOrderStatus: null,
+                PreviousPrepStatus: previousPrepStatus,
+                NewPrepStatus: PrepStatus,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     /// <summary>
     /// <c>Preparing -&gt; Ready</c>. Idempotent: calling on an already-Ready
     /// item throws so the API surfaces a 409 instead of silently rewriting
-    /// <see cref="PrepCompletedAt"/>.
+    /// <see cref="PrepCompletedAt"/>. Appends one
+    /// <c>OrderItemPrepCompleted</c> activity row to the parent.
     /// </summary>
     public void MarkItemReady(Instant now)
     {
         if (PrepStatus != PrepStatus.Preparing)
             throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemReady));
 
+        var previousPrepStatus = PrepStatus;
         PrepStatus = PrepStatus.Ready;
         PrepCompletedAt = now;
+
+        Parent.RecordActivity(
+            Enums.OrderActivityType.OrderItemPrepCompleted,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: Id.Value,
+                OrderItemName: MenuItemName,
+                PreviousOrderStatus: null,
+                NewOrderStatus: null,
+                PreviousPrepStatus: previousPrepStatus,
+                NewPrepStatus: PrepStatus,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 }

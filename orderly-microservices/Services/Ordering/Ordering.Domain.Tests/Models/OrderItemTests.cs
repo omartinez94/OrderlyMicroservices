@@ -10,7 +10,7 @@ public sealed class OrderItemTests
     private static OrderId NewOrderId() => OrderId.Of(Guid.NewGuid());
     private static MenuItemId NewMenuItemId() => MenuItemId.Of(Guid.NewGuid());
 
-    private static OrderItem CreateItem(PrepStatus initial)
+    private static (Order order, OrderItem item) CreateAttachedItem(PrepStatus initial)
     {
         var order = Order.Create(
             NewOrderId(),
@@ -22,11 +22,14 @@ public sealed class OrderItemTests
             Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard"));
         order.Add(NewMenuItemId(), quantity: 1, price: 5m);
         var item = order.OrderItems.Single();
+        item.MenuItemName = "Test Burger";
         item.PrepStatus = initial;
         item.PrepStartedAt = null;
         item.PrepCompletedAt = null;
-        return item;
+        return (order, item);
     }
+
+    private static OrderItem CreateItem(PrepStatus initial) => CreateAttachedItem(initial).item;
 
     // -------- MarkItemPreparing --------
 
@@ -55,6 +58,26 @@ public sealed class OrderItemTests
             .Which.FromStatus.Should().Be(from);
     }
 
+    [Fact]
+    public void MarkItemPreparing_AppendsOrderItemPrepStartedActivity_WithMenuItemName_AndPrepStatusMetadata()
+    {
+        var (order, item) = CreateAttachedItem(PrepStatus.Pending);
+        order.ClearDomainEvents();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        item.MarkItemPreparing(now);
+
+        var activity = order.Activities.Last();
+        activity.ActivityType.Should().Be(OrderActivityType.OrderItemPrepStarted);
+        activity.OccurredAt.Should().Be(now);
+        activity.Metadata!.OrderItemId.Should().Be(item.Id.Value);
+        activity.Metadata.OrderItemName.Should().Be("Test Burger");
+        activity.Metadata.PreviousPrepStatus.Should().Be(PrepStatus.Pending);
+        activity.Metadata.NewPrepStatus.Should().Be(PrepStatus.Preparing);
+        activity.Metadata.NewOrderStatus.Should().BeNull();
+        activity.Metadata.NewDeliveryStatus.Should().BeNull();
+    }
+
     // -------- MarkItemReady --------
 
     [Fact]
@@ -80,5 +103,23 @@ public sealed class OrderItemTests
 
         act.Should().Throw<InvalidOrderItemStateTransitionException>()
             .Which.FromStatus.Should().Be(from);
+    }
+
+    [Fact]
+    public void MarkItemReady_AppendsOrderItemPrepCompletedActivity_WithPrepStatusMetadata()
+    {
+        var (order, item) = CreateAttachedItem(PrepStatus.Preparing);
+        order.ClearDomainEvents();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        item.MarkItemReady(now);
+
+        var activity = order.Activities.Last();
+        activity.ActivityType.Should().Be(OrderActivityType.OrderItemPrepCompleted);
+        activity.OccurredAt.Should().Be(now);
+        activity.Metadata!.OrderItemId.Should().Be(item.Id.Value);
+        activity.Metadata.OrderItemName.Should().Be("Test Burger");
+        activity.Metadata.PreviousPrepStatus.Should().Be(PrepStatus.Preparing);
+        activity.Metadata.NewPrepStatus.Should().Be(PrepStatus.Ready);
     }
 }

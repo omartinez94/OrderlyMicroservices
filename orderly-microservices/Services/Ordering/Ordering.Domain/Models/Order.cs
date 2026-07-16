@@ -1,3 +1,5 @@
+using BuildingBlocks.Correlation;
+
 namespace Ordering.Domain.Models;
 
 public class Order : Aggregate<OrderId>
@@ -51,6 +53,14 @@ public class Order : Aggregate<OrderId>
     private readonly List<OrderItem> _orderItems = [];
     public IReadOnlyCollection<OrderItem> OrderItems => _orderItems.AsReadOnly();
 
+    /// <summary>
+    /// Chronological activity feed (one row per state transition + per-item
+    /// prep transition). Append-only — rows are removed via cascade when
+    /// the parent <c>Order</c> is deleted, never edited in place.
+    /// </summary>
+    private readonly List<OrderActivity> _activities = [];
+    public IReadOnlyCollection<OrderActivity> Activities => _activities.AsReadOnly();
+
     public static Order Create(
         OrderId id,
         CustomerId customerId,
@@ -102,6 +112,7 @@ public class Order : Aggregate<OrderId>
         Payment = payment;
 
         AddDomainEvent(new OrderUpdatedEvent(this));
+        RecordActivity(OrderActivityType.OrderUpdated, actorUserId: null, occurredAt: SystemClock.Instance.GetCurrentInstant());
     }
 
     /// <summary>
@@ -118,11 +129,26 @@ public class Order : Aggregate<OrderId>
         if (confirmedByUserId == Guid.Empty)
             throw new ArgumentException("confirmedByUserId cannot be empty.", nameof(confirmedByUserId));
 
+        var previousStatus = Status;
         Status = OrderStatus.Confirmed;
         ConfirmedAt = now;
         ConfirmedByUserId = confirmedByUserId;
 
         AddDomainEvent(new OrderConfirmedEvent(this, confirmedByUserId, now));
+        RecordActivity(
+            OrderActivityType.OrderConfirmed,
+            actorUserId: confirmedByUserId,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     /// <summary>
@@ -134,10 +160,25 @@ public class Order : Aggregate<OrderId>
         if (Status != OrderStatus.Preparing)
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkReady));
 
+        var previousStatus = Status;
         Status = OrderStatus.Ready;
         ReadyAt = now;
 
         AddDomainEvent(new OrderReadyEvent(this, now));
+        RecordActivity(
+            OrderActivityType.OrderReady,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     /// <summary>
@@ -151,10 +192,25 @@ public class Order : Aggregate<OrderId>
         if (Status != OrderStatus.Confirmed)
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkPreparing));
 
+        var previousStatus = Status;
         Status = OrderStatus.Preparing;
         PreparingStartedAt = now;
 
         AddDomainEvent(new OrderPreparingEvent(this, now));
+        RecordActivity(
+            OrderActivityType.OrderPreparingStarted,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     /// <summary>
@@ -168,8 +224,24 @@ public class Order : Aggregate<OrderId>
         if (Status != OrderStatus.Ready)
             throw new InvalidOrderStateTransitionException(Status, nameof(StartDelivery));
 
+        var previousDeliveryStatus = DeliveryStatus;
+        var occurredAt = SystemClock.Instance.GetCurrentInstant();
         DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Dispatched;
         AddDomainEvent(new OrderDeliveryStartedEvent(this));
+        RecordActivity(
+            OrderActivityType.OrderDeliveryStarted,
+            actorUserId: null,
+            occurredAt: occurredAt,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: null,
+                NewOrderStatus: null,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: previousDeliveryStatus,
+                NewDeliveryStatus: DeliveryStatus));
     }
 
     /// <summary>
@@ -184,11 +256,27 @@ public class Order : Aggregate<OrderId>
         if (Status != OrderStatus.Ready)
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkDelivered));
 
+        var previousStatus = Status;
+        var previousDeliveryStatus = DeliveryStatus;
         Status = OrderStatus.Delivered;
         DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Delivered;
         DeliveredAt = now;
 
         AddDomainEvent(new OrderDeliveredEvent(this, now));
+        RecordActivity(
+            OrderActivityType.OrderDelivered,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: previousDeliveryStatus,
+                NewDeliveryStatus: DeliveryStatus));
     }
 
     /// <summary>
@@ -200,10 +288,25 @@ public class Order : Aggregate<OrderId>
         if (Status != OrderStatus.Delivered)
             throw new InvalidOrderStateTransitionException(Status, nameof(Complete));
 
+        var previousStatus = Status;
         Status = OrderStatus.Completed;
         CompletedAt = now;
 
         AddDomainEvent(new OrderCompletedEvent(this, now));
+        RecordActivity(
+            OrderActivityType.OrderCompleted,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: new OrderActivityMetadata(
+                Reason: null,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     /// <summary>
@@ -223,12 +326,28 @@ public class Order : Aggregate<OrderId>
         if (cancelledByUserId == Guid.Empty)
             throw new ArgumentException("cancelledByUserId cannot be empty.", nameof(cancelledByUserId));
 
+        var previousStatus = Status;
         Status = OrderStatus.Cancelled;
         CancelledAt = now;
         CancelledByUserId = cancelledByUserId;
         CancellationReason = reason;
 
         AddDomainEvent(new OrderCancelledEvent(this, reason, cancelledByUserId, now));
+        RecordActivity(
+            OrderActivityType.OrderCancelled,
+            actorUserId: cancelledByUserId,
+            occurredAt: now,
+            notes: reason,
+            metadata: new OrderActivityMetadata(
+                Reason: reason,
+                OrderItemId: null,
+                OrderItemName: null,
+                PreviousOrderStatus: previousStatus,
+                NewOrderStatus: Status,
+                PreviousPrepStatus: null,
+                NewPrepStatus: null,
+                PreviousDeliveryStatus: null,
+                NewDeliveryStatus: null));
     }
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)
@@ -236,6 +355,7 @@ public class Order : Aggregate<OrderId>
         ArgumentNullException.ThrowIfNull(menuItemId);
 
         var orderItem = new OrderItem(Id, menuItemId, quantity, price);
+        orderItem.Parent = this;
 
         _orderItems.Add(orderItem);
     }
@@ -250,5 +370,49 @@ public class Order : Aggregate<OrderId>
         {
             _orderItems.Remove(orderItem);
         }
+    }
+
+    /// <summary>
+    /// Appends one <see cref="OrderActivity"/> row to the in-memory
+    /// aggregate's <see cref="Activities"/> collection. The factory
+    /// enforces null / length / unknown-enum invariants; the caller
+    /// (<c>Create</c> / <c>Update</c> / <c>Confirm</c> / etc.) supplies
+    /// the typed <see cref="OrderActivityMetadata"/> for the transition.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <c>CorrelationId</c> is stamped from
+    /// <c>BuildingBlocks.Correlation.CorrelationContext.Current</c> — a
+    /// fresh <see cref="Guid"/> if the request scoped one, or <c>null</c>
+    /// when the transition is driven outside a request / bus scope.
+    /// </para>
+    /// <para>
+    /// <c>Create</c> cannot call this method directly (the aggregate
+    /// isn't in scope), so the <c>OrderCreated</c> activity is appended
+    /// by the application service that invokes
+    /// <see cref="Create"/>; see the
+    /// <c>BasketCheckoutEventHandler</c> in
+    /// <c>Ordering.Application</c>.
+    /// </para>
+    /// </remarks>
+    public void RecordActivity(
+        OrderActivityType type,
+        Guid? actorUserId,
+        Instant occurredAt,
+        string? notes = null,
+        OrderActivityMetadata? metadata = null)
+    {
+        var correlationId = CorrelationContext.Current;
+
+        var activity = OrderActivity.Create(
+            orderId: Id,
+            activityType: type,
+            actorUserId: actorUserId,
+            occurredAt: occurredAt,
+            correlationId: correlationId,
+            notes: notes,
+            metadata: metadata);
+
+        _activities.Add(activity);
     }
 }

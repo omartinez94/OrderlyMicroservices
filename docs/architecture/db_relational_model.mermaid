@@ -407,17 +407,37 @@ erDiagram
         boolean IsModified
         boolean RequiresAdminApproval
         uuid ApprovedByAdminId
+        %% ConfirmedAt placed between ApprovedByAdminId and ApprovedAt per
+        %% ORDERING_CLEANUP_BACKLOG.md Phase A spec. Lifecycle is strictly
+        %% after ApprovedAt (Pending → Approved stamps ApprovedAt; the next
+        %% Pending → Confirmed stamps ConfirmedAt) but the spec mirrors the
+        %% existing snapshot-column cluster as the single visual group.
+        timestamp ConfirmedAt
         timestamp ApprovedAt
+        %% Lifecycle snapshot cluster — every transition timestamps on the
+        %% aggregate (Pending → Confirmed → Preparing → Ready → Delivered →
+        %% Completed). All nullable; null when the transition has not fired.
+        %% See db_model_drift_report.md §B + ORDERING_CLEANUP_BACKLOG.md Phase A.
+        timestamp PreparingStartedAt
+        timestamp ReadyAt
+        timestamp DeliveredAt
+        timestamp CompletedAt
+        timestamp CancelledAt
+        uuid CancelledByUserId
+        string CancellationReason "Reason text"
         int EstimatedPrepTimeMinutes
         int ActualPrepTimeMinutes
         uuid CreatedByUserId
         uuid ConfirmedByUserId
         uuid CompletedByUserId
         text Notes
-        %% Audit fields from Ordering.Domain.Aggregate<OrderId>:
-        %% CreatedBy? (Guid?), CreatedAt? (Instant?),
-        %% LastModified? (Instant?), LastModifiedBy? (Guid?).
-        %% IsActive added explicitly — base does NOT provide it.
+        %% Order does NOT inherit audit fields from Aggregate<OrderId> —
+        %% the `Entity<T>` base (`db_relational_model.md` line 92) is used
+        %% by OrderItem, OrderBill, MenuItem (Ordering), NOT Order. The
+        %% only audit-style column on Order is `CreatedByUserId`, which is
+        %% explicitly declared on the aggregate and rendered as the uuid
+        %% column above. See ORDERING_CLEANUP_BACKLOG.md Phase B + the §C
+        %% "Audit-fields comment drift" finding in db_model_drift_report.md.
         boolean IsActive "Explicit — Aggregate<OrderId> base lacks IsActive"
     }
 
@@ -441,6 +461,19 @@ erDiagram
         text SpecialInstructions
         timestamp CreatedAt
     }
+
+    %% SelectedVariations sub-shape (jsonb on OrderItems, nvarchar(max) column):
+    %%   KitchenOrderItemVariation[] — typed per Ordering.Infrastructure/Data/Configurations/OrderItemConfiguration.cs.
+    %%     string Name "Variation display label (e.g. 'Size: Large')"
+    %%     decimal Price "SNAPSHOT price delta from base unit price"
+    %% Customizations sub-shape (jsonb on OrderItems, nvarchar(max) column):
+    %%   KitchenOrderItemCustomization[] — typed per OrderItemConfiguration.cs.
+    %%     string Label "Customization text (e.g. 'No onions')"
+    %%     string Value "Optional qualifier (e.g. 'Spicy')"
+    %%     decimal Price "Optional price delta"
+    %% Records live in BuildingBlocks.Messaging/Events/; wire format and
+    %% jsonb storage shape are identical (no string round-trip on the boundary).
+    %% See db_relational_model.md "Relational jsonb sub-shapes" convention.
 
     %% Indexes (relational, non-clustered, configured in OrderActivityConfiguration.cs):
     %%   IX_order_activities_OrderId_OccurredAt ON order_activities (OrderId, OccurredAt)

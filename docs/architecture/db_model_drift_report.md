@@ -1,8 +1,8 @@
 # DB model drift report — code as source of truth
 
-> **Generated:** 2026-07-15
-> **Scope:** `ORDER_ACTIVITY_PLAN.md` (v0.3) — new `OrderActivity` child entity + table on the Ordering service. Drift confined to the Ordering relational block; other services are out of scope.
-> **Method:** read the plan + plan-referenced code (`Ordering.Domain/Models/Order.cs`, `Ordering.Domain/Models/OrderItem.cs`, `Ordering.Infrastructure/Data/Configurations/OrderConfiguration.cs`), then diff against the current `db_relational_model.mermaid`. Two-direction analysis per the project convention (`mermaid-code-review-convention`).
+> **Generated:** 2026-07-15 (Ordering chapter) + 2026-07-16 (Discount chapter appended per `DISCOUNT_SERVICE_PLAN.md` §7 Phase 7).
+> **Scope:** **Ordering chapter:** `ORDER_ACTIVITY_PLAN.md` (v0.3) — new `OrderActivity` child entity + table on the Ordering service. Drift confined to the Ordering relational block. **Discount chapter** (added 2026-07-16): `DISCOUNT_SERVICE_PLAN.md` Phases 1–6 — `Coupon`, `RewardCode`, `DiscountRule`, `processed_inbound_events`, `outbox_messages`, `outbox_messages_dead` on SQLite. Each chapter is independent; both follow the project convention (`mermaid-code-review-convention`).
+> **Method:** read the plan + plan-referenced code (`Ordering.Domain/Models/Order.cs`, `Discount.Grpc/Models/*.cs`, `Discount.Grpc/Data/DiscountContext.cs`, `Discount.Grpc/Migrations/*`), then diff against `db_relational_model.mermaid`. Two-direction analysis.
 >
 > Companion report: `db_model_drift_report_mermaid_truth.md` (mermaid as source of truth, same scope).
 

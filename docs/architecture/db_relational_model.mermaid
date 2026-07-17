@@ -294,6 +294,121 @@ erDiagram
     %% removed (see that row for the migration note). The relational `Coupons`
     %% entity block was deleted on 2026-07-13 (Phase 6.2 reconciliation) — the
     %% diagram no longer renders a Catalog-owned Coupon table.
+    %%
+    %% Phase 7 (Discount plan §7 hardening): the Discount-owned relational tables
+    %% (Coupons, RewardCodes, DiscountRules, processed_inbound_events, outbox_messages,
+    %% outbox_messages_dead) re-render under a Discount — relational tables (SQLite)
+    %% divider comment. Stays in the same file because the project uses a single
+    %% `erDiagram` block + comment-divided sections (companion-doc line 4).
+    %% ----------------------------------------------------------------
+    %% DISCOUNT — relational tables (SQLite)
+    %% ----------------------------------------------------------------
+    %% SQLite file at discountdb (per docker-compose.override.yml); single-replica
+    %% deployment; column store types are SQLite-flavored (TEXT for jsonb-shaped
+    %% payloads; INTEGER for enum mappings; long/ticks for `Instant` via the
+    %% InstantToLongConverter at DiscountContext.cs:175).
+
+    Coupons {
+        %% Discount-owned (per Phase 6.2 reconciliation, CATALOG_SERVICE_PLAN §7.6.2).
+        %% Historical note: previously rendered in this section under Catalog ownership,
+        %% deleted on 2026-07-13 (Phase 6.2), re-emitted here under Discount ownership
+        %% on 2026-07-16 (Phase 7 hardening).
+        uuid Id PK
+        uuid RestaurantId "FK semantics in EF — flat column, no navigation per audit-FK convention"
+        string Code "UK per tenant (RestaurantId, Code); varchar(64) cap per §0.3.3"
+        string Description
+        decimal Amount "Percentage (0, 100] or fixed currency per DiscountType"
+        int RedeemAmount "Incremented by RedeemDiscount atomic conditional UPDATE"
+        int MaxRedeemAmount "NULL = uncapped"
+        timestamp ExpirationDate "Instant?; NULL = no expiry"
+        timestamp DeletedAt "Instant?; soft-delete column set by DiscountExpirySweepService"
+        string DeletedBy "Audit column (actor string from DiscountActors)"
+        %% Audit columns from AuditableEntity<int>:
+        %% CreatedBy (string), CreatedAt (Instant),
+        %% LastModifiedBy (string), LastModifiedAt (Instant?).
+        string CreatedBy
+        timestamp CreatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+        boolean IsActive "Default true; admin toggle"
+    }
+
+    DiscountRules {
+        %% Phase 2 (2026-07-14) — eligibility predicate attached to a Coupon.
+        int Id PK
+        uuid RestaurantId "Tenant scope; flat column"
+        int CouponId "FK -> Coupons.Id, ON DELETE RESTRICT (rule FK enforces 'delete rule before coupon')"
+        enum RuleType "MinOrderAmount | RequiredMenuItems | TimeWindow | Bogo"
+        string RuleDataJson "Kind-discriminated JSON, parsed at handler boundary"
+        boolean IsActive "Default true; admin toggle (new override; shadows base IsActive)"
+        timestamp DeletedAt "Instant?; soft-delete"
+        string DeletedBy
+        %% Audit columns (AuditableEntity<int>):
+        string CreatedBy
+        timestamp CreatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+    }
+
+    ProcessedInboundevents {
+        %% Phase 2 (2026-07-14) — consumer-side idempotency log. Composite PK
+        %% on (EventId, ConsumerType) detects redelivery via a unique-key violation
+        %% that the consumer swallows (`InboundEventDedup.TryRecordAsync`).
+        %% Used by MenuItemChangedConsumer + RestaurantConfigurationChangedConsumer.
+        uuid EventId PK
+        string ConsumerType PK "PK with EventId"
+        timestamp ConsumedAt "UTC timestamp of consumption"
+    }
+
+    RewardCodes {
+        %% Phase 3 (2026-07-15) — customer-feedback-generated reward.
+        int Id PK
+        uuid RestaurantId "Tenant scope; flat column"
+        string Code "UK per tenant (RestaurantId, Code); varchar(120) cap per §0.3.3; C# required modifier per v1.1 M7"
+        enum Kind "Percentage | FixedAmount | FreeItem | Points"
+        decimal Value "Overloaded across kinds — see RewardCode.cs:55 XAML doc"
+        string Description "FreeItem rewards carry 'free-item:{menuItemId}' target id"
+        timestamp ExpirationDate "Instant?"
+        int RedeemAmount "Incremented by RedeemRewardCode atomic conditional UPDATE"
+        int MaxRedeemAmount "NULL = uncapped"
+        uuid RedeemedInOrderId "Set by the conditional UPDATE alongside RedeemedAt"
+        timestamp RedeemedAt
+        timestamp DeletedAt "Instant?; soft-delete column set by DiscountExpirySweepService"
+        string DeletedBy
+        %% Audit columns (AuditableEntity<int>):
+        string CreatedBy
+        timestamp CreatedAt
+        string LastModifiedBy
+        timestamp LastModifiedAt
+        boolean IsActive "Default true; admin toggle"
+    }
+
+    OutboxMessages {
+        %% Phase 1 + 1B.a (SQLite-flavored outbox; BuildingBlocks.Messaging.Outbox).
+        %% The Phase 6.7 ClaimId column enables the per-instance atomic-claim
+        %% pattern (single-replica deployment assumption carries forward).
+        uuid Id PK
+        timestamp OccurredOn "When the publisher staged the message"
+        string Type "Assembly-qualified CLR type name; discriminator for the consumer"
+        text Payload "JSON-serialised event body"
+        timestamp DispatchedAt "NULL = not yet dispatched"
+        %% Phase 6.7: ClaimId introduced for the SQLite CTE claim SQL.
+        uuid ClaimId "NULL = unclaimed; set by the dispatcher's atomic CTE UPDATE"
+        %% Audit columns (AuditableEntity<int>? actually OutboxMessage
+        %% implements IOutboxDbContext-level entity, not AuditableEntity — see
+        %% BuildingBlocks/Messaging/Outbox/OutboxMessage.cs:1-30).
+    }
+
+    OutboxDeadMessages {
+        %% Dead-letter table — rows here mean the dispatcher's poison-message
+        %% threshold tripped. `/ready` health probe reads COUNT(*) against
+        %% DiscountOptions.OutboxDeadLetterThreshold (default 5).
+        int Id PK
+        string OriginalType
+        text OriginalPayload
+        string FailureReason
+        timestamp FailedAt
+    }
 
     %% ----------------------------------------------------------------
     %% CATALOG — Marten documents (NOT relational tables)
@@ -569,7 +684,14 @@ erDiagram
     Restaurants ||--o{ PriceHistory : tracks
     %% NOTE: `Restaurants ||--o{ Coupons : "issues"` was removed in Phase 6.2
     %% (2026-07-11). Coupon ownership moved to the Discount service.
-    %% See CATALOG_SERVICE_PLAN.md §7.6.2 + §6.6.
+    %% Phase 7 (2026-07-16): re-emitted under Discount ownership as
+    %% "Restaurants ||--o{ Coupons : 'issues'" below — Discount owns the table
+    %% but the relationship edge is drawn from the catalog parent (mirroring
+    %% the "Discount mermaid lives in this header even though Discount owns
+    %% the tables" authoring pattern per DISCOUNT_SERVICE_PLAN.md §7 Phase 7).
+    Restaurants ||--o{ Coupons : "issues"
+    Restaurants ||--o{ RewardCodes : "issues"
+    Coupons ||--o{ DiscountRules : "rules"
 
     %% Tables
     Tables ||--o{ Orders : "assigned to"

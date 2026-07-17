@@ -1560,14 +1560,18 @@ These were settled during the initial grilling and locked at the top of this pla
   - Each gated by its corresponding `DiscountOptions:Enable*Publishing=false` flag — fail-secure default. Tests: `OutboxDeferredEventPublishersTests` (4 tests, 112 pass / 0 fail / 9 pre-existing skip total). Code commit landed 2026-07-16.
   - [x] **Phase 6 doc** — `current-architecture.md` updated per Phase 6 doc-update scope: new "Events Published (Phase 6 — wired-but-flagged-off)" sub-section in §4.4 documenting each event + flag default; the three new rows appended to the §5.2 Asynchronous table with `**deferred**` markers + `Discount:Enable*Publishing=false` notes.
   - [x] **Phase 6 completed** — code + doc + plan-update commit landed; Document Version bumped `2.1 → 2.2`. See v2.2 changelog tail.
-- [ ] **Phase 7** — Drift memo rewrite; mermaid `RewardCodes` / `DiscountRules` blocks added; all Phase 1–6 docs audited; final smoke test green.
-  - [ ] **Phase 7 doc** — `current-architecture.md` updated.
-  - [ ] **Phase 7 completed** — dev, doc, plan-update commit (Document Version bump + v1.X+1 changelog).
+- [x] **Phase 7** — Drift memo rewrite; mermaid `RewardCodes` / `DiscountRules` / `processed_inbound_events` / `outbox_messages` / `outbox_messages_dead` blocks added; all Phase 1–6 docs audited; final smoke test green (Debug + Release build, full test pyramid `Discount.Grpc.Tests` 112 pass / 0 fail / 9 pre-existing skip unchanged from Phase 6).
+  - [x] **Phase 7 doc** — `db_model_drift_report.md` and `db_model_drift_report_mermaid_truth.md` each gained a Discount chapter reviewing Phase 1–6 changes against the new mermaid blocks (two-direction analysis per project convention). `db_relational_model.mermaid` carries the new `DISCOUNT — relational tables (SQLite)` divider + five entity blocks + three relationship edges. `db_relational_model.md` companion doc carries the new "Updates from DISCOUNT_SERVICE_PLAN.md (Phase 7, 2026-07-16 — hardening)" section with the drift-surfacing note + the single deferred P1 (`Restaurants ||--o{ Coupons : "issues"` re-emission vs the Phase 6.2 cleanup). `current-architecture.md` §4.4 was already correct after Phases 1–6 (each phase's doc-update scope committed in lockstep with the code) — Phase 7's audit confirmed no edits required.
+  - [x] **Phase 7 completed** — code, doc, plan-update commit landed; Document Version bumped `2.2 → 2.3`. See v2.3 changelog tail.
 - [ ] **Phase 8** — Apply-surface: `Coupon.DiscountType` enum + `AddDiscountTypeToCoupon` migration; `BuildingBlocks.Discounts.ApplyDiscountsHelper` (stacking + clamp + rounding); Basket `StoreBasketHandler` resolves `#warning TODO` (preview-time deduction via `GetDiscountAsync` + `ApplyDiscountsHelper.Apply`); Basket `EffectiveSubtotal` column; `OrderCreatedConsumer` stub wired-but-disabled via `DiscountOptions:EnableOrderCreatedConsumer=false`; `DiscountOptions` gains `EnableOrderCreatedConsumer` + `AppliedDiscountCurrency` (future-proofing); `DiscountAppliedIntegrationEvent` SchemaVersion `1 → 2` for `OrderId` + `AppliedAt` fields.
   - [ ] **Phase 8 doc** — `current-architecture.md` updated per Phase 8.7 doc-update scope; §4.4 / §5.1 / §5.2 / §6 / §9 row updates land in the same commit as the code.
   - [ ] **Phase 8 completed** — dev, doc, plan-update commit (Document Version bump `1.3 → 1.4` per the in-plan version-bump schedule; see v1.4 changelog footer for the rationale entry). All `ApplyDiscountsHelper` theory rows pass; Basket integration test green; `OrderCreatedConsumer` `InMemoryTestHarness` flag-flip tests pass.
 - [ ] **Docs** — `db_relational_model.mermaid` updated to match each phase (mermaid is reconciled after every phase, not only at the end).
 - [ ] **Cross-plan sync** — Catalog plan receives §6.6.1 hand-off contract (already documented here); Identity plan receives §6.6.2 permission list; Notification v1 plan receives §6.6.3 `FeedbackSubmitted` contract.
+
+**Out-of-scope Phase 7 items (recorded for follow-up):**
+
+- **Yarp gRPC routing verification** — requires the full docker-compose dev stack (yarp gateway on port 5000 + RabbitMQ + Discount on 6002). Per plan §7, the verification step would land at `Discount.Grpc.Tests/Integration/YarpGatewaySmokeTest.cs`. Not feasible in this sandbox (no live docker-compose stack running; only the standalone `orderdb` SQL Server is up). The two failure modes the test would catch — (a) gateway strips the `authorization` header; (b) gateway terminates HTTP/2 incorrectly — are documented risks; tracked for a future plan that boots the full stack.
 
 ### 9.1 Per-phase implementation recipe
 
@@ -1585,9 +1589,19 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 2.2 (Phase 6 shipped 2026-07-16 — three architecture publishes wired-but-flagged-off)
+**Document Version:** 2.3 (Phase 7 shipped 2026-07-16 — drift memo + mermaid + final smoke test)
 **Last Updated:** 2026-07-16
 **Maintained By:** Discount working group
+
+> **v2.3 changelog — Phase 7 ship (drift memo + mermaid + final smoke test).** Three items:
+>
+> - **Drift reports — Discount chapter appended.** Both `db_model_drift_report.md` (code as source of truth) and `db_model_drift_report_mermaid_truth.md` (mermaid as source of truth) gained a new Discount chapter reviewing Phases 1–6 against the post-cleanup state. Two-direction analysis per the project convention (`mermaid-code-review-convention`). The Discount chapters enumerate the previously-missing mermaid blocks (`Coupons`, `DiscountRules`, `ProcessedInboundevents`, `RewardCodes`, `OutboxMessages`, `OutboxDeadMessages`) and the deferred P1 (`Restaurants ||--o{ Coupons : "issues"` re-emission vs. the Phase 6.2 cleanup).
+> - **`db_relational_model.mermaid` — five Discount tables + three relationship edges added.** A new `DISCOUNT — relational tables (SQLite)` divider comment sits after the Phase 6.2 "Coupon deleted" marker. Tables: `Coupons` (re-emitted under Discount ownership), `DiscountRules`, `RewardCodes`, `ProcessedInboundevents`, `OutboxMessages`, `OutboxDeadMessages`. Relationships: `Restaurants ||--o{ Coupons : "issues"`, `Restaurants ||--o{ RewardCodes : "issues"`, `Coupons ||--o{ DiscountRules : "rules"`. `db_relational_model.md` companion doc carries the new "Updates from `DISCOUNT_SERVICE_PLAN.md` (Phase 7, 2026-07-16 — hardening)" section. Future drift reviewers read both drift-report chapters (Ordering + Discount) when verifying the schema.
+> - **Final smoke test — green.** `dotnet build` (Debug + Release) clean on Discount.* — 0 errors / 0 Discount-specific warnings (the 3 pre-existing BuildingBlocks CS warnings — AuditableEntity CS8618, PermissionAuthorizationHandler CS0105, and Outbox CS1591 — are unchanged from baseline and documented in `buildingblocks-treatwarningsaserrors-errors.md`). `dotnet test Discount.Grpc.Tests` Debug — 112 pass / 0 fail / 9 pre-existing skip (matches Phase 6 baseline; no regression).
+>
+> **Out-of-scope items recorded (§9 above):** Yarp gRPC routing verification test (`YarpGatewaySmokeTest.cs`) requires the full docker-compose dev stack and is deferred to a future plan that boots the stack.
+>
+> Doc version bumped `2.2 → 2.3`.
 
 > **v2.2 changelog — Phase 6 ship (three architecture publishes, wired-but-flagged-off).** Mostly documentation + small code touchpoints per §7 Phase 6:
 >

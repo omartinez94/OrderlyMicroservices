@@ -7,6 +7,17 @@ inline at the top of the diagram.
 
 **Last reconciled to code:** 2026-07-16 (code is source of truth).
 
+**Updates from `DISCOUNT_SERVICE_PLAN.md` (Phase 7, 2026-07-16 — hardening):**
+
+- **Discount-owned relational tables re-rendered.** The Phase 6.2 cleanup (CATALOG_SERVICE_PLAN §7.6.2, 2026-07-13) deleted the `Coupons` block + the `Restaurants ||--o{ Coupons : "issues"` edge from the diagram because Coupon ownership transferred to Discount without a Discount relational rendering to anchor. Phase 7 closes the loop:
+  - **`DISCOUNT — relational tables (SQLite)` divider** inserted after the Phase 6.2 "Coupon deleted" note. The project uses a single `erDiagram` block + comment-divider sections (this file's line 4), so this is the project's structural convention for grouping service-owned tables under a service-named banner.
+  - **Five entity blocks re-rendered / added:** `Coupons` (Discount ownership — historical note: deleted in Phase 6.2, re-emitted here), `DiscountRules` (Phase 2), `ProcessedInboundevents` (Phase 2 idempotency log), `RewardCodes` (Phase 3), `OutboxMessages` + `OutboxDeadMessages` (Phase 1 + 1B.a SQLite-flavored outbox with the Phase 6.7 `ClaimId` column).
+  - **Three relationship edges re-emitted:** `Restaurants ||--o{ Coupons : "issues"`, `Restaurants ||--o{ RewardCodes : "issues"`, `Coupons ||--o{ DiscountRules : "rules"`. The first two are audit-FK-by-convention (no FK edges drawn from `Restaurants` per companion-doc line 139 — the rendered relationship labels name the audit-FK convention only); the third is a real FK with `OnDelete(DeleteBehavior.Restrict)` per `DiscountContext.cs:119-122` (the restrict is documented in the configuration code, not modelled as a mermaid edge per companion-doc line 135).
+- **`Coupons` ownership clarification.** The block carries an audit comment noting the Phase 6.2 deletion + Phase 7 re-emission history; future mermaid reviewers should not interpret the block as "newly added Catalog ownership" — the ownership comment is the discriminator.
+- **Drift reports updated.** `db_model_drift_report.md` (code side) and `db_model_drift_report_mermaid_truth.md` (mermaid side) each gained a Discount chapter reviewing Phase 1–6 changes against the new mermaid additions.
+- **No code changes.** Phase 7 is hardening + doc — the schema, configuration, and tests are unchanged from the Phase 6 ship (commit `9cd37ba`).
+- **One P1 deferred.** `Restaurants ||--o{ Coupons : "issues"` was removed in Phase 6.2 cleanup and Phase 7 re-emits the equivalent edge from Discount's perspective. A future mermaid-convention cycle resolves whether both edges should coexist (representing the same tenant relationship from the catalog and discount viewpoints) or whether a single edge suffices. Tracked in both drift reports' Discount chapter §P0-2.
+
 **Updates from `ORDERING_CLEANUP_BACKLOG.md` (Phase A, 2026-07-16):**
 
 - Added 8 missing snapshot columns to the `Orders` block in `db_relational_model.mermaid`: `ConfirmedAt`, `PreparingStartedAt`, `ReadyAt`, `DeliveredAt`, `CompletedAt`, `CancelledAt`, `CancelledByUserId`, `CancellationReason`. All already present in `Ordering.Domain/Models/Order.cs` (lines 34-50); the diagram had drifted away from the aggregate. Closes `db_model_drift_report.md` §B P1-1.

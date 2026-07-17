@@ -1,0 +1,9 @@
+{
+  "$comment": "MCP config block for AI clients (Claude Desktop, Cursor, etc.) in the Orderly Web CRM and Mobile App repos. Drop this into ~/.config/claude-desktop/mcp.json (Claude Desktop) or the equivalent Cursor config. For LAN access swap 'localhost' for the dev backend box IP (e.g. '192.168.1.65').",
+  "mcpServers": {
+    "orderly-backend": {
+      "type": "streamable-http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}

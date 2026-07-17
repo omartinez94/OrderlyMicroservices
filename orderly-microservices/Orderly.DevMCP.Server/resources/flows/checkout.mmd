@@ -1,0 +1,60 @@
+%% Checkout flow — client POST to basket.checkout, BasketCheckoutEvent fans out
+%% to Ordering (creates Order) and Kitchen (creates KitchenTicket).
+%%
+%% Source of truth: BasketCheckoutEvent.cs, CheckoutBasketHandler.cs,
+%% OrderCreatedIntegrationEventHandler.cs (Kitchen).
+%%
+%% Last reconciled to code: 2026-07-17.
+
+sequenceDiagram
+    autonumber
+    participant C as Client (Web CRM / Mobile)
+    participant Y as Yarp Gateway (:6004)
+    participant B as basket.api (:6001)
+    participant R as basketdb PG (5434)
+    participant D as Redis basket:{user}:{rest} (6379)
+    participant X as MassTransit / messagebroker (5672)
+    participant O as ordering.api (:6003)
+    participant OD as OrderDb MSSQL (1433)
+    participant K as kitchen.api (:6005)
+    participant KD as kitchendb PG (5436)
+    participant H as KitchenHub (SignalR)
+
+    C->>Y: POST /basket/checkout { userId, restaurantId, ... }
+    Y->>B: forward CheckoutBasketCommand
+    B->>R: SELECT basket by (userId, restaurantId)
+    R-->>B: basket (or miss)
+    B->>D: GET basket:{userId}:{restaurantId} (cache check)
+    D-->>B: cached blob (warm path) or miss
+
+    alt basket empty
+        B-->>C: 200 { success: false, message: "Basket is empty." }
+    else basket has items
+        B->>X: Publish BasketCheckoutEvent { Id, OccurredOn, MessageVersion, Items, TotalAmount, ... }
+        X-->>B: ack
+        B->>R: DELETE basket row
+        B-->>C: 200 { success: true, message: "Checkout completed successfully." }
+
+        par Ordering consumer
+            X->>O: deliver BasketCheckoutEvent
+            O->>OD: INSERT Orders + OrderItems (transactional)
+            OD-->>O: new OrderId
+            O->>X: Publish OrderCreatedIntegrationEvent
+            X-->>O: ack
+        and Kitchen consumer
+            X->>K: deliver BasketCheckoutEvent
+            K->>KD: SELECT ticket by OrderId (idempotency check)
+            alt ticket already exists
+                K-->>K: skip (idempotent)
+            else new
+                K->>KD: INSERT kitchen_tickets + kitchen_ticket_items
+                KD-->>K: new TicketId
+                K->>H: broadcast OrderReceived (SignalR, restaurant group)
+            end
+        end
+
+        opt Verification step (verify_flow_state)
+            O->>OD: SELECT Orders WHERE Id = @orderId
+            K->>KD: SELECT kitchen_tickets WHERE "OrderNumber" = @orderNumber
+        end
+    end

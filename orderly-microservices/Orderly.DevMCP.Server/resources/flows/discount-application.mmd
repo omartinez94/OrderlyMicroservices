@@ -1,0 +1,41 @@
+%% Discount application — synchronous gRPC call from basket.api to
+%% discount.grpc. Returns DiscountResponse with the reduced price; the
+%% basket applies it via AppliedDiscounts list (no DB write on the
+%% basket side — the cache + Marten document is updated by the
+%% StoreBasketHandler after the gRPC call returns).
+%%
+%% Source of truth: Discount.proto, Basket.API/Program.cs gRPC client
+%% registration, StoreBasketHandler.cs (cache invalidation).
+%%
+%% Last reconciled to code: 2026-07-17.
+
+sequenceDiagram
+    autonumber
+    participant U as User (basket UI)
+    participant Y as Yarp Gateway (:6004)
+    participant B as basket.api (:6001)
+    participant G as discount.grpc (:6002)
+    participant D as discountdb SQLite
+
+    U->>Y: GET /basket (or POST /basket/items)
+    Y->>B: forward request
+    B->>B: load basket from basketdb (or Redis)
+    B->>G: gRPC DiscountRequest { MenuItemId, Quantity, CustomerId, RestaurantId, CouponCode? }
+    alt coupon code present
+        G->>D: SELECT Coupons WHERE Code = @code AND Active
+        D-->>G: coupon row (or 404)
+    end
+    G->>D: SELECT DiscountRules WHERE appliesTo(@item)
+    D-->>G: matching rules
+    G->>G: compute final price (subtotal - sum(rule.adjustments))
+    G-->>B: DiscountResponse { OriginalPrice, FinalPrice, AppliedAdjustments[], CouponUsed? }
+
+    alt FinalPrice < OriginalPrice
+        B->>B: append applied rule to basket.AppliedDiscounts
+        B->>B: refresh basket.Subtotal with discounted unit price
+        B->>Y: 200 with updated basket
+        Y-->>U: basket view shows line-item discount
+    else no discount matched
+        B->>Y: 200 with basket unchanged
+        Y-->>U: basket view unchanged
+    end

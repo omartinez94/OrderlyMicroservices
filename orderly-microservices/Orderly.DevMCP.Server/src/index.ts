@@ -55,6 +55,7 @@ import { registerDataSeedingTools } from './tools/data-seeding.ts';
 import { registerEventBusTools } from './tools/event-bus.ts';
 import { registerInfrastructureTools } from './tools/infrastructure.ts';
 import { registerJobsTools } from './tools/jobs.ts';
+import { registerFlowTracingTools } from './tools/flow-tracing.ts';
 
 // ─── Step 1: Banner log (logger is initialised above) ─────────────────────────
 
@@ -156,8 +157,9 @@ registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg });
 registerEventBusTools(mcp, { logger, rabbit: toolCtx.rabbit });
 registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
 registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
+registerFlowTracingTools(mcp, { logger, ctx: toolCtx });
 
-logger.info({ tools: 17 }, 'phase 3 ready — 17 tools registered');
+logger.info({ tools: 20 }, 'phase 4 ready — 20 tools registered');
 
 // ─── Step 4: HTTP server ─────────────────────────────────────────────────────
 

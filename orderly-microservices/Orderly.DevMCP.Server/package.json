@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "node --env-file=.env --watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --env-file=.env test/**/*.test.ts"
+    "test": "node --test --env-file=.env test/**/*.test.ts",
+    "lint:mmd": "node scripts/check-mmds-in-sync.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",

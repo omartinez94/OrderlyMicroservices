@@ -1,0 +1,46 @@
+%% Kitchen order lifecycle — KitchenTicket state machine triggered by
+%% the operator UI. Each transition publishes an IntegrationEvent
+%% that Ordering consumes to advance the parent Order status.
+%%
+%% Source of truth: KitchenTicket.cs, KitchenTicketStatus.cs,
+%%                   KitchenTicketAcceptedEvent.cs (and the 7 sibling events).
+%%
+%% Last reconciled to code: 2026-07-17.
+
+stateDiagram-v2
+    [*] --> Pending : ticket created from OrderCreatedIntegrationEvent
+    Pending --> Accepted : POST /tickets/{id}/accept (operator)
+    Accepted --> PrepStarted : POST /tickets/{id}/start-prep (per-item or whole)
+    PrepStarted --> Ready : POST /tickets/{id}/mark-ready (per-item or whole)
+    Ready --> Bumped : POST /tickets/{id}/bump (operator serves the order)
+    Bumped --> [*] : terminal — no further transitions
+    Pending --> Cancelled : POST /tickets/{id}/cancel
+    Accepted --> Cancelled : POST /tickets/{id}/cancel
+    PrepStarted --> Cancelled : POST /tickets/{id}/cancel
+    Ready --> Cancelled : POST /tickets/{id}/cancel
+    Pending --> Recalled : POST /tickets/{id}/recall (revert to ordering)
+    Accepted --> Recalled : POST /tickets/{id}/recall
+
+    note right of Accepted
+        AcceptOrder publishes
+        KitchenOrderAcceptedIntegrationEvent
+        → Ordering marks Order.ConfirmedAt
+    end note
+
+    note right of PrepStarted
+        StartItemPrep publishes
+        KitchenOrderPrepStartedIntegrationEvent
+        → Ordering marks Order.StartedAt
+    end note
+
+    note right of Ready
+        MarkOrderReady publishes
+        KitchenOrderReadyIntegrationEvent
+        → Ordering marks Order.ReadyAt
+    end note
+
+    note right of Bumped
+        BumpOrder publishes
+        KitchenOrderBumpedIntegrationEvent
+        → Ordering marks Order.CompletedAt
+    end note

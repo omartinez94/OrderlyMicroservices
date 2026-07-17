@@ -1553,9 +1553,13 @@ These were settled during the initial grilling and locked at the top of this pla
 - [x] **Phase 5** — `FeedbackSubmittedConsumer` stub wired-but-disabled; flag-gated `MassTransit.AddConsumer<T>()` conditional registration (per v1.1 H5 — MassTransit 8.x has no `ConfigureConsumer.DisableConsumer<T>(...)` API); tests with the `Substitute.For<ConsumeContext<T>>` direct-call pattern (per Catalog `OrderCompletedConsumerTests` convention; the plan's `InMemoryTestHarness` reference is aspirational). Default `DiscountOptions:EnableFeedbackSubmittedConsumer=false`; Notification v1 (the publisher) doesn't ship yet so the consumer endpoint is wired-but-disabled. Tests cover 4★/5★/below-threshold paths + duplicate-delivery idempotency via the deterministic Code UK. Code commit landed 2026-07-16.
   - [x] **Phase 5 doc** — `current-architecture.md` updated per Phase 5 doc-update scope (§4.4 Discount Service — `FeedbackSubmittedConsumer` row appended after `RestaurantConfigurationChangedConsumer` with the Pattern 2 + deterministic-Code + flag-gated bullet; §9 Cross-Cutting Patterns — new "Conditional consumer registration" bullet documenting the conditional `AddConsumer` idiom as the project's reference for "wire to bus, ship disabled").
   - [x] **Phase 5 completed** — code, doc, plan-update commit landed; Document Version bumped `2.0 → 2.1`. See v2.1 changelog tail.
-- [ ] **Phase 6** — Three architecture publishes documented and gated by flags; no consumer arrives in this plan.
-  - [ ] **Phase 6 doc** — `current-architecture.md` updated.
-  - [ ] **Phase 6 completed** — dev, doc, plan-update commit.
+- [x] **Phase 6** — Three architecture publishes wired-but-flagged-off per plan §7 Phase 6:
+  - `DiscountAppliedIntegrationEvent` published from `DiscountService.RedeemDiscount` after the atomic conditional UPDATE succeeds. **Intentionally omits `OrderId`** because plan §0.3.3 says it's required but the shipped `RedeemDiscountRequest` proto lacks `order_id`; adding OrderId requires the §0.3.3 contract reconciliation + proto bump + Basket client refresh — deferred to a future drift-cleanup pass.
+  - `RewardGeneratedIntegrationEvent` published from `RewardCodeService.CreateRewardCode` after the `DiscountHistoryAppendedIntegrationEvent(ChangeType=Created)`.
+  - `RewardRedeemedIntegrationEvent` published from `RewardCodeService.RedeemRewardCode` after the atomic conditional UPDATE succeeds (mirrors `DiscountHistoryAppendedIntegrationEvent(ChangeType=Redeemed)` at the same call-site).
+  - Each gated by its corresponding `DiscountOptions:Enable*Publishing=false` flag — fail-secure default. Tests: `OutboxDeferredEventPublishersTests` (4 tests, 112 pass / 0 fail / 9 pre-existing skip total). Code commit landed 2026-07-16.
+  - [x] **Phase 6 doc** — `current-architecture.md` updated per Phase 6 doc-update scope: new "Events Published (Phase 6 — wired-but-flagged-off)" sub-section in §4.4 documenting each event + flag default; the three new rows appended to the §5.2 Asynchronous table with `**deferred**` markers + `Discount:Enable*Publishing=false` notes.
+  - [x] **Phase 6 completed** — code + doc + plan-update commit landed; Document Version bumped `2.1 → 2.2`. See v2.2 changelog tail.
 - [ ] **Phase 7** — Drift memo rewrite; mermaid `RewardCodes` / `DiscountRules` blocks added; all Phase 1–6 docs audited; final smoke test green.
   - [ ] **Phase 7 doc** — `current-architecture.md` updated.
   - [ ] **Phase 7 completed** — dev, doc, plan-update commit (Document Version bump + v1.X+1 changelog).
@@ -1581,9 +1585,18 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 2.1 (Phase 5 shipped 2026-07-16)
+**Document Version:** 2.2 (Phase 6 shipped 2026-07-16 — three architecture publishes wired-but-flagged-off)
 **Last Updated:** 2026-07-16
 **Maintained By:** Discount working group
+
+> **v2.2 changelog — Phase 6 ship (three architecture publishes, wired-but-flagged-off).** Mostly documentation + small code touchpoints per §7 Phase 6:
+>
+> - **Three integration events created.** `Discount.Grpc/Messaging/Events/{DiscountAppliedIntegrationEvent,RewardGeneratedIntegrationEvent,RewardRedeemedIntegrationEvent}.cs` — all inherit `IntegrationEvent` (Id / OccurredOn / MessageVersion=1 base fields), all `MessageVersion=1` so a future rollover follows the same gate as `DiscountHistoryAppendedIntegrationEvent`. Field shapes locked per plan §6.5 + §7 Phase 6. `DiscountAppliedIntegrationEvent` deliberately omits `OrderId` (see §0.3.3 reconciliation note below).
+> - **Three gated publish call-sites added.** `DiscountService` and `RewardCodeService` each gained `IOptions<DiscountOptions>` in the primary constructor and the relevant handler (`RedeemDiscount` / `CreateRewardCode` / `RedeemRewardCode`) wraps the new `outbox.PublishAsync(...)` in an `if (_options.Enable*Publishing) { ... }` block, defaulting `false` per the fail-secure doctrine. The check happens after the existing Phase 4 history publish so a flipped flag would never silently drop a history row.
+> - **§0.3.3 / proto drift surfaced.** Plan §0.3.3 lists `RedeemDiscountCommand.OrderId` as required, but the shipped `Protos/discount.proto:84-87` `RedeemDiscountRequest` carries only `restaurant_id` + `code`. Phase 6 ships without `OrderId` (documented on the event record + §4.4 prose) rather than emit `Guid.Empty` placeholder. Reconciliation: proto extension + Basket client refresh — deferred to a future drift-cleanup pass (Phase 7 audit cycle).
+> - **Tests: 4 new tests in `OutboxDeferredEventPublishersTests`.** Direct `IOutboxPublisher.PublishAsync(...)` calls (per `OutboxHistoryPublisherTests` precedent) verify wire-format + outbox-row persistence + SchemaVersion=1 for each of the three new event types, plus a 3-publish integration test asserting the distinct `Type` column discriminators. **112 pass / 0 fail / 9 pre-existing skip** total (up from 108 post-Phase-5; the 9 skip is the existing gRPC-auth-bridge baseline — same auth constraint that disables `RpcEndpointTests` per the §9 Phase 1B.c milestone card).
+> - **Docs.** `current-architecture.md` §4.4 Discount Service gains a new "Events Published (Phase 6 — wired-but-flagged-off)" sub-section documenting each event's payload + flag default + the OrderId omission rationale. §5.2 Asynchronous table appends three rows (one per event) with `**deferred**` markers.
+> - **Doc version bumped `2.1 → 2.2`.** Plan §9 Phase 6 boxes (code / doc / completed) all `[x]`.
 
 > **v2.1 changelog — Phase 5 ship (FeedbackSubmittedConsumer stub, wired-but-disabled).** Three items:
 >

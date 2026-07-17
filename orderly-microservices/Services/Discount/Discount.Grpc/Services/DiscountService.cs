@@ -3,8 +3,10 @@ using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Discount.Grpc.Messaging.Events;
 using Discount.Grpc.Models;
+using Discount.Grpc.Options;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Text;
 
@@ -13,7 +15,8 @@ namespace Discount.Grpc.Services;
 public class DiscountService(
     ILogger<DiscountService> logger,
     DiscountContext dbContext,
-    IOutboxPublisher outbox)
+    IOutboxPublisher outbox,
+    IOptions<DiscountOptions> options)
     : DiscountProtoService.DiscountProtoServiceBase
 {
     [Permission(DiscountPermissions.CouponRead)]
@@ -243,6 +246,25 @@ public class DiscountService(
             ChangeType: "Redeemed",
             OldValues: oldValues,
             NewValues: SerializeNewValues(updated)));
+
+        // Phase 6 (architecture-event-deferred): DiscountAppliedIntegrationEvent
+        // is gated behind EnableDiscountAppliedPublishing. The flag flips on
+        // when a downstream consumer lands (no consumer in this plan's window —
+        // see plan §6.5 + §7 Phase 6). Wire flag = fail-secure default.
+        //
+        // Note: the event intentionally OMITS an OrderId field. §0.3.3 says
+        // RedeemDiscountCommand.OrderId is required, but the shipped
+        // RedeemDiscountRequest proto lacks an order_id field — adding it
+        // requires a coordinated proto + Basket client bump. Tracked for
+        // the §0.3.3 reconciliation pass.
+        if (options.Value.EnableDiscountAppliedPublishing)
+        {
+            await outbox.PublishAsync(new DiscountAppliedIntegrationEvent(
+                CouponId: updated.Id,
+                CouponCode: updated.Code,
+                RestaurantId: updated.RestaurantId,
+                Quantity: 1));
+        }
 
         return new RedeemDiscountResponse { Success = true };
     }

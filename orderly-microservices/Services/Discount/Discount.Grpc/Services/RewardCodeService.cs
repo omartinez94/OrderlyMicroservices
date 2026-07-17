@@ -5,9 +5,11 @@ using Discount.Grpc.Data;
 using Discount.Grpc.Domain;
 using Discount.Grpc.Messaging.Events;
 using Discount.Grpc.Models;
+using Discount.Grpc.Options;
 using Discount.Grpc.Validators;
 using Grpc.Core;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using NodaTime;
 using NodaTime.Text;
 
@@ -40,7 +42,8 @@ public class RewardCodeService(
     DiscountContext dbContext,
     IOutboxPublisher outbox,
     ICurrentRestaurantProvider tenantProvider,
-    TimeProvider clock)
+    TimeProvider clock,
+    IOptions<DiscountOptions> options)
     : RewardCodeProtoService.RewardCodeProtoServiceBase
 {
     private const int MaxPageSize = 200;
@@ -103,6 +106,22 @@ public class RewardCodeService(
             OldValues: null,
             NewValues: SerializeNewValues(row)),
             context.CancellationToken);
+
+        // Phase 6 (architecture-event-deferred): RewardGeneratedIntegrationEvent
+        // is gated behind EnableRewardGeneratedPublishing. Wire flag = fail-secure
+        // default; flips on when a downstream consumer lands (no consumer in this
+        // plan's window — see plan §6.5 + §7 Phase 6).
+        if (options.Value.EnableRewardGeneratedPublishing)
+        {
+            await outbox.PublishAsync(new RewardGeneratedIntegrationEvent(
+                RewardCodeId: row.Id,
+                Code: row.Code,
+                RestaurantId: row.RestaurantId,
+                Kind: row.Kind.ToString(),
+                Value: row.Value,
+                OrderId: null),
+                context.CancellationToken);
+        }
 
         return new CreateRewardCodeResponse
         {
@@ -355,6 +374,20 @@ public class RewardCodeService(
             OldValues: SerializeNewValues(row),
             NewValues: SerializeNewValues(updated)),
             context.CancellationToken);
+
+        // Phase 6 (architecture-event-deferred): RewardRedeemedIntegrationEvent
+        // is gated behind EnableRewardRedeemedPublishing. Wire flag = fail-secure
+        // default; flips on when a downstream consumer lands.
+        if (options.Value.EnableRewardRedeemedPublishing)
+        {
+            await outbox.PublishAsync(new RewardRedeemedIntegrationEvent(
+                RewardCodeId: updated.Id,
+                Code: updated.Code,
+                RestaurantId: updated.RestaurantId,
+                OrderId: orderId,
+                Quantity: quantity),
+                context.CancellationToken);
+        }
 
         return new RedeemRewardCodeResponse
         {

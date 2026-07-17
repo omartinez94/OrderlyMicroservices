@@ -51,6 +51,10 @@ import { registerApiDiscoveryTools } from './tools/api-discovery.ts';
 import { registerStateInspectionTools } from './tools/state-inspection.ts';
 import { registerSnapshotTools } from './tools/snapshot.ts';
 import { registerLogTracingTools } from './tools/log-tracing.ts';
+import { registerDataSeedingTools } from './tools/data-seeding.ts';
+import { registerEventBusTools } from './tools/event-bus.ts';
+import { registerInfrastructureTools } from './tools/infrastructure.ts';
+import { registerJobsTools } from './tools/jobs.ts';
 
 // ─── Step 1: Banner log (logger is initialised above) ─────────────────────────
 
@@ -102,13 +106,14 @@ const mcp = new McpServer(
   { name: 'orderly-devmcp', version: '0.1.0' },
   {
     capabilities: {
-      // Phase 1 registers zero tools — capability map is intentionally empty.
-      // Phase 2 will add `tools: {}` here (the default is also empty, but
-      // being explicit makes the intent obvious in logs and Inspector).
+      // Capability map is left empty; tool registration is the source of truth.
     },
     instructions:
       'Local-only MCP server for the Orderly backend. Refuses to run unless NODE_ENV=development. ' +
-      'Phase 1 registers zero tools — Phase 2 will add API discovery, auth, state inspection, and snapshots.',
+      'Phase 3 ships 17 tools across 9 modules: API discovery, auth (HS256 dev tokens), state inspection, ' +
+      'system snapshot + watcher, log tracing, data seeding (catalog menu + mock orders), event bus ' +
+      '(publish + DLQ inspection), infrastructure (DB reset + outage simulation), and jobs ' +
+      '(historical sales + scheduled triggers).',
   },
 );
 
@@ -147,8 +152,12 @@ registerApiDiscoveryTools(mcp, { logger });
 registerStateInspectionTools(mcp, { ...toolCtx, logger });
 registerSnapshotTools(mcp, { ...toolCtx, logger });
 registerLogTracingTools(mcp, { logger });
+registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg });
+registerEventBusTools(mcp, { logger, rabbit: toolCtx.rabbit });
+registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
+registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
 
-logger.info({ tools: 9 }, 'phase 2 ready — 9 tools registered');
+logger.info({ tools: 17 }, 'phase 3 ready — 17 tools registered');
 
 // ─── Step 4: HTTP server ─────────────────────────────────────────────────────
 

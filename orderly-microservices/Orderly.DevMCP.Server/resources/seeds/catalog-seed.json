@@ -1,0 +1,159 @@
+{
+  "$comment": "Canonical test menu for the dev MCP server's seed_test_menu tool. ≥3 categories, ≥10 items, with variations and ingredient customizations. The tool inserts into Catalogdb EF Core tables; restaurantId is provided by the caller (a stub Brand+Restaurant is created if absent). All IDs are deterministic GUIDs so the seed is idempotent.",
+  "brand": {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "name": "Orderly Test Brand",
+    "cuisineType": 0,
+    "description": "Brand used by the dev MCP server for seeded test menus.",
+    "contactEmail": "devmcp@test.orderly.local",
+    "contactPhone": "+52-81-0000-0000",
+    "logoUrl": "https://placehold.co/100x100/png?text=OTB",
+    "websiteUrl": "https://test.orderly.local"
+  },
+  "categories": [
+    {
+      "id": "c0000001-0000-0000-0000-000000000001",
+      "name": "Appetizers",
+      "description": "Light bites to start the meal.",
+      "displayOrder": 1
+    },
+    {
+      "id": "c0000002-0000-0000-0000-000000000002",
+      "name": "Main Courses",
+      "description": "Hearty mains from grill and kitchen.",
+      "displayOrder": 2
+    },
+    {
+      "id": "c0000003-0000-0000-0000-000000000003",
+      "name": "Desserts",
+      "description": "Sweet finishes.",
+      "displayOrder": 3
+    }
+  ],
+  "items": [
+    {
+      "id": "a0000001-0000-0000-0000-000000000001",
+      "categoryId": "c0000001-0000-0000-0000-000000000001",
+      "name": "Chips & Guac",
+      "description": "House-made guacamole with corn tortilla chips.",
+      "basePrice": 95.00,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 10,
+      "variations": [
+        { "id": "a0000001-v000-0000-0000-000000000001", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000001-v000-0000-0000-000000000002", "name": "Spicy",  "priceDelta": 10.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Cilantro", "action": "extra" },
+        { "ingredientName": "Onion",    "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000002",
+      "categoryId": "c0000001-0000-0000-0000-000000000001",
+      "name": "Queso Fundido",
+      "description": "Melted Chihuahua cheese with chorizo and roasted poblano.",
+      "basePrice": 135.00,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000003",
+      "categoryId": "c0000001-0000-0000-0000-000000000001",
+      "name": "Shrimp Ceviche",
+      "description": "Lime-cured shrimp with tomato, red onion, and cilantro.",
+      "basePrice": 165.00,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000001",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Carne Asada Tacos (3)",
+      "description": "Charcoal-grilled skirt steak, corn tortilla, salsa verde.",
+      "basePrice": 245.00,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 25,
+      "variations": [
+        { "id": "a0000002-v000-0000-0000-000000000001", "name": "Flour tortilla", "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000002", "name": "Lettuce wrap",   "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000003", "name": "Add cheese",     "priceDelta": 25.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Cilantro", "action": "no" },
+        { "ingredientName": "Onion",    "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000002",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Chicken Enchiladas",
+      "description": "Three corn tortillas rolled with chicken, mole sauce, queso fresco.",
+      "basePrice": 215.00,
+      "prepTimeMinutes": 18,
+      "prepTimeMaxMinutes": 25
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000003",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Veggie Bowl",
+      "description": "Brown rice, black beans, roasted vegetables, avocado.",
+      "basePrice": 185.00,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "customizations": [
+        { "ingredientName": "Avocado",  "action": "extra" },
+        { "ingredientName": "Cheese",   "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000004",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Grilled Salmon",
+      "description": "Pacific salmon, citrus glaze, seasonal vegetables.",
+      "basePrice": 365.00,
+      "prepTimeMinutes": 18,
+      "prepTimeMaxMinutes": 25
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000005",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Burger 'Orderly'",
+      "description": "Wagyu patty, smoked cheddar, caramelised onion, brioche bun.",
+      "basePrice": 285.00,
+      "prepTimeMinutes": 14,
+      "prepTimeMaxMinutes": 20,
+      "variations": [
+        { "id": "a0000002-v000-0000-0000-000000000010", "name": "Single",  "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000011", "name": "Double",  "priceDelta": 80.00 }
+      ]
+    },
+    {
+      "id": "a0000003-0000-0000-0000-000000000001",
+      "categoryId": "c0000003-0000-0000-0000-000000000003",
+      "name": "Flan",
+      "description": "Classic Mexican custard with caramel sauce.",
+      "basePrice": 75.00,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 5
+    },
+    {
+      "id": "a0000003-0000-0000-0000-000000000002",
+      "categoryId": "c0000003-0000-0000-0000-000000000003",
+      "name": "Churros",
+      "description": "Cinnamon sugar, dark chocolate dipping sauce.",
+      "basePrice": 85.00,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8
+    },
+    {
+      "id": "a0000003-0000-0000-0000-000000000003",
+      "categoryId": "c0000003-0000-0000-0000-000000000003",
+      "name": "Tres Leches",
+      "description": "Sponge soaked in three milks, fresh berries.",
+      "basePrice": 95.00,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 5
+    }
+  ]
+}

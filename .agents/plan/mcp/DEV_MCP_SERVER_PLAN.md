@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Current state**: 🚧 Phase 2 (Core Developer Tools) complete on 2026-07-17. 9 tools registered; typecheck clean; auth tools verified end-to-end via `InMemoryTransport` (token generated, verified, cache hit on second call). Full happy-path verification against live backends is still deferred — needs Docker. Phase 3 (Data & Event Tools) is next.
+> **Current state**: 🚧 Phase 3 (Data & Event Tools) complete on 2026-07-17. 17 tools registered across 9 modules; typecheck clean; all modules import without error. Full happy-path verification against live backends is still deferred — needs Docker. Phase 4 (Flow Intelligence) is next.
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Foundation & Scaffold | ✅ Done (2026-07-17) |
 | 2 | Core Developer Tools | ✅ Done (2026-07-17) |
-| 3 | Data & Event Tools | ⏸ Pending |
-| 4 | Flow Intelligence | 🔒 Blocked |
+| 3 | Data & Event Tools | ✅ Done (2026-07-17) |
+| 4 | Flow Intelligence | ⏸ Pending |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -431,27 +431,66 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 **Deliverables**:
 
-- [ ] **`resources/seeds/catalog-seed.json`** — canonical test menu with ≥3 categories, ≥10 items, variations, and ingredient customizations.
-- [ ] **`resources/seeds/order-seed.json`** — canonical order payload matching `BasketCheckoutEvent` shape.
+- [x] **`resources/seeds/catalog-seed.json`** — canonical test menu with ≥3 categories (Appetizers, Main Courses, Desserts), 11 items, variations, and ingredient customizations.
+- [x] **`resources/seeds/order-seed.json`** — canonical order payload matching `BasketCheckoutEvent` shape (2 items: Carne Asada Tacos + Chips & Guac, DineIn, CreditCard).
 
-- [ ] **`tools/data-seeding.ts`** — `seed_test_menu` + `create_mock_order` (§6.2)
-  - `seed_test_menu`: upserts into Marten `mt_doc_*` JSONB tables. Supports `dryRun` flag.
-  - `create_mock_order`: transactional insert into `Orders` + `OrderItems` + `OrderAddress`. Returns `OrderId`.
+- [x] **`tools/data-seeding.ts`** — `seed_test_menu` + `create_mock_order` (§6.2)
+  - `seed_test_menu`: idempotent INSERT…ON CONFLICT into Catalogdb EF Core tables (Brands → Restaurants → MenuCategories → MenuItems → MenuItemVariations → MenuItemIngredients). Wrapped in a transaction. Supports `dryRun` flag (returns SQL without executing). Sanitises `restaurantId` via `sha256` bucket.
+  - `create_mock_order`: transactional INSERT into OrderDb `Customers` (idempotent on Id) + `Orders` + `OrderItems`. Returns the new `OrderId` GUID. Tax computed at 16 % (configurable in seed).
+  - **Corrections from the plan §6.2:** there is no `OrderAddresses` table — `DeliveryAddress` / `BillingAddress` are `ComplexProperty` columns on `Orders` (`DeliveryAddress_Street`, `…_City`, `…_State`, `…_ZipCode`, `…_Country`). The same applies to `Payment_*` columns. `OrderStatus` enum (BuildingBlocks/Enums/OrderEnums.cs) is `Ordering|Pending|Confirmed|Preparing|Ready|Delivered|Completed|Cancelled|OnHold` — not the plan's `Pending|Processing|Completed|Cancelled`.
 
-- [ ] **`tools/event-bus.ts`** — `publish_integration_event` + `inspect_dead_letters` (§6.5)
-  - MassTransit exchange naming lookup table populated from all types in `BuildingBlocks.Messaging/Events/`.
-  - Auto-injects `Id`, `OccurredOn`, `MessageVersion` fields.
-  - `inspect_dead_letters` calls RabbitMQ Management API (`15672`).
+- [x] **`tools/event-bus.ts`** — `publish_integration_event` + `inspect_dead_letters` (§6.5)
+  - Event-type lookup table populated at boot by scanning `BuildingBlocks.Messaging/Events/*.cs` (skips the `IntegrationEvent.cs` base + `I*` interfaces). New event types picked up automatically.
+  - Publishes to the MassTransit fanout exchange `BuildingBlocks.Messaging.Events:{EventTypeName}` via `amqplib`. Auto-injects `Id` (UUID), `OccurredOn` (ISO), `MessageVersion` (1).
+  - Rate-limited to 5 / min per §10.1.
+  - `inspect_dead_letters` lists `*_error` (MassTransit DLQ) queues via the RabbitMQ Management API and returns failed message payloads, each capped at 10 KB per §10.4.
 
-- [ ] **`tools/infrastructure.ts`** — `reset_databases` + `simulate_service_outage` (§6.6)
-  - `reset_databases`: requires `confirm: true`. Runs schema drops per target. Only connects to `localhost`/`DEV_HOST`.
-  - `simulate_service_outage`: Docker stop/start. Allowlist enforced — API containers only.
+- [x] **`tools/infrastructure.ts`** — `reset_databases` + `simulate_service_outage` (§6.6)
+  - `reset_databases`: **two-step confirmation** per §10.4 — `confirm: true` AND `confirmText` must equal one of the target service names. Rate-limited to 1 / hour. For Marten PG: `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`. For OrderDb: `ALTER DATABASE … SET SINGLE_USER … DROP DATABASE; CREATE DATABASE;` (EF Core migrations re-apply on the next service start). Redis: `FLUSHALL` only if all PG targets succeeded.
+  - `simulate_service_outage`: uses `child_process.spawn('docker', ['stop', name], { shell: false })` per §10.1. Allowlist enforced — **API containers only**, never `messagebroker` or any database container (to avoid corrupting stateful volumes). Auto-restart via `setTimeout(…).unref()` so the timer doesn't keep the process alive past SIGTERM.
 
-- [ ] **`tools/jobs.ts`** — `seed_historical_sales` + `trigger_scheduled_jobs` (§6.7)
-  - `seed_historical_sales`: deterministic bulk insert into `OrderDb`.
-  - `trigger_scheduled_jobs`: HTTP POST to backend dev-trigger endpoint.
+- [x] **`tools/jobs.ts`** — `seed_historical_sales` + `trigger_scheduled_jobs` (§6.7)
+  - `seed_historical_sales`: deterministic via `mulberry32( sha256(restaurantId + ':' + daysBack).readUInt32LE(0) )`. Pre-builds a synthetic `Customer` per run, then multi-row INSERTs in batches of 50 (uses batched parameterized inserts, not bulk copy — see "Bugs found" below). Daily volume varies 50–150 % of `ordersPerDay`.
+  - `trigger_scheduled_jobs`: HTTP POSTs to known dev-only endpoints (`http://basket.api:8080/_dev/trigger/clear-abandoned-baskets`, `http://ordering.api:8080/_dev/trigger/daily-reconciliation`, `http://ordering.api:8080/_dev/trigger/outbox-relay`) with `X-Dev-Trigger-Secret` header from `DEV_TRIGGER_SECRET` env. Refuses to run if the env is missing.
 
-**Exit criteria**: An AI assistant can call `reset_databases(["catalog", "ordering"], true)` → `seed_test_menu(restaurantId)` → `create_mock_order(restaurantId, "Pending")` → `get_system_snapshot()` and receive a snapshot showing the newly seeded data with zero errors.
+**Exit criteria**: An AI assistant can call `reset_databases(["catalog", "ordering"], true)` → `seed_test_menu(restaurantId)` → `create_mock_order(restaurantId, "Pending")` → `get_system_snapshot()` and receive a snapshot showing the newly seeded data with zero errors. *Met for the code path; full run pending a machine with Docker + the .NET-side dev trigger endpoints.*
+
+### Phase 3 implementation notes (2026-07-17)
+
+**§10.4 items — adopted in Phase 3.**
+- `seed_test_menu` Marten upsert — `[✅] but using EF Core instead`. The plan said "use `IDocumentStore.BulkInsertAsync`" but the menu (MenuItem, MenuCategory, etc.) lives in EF Core tables, not Marten. Marten only stores `OrderSnapshot` / `OrderModificationLog` / `OrderItemPriceAudit` / `NotificationLog`. Phase 3 uses parameterized `INSERT … ON CONFLICT DO UPDATE` for idempotency.
+- `create_mock_order` parameterised queries — `[✅]`. Uses `mssql.Request` with `.input()` placeholders for every user-supplied value.
+- `publish_integration_event` event-type lookup table — `[✅]` generated at boot by scanning the events directory (no hardcoded list).
+- `inspect_dead_letters` payload cap — `[✅]` at 10 KB per message (via the `truncate` query param on the Management API).
+- `reset_databases` two-step confirmation — `[✅]` `confirm: true` + `confirmText` must equal a target service name.
+- `seed_historical_sales` mssql bulk copy — `[⚠ deferred]`. `mssql` v11 doesn't ship `.d.ts` types, and the new Table API is awkward to use. Switched to batched multi-row INSERTs (the §10.4 fallback) which is portable and equally fast for ≤ 500 orders / day.
+- `trigger_scheduled_jobs` companion dev endpoint — `[⚠ deferred to .NET-side]`. The MCP server side is done; the dev endpoints (`POST /_dev/trigger/{name}`) need to be added to `basket.api`, `ordering.api`, etc. with `ASPNETCORE_ENVIRONMENT=Development` + shared-secret gating.
+
+**§10.1 security items — adopted in Phase 3.**
+- Rate limit `publish_integration_event` — `[✅]` 5 tokens, refilled every 12 s (5 / min).
+- Rate limit `reset_databases` — `[✅]` 1 token, refilled every 3 600 000 ms (1 / hour).
+- `simulate_service_outage` uses `spawn('docker', ['stop', name], { shell: false })` — `[✅]`. Allowlist enforced.
+- `sha256(restaurantId).slice(0, 8)` for `seed_test_menu` and `seed_historical_sales` — `[✅]` in `src/util/sanitize.ts`.
+
+**Bugs found + fixed during implementation.**
+- **Type-stripping constraint**: `constructor(private readonly capacity: number, …)` is a parameter property, which requires transpilation. Under type stripping it crashes at import. Refactored `TokenBucket` to explicit field declarations + assignment. Caught immediately by `node --env-file=.env src/tools/event-bus.ts` smoke test.
+- **`mssql` v11 ships no TypeScript types**: `Table.rows.add` and `request.bulk` aren't typed. Switched `seed_historical_sales` to multi-row INSERTs (avoids the bulk-copy path entirely).
+- **Plan §6.2 wrong about schema**: no `OrderAddresses` table — `DeliveryAddress` and `BillingAddress` are `ComplexProperty` columns on `Orders`. `create_mock_order` writes them as columns.
+- **Plan §6.2 wrong about `OrderStatus` enum**: actual values are `Ordering|Pending|Confirmed|Preparing|Ready|Delivered|Completed|Cancelled|OnHold` (BuildingBlocks/Enums/OrderEnums.cs). `create_mock_order` zod schema uses the full set.
+- **Plan §6.2 wrong about menu storage**: the menu (MenuItem, MenuCategory, etc.) is EF Core, not Marten. Marten only stores order-snapshot projections. `seed_test_menu` writes to the EF Core tables.
+
+**Known gaps for Phase 4 follow-up.**
+- **`get_system_snapshot.catalog` doesn't count `MenuItems`**. It only counts `mt_doc_order_snapshot` Marten docs. After `seed_test_menu` the menu exists in EF Core but the snapshot won't show it. Either extend `fetchCatalog` to add a `menuItemCount` (EF Core `SELECT count(*) FROM "MenuItems"`) or document that snapshot is "order-side" only. Tracked.
+- **.NET-side dev trigger endpoints** for `trigger_scheduled_jobs` (see §10.4 above).
+- **`publish_integration_event` exchange name validation** — currently the lookup table is built at boot; if a new event type is added to `BuildingBlocks.Messaging/Events/` while the server is running, the MCP server needs a restart to pick it up. A `/admin/reload-event-types` notification handler could refresh without a restart.
+- **`reset_databases` for OrderDb** drops + recreates the database. The next `ordering.api` start will re-apply EF Core migrations, but the dev experience is "restart ordering after reset" — worth documenting.
+
+**Phase 3 verification (without Docker on this machine).**
+- `npm run typecheck` — 0 errors under `strict + NodeNext + verbatimModuleSyntax + exactOptionalPropertyTypes + noUncheckedIndexedAccess`.
+- All 4 new tool modules import without error (smoke-tested via `node --env-file=.env`).
+- 17 tools total registered when `index.ts` boots.
+
+**Files added.** `src/util/rate-limit.ts`, `src/util/sanitize.ts`, `src/tools/{data-seeding,event-bus,infrastructure,jobs}.ts`, `resources/seeds/{catalog,order}-seed.json`. **Files modified:** `src/index.ts` (wiring the 4 new tool modules).
 
 ---
 
@@ -527,13 +566,15 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 ### 10.4 Phase 3 — Data & Event Tools
 
-- **`seed_test_menu` Marten upsert** — Marten uses an event-stream model; raw `INSERT ON CONFLICT` may bypass event tracking and silently desync projections. Read `Catalog.Infrastructure/Marten/Registry.cs` before implementing; prefer `IDocumentStore.BulkInsertAsync` with `IDocumentSession` upsert.
-- **`create_mock_order`** — `mssql` driver requires parameterized queries; verify EF Core column types against `docs/architecture/db_relational_model.mermaid` before seeding.
-- **`publish_integration_event` event-type lookup table** — **generate at build time** by scanning `BuildingBlocks.Messaging/Events/`. Do not hardcode — new events get added and a stale list is worse than none. Add a `prebuild` script: `tsx scripts/generate-event-types.ts`.
-- **`inspect_dead_letters`** — paginate the RabbitMQ Management API messages endpoint; cap each returned payload at ~10 KB.
-- **`reset_databases`** — require `confirm: true` **and** a `confirmText` field that must equal a target service name (e.g. `"catalog"`). Two-step confirmation makes accidental invocation nearly impossible.
-- **`seed_historical_sales`** — `mssql` bulk copy needs `ADMINISTER BULK OPERATIONS` or `db_owner` on the dev container. Confirm docker-compose grants it; otherwise fall back to multi-row `INSERT`.
-- **`trigger_scheduled_jobs`** — the companion dev-only HTTP endpoint is a security hole in any other context. Mitigate by gating it on `ASPNETCORE_ENVIRONMENT=Development` plus a shared dev-secret header.
+> **Phase 3 status:** ✅ Done (2026-07-17). 17 tools registered across 9 modules. See "Phase 3 implementation notes" above for the corrections + bugs found.
+
+- **`seed_test_menu` Marten upsert** — `[✅ but EF Core, not Marten]` Marten does NOT store the menu. Menu (MenuItem, MenuCategory, etc.) lives in EF Core tables; Marten only stores `OrderSnapshot` / `OrderModificationLog` / `OrderItemPriceAudit` / `NotificationLog`. Phase 3 uses `INSERT … ON CONFLICT DO UPDATE` for idempotency. Note the §6.2 plan misread: the "Marten upsert" warning doesn't apply to menu seeding.
+- **`create_mock_order`** — `[✅]` mssql parameterized queries. Verified against `Ordering.Infrastructure/Data/Migrations/20260530175625_InitialCreate.cs`. Plan §6.2 was wrong on two counts: no `OrderAddresses` table, and `OrderStatus` enum is larger than the plan listed.
+- **`publish_integration_event` event-type lookup table** — `[✅]` generated at boot by scanning the events directory. New types picked up on server restart. No `prebuild` script needed (no build step under type stripping).
+- **`inspect_dead_letters`** — `[✅]` paginates the Management API; each payload capped at 10 KB via the `truncate` query param.
+- **`reset_databases`** — `[✅]` two-step confirmation enforced: `confirm: true` AND `confirmText` must match a target name.
+- **`seed_historical_sales`** — `[⚠ switched to multi-row INSERT]` `mssql` v11 doesn't ship types and the bulk-copy API was awkward. Used batched multi-row INSERTs in batches of 50 (the §10.4 fallback path), which is portable and fast enough for ≤ 500 orders / day.
+- **`trigger_scheduled_jobs`** — `[⚠ partial]` MCP side is done. The .NET-side companion dev endpoints (`POST /_dev/trigger/{name}` gated on `ASPNETCORE_ENVIRONMENT=Development` + `X-Dev-Trigger-Secret` header) are out of scope for the MCP server and need to be added to the .NET services.
 
 ### 10.5 Phase 4 — Flow Intelligence
 

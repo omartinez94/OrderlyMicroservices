@@ -60,6 +60,11 @@ builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(Outbo
 var discountOptionsSection = builder.Configuration.GetSection(DiscountOptions.SectionName);
 var enableMenuItem = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableMenuItemChangedConsumer));
 var enableRestaurantConfig = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableRestaurantConfigChangedConsumer));
+// Phase 5 — disabled by default. Notification v1 publishes
+// FeedbackSubmittedIntegrationEvent; until that service ships, the consumer
+// endpoint does not materialize (no orphaned queue, no silent consumption).
+// The flag flips on by configuration change only — no recompile.
+var enableFeedbackSubmitted = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableFeedbackSubmittedConsumer));
 
 builder.Services.AddMassTransit(o =>
 {
@@ -78,6 +83,11 @@ builder.Services.AddMassTransit(o =>
     if (enableRestaurantConfig)
     {
         o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.RestaurantConfigurationChangedConsumer>();
+    }
+
+    if (enableFeedbackSubmitted)
+    {
+        o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.FeedbackSubmittedConsumer>();
     }
 });
 

@@ -4,6 +4,23 @@
 
 ---
 
+## Status
+
+> **Current state**: ⏸ Not started — Phase 1 (Foundation & Scaffold) is the next to begin.
+
+| Phase | Name | Status |
+|:-----:|---|:-----:|
+| 1 | Foundation & Scaffold | ⏸ Pending |
+| 2 | Core Developer Tools | 🔒 Blocked |
+| 3 | Data & Event Tools | 🔒 Blocked |
+| 4 | Flow Intelligence | 🔒 Blocked |
+
+> **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
+
+> **Commit messages**: Conventional Commits (`feat:`, `docs:`, `chore:`, `test:`, `fix:`). Keep the subject line **short and concise** — ≤72 chars, imperative mood, no trailing period. Example: `feat: scaffold DevMCP server with SSE transport`.
+
+---
+
 ## 0. Skill & documentation conventions
 
 ### 0.1 Skill mandate — `mcp-developer` (Node.js)

@@ -60,6 +60,12 @@
       "sourceType": "github",
       "skillPath": "skills/engineering/grill-with-docs/SKILL.md",
       "computedHash": "499b742470fe169976bacdba2f30d7a6a25b526629cb42ab21dfa06e1eb286dc"
+    },
+    "node": {
+      "source": "mcollina/skills",
+      "sourceType": "github",
+      "skillPath": "skills/node/SKILL.md",
+      "computedHash": "c92b3da4a4ea153207eb72d8f6a77c0e9f7b98d29f5092433143195d154d58c9"
     }
   }
 }

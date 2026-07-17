@@ -414,6 +414,7 @@ Seeded at startup: `DISCOUNT10` (10 off, restaurantId `11111111…`) and `DISCOU
 | Orders | PUT | `/api/v1/orders` | `UpdateOrderCommand` | `orders:modify_*` |
 | Orders | DELETE | `/api/v1/orders/{id}` | `DeleteOrderCommand` | `orders:modify_*` |
 | Orders | GET | `/api/v1/orders/{id}` | `GetOrderByIdQuery` — response carries `Activities[]` (chronological activity feed, each row includes `correlationId` for log-trace correlation) | `orders:view_*` |
+| Orders | GET | `/api/v1/orders/{id}/activities` | `GetOrderActivitiesQuery` — standalone paged activity feed (`?type=&from=&to=&page=&pageSize=`) for callers that don't want the full order payload. Filters by `OrderActivityType` + half-open `Instant` date range. Returns `PaginatedResult<OrderActivityDto>` ordered by `OccurredAt ASC, Id ASC`. | `orders:view_own` |
 | Orders | GET | `/api/v1/orders` | `GetOrdersQuery` (paged) | `orders:view_*` |
 | Orders | GET | `/api/v1/orders/customer/{customerId}` | `GetOrdersByCustomerQuery` | `orders:view_*` |
 | **Kitchen** | POST | `/api/v1/orders/{id}/confirm` | `ConfirmOrderCommand` | `kitchen:update_prep_status` |

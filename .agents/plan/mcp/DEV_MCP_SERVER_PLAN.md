@@ -410,4 +410,62 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 **Exit criteria**: An AI assistant in the Web CRM repository (separate repo, different machine) can call `trace_business_flow("checkout")` over the SSE connection at `http://192.168.1.65:8080/sse` and receive the full golden-path document with all steps green.
 
+---
+
+## 10. Technical considerations
+
+> Surfaced from a Node.js/TypeScript review of this plan. Each item points at a concrete risk and (where useful) to the relevant rule in the `node` skill for the deep dive. Phase 1 should adopt the cross-cutting items before any tool code is written — they are far cheaper to retrofit then.
+
+### 10.1 Cross-cutting
+
+**TypeScript configuration — prefer type stripping (Node 22.6+).** §0.2 (DEV_MCP_SERVER_PLAN.md:32-49) mandates `tsc` compile + `tsx` dev runner. Type stripping removes the build step entirely — `node --experimental-strip-types src/index.ts` runs the source directly. Requirements: `import type` for type-only imports, `.ts` extensions in import paths, no `enum`/`namespace`/parameter properties, and `module`/`moduleResolution` set to `nodenext` (not `Node16`, which is incompatible with stripping). Keep `tsc --noEmit` in CI for strict type checking. Drop `tsx` from the dependency list.
+
+**Module system & imports — `.js` extension gotcha.** While `module: Node16` is in force, every relative import must end in `.js` even though the source is `.ts` (e.g. `import { pool } from '../db/postgres-client.js'`). Add an ESLint rule (`import/extensions`) to enforce. All built-ins must use the `node:` prefix (`node:fs`, `node:stream/promises`, `node:http`) to avoid shadowing by npm packages.
+
+**Error handling — shared class hierarchy from day 1.** Build a `DevMCPError extends Error` with subclasses `ConnectionError`, `HostViolationError`, `ToolInputError`, `DestructiveOpError`. Wire `process.on('unhandledRejection')` and `process.on('uncaughtException')` in `index.ts` — log with full context then `process.exit(1)`. Map `Promise.allSettled` failures in `get_system_snapshot` to structured per-system `{ error: { code, message, recoverable } }` fields rather than throwing. See `node` skill → `rules/error-handling.md`.
+
+**Graceful shutdown — currently unspecified, plan it in Phase 1.** The server holds simultaneously: 4 `pg.Pool` (5433/5434/5436/5435), 1 `mssql` pool (1433), 1 `ioredis` (6379), 1 `amqplib` channel+connection (5672), the HTTP server + active SSE streams on port 8080, and any `setInterval` from `watch_system`. Sequence on SIGTERM: reject new tool calls → drain in-flight → close SSE streams + HTTP server → close amqplib → close ioredis → `pool.end()` on every pg/mssql pool → clear intervals → exit 0. Each step must catch + log so a stuck pool doesn't mask the real failure. See `node` skill → `rules/graceful-shutdown.md`.
+
+**Stuck-process risk — add a `why-is-node-running` smoke test to Phase 1 exit criteria.** Every pool above is an event-loop handle; missing one means "process did not exit" hangs. Extend Phase 1 exit criteria (DEV_MCP_SERVER_PLAN.md:326) with: *"After SIGTERM, the process exits within 5 s with no open handles (verified via `node --inspect` + `SIGUSR1` dump, or `why-is-node-running`)."* In `simulate_service_outage`, the duration `setTimeout` must be `.unref()`'d so it does not keep the process alive past SIGTERM — or persist the outage in Redis `SETEX` so it survives an MCP restart. See `node` skill → `rules/stuck-processes-and-tests.md`.
+
+**Caching — three hot paths.** `get_api_schema` will be called many times per service per session — `lru-cache` with TTL 5 min, ~50 entries (swagger payloads are hundreds of KB and JSON normalization is non-trivial CPU). `get_system_snapshot` aggregates 6 sub-queries — wrap each sub-query with `async-cache-dedupe` (TTL ~2 s) so concurrent snapshots share work without serving stale state. `verify_token` is on the hot path — cache decoded claims keyed by `sha256(token)` (never key by raw token, it leaks into logs), TTL ~30 s. See `node` skill → `rules/caching.md`.
+
+**Streams — applies to `get_recent_logs` and `watch_system` SSE.** `docker logs --tail` returns a child-process stream that needs backpressure handling. Wrap with `pipeline()` from `node:stream/promises` between `child_process.spawn('docker', …).stdout` and a transform that filters by level, inside `try { await pipeline(...) } catch { … }`. The skill's activation checklist applies: at least one `async function*` transform for severity filtering, explicit `drain` handling. `watch_system` SSE pushes snapshots at an interval — slow clients can grow the in-memory queue unbounded; use a bounded queue and drop oldest on backpressure. See `node` skill → `rules/streams.md`.
+
+**Logging — unspecified; pick before Phase 2.** Recommend `pino` (faster than winston, structured JSON). Mandatory `redact` paths: `JWT_SECRET`, `Jwt:Secret`, `password`, `connectionString`, `Authorization` header. Every tool call should log `{ tool, params (sanitized), durationMs, outcome: 'ok' | 'error', errorCode? }` — the AI uses this to debug its own usage and the developer uses it to detect rate-limit pressure. See `node` skill → `rules/logging.md`.
+
+**Environment & secrets hardening.** After zod validation (DEV_MCP_SERVER_PLAN.md:301), replace the raw `process.env.JWT_SECRET` reference with a getter-only `Symbol` so accidental `console.log(process.env)` won't dump it. Add a startup banner log line: `"DevMCP starting in development mode — refuses to run otherwise"` — visible to anyone tailing logs. See `node` skill → `rules/environment.md`.
+
+**Security — deeper than the §8 table.** The `assertDevHost` check (DEV_MCP_SERVER_PLAN.md:290) must run **inside the connection factory**, before any `new pg.Pool(...)` — a misconfigured tool cannot bypass it. `publish_integration_event` and `reset_databases` need rate limits (token bucket: 5/min, 1/hour) — an AI loop can fire them indefinitely otherwise. `simulate_service_outage` must use `child_process.spawn('docker', ['stop', name], { shell: false })` — never ``exec(`docker stop ${name}`)``; the AI will pass service names you didn't anticipate. Sanitize `restaurantId` before seeding (`sha256(restaurantId).slice(0, 8)`) — it is interpolated into the seed string in §6.7 (DEV_MCP_SERVER_PLAN.md:187).
+
+### 10.2 Phase 1 — Foundation & Scaffold
+
+- **Decide type-stripping vs `tsc` compile here** — changing later means rewriting every `import` statement. Add `npm run typecheck` (`tsc --noEmit`) regardless of choice.
+- **Wire SIGTERM/SIGINT handlers and per-pool close-on-shutdown before any tool code** — far easier to test with zero tools registered.
+- **Connection-verification step needs a per-pool `ping()` / health check** that fail-fasts (exit 1) on any one — the AI cannot recover from a misconfigured DB.
+
+### 10.3 Phase 2 — Core Developer Tools
+
+- **`get_api_schema` JSON normalization** — run on a worker thread when the payload exceeds 256 KB (Catalog swagger.json is large).
+- **`inspect_basket` "diff-prints the two states"** — pick one: an in-memory LRU keyed by `basketId` (stateful server, easier for the AI) or have the AI pass both states (stateless, more tokens). Recommend the LRU.
+- **`generate_dev_token` — pin `algorithm: 'HS256'` explicitly** in `jwt.sign`. Do not rely on the library default (some versions fall back to `none`).
+- **`get_system_snapshot` 3 s per-sub-query timeout** (DEV_MCP_SERVER_PLAN.md:204) — implement with `AbortController` + `Promise.race`, not with `setTimeout` racing a promise that cannot be cancelled. pg supports `signal` on `pool.query`; mssql supports `request.cancel()`.
+
+### 10.4 Phase 3 — Data & Event Tools
+
+- **`seed_test_menu` Marten upsert** — Marten uses an event-stream model; raw `INSERT ON CONFLICT` may bypass event tracking and silently desync projections. Read `Catalog.Infrastructure/Marten/Registry.cs` before implementing; prefer `IDocumentStore.BulkInsertAsync` with `IDocumentSession` upsert.
+- **`create_mock_order`** — `mssql` driver requires parameterized queries; verify EF Core column types against `docs/architecture/db_relational_model.mermaid` before seeding.
+- **`publish_integration_event` event-type lookup table** — **generate at build time** by scanning `BuildingBlocks.Messaging/Events/`. Do not hardcode — new events get added and a stale list is worse than none. Add a `prebuild` script: `tsx scripts/generate-event-types.ts`.
+- **`inspect_dead_letters`** — paginate the RabbitMQ Management API messages endpoint; cap each returned payload at ~10 KB.
+- **`reset_databases`** — require `confirm: true` **and** a `confirmText` field that must equal a target service name (e.g. `"catalog"`). Two-step confirmation makes accidental invocation nearly impossible.
+- **`seed_historical_sales`** — `mssql` bulk copy needs `ADMINISTER BULK OPERATIONS` or `db_owner` on the dev container. Confirm docker-compose grants it; otherwise fall back to multi-row `INSERT`.
+- **`trigger_scheduled_jobs`** — the companion dev-only HTTP endpoint is a security hole in any other context. Mitigate by gating it on `ASPNETCORE_ENVIRONMENT=Development` plus a shared dev-secret header.
+
+### 10.5 Phase 4 — Flow Intelligence
+
+- **`trace_business_flow("checkout")` must be idempotent** — generate unique IDs (`crypto.randomUUID()`) per run and clean up at the end, or accept a `cleanupRunId: string?` parameter that tears down a previous run.
+- **`verify_flow_state` return shape must be typed** — `{ entityId, expected, actual: Record<System, State>, pass: boolean, failures: Array<{ system, expected, actual }> }`. The AI needs structured pass/fail, not freeform text.
+- **The three `.mmd` files must be committed alongside the flow scripts** — drift between diagram and code is exactly the kind of bug this server exists to prevent. Add a CI lint that fails if a flow script changes without the corresponding `.mmd` mtime being updated.
+- **End-to-end smoke test (DEV_MCP_SERVER_PLAN.md:405)** — wrap it in `node --test` so it runs in CI on every flow-script change. A green smoke test is the only reliable proof the plan's exit criteria is met.
+
 

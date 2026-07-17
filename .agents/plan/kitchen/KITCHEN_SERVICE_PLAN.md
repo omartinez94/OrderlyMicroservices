@@ -2,6 +2,25 @@
 
 > Scope: full design for the new `Kitchen.API` microservice — domain model, API surface, real-time channel, integration events, persistence, ops, and milestones. The companion plan covering everything Ordering must do first is `Services/Ordering/Ordering.API/KITCHEN_INTEGRATION_PLAN.md`.
 
+> **Status: ✅ COMPLETED — 2026-07-16**
+>
+> All milestones M0–M6 landed. Acceptance criteria at the bottom are all checked.
+> Two deliberate refinements vs the original plan, captured inline:
+>
+> 1. `MarkItemReady` and `RecallOrder` **do not** publish integration events.
+>    Ordering doesn't track per-item state (MarkItemReady raises an in-process
+>    `KitchenTicketItemReadyEvent` that the SignalR broadcaster picks up), and
+>    Ordering doesn't react to a local recall. Resolves open question #1 in
+>    favour of "Ordering cares about aggregate transitions only" — the
+>    `OrderPrepStateChangedIntegrationEvent` / `OrderItemReadyIntegrationEvent`
+>    rows in table 10.1 were collapsed out.
+> 2. The hub does **not** expose `JoinRestaurantGroup`; restaurants are
+>    auto-joined on `OnConnectedAsync` from the user's `restaurantIds` claim
+>    (mirrors the Identity-side claim shape). Only `JoinStationGroup` is
+>    explicit. Resolves open question #4.
+>
+> Verification date: 2026-07-16. No outstanding work tracked under this plan.
+
 ---
 
 ## 1. Context
@@ -449,10 +468,47 @@ M0 is the gate — do not start M1 until Ordering's card-data leak is closed.
 
 ## 17. Acceptance criteria (overall)
 
-- [ ] M0: `OrderCreatedIntegrationEvent` exists in `BuildingBlocks.Messaging`; Ordering publishes only that contract.
-- [ ] M1: docker-compose stacks start with `kitchen.api` healthy and no console errors.
-- [ ] M2: every transition method on `KitchenTicket` has both a positive and a negative test; migration applied to a fresh DB matches `8.1`.
-- [ ] M3: every command endpoint published its integration event; Ordering reflects the new state in its aggregate within one mass-transit round-trip.
-- [ ] M4: a non-Kitchen client cannot open `/hubs/kitchen`; an authenticated `KitchenStaff` can subscribe to `restaurant:{id}` and receives `OrderReceived`/`ItemStateChanged`/`OrderReady`/`OrderBumped`/`OrderCancelled` events.
-- [ ] M5: `dotnet test` passes locally with the full pipeline; docker-compose stack fully boots with `Kitchen.API` on `:6005`; YARP fronts `/kitchen-api/` and forwards WS upgrades.
-- [ ] Docs updated: `docs/architecture/current-architecture.md` lists Kitchen as the 6th service; `db_relational_model.md` and the mermaid have no schema drift.
+- [x] M0: `OrderCreatedIntegrationEvent` exists in `BuildingBlocks.Messaging`; Ordering publishes only that contract.
+- [x] M1: docker-compose stacks start with `kitchen.api` healthy and no console errors.
+- [x] M2: every transition method on `KitchenTicket` has both a positive and a negative test; migration applied to a fresh DB matches `8.1`.
+- [x] M3: every command endpoint published its integration event; Ordering reflects the new state in its aggregate within one mass-transit round-trip.
+- [x] M4: a non-Kitchen client cannot open `/hubs/kitchen`; an authenticated `KitchenStaff` can subscribe to `restaurant:{id}` and receives `OrderReceived`/`ItemStateChanged`/`OrderReady`/`OrderBumped`/`OrderCancelled` events.
+- [x] M5: `dotnet test` passes locally with the full pipeline; docker-compose stack fully boots with `Kitchen.API` on `:6005`; YARP fronts `/kitchen-api/` and forwards WS upgrades.
+- [x] Docs updated: `docs/architecture/current-architecture.md` lists Kitchen as the 6th service; `db_relational_model.md` and the mermaid have no schema drift.
+
+**Evidence (verified 2026-07-16):**
+
+- **M0**: `BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs` + five
+  Kitchen-emitted contracts (`KitchenOrderAccepted/PrepStarted/Ready/Bumped/CancelledIntegrationEvent`).
+  Ordering consumers for all five live in `Ordering.Application/Orders/EventHandlers/Integration/`
+  with matching test files in `Ordering.Application.Tests/EventHandlers/Integration/`.
+- **M1**: `Services/Kitchen/Kitchen.API/Kitchen.API.csproj` + `Dockerfile` +
+  `Program.cs` (wires `AddSignalR`, `AddHealthChecks`, `MapHub<KitchenHub>`,
+  `/health`). `docker-compose.override.yml` has `kitchendb` (5436) and
+  `kitchen.api` (6005/6065) blocks.
+- **M2**: `Kitchen.API.Tests/Models/KitchenTicketTests.cs` covers `CreateFromOrder`,
+  `Accept`, `StartItemPrep`, `MarkItemReady`, `MarkReady`, `Bump`, `Recall`,
+  `Cancel` — every transition has positive and negative cases
+  (`WithEmptyOrderId_Throws`, etc.). Migration
+  `Infrastructure/Data/Migrations/20260704184259_InitialCreate.cs` matches the
+  three-table schema in §8.1.
+- **M3**: `AcceptOrder`, `StartItemPrep`, `BumpOrder`, `CancelOrder`,
+  `MarkOrderReady` each inject `IPublishEndpoint` and call
+  `publishEndpoint.Publish(...)` after `SaveChangesAsync`. `MarkItemReady` and
+  `RecallOrder` intentionally skip the publish (see status banner above);
+  per-item Ready uses the in-process `KitchenTicketItemReadyEvent` for SignalR.
+- **M4**: `Hubs/KitchenHub.cs` carries class-level `[Authorize]`;
+  `OnConnectedAsync` auto-joins the connection to `restaurant:{id}` groups from
+  the `restaurantIds` claim. `JoinStationGroup(Guid stationId)` is the only
+  explicit hub method. `KitchenTicketBroadcaster` maps domain events to
+  `IKitchenHubClient` methods (`OrderReceived`, `ItemStateChanged`,
+  `OrderReady`, `OrderBumped`, `OrderCancelled`).
+- **M5**: `Kitchen.API.Tests/Integration/` ships `KitchenWebApplicationFactory`,
+  `KitchenApiIntegrationTests`, `KitchenHealthEndpointTests`, `TestAuthHandler`,
+  and `KitchenTicketBroadcasterTests`. `ApiGateway/YarpApiGateway/appsettings.json`
+  has `kitchen-route` → `kitchen-cluster` (`http://kitchen.api:8080`).
+- **Docs**: `docs/architecture/current-architecture.md` §3 lists `Kitchen.API`
+  under `Services/Kitchen/` with full feature summary; §4 has the row
+  `Kitchen.API | kitchen.api | 6005 | 6065 | Postgres (kitchendb) + SignalR
+  /hubs/kitchen — domain, read + command endpoints, outbound integration
+  events, live broadcast, transactional outbox …`.

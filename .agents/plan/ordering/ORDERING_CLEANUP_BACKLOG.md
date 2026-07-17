@@ -1,6 +1,30 @@
 # Ordering — Cleanup Backlog (follow-up to `ORDER_ACTIVITY_PLAN.md`)
 
 > **Scope:** the Ordering-specific P1 items surfaced by the `db_model_drift_report.md` / `db_model_drift_report_mermaid_truth.md` two-direction review on 2026-07-15. These are **pre-existing drift** that the activity-feed plan does NOT touch — flagged here so they don't get lost when the activity feed lands.
+
+> **Status: ✅ COMPLETED — 2026-07-16**
+>
+> Phases A + B + C all shipped on 2026-07-16. Doc version 1.0. Every P1 item closed:
+>
+> - **P1-1** (8 missing `Orders` snapshot columns) → ✅ added to mermaid `Orders` block (Phase A).
+> - **P1-2** (misleading audit-fields comment block) → ✅ replaced with Option B.2 (correct in place), per §B.2 rationale in v1.0 changelog (Phase B).
+> - **C.1** (relational jsonb sub-shape convention gap) → ✅ new top-level section in companion doc + retroactive application to `OrderItems.SelectedVariations` + `OrderItems.Customizations` (Phase C).
+>
+> **Verification date:** 2026-07-16. Diff is scoped to `docs/architecture/db_relational_model.mermaid` + `docs/architecture/db_relational_model.md` — no code changes anywhere in `Services/Ordering/`.
+>
+> **Outstanding `[ ]` (Verification):** the §6 Verification box stays unchecked by design — re-running the two drift reports against the post-cleanup mermaid is the responsibility of the next diagram reconciliation pass that opens one of those reports, not this cleanup backlog. Tracked as a follow-up trigger, not an open item from this plan.
+>
+> **Evidence (verified 2026-07-16):**
+>
+> - **Phase A** — `db_relational_model.mermaid` `Orders` block (lines 382–442) carries all 8 new columns: `ConfirmedAt` between `ApprovedByAdminId` and `ApprovedAt` per spec; lifecycle cluster (`PreparingStartedAt`, `ReadyAt`, `DeliveredAt`, `CompletedAt`, `CancelledAt`, `CancelledByUserId`, `CancellationReason`) after `ApprovedAt`. Column-cluster comment anchors to drift report §B + the backlog Phase A.
+> - **Phase B** — `db_relational_model.mermaid` `Orders` block (lines 434–441) carries the corrected Option B.2 comment explaining the inheritance boundary (`Order` does NOT inherit from `Entity<T>` per `db_relational_model.md` line 92; only `CreatedByUserId` is audit-style and explicitly declared). Anchors to drift report §C + backlog Phase B. `IsActive` row retained (was correct).
+> - **Phase C** — `db_relational_model.md` carries the new top-level "Relational jsonb sub-shapes" section documenting the permissive convention. Mermaid retroactively applies to `OrderItems.SelectedVariations` (sub-shape: `KitchenOrderItemVariation(Name, Price)`) + `OrderItems.Customizations` (sub-shape: `KitchenOrderItemCustomization(Label, Value?, Price?)`). Drift surfaced + corrected: the original Phase C spec named outdated `(Name, Value, Price)` / `(Ingredient, Action)` fields; the shipped sub-shape documents the current code after migration `20260710233247_TypedOrderItemCustomizationsJsonb` retyped the jsonb columns.
+> - **Companion doc** — `db_relational_model.md` line 8 reads `Last reconciled to code: 2026-07-16 (code is source of truth).` Lines 10–30 carry all three "Updates from ORDERING_CLEANUP_BACKLOG.md (Phase A/B/C, 2026-07-16)" sections.
+> - **Cross-service impact:** none. Catalog's three Marten documents (`OrderSnapshot` / `OrderModificationLog` / `OrderItemPriceAudit`), the `BulkOrderUploads` block, the `Basket` Marten documents, and the four `Ordering.*.cs` projects under `Services/Ordering/` are all **unchanged**. The activity-feed plan's `OrderActivity` child entity is **unchanged**. The two drift reports themselves are unchanged (point-in-time artefacts from 2026-07-15; a future drift review will produce a new report that should reference this cleanup).
+>
+> **Design refinement from v1.0:**
+>
+> 1. **Phase C sub-shape drift surfaced.** The plan's original Phase C spec named `(Name, Value, Price)` for variations and `(Ingredient, Action)` for customizations — both outdated as of 2026-07-10 when migration `20260710233247_TypedOrderItemCustomizationsJsonb` retyped the jsonb to typed records. The applied sub-shape documents the **current** code: `KitchenOrderItemVariation(Name, Price)` and `KitchenOrderItemCustomization(Label, Value?, Price?)`. The Phase C section of the companion doc flags the drift so future reviewers re-derive the field list from code, not from this backlog.
 >
 > **Origin:** synthesized from `docs/architecture/db_model_drift_report.md` §B + §C and `docs/architecture/db_model_drift_report_mermaid_truth.md` §C. The activity-feed plan is **safe to implement against the current mermaid**; this backlog is for a future Ordering-cleanup pass that runs **after** the activity feed ships.
 >

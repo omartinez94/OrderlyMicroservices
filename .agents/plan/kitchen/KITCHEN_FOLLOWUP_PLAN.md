@@ -1,7 +1,29 @@
 # Kitchen.Service — Post-M5 Follow-up Plan
 
 > Scope: the items that remained unaddressed when M1–M5 closed (the initial Kitchen service plan + Ordering integration plan). Captures the work needed to make the Kitchen ↔ Ordering loop fully operational and to harden the broker-side health surface.
+
+> **Status: ✅ COMPLETED — 2026-07-16**
 >
+> All Phases A–E + F.1–F.6 + broker-uniformity follow-on + G landed. Every checkbox in §6 is `[x]`. The two open-questions items (`MarkPreparing` event from Kitchen, `OrderItem.Customizations` schema migration) are explicitly delegated to `KITCHEN_REMAINING_WORK.md`, where they form R.1 + R.2 — that plan is the next-batch tracker, not this one.
+>
+> **Verification date:** 2026-07-16. No outstanding F/G work. Cross-references current: `current-architecture.md` reflects the post-G shape; outbox dead-letter table + `MessageVersion` field + `ApplyDiscountsHelper` BuildingBlocks contribution + `/health` broker uniformity all live.
+>
+> **Evidence (verified 2026-07-16):**
+>
+> - **Phase A** — `Ordering.Domain/Models/Order.cs` carries `Confirm` / `MarkPreparing` / `MarkReady` / `StartDelivery` / `MarkDelivered` / `Complete` / `Cancel` + the `OrderItem.MarkItemPreparing` / `MarkItemReady` + `InvalidOrderStateTransitionException` / `InvalidOrderItemStateTransitionException`. `Order.Update` no longer writes `Status`.
+> - **Phase B** — `Services/Ordering/Ordering.Application/Orders/EventHandlers/Integration/` has all four `KitchenOrderAccepted/Ready/Bumped/CancelledIntegrationEventHandler.cs` files plus the fifth `KitchenOrderPrepStartedIntegrationEventHandler.cs` (added later via R.1 / KITCHEN_REMAINING_WORK).
+> - **Phase C** — `Ordering.Infrastructure/Interceptors/OrderingOutboxPublisher.cs` + `OrderingOutboxDispatcher.cs` (mirror in `Kitchen.API/Infrastructure/Interceptors/KitchenOutboxPublisher.cs` + `KitchenOutboxDispatcher.cs`); migrations `20260706233202_AddOutboxMessages` (MSSQL) and `20260706233256_AddOutboxMessages` (Postgres).
+> - **Phase D** — `BuildingBlocks.Messaging/Events/KitchenOrderItemVariation.cs` + `KitchenOrderItemCustomization.cs` + modified `OrderCreatedIntegrationEvent` carrying typed records.
+> - **Phase E** — `Kitchen.API/Program.cs` adds `AddRabbitMQ(...)` under `name: "messagebroker"`; `Kitchen.API.Tests/Integration/KitchenHealthEndpointTests.cs` covers the happy path.
+> - **F.1** — `Ordering.API/Consumers/BasketCheckoutEventConsumer.cs` removed.
+> - **F.2** — `Ordering.API.Tests/Integration/OrderingApiIntegrationTests.cs` + `OrderingHealthEndpointTests.cs` cover the seven new endpoints + broker health.
+> - **F.3** — `OrderingOutboxDispatcher` uses engine-native row locks (`WITH (ROWLOCK, UPDLOCK, READPAST)` on MSSQL, `FOR UPDATE SKIP LOCKED` on Postgres); `OrderingOutboxMultiReplicaTests.ParallelDispatchers_EachRowClaimedExactlyOnce` proves the property.
+> - **F.4** — `outbox_messages_dead` table on both `orderdb` and `kitchendb`; `OutboxOptions.MaxSupportedVersion` gate; migrations `20260710061207_AddOutboxDeadMessages` (MSSQL) + `20260710061218_AddOutboxDeadMessages` (Postgres); `OrderingOutboxDeadLetterTests.FutureVersionRow_IsMovedToDeadTable`.
+> - **F.5** — `BuildingBlocks.Messaging/Events/IntegrationEvent.cs` carries `MessageVersion` (int, init, default 1); `OutboxPublisher` stamps it into the row's `SchemaVersion`; `OrderingOutboxWireVersioningTests.NewPayload_ExtraFields_RelayWithoutCrash` proves read tolerance.
+> - **F.6** — `KitchenHealthEndpointTests.Health_WhenBrokerDown_Returns503WithBrokerUnhealthy` covers the negative path.
+> - **Broker uniformity** — `AspNetCore.HealthChecks.Rabbitmq 8.0.2` wired into `Ordering.API` + `Basket.API` in addition to Kitchen.
+> - **G** — `docs/architecture/current-architecture.md` refreshed across §2, §4, §4.5 (rewrite of Aggregate behaviour + 13-row endpoint table + 5-consumer list + outbox subsection), §5.2 event table, §6 data stores, §9 cross-cutting, §11 startup + tests, §12 observability.
+
 > **Status (last updated 2026-07-10):** Phases A–E are **complete** (shipped in commit `d4afd31`). F.1, F.2, F.3, F.4, F.5, F.6, the broker-uniformity follow-on, and G are **complete**. The open-questions surface (§8.1 — `MarkPreparing` event from Kitchen, §8.3 — `OrderItem.Customizations` schema migration) remains as future work.
 
 ---

@@ -1,0 +1,36 @@
+{
+  "name": "@orderly/devmcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-only MCP server that exposes Orderly backend capabilities to AI assistants during frontend development.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "dev": "node --env-file=.env --watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --env-file=.env test/**/*.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "amqplib": "^0.10.4",
+    "async-cache-dedupe": "^2.2.0",
+    "close-with-grace": "^2.3.0",
+    "ioredis": "^5.4.1",
+    "jsonwebtoken": "^9.0.2",
+    "lru-cache": "^11.0.0",
+    "mssql": "^11.0.1",
+    "pg": "^8.13.0",
+    "pino": "^9.5.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/mssql": "^9.1.5",
+    "@types/node": "^22.7.5",
+    "@types/pg": "^8.11.10",
+    "typescript": "^5.6.3"
+  }
+}

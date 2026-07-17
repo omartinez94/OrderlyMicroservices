@@ -1,10 +1,9 @@
 /**
- * Orderly.DevMCP.Server — Phase 1 boot.
+ * Orderly.DevMCP.Server — boot.
  *
  * Loads env, boots the logger, opens all DB / cache / broker connections,
- * starts the MCP server over HTTP (StreamableHTTPServerTransport), and
- * wires graceful shutdown. Zero tools are registered in Phase 1 — the
- * Inspector should connect and list an empty tool array.
+ * starts the MCP server over HTTP (StreamableHTTPServerTransport), registers
+ * the Phase 2 tool set, and wires graceful shutdown.
  *
  * Sequence on boot:
  *   1. zod env validation (refuses to start on bad config or non-dev NODE_ENV)
@@ -13,7 +12,8 @@
  *   4. Open all connections (fail-fast — exit 1 if any backend is down)
  *   5. Bind HTTP listener on HOST:PORT
  *   6. McpServer.connect(transport)
- *   7. Install signal + unhandled-error handlers
+ *   7. Register Phase 2 tools (auth, api-discovery, state-inspection, snapshot, log-tracing)
+ *   8. Install signal + unhandled-error handlers
  *
  * Sequence on SIGTERM / SIGINT:
  *   1. close-with-grace captures signal, waits up to 10s
@@ -45,6 +45,12 @@ import { createAndConnectMssql, pingMssql } from './db/mssql-client.ts';
 import { createRedis, pingRedis } from './db/redis-client.ts';
 import { createRabbit, pingRabbit } from './db/rabbitmq-client.ts';
 import { ConnectionError } from './errors/DevMCPError.ts';
+
+import { registerAuthTools } from './tools/auth.ts';
+import { registerApiDiscoveryTools } from './tools/api-discovery.ts';
+import { registerStateInspectionTools } from './tools/state-inspection.ts';
+import { registerSnapshotTools } from './tools/snapshot.ts';
+import { registerLogTracingTools } from './tools/log-tracing.ts';
 
 // ─── Step 1: Banner log (logger is initialised above) ─────────────────────────
 
@@ -110,7 +116,7 @@ const transport = new StreamableHTTPServerTransport({
   // Stateful mode — sessions get a generated ID returned in the Mcp-Session-Id header.
   sessionIdGenerator: () => randomUUID(),
   // DNS-rebinding protection (deprecated by the SDK in favour of external
-  // middleware, but still works and is good enough for Phase 1).
+  // middleware, but still works and is good enough for Phase 2).
   enableDnsRebindingProtection: true,
   allowedHosts: ['127.0.0.1', 'localhost', `[::1]`, env.HOST].filter(
     (h, i, a) => h !== '0.0.0.0' && a.indexOf(h) === i,
@@ -122,6 +128,27 @@ const transport = new StreamableHTTPServerTransport({
 // `undefined` in the union; the SDK's `Transport` interface uses bare `?:`.
 // Cast to bridge the gap under exactOptionalPropertyTypes.
 await mcp.connect(transport as unknown as Transport);
+
+// ─── Step 4: Register Phase 2 tools ──────────────────────────────────────────
+
+const { pool: mssqlPool } = await mssqlConn;
+const rabbitHandle = await rabbit;
+
+const toolCtx = {
+  logger,
+  pg: pgPools as unknown as Record<PostgresService, typeof pgPools.catalog>,
+  mssql: mssqlPool,
+  redis,
+  rabbit: rabbitHandle,
+};
+
+registerAuthTools(mcp, { logger });
+registerApiDiscoveryTools(mcp, { logger });
+registerStateInspectionTools(mcp, { ...toolCtx, logger });
+registerSnapshotTools(mcp, { ...toolCtx, logger });
+registerLogTracingTools(mcp, { logger });
+
+logger.info({ tools: 9 }, 'phase 2 ready — 9 tools registered');
 
 // ─── Step 4: HTTP server ─────────────────────────────────────────────────────
 
@@ -180,8 +207,7 @@ async function closeAll(): Promise<void> {
 
   // Close backend connections in reverse init order.
   try {
-    const r = await rabbit;
-    await r.close();
+    await rabbitHandle.close();
     logger.info('rabbit closed');
   } catch (err) {
     logger.error({ err }, 'rabbit close failed');
@@ -204,8 +230,7 @@ async function closeAll(): Promise<void> {
   }
 
   try {
-    const { pool } = await mssqlConn;
-    await pool.close();
+    await mssqlPool.close();
     logger.info('mssql pool closed');
   } catch (err) {
     logger.error({ err }, 'mssql pool close failed');

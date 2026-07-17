@@ -6,6 +6,21 @@ package discount;
 
 import "google/protobuf/timestamp.proto";
 
+// Closed enum mirroring BuildingBlocks.Discounts.DiscountType. The numeric
+// values are the SQLite-stored INTEGER; the proto serializer / deserializer
+// pick them up automatically when this enum is referenced.
+//
+// NOTE: the proto3 package-scoped enum-value namespace collides with the
+// existing `RewardType.PERCENTAGE` / `FIXED_AMOUNT` (Phase 3 imported the same
+// names), so this enum prefixes each value with `COUPON_`. The C# side is
+// named `DiscountType` (matches the existing proto-name pattern — see
+// `DiscountRuleType` / `RewardType`).
+enum DiscountType {
+  COUPON_DISCOUNT_TYPE_UNSPECIFIED = 0;
+  COUPON_PERCENTAGE = 1;
+  COUPON_FIXED_AMOUNT = 2;
+}
+
 service DiscountProtoService {
   rpc GetDiscount (GetDiscountRequest) returns (GetDiscountResponse);
   rpc CreateDiscount (CreateDiscountRequest) returns (CreateDiscountResponse);
@@ -43,6 +58,12 @@ message CouponModel {
   int32 max_redeem_amount = 7;
   string expiration_date = 8;
   bool is_active = 9;
+  // Phase 8: closed discriminator governing the semantic of `amount`.
+  // 0 = UNSPECIFIED, 1 = PERCENTAGE, 2 = FIXED_AMOUNT.
+  // Server-side enum closed values are 1 + 2 (per §8.1 entity-side enum).
+  // Pre-migration rows are re-classified as PERCENTAGE on read (audit note
+  // per plan §8.1).
+  DiscountType discount_type = 10;
 }
 
 message GetDiscountRequest {

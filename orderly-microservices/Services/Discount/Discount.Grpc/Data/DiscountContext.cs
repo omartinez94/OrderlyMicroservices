@@ -1,9 +1,17 @@
+using BuildingBlocks.Discounts;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
 using Discount.Grpc.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NodaTime;
+
+// The proto-generated `Discount.Grpc.DiscountType` enum shadows the
+// namespace-unqualified `BuildingBlocks.Discounts.DiscountType` in this
+// file (which references both). Alias the BuildingBlocks one locally so
+// references below read as the closed-discriminator enum (not the
+// wire-shape proto type).
+using DbDiscountType = BuildingBlocks.Discounts.DiscountType;
 
 namespace Discount.Grpc.Data;
 
@@ -61,6 +69,19 @@ public class DiscountContext(
         // the schema identical across all adopter services.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OutboxMessage).Assembly);
 
+        // Coupon.DiscountType — closed enum from BuildingBlocks.Discounts.
+        // Stored as INTEGER (SQLite enum↔int mapping); default = Percentage
+        // (the enum's underlying 0 value). Phase 8's migration adds the
+        // column with DEFAULT 0 — every pre-existing row is re-classified
+        // as Percentage on the next read (audit note per plan §8.1).
+        modelBuilder.Entity<Coupon>(entity =>
+        {
+            entity.Property(o => o.DiscountType)
+                .HasConversion<int>()
+                .HasDefaultValue(DbDiscountType.Percentage)
+                .IsRequired();
+        });
+
         // Combined global query filter — every Coupon query is scoped to (a) the
         // requesting restaurant's GUID and (b) alive rows only (DeletedAt IS NULL).
         // Composed in one HasQueryFilter call because EF Core allows only one
@@ -86,6 +107,7 @@ public class DiscountContext(
                 RestaurantId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Code = "DISCOUNT10",
                 Description = "10% off your order",
+                DiscountType = DbDiscountType.Percentage,
                 Amount = 10m,
                 RedeemAmount = 0,
                 MaxRedeemAmount = 100,
@@ -101,6 +123,7 @@ public class DiscountContext(
                 RestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 Code = "DISCOUNT20",
                 Description = "20% off your order",
+                DiscountType = DbDiscountType.Percentage,
                 Amount = 20m,
                 RedeemAmount = 10,
                 MaxRedeemAmount = 200,

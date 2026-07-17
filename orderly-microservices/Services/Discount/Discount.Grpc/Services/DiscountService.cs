@@ -332,7 +332,20 @@ public class DiscountService(
             RedeemAmount = coupon.RedeemAmount,
             MaxRedeemAmount = coupon.MaxRedeemAmount ?? 0,
             ExpirationDate = coupon.ExpirationDate?.ToString() ?? String.Empty,
-            IsActive = coupon.IsActive
+            IsActive = coupon.IsActive,
+            // Phase 8: closed-discriminator mapping. Maps the closed
+            // BuildingBlocks.Discounts.DiscountType (Percentage / FixedAmount)
+            // to the wire-shape proto `DiscountType` (COUPON_PERCENTAGE /
+            // COUPON_FIXED_AMOUNT). The UNSPECIFIED proto value covers the
+            // pre-Phase-8 case where a row carries a 0 / "Percentage" code but
+            // the protocol hasn't been updated yet — the renderer always
+            // returns a defined value today.
+            DiscountType = coupon.DiscountType switch
+            {
+                BuildingBlocks.Discounts.DiscountType.Percentage  => DiscountType.CouponPercentage,
+                BuildingBlocks.Discounts.DiscountType.FixedAmount => DiscountType.CouponFixedAmount,
+                _ => DiscountType.CouponDiscountTypeUnspecified,
+            },
         };
     }
 

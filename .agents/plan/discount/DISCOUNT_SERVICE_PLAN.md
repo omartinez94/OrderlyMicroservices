@@ -1,5 +1,18 @@
 # Discount.Grpc — Service Plan
 
+> **Status: ✅ CLOSED with residual — 2026-07-16** (Document Version `2.5`)
+>
+> Phases 1–7 closed (per v2.1 / v2.2 / v2.3 changelog entries). **Phase 8 is partial** (foundation shipped per v2.4 changelog; cross-service follow-up deferred). The plan is closed-with-residual — any future Phase 8 follow-up work is tracked inline in the §9 milestone checklist "Phase 8 follow-up" line and the v2.4 changelog "Out-of-scope for this commit" bullets; a new plan is NOT warranted for the residual (it's a single follow-up commit).
+>
+> **Verification date:** 2026-07-16. Discount is production-shaped: Coupon + RewardCode + DiscountRule aggregates with full gRPC CRUD, JWT auth + multi-tenancy + transactional outbox + expiry sweep, and entity-history publishing on the bus. Unit + integration + consumer test suites green.
+>
+> **Phase 8 residual (single follow-up commit):**
+> 1. Basket cross-service work: `Basket.EffectiveSubtotal` column + `BasketAppliedDiscount` child entity + `StoreBasketHandler` `ApplyDiscountsHelper.Apply(...)` resolution of the `#warning TODO` at `Basket.API/Basket/StoreBasket/StoreBasketHandler.cs:41`.
+> 2. `OrderCreatedConsumer` stub (`Discount.Grpc/Messaging/EventHandlers/OrderCreatedConsumer.cs`) gated by `DiscountOptions:EnableOrderCreatedConsumer=false`.
+> 3. `DiscountAppliedIntegrationEvent` SchemaVersion `1 → 2` for `OrderId` + `AppliedAt` fields (closes the §0.3.3 / `RedeemDiscountRequest.OrderId` drift surfaced in Phase 6).
+>
+> These three items are tracked as a single follow-up commit — they are scoped, mutually-dependent (the `DiscountAppliedIntegrationEvent` v2 wire shape only matters once the `OrderCreatedConsumer` exists), and represent the natural close of the plan. The plan's phase numbering intentionally stops at 8; a new plan would add ceremony without benefit.
+
 > **Scope:** completion plan for the existing `Discount.Grpc` microservice (port 6002 / 6062). Closes the gaps between `docs/architecture/architecture.md`, `docs/architecture/db_relational_model.mermaid`, `docs/architecture/current-architecture.md`, and the code in `orderly-microservices/Services/Discount/Discount.Grpc/`. This is an *evolution* plan, not a green-field design — one gRPC service with five RPCs and one SQLite-backed entity exists today; the work is bringing Coupon to production-grade, adding `RewardCode` and `DiscountRule` aggregates with full gRPC CRUD, wiring multi-tenancy + JWT auth + transactional outbox + an expiry-sweep hosted service, and routing entity-history events through the bus so the **Catalog service** (its own plan) writes a Marten audit document. The work does NOT touch the four-entity split architecture.md describes verbatim; the Coupon entity collapses what architecture §3 calls `Discounts` + `PromoCodes`, justified inline.
 >
 > **Locked design decisions (recorded on plan date):**
@@ -1598,9 +1611,13 @@ For reproducibility, every phase's commit follows this sequence (the `csharp-dev
 
 ---
 
-**Document Version:** 2.4 (Phase 8 partial ship 2026-07-16 — schema + BuildingBlocks helper + Discount mapping; cross-service Basket + OrderCreatedConsumer stub deferred to follow-up commit)
+**Document Version:** 2.5 (Plan closed-with-residual on 2026-07-16 — Phases 1–7 closed, Phase 8 partial foundation shipped per v2.4; Phase 8 follow-up tracked inline)
 **Last Updated:** 2026-07-16
 **Maintained By:** Discount working group
+
+> **v2.5 changelog — Plan closed-with-residual.** The plan is closed: Phases 1–7 closed (v2.1 / v2.2 / v2.3 entries below); Phase 8 partial foundation shipped (v2.4 entry below). The three remaining Phase 8 follow-up items (Basket cross-service work + `OrderCreatedConsumer` stub + `DiscountAppliedIntegrationEvent` v2 SchemaVersion bump) are tracked inline in this Status block, the §9 milestone checklist "Phase 8 follow-up" line, and the v2.4 changelog "Out-of-scope for this commit" bullets. A new plan is NOT warranted for the residual — these three items are mutually dependent and ship as a single follow-up commit; the plan's phase numbering intentionally stops at 8. Discount is production-shaped; new work belongs in a new plan.
+>
+> Document Version bumped `2.4 → 2.5`. No §-level content changes; Status block added at the top of the file.
 
 > **v2.4 changelog — Phase 8 partial ship (foundation: schema + helper + Discount mapping).** Phase 8 is the largest Discount phase (per §7 Phase 8.7 doc-update scope); it spans four cross-service commits in the plan but ships in two: today's partial commit (BuildingBlocks + Discount surface) and a follow-up commit (Basket cross-service + OrderCreatedConsumer stub). The partial commit lands the schema-side foundation; the follow-up closes the remaining cross-service work.
 >

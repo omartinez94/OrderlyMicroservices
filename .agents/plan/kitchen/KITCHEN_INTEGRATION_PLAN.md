@@ -2,6 +2,21 @@
 
 > Scope: every change inside the `Ordering.*` projects required to land the upcoming `Kitchen.API` microservice safely. Not a plan for Kitchen itself — see `Services/Kitchen/Kitchen.API/KITCHEN_SERVICE_PLAN.md`.
 
+> **Status: ✅ COMPLETED — 2026-07-16**
+>
+> All five Phases shipped via `KITCHEN_FOLLOWUP_PLAN.md` (which is itself closed). The acceptance criteria in §6 are all `[x]`. The plan is closed; any future Ordering-side work that touches the Kitchen integration belongs in a new plan, not here.
+>
+> **Evidence (verified 2026-07-16):**
+>
+> - **Phase 1** — `BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs` carries no `PaymentDto` fields; `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler.cs` publishes the slim event. Zero `PaymentDto.CardNumber/Expiration/Ccv` cross the bus.
+> - **Phase 2** — `Ordering.Domain/Models/Order.cs` carries `Confirm` / `MarkPreparing` / `MarkReady` / `StartDelivery` / `MarkDelivered` / `Complete` / `Cancel` + `OrderItem.MarkItemPreparing` / `MarkItemReady`. Illegal transitions throw `InvalidOrderStateTransitionException` / `InvalidOrderItemStateTransitionException`. `Order.Update` no longer writes `Status` raw.
+> - **Phase 3** — Seven new endpoints under `…/orders/{id}/...` gated by `kitchen:update_prep_status`; covered by `Ordering.API.Tests/Integration/OrderingApiIntegrationTests.cs`.
+> - **Phase 4** — `Services/Ordering/Ordering.Application/Orders/EventHandlers/Integration/` has all five `KitchenOrder*IntegrationEventHandler.cs` files. No direct `DbContext` writes in handlers.
+> - **Phase 5** — `Services/Ordering/Ordering.API/Consumers/BasketCheckoutEventConsumer.cs` and its folder deleted (per `KITCHEN_FOLLOWUP_PLAN.md` §F.1). Tests confirm no double-create regression.
+> - **Phase 6** — Domain tests + integration tests + `docs/architecture/current-architecture.md` §4.5 / §5.2 / §6 / §11 all refreshed (per `KITCHEN_FOLLOWUP_PLAN.md` §G).
+>
+> **Open questions (§5):** all five were resolved in implementation or delegated. Q1 (status guard) → Option (a); Q2 (outbox) → separate `BuildingBlocks.Outbox` plan; Q3 (feature flag) → stays on Ordering; Q4 (same-write-source) → aggregate idempotency wins; Q5 (per-item granularity) → both shapes shipped.
+
 ---
 
 ## 1. Context
@@ -234,9 +249,9 @@ Two acceptable resolutions (pick one and remove the other during implementation)
 
 ## 6. Acceptance criteria (overall)
 
-- [ ] Phase 1: zero `PaymentDto` properties appear in any RabbitMQ-bound message.
-- [ ] Phase 2: every `Order.Status = ` assignment is gated by a method on the aggregate; illegal transitions throw `InvalidOrderStateTransitionException`.
-- [ ] Phase 3: seven new endpoints exist under `…/orders/{id}/...`, gated by `kitchen:update_prep_status`.
-- [ ] Phase 4: Ordering consumes Kitchen's outbound events through aggregate methods (no direct `DbContext` writes in handlers).
-- [ ] Phase 5: `Ordering.API/Consumers/BasketCheckoutEventConsumer.cs` and its folder are deleted; tests confirm no double-create regression.
-- [ ] Phase 6: new domain tests, new integration tests, docs updated.
+- [x] Phase 1: zero `PaymentDto` properties appear in any RabbitMQ-bound message.
+- [x] Phase 2: every `Order.Status = ` assignment is gated by a method on the aggregate; illegal transitions throw `InvalidOrderStateTransitionException`.
+- [x] Phase 3: seven new endpoints exist under `…/orders/{id}/...`, gated by `kitchen:update_prep_status`.
+- [x] Phase 4: Ordering consumes Kitchen's outbound events through aggregate methods (no direct `DbContext` writes in handlers).
+- [x] Phase 5: `Ordering.API/Consumers/BasketCheckoutEventConsumer.cs` and its folder are deleted; tests confirm no double-create regression.
+- [x] Phase 6: new domain tests, new integration tests, docs updated.

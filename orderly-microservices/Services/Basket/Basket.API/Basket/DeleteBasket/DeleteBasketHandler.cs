@@ -1,6 +1,6 @@
 namespace Basket.API.Basket.DeleteBasket;
 
-public record DeleteBasketCommand(Guid UserId, Guid RestaurantId) : ICommand<DeleteBasketResult>;
+public record DeleteBasketCommand(Guid UserId, Guid RestaurantId) : ICommand<DeleteBasketResult>, IBasketIdentityRequest;
 public record DeleteBasketResult(bool IsSuccess);
 
 public class DeleteBasketCommandValidator : AbstractValidator<DeleteBasketCommand>

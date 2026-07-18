@@ -1,0 +1,15 @@
+global using Basket.API.Behaviors;
+global using Basket.API.Data;
+global using Basket.API.Dtos;
+global using BuildingBlocks.Behaviors;
+global using BuildingBlocks.CQRS;
+global using BuildingBlocks.Exceptions;
+global using FluentAssertions;
+global using MediatR;
+global using Microsoft.AspNetCore.Http;
+global using Microsoft.Extensions.Logging;
+global using NSubstitute;
+global using System;
+global using System.Threading;
+global using System.Threading.Tasks;
+global using Xunit;

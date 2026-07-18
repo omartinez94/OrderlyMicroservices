@@ -26,6 +26,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 builder.Services.AddMediatR(cfg =>
 {
     cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    // Phase 1 of the Basket plan: register the identity guard BEFORE
+    // ValidationBehavior so a 403 short-circuits before any validation
+    // cost is paid. LoggingBehavior stays last so it wraps everything.
+    cfg.AddOpenBehavior(typeof(BasketIdentityGuardBehavior<,>));
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
@@ -45,13 +49,30 @@ builder.Services.AddMarten(opt =>
         c.ForTenant()
             .CheckAgainstPgDatabase();
     });
+
+    // Phase 1 of the Basket plan: tag the Basket document with the
+    // current restaurant id so Marten's tenant filter narrows every
+    // read/write to the active tenant. Combined with the per-tenant DB
+    // creation above, this is defense-in-depth — a caller without the
+    // matching restaurantId claim cannot reach another tenant's rows.
+    opt.Schema.For<Models.Basket>().MultiTenanted();
 })
     .ApplyAllDatabaseChangesOnStartup()
     .UseLightweightSessions();
 
+// Phase 1 of the Basket plan: register the tenant resolver and the
+// HttpContextAccessor the ClaimsRestaurantProvider reads from. Scoped
+// lifetime matches the per-request scope the provider serves.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
+
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
+// Phase 1 of the Basket plan: AddProblemDetails() so every 4xx/5xx
+// response flows through the same ProblemDetails factory. Closes the
+// empty-403 gap (Results.Forbid() returns no body).
+builder.Services.AddProblemDetails();
 
 builder.Services.AddScoped<IBasketRepository, BasketRepository>();
 /* Applies decorator pattern using Scrutor. Native DI equivalent:

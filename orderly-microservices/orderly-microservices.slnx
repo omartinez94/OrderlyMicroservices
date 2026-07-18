@@ -10,6 +10,7 @@
   <Folder Name="/Services/" />
   <Folder Name="/Services/Basket/">
     <Project Path="Services/Basket/Basket.API/Basket.API.csproj" Id="b80b023f-45c1-49e5-b083-f2582de6e220" />
+    <Project Path="Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj" />
   </Folder>
   <Folder Name="/Services/Catalog/">
     <Project Path="Services/Catalog/Catalog.API/Catalog.API.csproj" />

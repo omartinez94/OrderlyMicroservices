@@ -3,7 +3,13 @@ using MassTransit;
 
 namespace Basket.API.Basket.CheckoutBasket;
 
-public record CheckoutBasketCommand(BasketCheckoutDto BasketCheckoutDto) : ICommand<CheckoutBasketResult>;
+[PciSensitive]
+public record CheckoutBasketCommand(BasketCheckoutDto BasketCheckoutDto) : ICommand<CheckoutBasketResult>, IBasketIdentityRequest
+{
+    public Guid UserId => BasketCheckoutDto.UserId;
+    public Guid RestaurantId => BasketCheckoutDto.RestaurantId;
+}
+
 public record CheckoutBasketResult(bool Success, string Message);
 
 public class CheckoutBasketCommandValidator : AbstractValidator<CheckoutBasketCommand>

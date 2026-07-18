@@ -2,7 +2,12 @@ using Discount.Grpc;
 
 namespace Basket.API.Basket.StoreBasket;
 
-public record StoreBasketCommand(Models::Basket Basket) : ICommand<StoreBasketResult>;
+public record StoreBasketCommand(Models::Basket Basket) : ICommand<StoreBasketResult>, IBasketIdentityRequest
+{
+    public Guid UserId => Basket.UserId;
+    public Guid RestaurantId => Basket.RestaurantId;
+}
+
 public record StoreBasketResult(Guid UserId, Guid RestaurantId);
 
 public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>

@@ -2,7 +2,14 @@ using Marten.Schema;
 
 namespace Basket.API.Models;
 
-public class Basket
+/// <summary>
+/// The cart document. Implements <see cref="ITenantEntity"/> so the
+/// Marten <c>MultiTenanted()</c> registration in <c>Program.cs</c> tags
+/// every row with the current restaurant id; per-request reads/writes
+/// are filtered by <see cref="ICurrentRestaurantProvider"/> so a
+/// caller cannot reach across tenants.
+/// </summary>
+public class Basket : ITenantEntity
 {
     public Basket()
     {

@@ -1,35 +1,60 @@
-﻿namespace Basket.API.Data;
+namespace Basket.API.Data;
 
-public class BasketRepository(IDocumentSession session)
+/// <summary>
+/// Marten-backed <see cref="IBasketRepository"/>. Every operation
+/// applies the active tenant's <see cref="ICurrentRestaurantProvider.RestaurantId"/>
+/// as a defence-in-depth filter on top of the pipeline-level identity
+/// guard (per plan §6 Phase 1). The guard throws
+/// <see cref="ForbiddenException"/> if the supplied
+/// <c>(UserId, RestaurantId)</c> pair does not match the JWT claim.
+/// </summary>
+public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvider currentRestaurantProvider)
     : IBasketRepository
 {
-    public async Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Asserts the supplied <paramref name="restaurantId"/> matches the
+    /// active tenant. Returns the validated id so callers can echo it
+    /// back without re-reading <see cref="ICurrentRestaurantProvider"/>.
+    /// </summary>
+    private Guid AssertTenant(Guid restaurantId)
     {
-        var basket = await session.Query<Models::Basket>()
-            .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (basket is not null)
+        var tenantId = currentRestaurantProvider.RestaurantId;
+        if (tenantId == Guid.Empty || restaurantId != tenantId)
         {
-            session.Delete(basket);
-            await session.SaveChangesAsync(cancellationToken);
+            throw new ForbiddenException(
+                $"Cannot operate on basket for restaurant {restaurantId} as tenant {tenantId}.");
         }
-
-        return true;
+        return tenantId;
     }
 
     public async Task<Models.Basket> GetBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var basket = await session.Query<Models::Basket>()
+        AssertTenant(restaurantId);
+
+        var basket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
         return basket is null ? throw new BasketNotFoundException(userId, restaurantId) : basket;
     }
 
+    public async Task<Models.Basket> GetActiveCartOrEmptyAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
+    {
+        AssertTenant(restaurantId);
+
+        var basket = await session.Query<Models.Basket>()
+            .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return basket ?? new Models.Basket(userId, restaurantId);
+    }
+
     public async Task<Models.Basket> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default)
     {
-        var existingBasket = await session.Query<Models::Basket>()
+        ArgumentNullException.ThrowIfNull(basket);
+        AssertTenant(basket.RestaurantId);
+
+        var existingBasket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == basket.UserId && b.RestaurantId == basket.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -43,5 +68,22 @@ public class BasketRepository(IDocumentSession session)
         await session.SaveChangesAsync(cancellationToken);
 
         return basket;
+    }
+
+    public async Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
+    {
+        AssertTenant(restaurantId);
+
+        var basket = await session.Query<Models.Basket>()
+            .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (basket is not null)
+        {
+            session.Delete(basket);
+            await session.SaveChangesAsync(cancellationToken);
+        }
+
+        return true;
     }
 }

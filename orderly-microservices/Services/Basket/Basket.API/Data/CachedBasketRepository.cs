@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Caching.Distributed;
+using NodaTime.Serialization.SystemTextJson;
 using System.Text.Json;
 
 namespace Basket.API.Data;
@@ -14,6 +14,33 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
     : IBasketRepository
 {
     private const int CacheTtlMinutes = 30;
+
+    /// <summary>
+    /// Cache-side JSON options. Mirrors the global HTTP pipeline
+    /// registration in <c>Program.cs</c>:
+    /// <c>PropertyNamingPolicy = null</c> (PascalCase on the wire) +
+    /// <c>ConfigureForNodaTime</c> (round-trips <see cref="NodaTime.Instant"/>
+    /// without losing precision).
+    /// </summary>
+    /// <remarks>
+    /// Without <c>ConfigureForNodaTime</c>, the default System.Text.Json
+    /// configuration serialises <see cref="NodaTime.Instant"/> as an
+    /// empty object — a silent round-trip break that surfaces only when
+    /// a cached basket is read back with a default-constructed
+    /// <c>CreatedAt = default</c> / <c>ExpiresAt = default</c>. Phase 1's
+    /// rewrite of this layer did NOT add the shared options; Phase 2.2
+    /// closes the drift item from the Phase 1 plan.
+    /// </remarks>
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNamingPolicy = null,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+    };
+
+    static CachedBasketRepository()
+    {
+        SerializerOptions.ConfigureForNodaTime(NodaTime.DateTimeZoneProviders.Tzdb);
+    }
 
     private static string CacheKey(Guid userId, Guid restaurantId) =>
         $"basket:{userId}:{restaurantId}";
@@ -46,7 +73,7 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
         var cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedBasketInfo))
         {
-            return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo)!;
+            return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo, SerializerOptions)!;
         }
 
         // 2. Not in cache → get from DB (inner throws on miss / forbidden)
@@ -58,7 +85,7 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes)
         };
 
-        await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket), options, cancellationToken);
+        await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket, SerializerOptions), options, cancellationToken);
 
         return basket;
     }
@@ -70,7 +97,7 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
         var cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedBasketInfo))
         {
-            return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo)!;
+            return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo, SerializerOptions)!;
         }
 
         var basket = await innerRepository.GetActiveCartOrEmptyAsync(userId, restaurantId, cancellationToken);
@@ -84,7 +111,7 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes)
             };
 
-            await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket), options, cancellationToken);
+            await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket, SerializerOptions), options, cancellationToken);
         }
 
         return basket;
@@ -103,7 +130,7 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
 
         await cache.SetStringAsync(
             CacheKey(storedBasket.UserId, storedBasket.RestaurantId),
-            JsonSerializer.Serialize(storedBasket),
+            JsonSerializer.Serialize(storedBasket, SerializerOptions),
             options,
             cancellationToken);
 

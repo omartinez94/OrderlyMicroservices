@@ -1,5 +1,6 @@
 global using Basket.API.Behaviors;
 global using Basket.API.Data;
+global using Basket.API.Discount;
 global using Basket.API.Dtos;
 global using Basket.API.Messaging;
 global using BuildingBlocks.Behaviors;

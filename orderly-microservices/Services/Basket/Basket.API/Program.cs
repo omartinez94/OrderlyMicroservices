@@ -119,6 +119,13 @@ var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountPro
     options.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
 });
 
+// Phase 2.2: wrap the generated DiscountProtoServiceClient behind
+// IDiscountLookup so the cart handlers stay unit-testable (the raw
+// client returns AsyncUnaryCall<T>, which NSubstitute can't mock
+// cleanly). The GrpcDiscountLookup is internal — only the interface
+// is part of the public surface.
+builder.Services.AddScoped<Basket.API.Discount.IDiscountLookup, Basket.API.Discount.GrpcDiscountLookup>();
+
 if (builder.Environment.IsDevelopment())
 {
     grpcClientBuilder.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler

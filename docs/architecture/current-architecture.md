@@ -266,11 +266,15 @@ public class Basket : ITenantEntity
     [Identity] public Guid UserId { get; set; }
     public Guid RestaurantId { get; set; }
     public List<BasketItem> Items { get; set; } = [];
-    public List<string> AppliedDiscounts { get; set; } = [];
+    public List<string> AppliedDiscounts { get; set; } = [];          // user-input codes
+    public List<CouponSnapshot> AppliedCoupons { get; set; } = [];     // per-coupon breakdown (Phase 2.2)
+    public decimal DiscountAmount { get; set; }                       // sum, clamped to Subtotal (Phase 2.2)
     public decimal Subtotal => Items.Sum(x => x.TotalPrice);
+    public decimal Total => Math.Max(Subtotal - DiscountAmount, 0m);  // derived
     public Instant CreatedAt { get; set; }     // NodaTime
     public Instant ExpiresAt { get; set; }     // stored, not enforced — no cleanup job
 }
+public record CouponSnapshot(string Code, string Description, decimal DiscountAmount, Instant AppliedAt);
 public class BasketItem
 {
     public int MenuItemId { get; set; }
@@ -306,7 +310,7 @@ The repository queries by both `UserId` and `RestaurantId`; `[Identity]` is on `
 
 **Error envelope.** `builder.Services.AddProblemDetails()` is registered after `AddExceptionHandler<CustomExceptionHandler>()` so every 4xx/5xx response — including the `ForbiddenException → 403` arm added in Phase 1 of the BuildingBlocks contribution — flows through the same `application/problem+json` factory.
 
-**Discount integration.** `Program.cs` registers `DiscountProtoServiceClient` from `Protos/discount.proto` (a shared project include; `GrpcServices="Client"`). `StoreBasketHandler` calls `discountService.GetDiscountAsync(...)` per `AppliedDiscounts` entry. Phase 2 will swap the per-coupon loop for `Parallel.ForEachAsync(MaxDegreeOfParallelism = 4)` until Discount's v2 `EvaluateDiscounts` aggregated RPC lands.
+**Discount integration.** `Program.cs` registers `DiscountProtoServiceClient` from `Protos/discount.proto` (a shared project include; `GrpcServices="Client"`). The raw client is wrapped by `Basket.API.Discount.GrpcDiscountLookup` (`Basket.API/Discount/GrpcDiscountLookup.cs`), which implements the basket-side `IDiscountLookup` abstraction (`Basket.API/Discount/IDiscountLookup.cs`). The wrapper normalises the wire shape — gRPC `string ExpirationDate` → NodaTime `Instant`, `double Amount` → `decimal`, closed `DiscountType` enum passthrough — and fail-closed on parse errors. `StoreBasketHandler` depends on the abstraction (not the raw client) so the discount loop is unit-testable. **Phase 2.2 polyfill (live today):** the handler iterates `Basket.AppliedDiscounts` via `Parallel.ForEachAsync(MaxDegreeOfParallelism = 4)`, mirroring `Discount.Grpc.Domain.ActiveNow.Coupon`'s eligibility gate (minus the `DeletedAt` half — Discount's global query filter excludes soft-deleted coupons before they reach the wire). The per-coupon contribution lands on `Basket.AppliedCoupons: List<CouponSnapshot>` (each entry unclamped); the basket-level `Basket.DiscountAmount` is the sum clamped to `Basket.Subtotal`. `Basket.Total = Subtotal - DiscountAmount` is the user-visible total. gRPC failures (broker down, auth failure, malformed `ExpirationDate`) fail-closed — the whole upsert throws. Phase 2.2 keeps the `BasketCheckoutEvent` v1 wire shape (no `PaymentMethodSummary` yet — that's the Phase 2.1 BuildingBlocks contribution). The aggregated `EvaluateDiscounts` RPC lives on Discount's roadmap; once it ships, `IDiscountLookup` gains a batch overload and the per-coupon loop collapses to one call.
 
 **TTL semantics.** Redis side: 30-minute absolute TTL on cache reads/writes (empty carts are not cached — only populated ones). Marten side: `Basket.ExpiresAt` is set but no `IHostedService`, no MassTransit consumer, no Marten TTL pragma actually prunes expired rows — the field is informational. Phase 3 introduces `BasketExpirySweepService`.
 

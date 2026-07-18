@@ -1,4 +1,4 @@
-using Discount.Grpc;
+using System.Collections.Concurrent;
 
 namespace Basket.API.Basket.StoreBasket;
 
@@ -20,36 +20,134 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
     }
 }
 
-public class StoreBasketHandler
-    (IBasketRepository basketRepository, DiscountProtoService.DiscountProtoServiceClient discountService) 
+/// <summary>
+/// Upserts the cart and, on the way through, resolves the user-input
+/// <see cref="Models.Basket.AppliedDiscounts"/> against Discount.Grpc
+/// (per-coupon polyfill via <see cref="IDiscountLookup"/>) so the cart
+/// carries a server-side <see cref="Models.Basket.DiscountAmount"/>
+/// snapshot alongside the per-coupon <see cref="Models.CouponSnapshot"/>
+/// breakdown.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>Phase 2.2 polyfill.</b> The aggregated <c>EvaluateDiscounts</c>
+/// RPC lives on Discount's roadmap (not this plan). Until it ships,
+/// the handler iterates the user-input coupon list in parallel
+/// (<see cref="Parallel.ForEachAsync{T}"/>, <c>MaxDegreeOfParallelism = 4</c>),
+/// mirrors <c>Discount.Grpc.Domain.ActiveNow.Coupon</c>'s eligibility
+/// gate (minus the <c>DeletedAt</c> half — Discount's global query
+/// filter excludes soft-deleted coupons before they reach the wire),
+/// and sums the per-coupon contributions into
+/// <see cref="Models.Basket.DiscountAmount"/>, clamped to
+/// <see cref="Models.Basket.Subtotal"/>.
+/// </para>
+/// <para>
+/// <b>gRPC failure policy = fail-closed.</b> If <see cref="IDiscountLookup.GetCouponAsync"/>
+/// throws (broker down, auth failure, transient network error, malformed
+/// wire <c>ExpirationDate</c>), the whole upsert fails — the alternative
+/// (skip-and-log) lets a broken Discount integration silently bypass
+/// coupon validation on a money path. A future Idempotency-Key
+/// middleware (sub-deliverable 2.3) lets the caller safely retry.
+/// </para>
+/// <para>
+/// <b>Per-coupon clamping.</b> Each <see cref="Models.CouponSnapshot.DiscountAmount"/>
+/// on <see cref="Models.Basket.AppliedCoupons"/> is the coupon's
+/// contribution unclamped to the cart subtotal; the basket-level
+/// <see cref="Models.Basket.DiscountAmount"/> is the clamp
+/// (<c>Min(sum, subtotal)</c>). Predictable, easy to test, no cascading
+/// logic. Cascade-clamping is a v2 concern if/when the UI displays
+/// per-coupon contributions to the customer.
+/// </para>
+/// </remarks>
+public class StoreBasketHandler(
+    IBasketRepository basketRepository,
+    IDiscountLookup discountLookup,
+    ILogger<StoreBasketHandler> logger)
     : ICommandHandler<StoreBasketCommand, StoreBasketResult>
 {
+    private const int DiscountLookupParallelism = 4;
+
     public async Task<StoreBasketResult> Handle(StoreBasketCommand command, CancellationToken cancellationToken)
     {
-        foreach (var couponCode in command.Basket.AppliedDiscounts)
+        var basket = command.Basket;
+
+        // Empty-coupon and empty-cart short-circuits: no Discount lookup
+        // is needed, no work to do. Skipping the parallel loop also
+        // keeps the audit trail clean (no `Coupon X skipped (inactive)`
+        // debug lines on the no-discount path).
+        if (basket.AppliedDiscounts.Count == 0 || basket.Items.Count == 0)
         {
-            var discountResponse = await discountService.GetDiscountAsync(new GetDiscountRequest
-            {
-                RestaurantId = command.Basket.RestaurantId.ToString(),
-                Code = couponCode
-            }, cancellationToken: cancellationToken);
+            basket.AppliedCoupons = [];
+            basket.DiscountAmount = 0m;
 
-            if (discountResponse.Coupon.IsActive == false)
-            {
-                continue;
-            }
-
-            var discountAmount = discountResponse.Coupon.Amount;
-
-            if (discountAmount > 0 && command.Basket.Items.Count != 0)
-            {
-                #warning TODO: Implement the discount deduction logic. This is a simplified example and may need to be adjusted based on how discounts are structured (e.g., percentage vs fixed amount).
-
-            }
+            var storedEmpty = await basketRepository.StoreBasketAsync(basket, cancellationToken);
+            return new StoreBasketResult(storedEmpty.UserId, storedEmpty.RestaurantId);
         }
 
-        var basket = await basketRepository.StoreBasketAsync(command.Basket, cancellationToken);
+        var subtotal = basket.Subtotal;
+        var now = SystemClock.Instance.GetCurrentInstant();
+        var snapshots = new ConcurrentBag<Models.CouponSnapshot>();
 
-        return new StoreBasketResult(basket.UserId, basket.RestaurantId);
+        await Parallel.ForEachAsync(
+            basket.AppliedDiscounts,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = DiscountLookupParallelism,
+                CancellationToken = cancellationToken,
+            },
+            async (couponCode, innerCt) =>
+            {
+                var snapshot = await discountLookup.GetCouponAsync(
+                    basket.RestaurantId, couponCode, innerCt);
+
+                // Eligibility — mirrors Discount.Grpc.Domain.ActiveNow.Coupon
+                // (the source-side global query filter excludes soft-deleted
+                // coupons before they reach the wire, so the DeletedAt half
+                // is enforced at Discount and doesn't need to be re-checked
+                // here).
+                if (!snapshot.IsActive)
+                {
+                    logger.LogDebug(
+                        "Coupon {CouponCode} skipped — IsActive=false (restaurant {RestaurantId}).",
+                        couponCode, basket.RestaurantId);
+                    return;
+                }
+
+                if (snapshot.ExpirationDate is { } expires && expires < now)
+                {
+                    logger.LogDebug(
+                        "Coupon {CouponCode} skipped — expired at {ExpirationDate}.",
+                        couponCode, expires);
+                    return;
+                }
+
+                // Per-coupon contribution. The wire `Amount` was already
+                // widened from double to decimal by the lookup; no further
+                // rounding needed beyond what the percentage branch applies.
+                var perCoupon = snapshot.DiscountType switch
+                {
+                    DiscountType.CouponPercentage => Math.Round(subtotal * snapshot.Amount / 100m, 2, MidpointRounding.ToEven),
+                    DiscountType.CouponFixedAmount => snapshot.Amount,
+                    // UNSPECIFIED = pre-Phase-8 legacy row; treat as no
+                    // discount rather than guessing the semantic of `Amount`.
+                    _ => 0m,
+                };
+
+                snapshots.Add(new Models.CouponSnapshot(
+                    Code: couponCode,
+                    Description: snapshot.Description,
+                    DiscountAmount: perCoupon,
+                    AppliedAt: now));
+            });
+
+        basket.AppliedCoupons = snapshots.ToList();
+        // Final clamp: cumulative discounts can't push the cart total
+        // below zero. Each snapshot's DiscountAmount stays unclamped
+        // (per-coupon "would-be" contribution) — only the basket-level
+        // total is clamped.
+        basket.DiscountAmount = Math.Min(snapshots.Sum(s => s.DiscountAmount), subtotal);
+
+        var stored = await basketRepository.StoreBasketAsync(basket, cancellationToken);
+        return new StoreBasketResult(stored.UserId, stored.RestaurantId);
     }
 }

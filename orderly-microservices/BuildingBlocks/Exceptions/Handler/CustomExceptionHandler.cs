@@ -36,6 +36,11 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
             ),
+            ForbiddenException => (
+                exception.Message ?? "Forbidden.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status403Forbidden
+            ),
             _ when IsStateTransitionException(exception) => (
                 exception.Message ?? "The requested transition is not permitted from the current state.",
                 exception.GetType().Name,

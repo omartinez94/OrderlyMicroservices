@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Reflection;
 using BuildingBlocks.Correlation;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +20,10 @@ namespace BuildingBlocks.Behaviors;
 /// lines emitted by downstream code carry the correlation id.</item>
 /// <item>Logs the start/end of every request and emits a warning when the
 /// handler exceeds a 3-second threshold.</item>
+/// <item>Redacts the request payload from log lines when the command type
+/// is annotated with <see cref="PciSensitiveAttribute"/>. The behavior
+/// logs only the type name in the request-data slot — the payload
+/// itself never reaches a sink.</item>
 /// </list>
 /// </summary>
 /// <remarks>
@@ -44,6 +50,14 @@ public class LoggingBehavior<TRequest, TResponse>(
 {
     private const string CorrelationHeader = "X-Correlation-Id";
 
+    /// <summary>
+    /// Cache of <see cref="PciSensitiveAttribute"/> lookups. Reflection
+    /// runs once per concrete <c>TRequest</c>; subsequent invocations
+    /// hit the cache. Concurrent-safe — MediatR may execute handlers
+    /// across thread pool threads.
+    /// </summary>
+    private static readonly ConcurrentDictionary<Type, bool> _pciSensitiveCache = new();
+
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
         var correlationId = ResolveOrGenerateCorrelationId();
@@ -56,11 +70,14 @@ public class LoggingBehavior<TRequest, TResponse>(
 
         try
         {
+            var isPci = IsPciSensitive();
+            var requestData = isPci ? (object)RedactedLabel() : request;
+
             if (logger.IsEnabled(LogLevel.Information))
             {
                 logger.LogInformation(
                     "[START] Handling request: {Request}, Response: {Response}, CorrelationId: {CorrelationId}, Request data: {RequestData}",
-                    typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", request);
+                    typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", requestData);
             }
 
             var timer = new Stopwatch();
@@ -74,7 +91,7 @@ public class LoggingBehavior<TRequest, TResponse>(
             {
                 logger.LogWarning(
                     "[PERFORMANCE] Handling request: {Request}, Response: {Response}, CorrelationId: {CorrelationId}, Request data: {RequestData}, Elapsed time: {ElapsedTime}",
-                    typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", request, elapsed);
+                    typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", requestData, elapsed);
             }
             else
             {
@@ -82,7 +99,7 @@ public class LoggingBehavior<TRequest, TResponse>(
                 {
                     logger.LogInformation(
                         "[END] Handling request: {Request}, Response: {Response}, CorrelationId: {CorrelationId}, Request data: {RequestData}, Elapsed time: {ElapsedTime}",
-                        typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", request, elapsed);
+                        typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", requestData, elapsed);
                 }
             }
 
@@ -118,4 +135,19 @@ public class LoggingBehavior<TRequest, TResponse>(
 
         return Guid.NewGuid().ToString();
     }
+
+    /// <summary>
+    /// Cached reflection check for <see cref="PciSensitiveAttribute"/>.
+    /// Hot-path optimised — first call walks the type's attribute list,
+    /// every subsequent call is a dictionary lookup keyed on the type.
+    /// </summary>
+    private static bool IsPciSensitive() =>
+        _pciSensitiveCache.GetOrAdd(typeof(TRequest), static t => t.GetCustomAttribute<PciSensitiveAttribute>(inherit: false) is not null);
+
+    /// <summary>
+    /// Replacement string for the request-data slot when the command
+    /// carries PII/PCI. The type name is logged so operators can still
+    /// identify which command fired; the payload is dropped.
+    /// </summary>
+    private static string RedactedLabel() => $"{typeof(TRequest).Name} (payload redacted)";
 }

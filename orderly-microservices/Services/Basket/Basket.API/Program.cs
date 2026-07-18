@@ -155,6 +155,37 @@ builder.Services
 builder.Services.AddSingleton<IBasketIdempotencyKeyProvider, BasketIdempotencyKeyProvider>();
 builder.Services.AddScoped<BasketIdempotencyFilter>();
 
+// Phase 2.4: rate limiter on POST /api/v1/cart/checkout (the only
+// "spend money" surface). Fixed-window policy keyed on
+// (userId, restaurantId) so a single user can't burst-charge across
+// different restaurants, and a restaurant-wide scraper can't burst
+// across many users in one tenant. Limit: 5 requests per minute per
+// (user, restaurant) pair. The 429 response carries
+// Retry-After: <seconds> via the OnRejected callback below. Other
+// endpoints (GET/PUT/DELETE on the cart) are idempotent reads or
+// trivial local writes — they stay unlimited per plan §0.4.8.
+// The partition function + OnRejected callback live in
+// Basket.API.RateLimiting.CheckoutRateLimiter so they're
+// unit-testable without spinning up the full Basket host.
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy(Basket.API.RateLimiting.CheckoutRateLimiter.PolicyName, Basket.API.RateLimiting.CheckoutRateLimiter.PartitionFunc);
+    options.OnRejected = Basket.API.RateLimiting.CheckoutRateLimiter.OnRejectedAsync;
+});
+
+// Phase 2.4: hot-reloadable operator-owned base URL for the RFC 7807
+// `type` URI in every ProblemDetails response. Bound from
+// Basket:Problems:BaseUrl (override via env var Basket__Problems__BaseUrl
+// or appsettings.json — no redeploy needed). IOptionsMonitor reads
+// fresh on every CurrentValue access; the CheckoutRateLimiter's
+// OnRejected callback reads it per request. The BasketIdempotencyFilter
+// takes IOptionsMonitor<BasketProblemDetailsOptions> directly via DI.
+builder.Services
+    .AddOptions<Basket.API.ProblemDetails.BasketProblemDetailsOptions>()
+    .Bind(builder.Configuration.GetSection(Basket.API.ProblemDetails.BasketProblemDetailsOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
 var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {
     options.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
@@ -195,9 +226,25 @@ if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
 
 var app = builder.Build();
 
+// Phase 2.4: hand the static CheckoutRateLimiter a reference to the
+// hot-reloadable IOptionsMonitor<BasketProblemDetailsOptions> so the
+// OnRejected callback emits the operator-owned `type` URI without
+// taking an instance dependency (the rate-limiter API requires
+// static delegates). Called once at startup; CurrentValue is read
+// per request thereafter.
+Basket.API.RateLimiting.CheckoutRateLimiter.Configure(
+    app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<Basket.API.ProblemDetails.BasketProblemDetailsOptions>>());
+
 // Configure the HTTP request pipeline.
 app.UseAuthentication();
 app.UseAuthorization();
+// Phase 2.4: UseRateLimiter must come AFTER UseAuthentication +
+// UseAuthorization because the checkout policy's partition function
+// reads the authenticated principal's userId + restaurantId claims.
+// When an endpoint carries .RequireRateLimiting("checkout"), the
+// middleware evaluates the partition against the current principal
+// and either forwards the request or invokes OnRejected.
+app.UseRateLimiter();
 
 app.MapCarter();
 

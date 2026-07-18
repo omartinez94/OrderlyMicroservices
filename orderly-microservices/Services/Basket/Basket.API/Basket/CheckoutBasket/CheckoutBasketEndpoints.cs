@@ -32,7 +32,11 @@ public class CheckoutBasketEndpoints : ICarterModule
         .WithDescription("Publishes BasketCheckoutEvent and deletes the active cart. " +
                          "Phase 2: atomic outbox + idempotency-key handling.")
         .RequirePermission("orders:create")
-        .AddEndpointFilter<BasketIdempotencyFilter>();
+        .AddEndpointFilter<BasketIdempotencyFilter>()
+        // Phase 2.4: rate limiter — 5 requests/minute per
+        // (userId, restaurantId). The other three endpoints stay
+        // unlimited per plan §0.4.8.
+        .RequireRateLimiting("checkout");
 
         // Deprecated shim — body wrapper kept for backward compat.
         // Idempotency is NOT applied to the shim (it'll be removed at

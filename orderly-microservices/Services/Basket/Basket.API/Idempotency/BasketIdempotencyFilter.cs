@@ -43,6 +43,7 @@ public sealed class BasketIdempotencyFilter(
     IConnectionMultiplexer redis,
     IBasketIdempotencyKeyProvider keyProvider,
     IOptions<BasketIdempotencyOptions> options,
+    IOptionsMonitor<BasketProblemDetailsOptions> problemOptions,
     ILogger<BasketIdempotencyFilter> logger)
     : IEndpointFilter
 {
@@ -64,6 +65,17 @@ public sealed class BasketIdempotencyFilter(
 
     private readonly TimeSpan _ttl = options.Value.Ttl;
 
+    /// <summary>
+    /// Operator-owned base URL for the RFC 7807 <c>type</c> URI in
+    /// every ProblemDetails response. Hot-reloadable via
+    /// <c>Basket__Problems__BaseUrl</c> env var (or
+    /// <c>Basket:Problems:BaseUrl</c> in appsettings.json) — see
+    /// <see cref="BasketProblemDetailsOptions"/>. Read on every
+    /// request via <see cref="IOptionsMonitor{TOptions}.CurrentValue"/>
+    /// so a config change propagates without a redeploy.
+    /// </summary>
+    private string ProblemBaseUrl => problemOptions.CurrentValue.BaseUrl;
+
     public async ValueTask<object?> InvokeAsync(
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next)
@@ -79,7 +91,7 @@ public sealed class BasketIdempotencyFilter(
                 title: "Missing Idempotency-Key header",
                 detail: "POST /api/v1/cart/checkout requires the Idempotency-Key header (UUID v4).",
                 statusCode: StatusCodes.Status400BadRequest,
-                type: "https://tools.ietf.org/html/rfc9110#section-15.5.1");
+                type: $"{ProblemBaseUrl}missing-idempotency-key");
         }
 
         var idempotencyKey = headerValues[0]!;
@@ -89,7 +101,7 @@ public sealed class BasketIdempotencyFilter(
                 title: "Malformed Idempotency-Key",
                 detail: "The Idempotency-Key header must be a UUID v4 (e.g., 8e9f7c4a-2b1d-4e6a-b3f5-9c8e7d6f5a4b).",
                 statusCode: StatusCodes.Status400BadRequest,
-                type: "https://tools.ietf.org/html/rfc9110#section-15.5.1");
+                type: $"{ProblemBaseUrl}malformed-idempotency-key");
         }
 
         // 2. Resolve tenant identity from the JWT (NOT the request body —
@@ -200,7 +212,7 @@ public sealed class BasketIdempotencyFilter(
                         "Per the IETF draft-ietf-httpapi-idempotency-key-header, key reuse with a different payload is " +
                         "rejected with 422 Unprocessable Content.",
                 statusCode: StatusCodes.Status422UnprocessableEntity,
-                type: "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/");
+                type: $"{ProblemBaseUrl}idempotency-key-reused");
         }
 
         // 6. Miss — run the handler, capture the response, cache it.

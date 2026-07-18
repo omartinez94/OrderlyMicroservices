@@ -251,7 +251,17 @@ State-transition or rejection codes that the plan must NOT silently swallow:
 
 ```csharp
 // BuildingBlocks/Exceptions/ForbiddenException.cs (Phase 1 contribution)
-public class ForbiddenException(string message = "Forbidden.") : DomainException(message);
+// NOTE (delivered 2026-07-17): the plan called for `: DomainException`
+// but no such base class exists — the existing exceptions
+// (`NotFoundException`, `BadRequestException`, `InternalServerException`)
+// all extend `Exception` directly. The shipped type mirrors that
+// pattern (traditional two-constructor shape, optional `Description`).
+public class ForbiddenException : Exception
+{
+    public string? Description { get; }
+    public ForbiddenException(string message = "Forbidden.") : base(message) { }
+    public ForbiddenException(string message, string description) : base(message) { Description = description; }
+}
 ```
 
 …plus a `ForbiddenException → 403` arm in `CustomExceptionHandler.cs:17-48`. Now the identity guard becomes:
@@ -282,18 +292,22 @@ if (callerUserId != requestUserId)
 The four `ICarterModule` files declare their own `MapGroup("/api/v1").WithTags("Baskets")`; this duplicates policy chains and `WithOpenApi()` opt-ins. Phase 1 collapses to one shared extension:
 
 ```csharp
-// Basket.API/Endpoints/BasketEndpointGroup.cs
+// Basket.API/Endpoints/BasketEndpointGroup.cs (Phase 1 contribution)
+// NOTE (delivered 2026-07-17): `WithOpenApi()` requires the
+// `Microsoft.AspNetCore.OpenApi` package which is NOT yet a
+// Basket.API.csproj dependency. The shipped extension centralises
+// `RequireAuthorization("Default")` + `WithTags("Baskets")` and
+// defers `WithOpenApi()` to Phase 4 alongside the Swagger generator.
 public static class BasketEndpointGroup
 {
     public static RouteGroupBuilder MapBasketGroup(this IEndpointRouteBuilder app) =>
         app.MapGroup("/api/v1")
             .RequireAuthorization("Default")
-            .WithTags("Baskets")
-            .WithOpenApi();
+            .WithTags("Baskets");
 }
 ```
 
-…and each module calls `app.MapBasketGroup()`. Phase 4 brings in `AddSwaggerGen()` + `UseSwaggerUI()` for local dev only (auth-gated).
+…and each module calls `app.MapBasketGroup()`. Phase 4 brings in `AddSwaggerGen()` + `UseSwaggerUI()` for local dev only (auth-gated) AND re-enables `WithOpenApi()` on the group + adds `ExcludeFromOpenApi()` on the deprecated shim routes (today the shims simply skip the OpenAPI metadata with a `[DEPRECATED]` `WithSummary` marker — C#'s `[Obsolete]` attribute is code-only and doesn't have an HTTP-route equivalent).
 
 #### 0.4.7 Empty-cart semantics
 
@@ -554,39 +568,68 @@ Harden `Basket.API` to production-grade by adding:
 
 ### Phase 1 — Tenant safety + identity cross-check (SECURITY-CRITICAL)
 
-Blocks every later phase; lands first. Two commits: **(1) BuildingBlocks**, **(2) Basket.API**.
+**Status:** ✅ **Delivered 2026-07-17** as two commits — `(1) BuildingBlocks` and `(2) Basket.API`. 15/15 tests passing (BuildingBlocks 6 + Basket.API 9). Build: 0 errors, 0 new warnings under `-p:TreatWarningsAsErrors=true`.
+
+**Real drift captured in this delivery:**
+
+1. **`ForbiddenException : Exception`, not `: DomainException`** — no `DomainException` base class exists in the codebase. The other 3 exceptions extend `Exception` directly. Mirrored that pattern. See §0.4.4 for the corrected shape.
+2. **`WithOpenApi()` deferred to Phase 4** — requires the `Microsoft.AspNetCore.OpenApi` package which is not in `Basket.API.csproj`. `MapBasketGroup` ships with `RequireAuthorization("Default")` + `WithTags("Baskets")` only.
+3. **`[Obsolete]` attribute on routes** — C#'s `[Obsolete]` is code-only. The deprecated shims use a `[DEPRECATED]` marker in `WithSummary(...)` + `WithDescription(...)` instead. C# attribute on the ICarterModule class would not propagate to the route definition.
+4. **`Basket.API.Tests` scaffolded ahead of plan** — the plan reserved project bootstrap for Phase 5, but Phase 1 created the project shell + 3 test files (4 if you count `RecordingLogger<T>` as a separate fixture). Phase 5 expands with Testcontainers + Verify + `BasketWebApplicationFactory`.
+5. **`X-Correlation-Id` response header echo NOT yet wired** — `LoggingBehavior` already reads the inbound header and stamps the ambient `CorrelationContext`, but it does not write the header back on the response. Phase 4's OTel work picks this up; for now the FE correlates via `traceId` in the ProblemDetails body.
+6. **`#warning` TODO in `StoreBasketHandler` remains** — the placeholder comment is still in the file. Phase 2 swaps the `#warning` no-op for the real `Parallel.ForEachAsync` discount loop.
 
 **BuildingBlocks commit:**
 
-- New `BuildingBlocks/Exceptions/ForbiddenException.cs` (`DomainException` subclass, see §0.4.4). Arm added to `CustomExceptionHandler.cs:17-48` so the handler emits 403 + `application/problem+json`.
-- `BuildingBlocks/Behaviors/ValidationBehavior.cs:9` drops the `ICommand<TResponse>` constraint → `IRequest<TResponse>` (§0.4.2). Regression test `ValidationBehaviorTests.QueryValidator_RunsThroughPipeline`.
+- [x] New `BuildingBlocks/Exceptions/ForbiddenException.cs` (`Exception` subclass — drift item 1). Arm added to `CustomExceptionHandler.cs:17-48` so the handler emits 403 + `application/problem+json`. XML docs explain the 401-vs-403 distinction.
+- [x] `BuildingBlocks/Behaviors/ValidationBehavior.cs:9` drops the `ICommand<TResponse>` constraint → `IRequest<TResponse>` (§0.4.2). Regression test `ValidationBehaviorTests.QueryValidator_RunsThroughPipeline` (and 3 more: query failure throws, query failure skips handler, empty validator list passes through).
+- [x] New `BuildingBlocks/Behaviors/PciSensitiveAttribute.cs` — marker attribute. The `LoggingBehavior` reflection check is cached via `ConcurrentDictionary<Type, bool>` so the hot path is a dictionary read after the first invocation.
+- [x] New `BuildingBlocks.Tests/` project (xUnit 2.9.3, FluentAssertions 6.12.2, NSubstitute 5.3.0, `Microsoft.AspNetCore.App` framework reference). 6 tests across `ValidationBehaviorTests` (4) + `CustomExceptionHandlerTests` (2).
 
 **Basket.API commit:**
 
-- `Basket : ITenantEntity` (`Models/Basket.cs`).
-- `Program.cs`: `opt.Schema.For<Models.Basket>().MultiTenanted();` registered with the existing Marten `AddMarten(...)` call.
-- `BasketRepository` (and `CachedBasketRepository`) inject `ICurrentRestaurantProvider`; queries assert `b.RestaurantId == currentRestaurantProvider.RestaurantId`; mismatch → `throw new ForbiddenException(...)`. The 404 path on read stays for explicit "no such basket" lookups (admin / audit), but `GET /api/v1/cart` returns `200 + empty cart` (§0.4.7) so the repository gets a second method: `GetActiveCartOrEmptyAsync()`.
-- `IBasketIdentityGuard` (§0.4.9) is a thin MediatR pipeline behavior that runs **before** `ValidationBehavior` (registered first in `Program.cs:26-31`); forbidden responses go through `CustomExceptionHandler` and emit ProblemDetails. The check applies to all four commands.
-- New `BasketEndpointGroup.MapBasketGroup` (§0.4.6) replaces per-module `MapGroup`; one place to enforce `RequireAuthorization("Default")` + `WithTags("Baskets")` + `WithOpenApi()`.
-- **URL rename (§0.4.1):** new endpoints expose `/api/v1/cart` (token-bound). The old `/api/v1/baskets/{userId}/{restaurantId}` route survives the commit marked `[Obsolete]`, returns the same payload, and is removed at the end of Phase 3.
-- `LoggingBehavior` redacts payload lines for `CheckoutBasketCommand` and any future PII/PCI-bearing commands (new `IsSensitiveRequest` static method on the behavior; verifies against a `PciSensitiveAttribute` on the command type).
-- `services.AddProblemDetails()` registered after `AddExceptionHandler<CustomExceptionHandler>()` (closes the empty-403 gap by ensuring all 4xx/5xx paths go through the same ProblemDetails factory).
-- Tests:
-  - `GetCartHandlerTests.Anonymous_ReturnsUnauthorized` (verify endpoint returns 401 without JWT).
-  - `GetCartHandlerTests.OtherUser_ReturnsForbidden`.
-  - `GetCartHandlerTests.CrossTenant_ReturnsForbidden`.
-  - `GetCartHandlerTests.NoCartYet_Returns200WithEmptyBody` (the §0.4.7 contract).
-  - `LoggingBehaviorTests.CheckoutBasketCommand_Payload_RedactedInLogs`.
-  - `EndpointGroupTests.MapBasketGroup_RequiresAuthentication`.
-- **Doc-update scope:** `current-architecture.md` §4.3 (Basket Service — endpoints renamed, identity guard documented), §9 (Cross-Cutting Patterns — `ForbiddenException`, `ValidationBehavior` relaxation), §11 (Local Development — BuildingBlocks BuildingBlocks test snippet), §12 (Correlation-ID header contract).
+- [x] `Basket : ITenantEntity` (`Models/Basket.cs`); XML doc on the class ties it back to `ICurrentRestaurantProvider`.
+- [x] `Program.cs`: `opt.Schema.For<Models.Basket>().MultiTenanted();` registered with the existing `AddMarten(...)` call. `MultiTenanted()` coexists with `CreateDatabasesForTenants` — verified by clean build.
+- [x] `Program.cs`: `AddHttpContextAccessor()` + `AddScoped<ICurrentRestaurantProvider, ClaimsRestaurantProvider>()` registered (the latter is not part of `AddAuthorizationServices()` — Phase 1 wires it separately).
+- [x] `BasketRepository` (and `CachedBasketRepository`) inject `ICurrentRestaurantProvider`; every read/write asserts `basket.RestaurantId == provider.RestaurantId`; mismatch → `throw new ForbiddenException(...)` via the new private `AssertTenant(...)` helper. New `GetActiveCartOrEmptyAsync(...)` returns empty Basket on miss (no throw). `GetBasketAsync(...)` (throws) stays for admin / audit. Cache layer does not re-implement the filter — exceptions from inner propagate.
+- [x] `Basket.API/Behaviors/IBasketIdentityRequest.cs` marker + `Basket.API/Behaviors/BasketIdentityGuardBehavior.cs` pipeline behavior registered BEFORE `ValidationBehavior<,>` in `AddMediatR`. Implements the §0.4.9 identity check. Applies to every command/query that implements the marker — today that's all 4 basket commands + queries.
+- [x] All 4 cart commands/queries updated to implement `IBasketIdentityRequest` (`UserId`/`RestaurantId` accessors). `GetBasketHandler` switched to `GetActiveCartOrEmptyAsync` to lock the §0.4.7 contract.
+- [x] New `Basket.API/Endpoints/BasketEndpointGroup.cs` (`MapBasketGroup` extension) centralises `RequireAuthorization("Default")` + `WithTags("Baskets")` — drift item 2 deferred `WithOpenApi()` to Phase 4.
+- [x] **URL rename (§0.4.1):** new endpoints expose `/api/v1/cart` (token-bound). The old `/api/v1/baskets/{userId}/{restaurantId}` route survives as a `[DEPRECATED]` shim (drift item 3), returns the same payload, removed at end of Phase 3.
+- [x] `LoggingBehavior` redacts payload lines for `CheckoutBasketCommand` (annotated `[PciSensitive]`) and any future PII/PCI-bearing commands. The reflection check is cached per-type on first read.
+- [x] `services.AddProblemDetails()` registered after `AddExceptionHandler<CustomExceptionHandler>()` (closes the empty-403 gap).
+- [x] `CheckoutBasketCommand` annotated `[PciSensitive]` so its payload is redacted in every log line.
+- [x] `Basket.API/GlobalUsings.cs` promoted four namespaces per §0.3.1 (`System.Security.Claims`, `BuildingBlocks.Multitenancy`, `Microsoft.Extensions.Caching.Distributed`, `Microsoft.AspNetCore.Http`) plus `Basket.API.Behaviors`, `Basket.API.Endpoints`, `Basket.API.Data` for the new files.
+- [x] New `Basket.API.Tests/` project (xUnit + FluentAssertions + NSubstitute, drift item 4). 9 tests across `BasketIdentityGuardBehaviorTests` (5), `GetBasketHandlerTests` (2), `LoggingBehaviorRedactionTests` (2). Includes a `RecordingLogger<T>` test double that captures log calls directly (sidesteps Castle Dynamic Proxy issues with `ILogger<ILoggingBehavior<closedGenericCommand, object>>`).
+- [x] **Doc-update scope (delivered):** `current-architecture.md` §3 (Solution Layout — added Basket.API.Tests), §4.3 (Basket Service — `ITenantEntity`, `MultiTenanted()`, identity guard, MapBasketGroup, URL rename, LoggingBehavior redaction, AddProblemDetails, deprecation shim table, repository contract, [PciSensitive] marker), §9 (Cross-Cutting Patterns — `BasketIdentityGuardBehavior` mention + `[PciSensitive]` redaction rule), §10 (ForbiddenException note). §11 / §12 deferred to Phase 2 / Phase 4.
+
+**Phase 1 — checklist coverage vs. plan:**
+
+| Plan test | Where it landed |
+|---|---|
+| `GetCartHandlerTests.Anonymous_ReturnsUnauthorized` | `BasketIdentityGuardBehaviorTests.UnauthenticatedRequest_ThrowsForbiddenException` — pipeline-level equivalent. The "endpoint returns 401 without JWT" assertion is the responsibility of the `Default` authorization policy + `MapBasketGroup`'s `RequireAuthorization("Default")`; the plan-confirmed check is via `WebApplicationFactory` in Phase 5. |
+| `GetCartHandlerTests.OtherUser_ReturnsForbidden` | `BasketIdentityGuardBehaviorTests.OtherUser_ReturnsForbidden` |
+| `GetCartHandlerTests.CrossTenant_ReturnsForbidden` | `BasketIdentityGuardBehaviorTests.CrossTenant_ReturnsForbidden` |
+| `GetCartHandlerTests.NoCartYet_Returns200WithEmptyBody` | `GetBasketHandlerTests.NoCartYet_ReturnsEmptyBasket` — handler-level projection. The "endpoint returns 200 with empty body" wire-shape assertion is Phase 5's `WebApplicationFactory` job. |
+| `LoggingBehaviorTests.CheckoutBasketCommand_Payload_RedactedInLogs` | `LoggingBehaviorRedactionTests.PciSensitiveCommand_PayloadIsRedactedInLogs` (+ `NonSensitiveCommand_PayloadIsLogged` as the negative-case guard) |
+| `EndpointGroupTests.MapBasketGroup_RequiresAuthentication` | Deferred to Phase 5 (`WebApplicationFactory` is the right tool for endpoint-level policy assertions). |
 
 ### Phase 2 — Atomic checkout + real discount (CORRECTNESS-CRITICAL)
+
+**Status:** ⏳ Not started. **Prerequisites from Phase 1** (delivered 2026-07-17):
+
+- The `#warning` TODO placeholder in `StoreBasketHandler.Handle` (line ~41) must be removed — Phase 2 replaces it with the real `Parallel.ForEachAsync(MaxDegreeOfParallelism = 4)` discount loop.
+- `CheckoutBasketCommand` is annotated `[PciSensitive]` (Phase 1). The Phase 2 event payload schema (where `PaymentMethodSummary` and the redacted card fields are introduced) needs to preserve the redaction contract — no `CardNumber` / `CVV` / full `AddressLine` ever travel on the wire.
+- `BasketIdentityGuardBehavior` is already registered. Phase 2's spoofing-footgun fix (validator `RuleFor(x => x.UserId).Equal(Guid.Empty)` → 422 when body carries a value) lands on top of the existing guard — both layers coexist; the guard is the broad defence, the validator is the explicit `422` for documented client-contract violations.
+- `IBasketRepository` already exposes `GetActiveCartOrEmptyAsync(...)` (Phase 1). Phase 2's checkout handler can call it instead of catching `BasketNotFoundException`.
+- `BasketCacheLockRegistry` and the single-flight guard (Phase 3 work) are NOT yet wired — Phase 2's atomic checkout does not depend on cache stampede protection, but if Phase 2 ships before Phase 3 the new test for `CheckoutFails_BasketNotDeleted` runs on an un-hardened cache layer. Acceptable.
+- `BuildingBlocks.Messaging.Outbox.OutboxOptions` is in place; `CheckoutBasketOutboxDispatcher : OutboxDispatcher<CheckoutBasketOutboxContext>` mirrors the Discount / Ordering pattern (verify against the existing `DiscountOutboxDispatcher` / `OrderingOutboxDispatcher` for the exact lifetime / claim pattern).
 
 `StoreBasket` discount `#warning` removed; checkout publish-and-delete becomes one transaction.
 
 - Add `Decimal DiscountAmount` to `Basket` (computed at `StoreBasket` time via `DiscountProtoService.EvaluateDiscounts` gRPC call; the new `EvaluateDiscounts` RPC is added to Discount.Grpc by **its own plan** — until then, Basket calls the existing `GetDiscountAsync` per coupon and sums the result locally via the `Parallel.ForEachAsync(MaxDegreeOfParallelism = 4)` polyfill from §7. The local-sum path is documented as v1; Discount §plans the EVAL RPC for v2).
 - `Basket.AppliedDiscounts` swaps from `List<string>` to `List<CouponSnapshot>` record (§0.4.10 — Phase 2 swap). Existing string-based consumers (Ordering's `BasketCheckoutEvent` payload) see a derived `List<string>` in the event payload.
-- `CachedBasketRepository.StoreBasketAsync` re-serializes with the same `JsonSerializerOptions` as global registration (current bug: `NodaTime` round-trip will silently break).
+- `CachedBasketRepository.StoreBasketAsync` re-serializes with the same `JsonSerializerOptions` as global registration (current bug: `NodaTime` round-trip will silently break). Note: Phase 1's rewrite of the cache layer did NOT add the shared options; this drift item rolls forward to Phase 2.
 - New `CheckoutBasketOutboxMessage` Marten document (or scalar column on `Basket` — choice is recorded in this phase's commit) storing the to-be-published `BasketCheckoutEvent` envelope (serialized JSON + `MessageVersion = 1`).
 - New `CheckoutBasketOutboxDispatcher : OutboxDispatcher<CheckoutBasketOutboxContext>` (`IHostedService`) that drains ready rows and `MassTransit.Publish`es them. Reuses the `OutboxOptions` in `BuildingBlocks.Messaging/Outbox/OutboxOptions.cs`.
 - `CheckoutCartHandler.Handle` becomes:
@@ -676,22 +719,26 @@ The current `CachedBasketRepository` is a single-flight hole that trashes Postgr
 
 ### Phase 5 — Tests project bootstrap (the test-infrastructure phase)
 
-The other phases each added tests inline. Phase 5 is the **project scaffolding** that those tests live under — landed before any code so other phases can `using Basket.API.Tests;` for shared fixtures.
+**Status:** ⏳ Partially delivered. **The `Basket.API.Tests` project shell was scaffolded in Phase 1** (drift item 4 above) with 9 unit tests (`BasketIdentityGuardBehaviorTests` × 5, `GetBasketHandlerTests` × 2, `LoggingBehaviorRedactionTests` × 2) and a `RecordingLogger<T>` test double. Phase 5 expands that shell with the integration / snapshot / contract-test infrastructure the plan reserved for this phase.
 
-- New `Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj` (xUnit, Moq, FluentAssertions, Testcontainers.PostgreSql, Testcontainers.Redis, Testcontainers.RabbitMq, **Verify for snapshot tests**, `Microsoft.AspNetCore.Mvc.Testing` for `WebApplicationFactory`).
-- `appsettings.Test.json` with empty connection strings (Testcontainers fills them).
-- Shared fixtures:
-  - `BasketPostgresFixture` (Testcontainers Postgres + Marten `ApplyAllDatabaseChangesOnStartup`).
-  - `BasketRedisFixture` (Testcontainers Redis + `ConnectionMultiplexer`).
-  - `BasketRabbitMqFixture` (Testcontainers RabbitMQ + MassTransit in-memory harness reconfigured to bus endpoint at the container's port).
-  - `BasketWebApplicationFactory` (`WebApplicationFactory<Program>`) wiring the three fixtures and using `JwtTestAuthenticationHandler` for route authentication (the handler reads `Authorization: Bearer test-token`, parses the JWT subject + `restaurantId` claim, and populates `HttpContext.User`).
-  - `TestClock : IClock` returning the `FakeTimeProvider`'s current instant, used for `ExpiresAt` testing.
-  - **`BasketSnapshots.VerifyAllEndpoints`** (introduced Phase 3, executed here) — one snapshot per (verb, URL, status code, body) combination, generated by `BasketWebApplicationFactory`. Snapshots stored under `Services/Basket/Basket.API.Tests/Snapshots/` and reviewed in PRs; CI fails on snapshot drift unless the change is acknowledged via `Verify.VerifyTests` `.received` files.
-- **API contract tests per endpoint** (complementing snapshots):
-  - `GetCartEndpointTests` — 200 (with cart), 200 (without cart), 401, 403.
-  - `UpsertCartEndpointTests` — 201 (new), 200 (existing), 400, 401, 403, 409 (optimistic concurrency), 422 (`MenuItemId` not in catalog).
-  - `DeleteCartEndpointTests` — 204 (existing), 204 (absent), 401, 403.
-  - `CheckoutCartEndpointTests` — 200, 202 (replay-in-flight), 400, 401, 403, 409 (empty), 422 (idempotency-key reuse), 429 (rate limit).
+- **Existing project shell** (Phase 1 deliverable): `Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj` (xUnit, FluentAssertions, NSubstitute, `Microsoft.AspNetCore.App` framework reference, no Testcontainers yet).
+- **To add in Phase 5:**
+  - `Testcontainers.PostgreSql`, `Testcontainers.Redis`, `Testcontainers.RabbitMq` packages.
+  - **Verify** for snapshot tests.
+  - `Microsoft.AspNetCore.Mvc.Testing` for `WebApplicationFactory`.
+  - `appsettings.Test.json` with empty connection strings (Testcontainers fills them).
+  - Shared fixtures:
+    - `BasketPostgresFixture` (Testcontainers Postgres + Marten `ApplyAllDatabaseChangesOnStartup`).
+    - `BasketRedisFixture` (Testcontainers Redis + `ConnectionMultiplexer`).
+    - `BasketRabbitMqFixture` (Testcontainers RabbitMQ + MassTransit in-memory harness reconfigured to bus endpoint at the container's port).
+    - `BasketWebApplicationFactory` (`WebApplicationFactory<Program>`) wiring the three fixtures and using `JwtTestAuthenticationHandler` for route authentication (the handler reads `Authorization: Bearer test-token`, parses the JWT subject + `restaurantId` claim, and populates `HttpContext.User`).
+    - `TestClock : IClock` returning the `FakeTimeProvider`'s current instant, used for `ExpiresAt` testing.
+    - **`BasketSnapshots.VerifyAllEndpoints`** (introduced Phase 3, executed here) — one snapshot per (verb, URL, status code, body) combination, generated by `BasketWebApplicationFactory`. Snapshots stored under `Services/Basket/Basket.API.Tests/Snapshots/` and reviewed in PRs; CI fails on snapshot drift unless the change is acknowledged via `Verify.VerifyTests` `.received` files.
+  - **API contract tests per endpoint** (complementing snapshots):
+    - `GetCartEndpointTests` — 200 (with cart), 200 (without cart), 401, 403.
+    - `UpsertCartEndpointTests` — 201 (new), 200 (existing), 400, 401, 403, 409 (optimistic concurrency), 422 (`MenuItemId` not in catalog).
+    - `DeleteCartEndpointTests` — 204 (existing), 204 (absent), 401, 403.
+    - `CheckoutCartEndpointTests` — 200, 202 (replay-in-flight), 400, 401, 403, 409 (empty), 422 (idempotency-key reuse), 429 (rate limit).
 - CI gate wiring (out of repo scope but documented): the plan's checklist requires `dotnet test Services/Basket/Basket.API.Tests` to be a PR-blocker. Phase 5's PR includes a `.github/workflows/basket-tests.yml` sketch for the implementer.
 - **Doc-update scope:** §11 Local Development (test bootstrap snippet), §12 Observability (test-only trace exporter), `docs/api/basket-api-v1.json` first commit (the snapshot of the current API surface generated by OpenAPI tooling once Phase 4 lands; until then the contract tests document it).
 
@@ -719,12 +766,12 @@ The other phases each added tests inline. Phase 5 is the **project scaffolding**
 
 ## 8. Milestone checklist
 
-- [ ] **Phase 1** — BuildingBlocks: `ForbiddenException` + `ValidationBehavior` relaxation. Basket: `Basket : ITenantEntity` + Marten `MultiTenanted()` + `ICurrentRestaurantProvider`-driven repository filter; `IBasketIdentityGuard` pipeline behavior; `MapBasketGroup` extension with `RequireAuthorization("Default")` + `WithOpenApi()`; URL rename to `/api/v1/cart` (old route kept `[Obsolete]`); `LoggingBehavior` payload redaction; PR-blocker tests.
+- [x] **Phase 1** ✅ **Delivered 2026-07-17** — BuildingBlocks: `ForbiddenException` + `ValidationBehavior` relaxation + `[PciSensitive]` marker. Basket: `Basket : ITenantEntity` + Marten `MultiTenanted()` + `ICurrentRestaurantProvider`-driven repository filter; `BasketIdentityGuardBehavior` pipeline behavior; `MapBasketGroup` extension with `RequireAuthorization("Default")` + `WithTags("Baskets")` (deferred `WithOpenApi()` to Phase 4 — see §0.4.6 drift); URL rename to `/api/v1/cart` (old route kept as `[DEPRECATED]` shim); `LoggingBehavior` payload redaction for `[PciSensitive]` commands; `AddProblemDetails()`; 15 PR-blocker tests across `BuildingBlocks.Tests` (6) + `Basket.API.Tests` (9). Drift items 1–6 captured inline in §6 Phase 1.
 - [ ] **Phase 2** — `DiscountAmount` snapshot on `Basket`; outbox-mediated atomic checkout; `Idempotency-Key` header on `POST /api/v1/cart/checkout` (UUID v4, HMAC envelope, 422 on reuse mismatch); `PaymentMethod` enum; `PaymentMethodSummary` event payload; `CheckoutCartRateLimiter`; `AddProblemDetails()`; PR-blocker tests.
 - [ ] **Phase 3** — `CachedBasketRepository` single-flight guard; `BasketExpirySweepService : IHostedService`; shared `JsonSerializerOptions` honoring NodaTime; `DELETE /api/v1/cart → 204 No Content`; empty-cart → `200 + empty body`; deprecated route removed; API snapshot tests (`Verify.All`); PR-blocker tests.
 - [ ] **Phase 4** — gRPC resilience pipeline (Polly v8); OpenTelemetry tracing + metrics; `/live` + `/ready` health-check split; `ETag` + `Last-Modified` on `GET`; Swagger + committed `swagger.json`; OTel `Activity` carries `X-Correlation-Id`; PR-blocker tests.
-- [ ] **Phase 5** — `Basket.API.Tests` project (xUnit + FluentAssertions + Moq + Testcontainers + Verify); `BasketWebApplicationFactory` with `JwtTestAuthenticationHandler`; per-endpoint contract tests for every (verb, status) combo; API snapshot suite; CI workflow sketch; smoke test exporting a checkout trace.
-- [ ] **Docs** — `current-architecture.md` §2, §4.3, §5.1, §5.2, §6, §9, §11, §12 touched for each phase; `docs/architecture/architecture.md` §3 cross-references the Basket plan from the architecture page; `docs/api/basket-api-v1.json` committed from Phase 4 onwards; Plan and `BASKET_SERVICE_PLAN.md` §0.4 list of deviations stays accurate.
+- [ ] **Phase 5** — `Basket.API.Tests` project expansion (xUnit + FluentAssertions + NSubstitute + Testcontainers + Verify; project shell scaffolded in Phase 1 with 9 unit tests); `BasketWebApplicationFactory` with `JwtTestAuthenticationHandler`; per-endpoint contract tests for every (verb, status) combo; API snapshot suite; CI workflow sketch; smoke test exporting a checkout trace.
+- [ ] **Docs** — `current-architecture.md` §2, §4.3, §5.1, §5.2, §6, §9, §11, §12 touched for each phase; `docs/architecture/architecture.md` §3 cross-references the Basket plan from the architecture page; `docs/api/basket-api-v1.json` committed from Phase 4 onwards; Plan and `BASKET_SERVICE_PLAN.md` §0.4 list of deviations stays accurate. Phase 1 delivered §3 + §4.3 + §9 + §10 doc updates; §5.1 / §5.2 / §6 / §11 / §12 still pending their respective phases.
 
 ---
 
@@ -752,7 +799,7 @@ The other phases each added tests inline. Phase 5 is the **project scaffolding**
 
 ---
 
-**Document Version:** 0.4 (dotnet-best-practices pass: `ArgumentNullException.ThrowIfNull`, `IAsyncDisposable` for hosted services, `BeginScope` for correlation IDs, `ConfigureAwait(false)` policy, `IOptions<T>` vs `IOptionsMonitor<T>` matrix, structured logging + PII redaction, performance/SOLID review checkpoints, Result<T> rejection rationale)
-**Last Updated:** 2026-07-14
+**Document Version:** 0.5 (Phase 1 delivered 2026-07-17: 15 tests passing, 0 build errors, 0 new warnings under `-p:TreatWarningsAsErrors=true`. Drift items 1–6 captured inline in §6 Phase 1. `Basket.API.Tests` project shell scaffolded ahead of plan; Phase 5 expands with Testcontainers / Verify / WebApplicationFactory.)
+**Last Updated:** 2026-07-17
 **Maintained By:** Basket working group (TBD)
-**Status:** Not started — blocks multi-tenant production rollout of Basket.
+**Status:** ✅ **Phase 1 delivered** (2026-07-17). ⏳ Phase 2 next (atomic checkout + real discount + idempotency-key middleware).

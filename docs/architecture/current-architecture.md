@@ -66,6 +66,7 @@ orderly-microservices/
 │   ├── Catalog/Catalog.API/                    # Brands, restaurants, tables, menus, reservations, snapshots, Redis cache + Scrutor decorator
 │   ├── Catalog/Catalog.API.Tests/              # xUnit + FluentAssertions + NSubstitute + Testcontainers (Postgres + Redis) for the menu cache decorator + options validation
 │   ├── Basket/Basket.API/                      # Marten + Redis cache, gRPC client to Discount, publishes BasketCheckoutEvent
+│   ├── Basket/Basket.API.Tests/                # xUnit + FluentAssertions + NSubstitute — Phase 1 unit tests on identity guard, redaction, handler; Testcontainers / Verify scaffolding lands in Phase 5
 │   ├── Discount/Discount.Grpc/                 # gRPC server, SQLite store, single Coupon entity
 │   ├── Identity/Identity.API/                  # OpenIddict + ASP.NET Identity + RBAC permissions
 │   ├── Kitchen/Kitchen.API/                    # Kitchen fulfilment, SignalR hub, Postgres `kitchendb`, transactional outbox
@@ -252,13 +253,15 @@ The four publish events live under `BuildingBlocks.Messaging/Events/Catalog/`. T
 
 ### 4.3 Basket Service (Port 6001 / 6061)
 
-**Surface:** Carter modules under `/api/v1`. Marten (Postgres, **per-tenant database creation via `CreateDatabasesForTenants`**) + Redis cache (`IDistributedCache` with a 30-minute absolute TTL). Calls Discount over gRPC.
+**Surface:** Carter modules under `/api/v1`. Marten (Postgres, **per-tenant database creation via `CreateDatabasesForTenants`** + `opt.Schema.For<Models.Basket>().MultiTenanted()`) + Redis cache (`IDistributedCache` with a 30-minute absolute TTL). Calls Discount over gRPC.
 
 **Two-tier design.** Marten is the durable store; Redis is the cache wrapper applied via `services.Decorate<IBasketRepository, CachedBasketRepository>()`. Cache key is `basket:{userId}:{restaurantId}`; on miss the basket is reloaded from Marten and re-cached for 30 min.
 
+**Multi-tenancy.** `Basket : BuildingBlocks.Multitenancy.ITenantEntity` — the document carries `RestaurantId` and the `MultiTenanted()` registration in `Program.cs` adds a `tenant_id` column. Every read/write is filtered by `ICurrentRestaurantProvider` (`ClaimsRestaurantProvider` reads the `restaurantId` JWT claim); mismatched tenants throw `ForbiddenException` → 403. The pipeline-level `BasketIdentityGuardBehavior<TRequest,TResponse>` (registered BEFORE `ValidationBehavior<,>` in `AddMediatR`) cross-checks the inbound command's `(UserId, RestaurantId)` against the JWT before any validation cost is paid; the repository layer re-applies the same filter as defence in depth. Every cart command implements `IBasketIdentityRequest { Guid UserId; Guid RestaurantId; }`.
+
 **Cart shape (`Models/Basket.cs`):**
 ```csharp
-public class Basket
+public class Basket : ITenantEntity
 {
     [Identity] public Guid UserId { get; set; }
     public Guid RestaurantId { get; set; }
@@ -281,21 +284,33 @@ public class BasketItem
 
 The repository queries by both `UserId` and `RestaurantId`; `[Identity]` is on `UserId` only — uniqueness is logical, not Marten-enforced.
 
+**Endpoint group.** `BasketEndpointGroup.MapBasketGroup()` (`Basket.API/Endpoints/BasketEndpointGroup.cs`) centralises the `MapGroup("/api/v1")` + `RequireAuthorization("Default")` + `WithTags("Baskets")` calls. Each Carter module calls `app.MapBasketGroup()` instead of duplicating the chain. `WithOpenApi()` lands in Phase 4 alongside the Swagger generator (`Microsoft.AspNetCore.OpenApi` is not yet a Basket dependency).
+
 **Endpoints (Carter modules):**
 
-| Method | Route | Permission |
-|---|---|---|
-| GET | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:view_own` |
-| PUT | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:create` |
-| DELETE | `/api/v1/baskets/{userId}/{restaurantId}` | none |
-| POST | `/api/v1/baskets/checkout` | `orders:create` |
-| GET | `/health` | public |
+| Method | Route | Permission | Notes |
+|---|---|---|---|
+| GET | `/api/v1/cart` | `orders:view_own` | **Token-bound** (Phase 1 primary). `(UserId, RestaurantId)` come from JWT. Returns 200 + empty cart body when no cart exists (never 404). |
+| PUT | `/api/v1/cart` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` ignored — JWT is authoritative; mismatch → 403 via the identity guard. |
+| DELETE | `/api/v1/cart` | `orders:create` | **Token-bound**. Idempotent — returns 200 + `IsSuccess = true` even when no cart exists. |
+| POST | `/api/v1/cart/checkout` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` enforced by the identity guard. |
+| GET | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:view_own` | **[DEPRECATED shim]** — Phase 1 keeps the legacy shape for one release; removed end of Phase 3. |
+| PUT | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:create` | **[DEPRECATED shim]**. Identity guard enforces URL ids vs JWT. |
+| DELETE | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:create` | **[DEPRECATED shim]**. |
+| POST | `/api/v1/baskets/checkout` | `orders:create` | **[DEPRECATED shim]** — `CheckoutBasketRequest(BasketCheckoutDto)` body wrapper kept for backward compat. |
+| GET | `/health` | public | |
 
-**Discount integration.** `Program.cs` registers `DiscountProtoServiceClient` from `Protos/discount.proto` (a shared project include; `GrpcServices="Client"`). `StoreBasketHandler` calls `discountService.GetDiscountAsync(...)` per `AppliedDiscounts` entry.
+**Repository contract.** `IBasketRepository` exposes both `GetBasketAsync(...)` (throws `BasketNotFoundException` on miss — admin / audit path) and `GetActiveCartOrEmptyAsync(...)` (returns an empty `Basket` projected from the ids on miss — `GET /api/v1/cart` happy path per §0.4.7). Every operation runs the tenant assertion before the Marten query.
 
-**TTL semantics.** Redis side: 30-minute absolute TTL on cache reads/writes. Marten side: `Basket.ExpiresAt` is set but no `IHostedService`, no MassTransit consumer, no Marten TTL pragma actually prunes expired rows — the field is informational.
+**Logging redaction.** `CheckoutBasketCommand` is annotated `[PciSensitive]`. `LoggingBehavior<TRequest,TResponse>` reflects the attribute (cached per-type on first read) and replaces the request-data slot in every `[START]` / `[END]` / `[PERFORMANCE]` log line with `CheckoutBasketCommand (payload redacted)`. The card number never reaches a log sink.
 
-**Events published.** `BasketCheckoutEvent` only — published by `CheckoutBasketHandler` via MassTransit `IPublishEndpoint.Publish`.
+**Error envelope.** `builder.Services.AddProblemDetails()` is registered after `AddExceptionHandler<CustomExceptionHandler>()` so every 4xx/5xx response — including the `ForbiddenException → 403` arm added in Phase 1 of the BuildingBlocks contribution — flows through the same `application/problem+json` factory.
+
+**Discount integration.** `Program.cs` registers `DiscountProtoServiceClient` from `Protos/discount.proto` (a shared project include; `GrpcServices="Client"`). `StoreBasketHandler` calls `discountService.GetDiscountAsync(...)` per `AppliedDiscounts` entry. Phase 2 will swap the per-coupon loop for `Parallel.ForEachAsync(MaxDegreeOfParallelism = 4)` until Discount's v2 `EvaluateDiscounts` aggregated RPC lands.
+
+**TTL semantics.** Redis side: 30-minute absolute TTL on cache reads/writes (empty carts are not cached — only populated ones). Marten side: `Basket.ExpiresAt` is set but no `IHostedService`, no MassTransit consumer, no Marten TTL pragma actually prunes expired rows — the field is informational. Phase 3 introduces `BasketExpirySweepService`.
+
+**Events published.** `BasketCheckoutEvent` only — published by `CheckoutBasketCommandHandler` via MassTransit `IPublishEndpoint.Publish`. Phase 2 swaps this for an atomic outbox-mediated publish (`CheckoutBasketOutboxDispatcher` mirroring the Discount / Ordering pattern) with the same `BasketCheckoutEvent` payload (no `CardNumber`/`CVV` on the wire).
 
 ---
 
@@ -562,8 +577,9 @@ record BasketCheckoutEvent : IntegrationEvent
 
 ## 9. Cross-Cutting Patterns
 
-- **CQRS via MediatR.** `BuildingBlocks/CQRS` defines `ICommand<TResponse>`, `IQuery<TResponse>`, handlers. Ordering registers open behaviors (`ValidationBehavior<,>`, `LoggingBehavior<,>`); Catalog/Basket register them too.
-- **Validation via FluentValidation.** `services.AddValidatorsFromAssembly(...)`. Validation behavior runs only on `ICommand<TResponse>`.
+- **CQRS via MediatR.** `BuildingBlocks/CQRS` defines `ICommand<TResponse>`, `IQuery<TResponse>`, handlers. Ordering registers open behaviors (`ValidationBehavior<,>`, `LoggingBehavior<,>`); Catalog/Basket register them too. Basket additionally registers `Basket.API.Behaviors.BasketIdentityGuardBehavior<,>` (an open-generic MediatR behaviour) BEFORE `ValidationBehavior<,>` so cross-tenant / cross-user requests short-circuit with 403 before any validation cost is paid — the behaviour matches `IBasketIdentityRequest` and compares the command's `(UserId, RestaurantId)` against the JWT's `ClaimTypes.NameIdentifier` + `restaurantId` claims via `JwtClaimExtensions.GetUserId()` / `GetRestaurantId()`.
+- **Validation via FluentValidation.** `services.AddValidatorsFromAssembly(...)`. `ValidationBehavior<TRequest, TResponse>` runs against every `IRequest<TResponse>` (commands *and* queries) — the generic constraint was relaxed in the Phase-1 BuildingBlocks contribution so any validator registered against an `IQuery<TResponse>`-shaped request participates in the pipeline. Empty validator lists remain a no-op.
+- **PII / PCI redaction in `LoggingBehavior`.** Requests carrying the `[PciSensitive]` attribute (`BuildingBlocks.Behaviors.PciSensitiveAttribute`) are logged with their payload replaced by `typeof(TRequest).Name + " (payload redacted)"`. The attribute lookup is cached per-type via `ConcurrentDictionary<Type, bool>` so the hot-path cost is a dictionary read after the first invocation. `CheckoutBasketCommand` in `Basket.API` is the first adopter — the card number never reaches a log sink. Future commands carrying PII (addresses, names, emails) or PCI follow the same pattern.
 - **Mapster.** Global `using` imports across Catalog/Basket/Ordering. DTOs are flat records.
 - **NodaTime everywhere.** EF Core columns are configured with `InstantConverter`; `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime` is used. `ConfigureForNodaTime(DateTimeZoneProviders.Tzdb)` is set on JSON options, and `dataSourceBuilder.UseNodaTime()` is wired in Catalog.
 - **Feature flags.** `Microsoft.FeatureManagement.AspNetCore` exposes `OrderFullfilment` (default true per `appsettings.json`) which gates `OrderCreatedEventHandler`'s publish step.
@@ -580,7 +596,7 @@ record BasketCheckoutEvent : IntegrationEvent
 
 ## 10. Error Handling & API Conventions
 
-- Global exception handling via `AddExceptionHandler<CustomExceptionHandler>()` from BuildingBlocks; pipeline adds `UseExceptionHandler`. Business exceptions derive from `BuildingBlocks.Exceptions.NotFoundException` (e.g., `OrderNotFoundException`).
+- Global exception handling via `AddExceptionHandler<CustomExceptionHandler>()` from BuildingBlocks; pipeline adds `UseExceptionHandler`. Business exceptions derive from `BuildingBlocks.Exceptions.NotFoundException` (e.g., `OrderNotFoundException`). `BuildingBlocks.Exceptions.ForbiddenException` (added Phase-1 of the Basket plan) maps to HTTP 403 via the handler's switch expression — cross-tenant reads, cross-user mutations, and admin-bypass without the required permission claim throw `ForbiddenException` instead of returning an empty `Results.Forbid()`. Other domain exceptions (`BadRequestException`, `InternalServerException`) extend `Exception` directly per the codebase convention.
 - HTTP responses are produced in **PascalCase** in Catalog/Basket (the global `PropertyNamingPolicy = null`). Ordering reuses the framework default and emits camelCase. Standard `Results.Problem(...)` / typed-results pattern from Minimal APIs.
 - Carter modules implement `ICarterModule` and `AddCarter()` discovers them via assembly scanning; routes are defined with extension methods on `IEndpointRouteBuilder`.
 - Health endpoints at `/health` use `UIResponseWriter.WriteHealthCheckUIResponse`.

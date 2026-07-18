@@ -67,11 +67,24 @@ builder.Services.AddMarten(opt =>
     .ApplyAllDatabaseChangesOnStartup()
     .UseLightweightSessions();
 
-// Phase 1 of the Basket plan: register the tenant resolver and the
-// HttpContextAccessor the ClaimsRestaurantProvider reads from. Scoped
-// lifetime matches the per-request scope the provider serves.
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
+// Phase 2.3: register a single ConnectionMultiplexer so the
+// BasketIdempotencyFilter can use atomic StringSetAsync(key, value,
+// expiry, When.NotExists) — IDistributedCache.SetStringAsync is an
+// unconditional write and doesn't expose SETNX. Constructed up-front
+// so AddStackExchangeRedisCache can share the same instance via its
+// ConnectionMultiplexerFactory (the factory is a Func<Task<...>> with
+// no DI access, so capturing the multiplexer at registration time is
+// the idiomatic pattern).
+var redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(
+    StackExchange.Redis.ConfigurationOptions.Parse(
+        builder.Configuration.GetConnectionString("Redis")!));
+builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(redisMultiplexer);
+
+builder.Services.AddStackExchangeRedisCache(rediscache =>
+{
+    rediscache.ConnectionMultiplexerFactory = () =>
+        Task.FromResult<StackExchange.Redis.IConnectionMultiplexer>(redisMultiplexer);
+});
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
@@ -98,6 +111,19 @@ builder.Services.AddStackExchangeRedisCache(rediscache =>
     rediscache.Configuration = builder.Configuration.GetConnectionString("Redis")!;
 });
 
+// Phase 2.3: register a single ConnectionMultiplexer so the
+// BasketIdempotencyFilter can use atomic StringSetAsync(key, value,
+// expiry, When.NotExists) — IDistributedCache.SetStringAsync is an
+// unconditional write and doesn't expose SETNX. The cache layer uses
+// the same singleton via RedisCacheOptions.ConnectionMultiplexerFactory
+// (already wired by AddStackExchangeRedisCache above).
+builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
+{
+    var configurationOptions = StackExchange.Redis.ConfigurationOptions.Parse(
+        builder.Configuration.GetConnectionString("Redis")!);
+    return StackExchange.Redis.ConnectionMultiplexer.Connect(configurationOptions);
+});
+
 // Async comunication services
 builder.Services.AddMessageBroker(builder.Configuration);
 
@@ -113,6 +139,21 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddHostedService<CheckoutBasketOutboxDispatcher>();
+
+// Phase 2.3: Idempotency-Key filter on POST /api/v1/cart/checkout.
+// Mirrors Discount.Grpc's IIdempotencyKeyProvider shape but reads
+// Basket:Idempotency:SecretHex (separate from Discount's secret —
+// sharing the secret would let a Discount-cache-poisoning bug bleed
+// into Basket's namespace). The filter itself is registered as a
+// transient so a fresh instance is constructed per request; the
+// underlying IConnectionMultiplexer is the shared Singleton.
+builder.Services
+    .AddOptions<BasketIdempotencyOptions>()
+    .Bind(builder.Configuration.GetSection(BasketIdempotencyOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddSingleton<IBasketIdempotencyKeyProvider, BasketIdempotencyKeyProvider>();
+builder.Services.AddScoped<BasketIdempotencyFilter>();
 
 var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {

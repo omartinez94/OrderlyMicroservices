@@ -12,6 +12,9 @@ public class CheckoutBasketEndpoints : ICarterModule
         // Token-bound URL: the BasketIdentityGuardBehavior cross-checks
         // the BasketCheckoutDto's UserId/RestaurantId against the JWT
         // and throws ForbiddenException on mismatch.
+        // Phase 2.3: BasketIdempotencyFilter enforces the IETF
+        // draft-ietf-httpapi-idempotency-key-header contract — required
+        // UUID v4 header, replays on body match, 422 on body mismatch.
         group.MapPost("/cart/checkout", async (BasketCheckoutDto checkoutDto, ISender sender) =>
         {
             var result = await sender.Send(new CheckoutBasketCommand(checkoutDto));
@@ -24,12 +27,17 @@ public class CheckoutBasketEndpoints : ICarterModule
         .ProducesProblem(StatusCodes.Status400BadRequest)
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
         .WithSummary("Checkout the active cart")
         .WithDescription("Publishes BasketCheckoutEvent and deletes the active cart. " +
-                         "Phase 2 will replace this with atomic outbox + idempotency-key handling.")
-        .RequirePermission("orders:create");
+                         "Phase 2: atomic outbox + idempotency-key handling.")
+        .RequirePermission("orders:create")
+        .AddEndpointFilter<BasketIdempotencyFilter>();
 
         // Deprecated shim — body wrapper kept for backward compat.
+        // Idempotency is NOT applied to the shim (it'll be removed at
+        // end of Phase 3 — adding idempotency to a route on the way
+        // out is wasted work).
         group.MapPost("/baskets/checkout", async (CheckoutBasketRequest request, ISender sender) =>
         {
             var command = request.Adapt<CheckoutBasketCommand>();

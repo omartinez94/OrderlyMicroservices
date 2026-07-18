@@ -660,3 +660,232 @@ http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not ca
   - `outbox_dlq` — `OutboxDeadLetterProbe` reading the `outbox_messages_dead` row count; on **Catalog** returns `Unhealthy` when count exceeds `Catalog:OutboxDeadLetterThreshold` (default `0`). On **Discount** (`discount-outbox-dead-letter`) returns `Unhealthy` when count exceeds `Discount:OutboxDeadLetterThreshold` (default `5`).
   - **Discount.Grpc only**: `discount-broker-circuit` reads the `BrokerHealthState` singleton written by `DiscountOutboxDispatcher`. Returns `Unhealthy` when the dispatcher's consecutive-broker-failure counter meets or exceeds `OutboxOptions.MaxConsecutiveBrokerFailures` (default `3`).
 - **Tracing / metrics:** no OpenTelemetry / Application Insights integration in code.
+
+---
+
+## 13. Dev MCP Server (client-app-developer tooling)
+
+A **dev-only Model Context Protocol (MCP) server** runs alongside the .NET services when a client-app developer wires their AI assistant (Claude Desktop, Cursor, etc.) to the local backend. The server exposes **20 tools across 10 modules** that let an AI assistant inspect backend state, seed test data, query the OpenAPI schema, run end-to-end golden-path flows, and inspect/trigger the integration bus — without writing code or hitting endpoints manually.
+
+The server lives at `orderly-microservices/Orderly.DevMCP.Server/` and is **deliberately not in Docker Compose**: it runs as a Node.js process on the dev host (started by `npm run dev`), connects over `localhost` to the backends that are running in Compose, and must never be packaged into production. `.dockerignore` excludes the entire project tree.
+
+### 13.1 Server surface
+
+| Property | Value |
+|---|---|
+| Runtime | Node.js ≥ 22.6.0 (native TypeScript type-stripping — no `tsc` build, no `tsx`) |
+| MCP SDK | `@modelcontextprotocol/sdk@^1.17.0` |
+| Transport | **`StreamableHTTPServerTransport`** (stateful mode, session-id generated per connection) — the MCP spec's successor to SSE |
+| Endpoint path | `POST http://localhost:8080/mcp` |
+| Bind host | `HOST` env (default `0.0.0.0` — LAN-reachable) |
+| Bind port | `PORT` env (default `8080`) |
+| Allowed Hosts header | `['127.0.0.1', 'localhost', '[::1]', HOST]` (`0.0.0.0` filtered out) |
+| Server identity | name `orderly-devmcp`, version `0.1.0` |
+| Auth | HS256 dev JWTs signed with `JWT_SECRET` (≥16 chars). **Dev tokens are NOT accepted by the running .NET services yet** — a fallback dev-secret handler is a tracked follow-up; until it lands, `generate_dev_token` + `verify_token` are useful for round-trip testing, and the other 18 tools are the actual backend-crossing surface. |
+| Gating | Dev-only via `NODE_ENV=development` (zod literal — process exits 1 if anything else) |
+| Dev-host allowlist | `DEV_HOST` env (CSV, default `localhost,127.0.0.1`) — every connection factory calls `assertDevHost` before opening a socket. Non-allowlisted hostnames throw `HostViolationError`. Add container DNS names (`postgres`, `redis`, `rabbitmq`, `messagebroker`, etc.) here when running against a non-localhost backend. |
+| Startup command | `cd orderly-microservices/Orderly.DevMCP.Server && npm run dev` (runs `node --env-file=.env --watch src/index.ts`) |
+| Backend dependencies | All seven backends must be reachable on boot: 4 Postgres pools (catalog 5433, basket 5434, identity 5435, kitchen 5436), MSSQL `OrderDb` (1433), Redis `distributedcache` (6379), RabbitMQ AMQP (5672) + Management API (15672). Any ping failure → process exits 1 with `DevMCPError{code: 'CONNECTION_FAILED'}`. |
+| Backends reachable via | All seven backends listed in §4; service-to-port map in §13.8. |
+
+### 13.2 Connecting an AI assistant
+
+Add the MCP server to the AI assistant's MCP config:
+
+```json
+{
+  "mcpServers": {
+    "orderly-backend": {
+      "type": "streamable-http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+For LAN access (multiple devs sharing a backend box), swap `localhost` for the backend box IP. The snippet also lives at `Orderly.DevMCP.Server/docs/sse-config-snippet.json`.
+
+After the AI assistant connects, the boot log emits `phase 4 ready — 20 tools registered`. The assistant enumerates tools via the standard MCP `tools/list` call and calls them via `tools/call`. All responses come back as text content (JSON-serialised).
+
+### 13.3 Tool catalogue
+
+Twenty tools across ten modules. The two destructive tools (`reset_databases`, `simulate_service_outage`) carry explicit confirmations; see §13.5.
+
+#### 13.3.1 `auth` — `src/tools/auth.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `generate_dev_token` | `{ role: enum[Admin\|Manager\|Staff\|Customer], restaurantId?: uuid, userId?: uuid, ttlSeconds?: int[1..86400, default 3600] }` | `{ token, claims: { sub, role, restaurantId?, iss: 'orderly-devmcp', aud: 'OrderlyMicroservices', iat, exp }, algorithm: 'HS256', issuer, audience }` | None — pure sign |
+| `verify_token` | `{ token: string }` | `{ valid: true, claims, cached: boolean }` or `{ valid: false, error }` (`isError: true`) | Read-only. LRU cache (30 s, max 256) keyed by `sha256(token)` — raw JWT never lands in logs |
+
+Claims shape: `{ sub, role, restaurantId?, iss: 'orderly-devmcp', aud: 'OrderlyMicroservices', iat, exp }`. The token format is identical to what the .NET services would validate once the fallback dev-secret handler lands.
+
+#### 13.3.2 `api-discovery` — `src/tools/api-discovery.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `get_api_schema` | `{ serviceName: enum[catalog\|basket\|ordering\|kitchen\|identity\|discount] }` | `{ serviceName, schemaVersion, fetchedAt, endpointCount, endpoints: [{ method, path, summary?, tags?, requestSchema?, responseSchema? }], cached: boolean }` | Read-only. LRU cache (5 min, max 50). Fetches `http://localhost:{port}/swagger/v1/swagger.json`, normalises (strips `servers[]`, `x-*`, collapses `{param}` form). 5 s timeout |
+
+Service swagger ports (from `src/config/services.ts`): catalog 6000, basket 6001, ordering 6003, kitchen 6005, identity 6007, discount.grpc 6002. `yarpapigateway` (6004) is excluded — no swagger.
+
+#### 13.3.3 `state-inspection` — `src/tools/state-inspection.ts`
+
+| Tool | Input | Output | Backends | Side effects |
+|---|---|---|---|---|
+| `inspect_basket` | `{ userId: uuid, restaurantId: uuid }` | `{ userId, restaurantId, itemCount, subtotal, appliedDiscounts, items, expiresAt, createdAt, fetchedAt, diff: { changed, changes[] } }` or `{ error, key }` | Redis key `basket:{userId}:{restaurantId}` | Read-only. LRU diff-cache (max 128) |
+| `inspect_order_pipeline` | `{ orderId: uuid }` | `{ orderId, order, messageBroker, kitchenTicket, inspectedAt }` (partial-results with `error` flags) | OrderDb (MSSQL) + RabbitMQ Mgmt `ordering-api` queue depth + Kitchendb | Read-only. No cache |
+
+#### 13.3.4 `snapshot` — `src/tools/snapshot.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `get_system_snapshot` | `{ restaurantId?: uuid }` | `{ generatedAt, restaurantId?, catalog: CatalogSection\|{error}, activeSessions, orders, kitchen, eventBus }` | Read-only. Five parallel sub-queries (3 s timeout each), `async-cache-dedupe` 2 s TTL. Sub-queries: Catalog Marten docs count, Redis `SCAN basket:*` enumeration, OrderDb orders grouped by status + completed-today + TOP 5 recent, Kitchendb active ticket count + oldest ReceivedAt, RabbitMQ ordering-api queue depth |
+| `watch_system` | `{ intervalSeconds: int[1..60, default 5], restaurantId?: uuid, durationSeconds?: int[1..3600] }` | `{ watcherId, intervalSeconds, restaurantId?, durationSeconds, status: 'started' }` | **Starts `setInterval` + `setTimeout`** (both `.unref()`'d). Streams each tick via MCP `notifications/message` (`server.sendLoggingMessage` with `level:'info'`) — MCP 1.17 has no streaming-data primitive, logging notifications are the workaround |
+
+`get_system_snapshot`'s `catalog` section counts Marten documents only; it does **not** count `MenuItems` (those live in EF Core, not Marten). This is a known gap.
+
+#### 13.3.5 `log-tracing` — `src/tools/log-tracing.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `get_recent_logs` | `{ serviceName: enum[catalog\|basket\|ordering\|kitchen\|identity\|discount], lines?: int[1..500, default 100], level?: enum[all\|info\|warning\|error, default all] }` | `{ serviceName, container, linesRequested, level, linesReturned, lines: string[], exitCode }` | **Spawns `docker logs --tail N {container}`** via `child_process.spawn({shell:false})` to defeat shell injection. Streams via `node:stream/promises` `pipeline()` with an `async function*` severity filter. Container name map is local to the tool |
+
+**Requires the Docker CLI on the dev host's `PATH` and the named container existing.**
+
+#### 13.3.6 `data-seeding` — `src/tools/data-seeding.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `seed_test_menu` | `{ restaurantId: uuid, dryRun?: bool[default false] }` | `{ mode: 'dry-run'\|'executed', sql: string[], summary: { brands, restaurants, categories, items, variations, customizations }, restaurantId, generatedAt }` | **Mutating write.** Reads canonical seed from `resources/seeds/catalog-seed.json` and upserts via `INSERT … ON CONFLICT DO UPDATE` into Catalogdb (Brands → Restaurants → MenuCategories → MenuItems → MenuItemVariations → Ingredients → MenuItemIngredients). Wrapped in `BEGIN`/`COMMIT`. sha256-bucket the `restaurantId` for ingredient ids so the real id never lands in logs (`util/sanitize.ts`) |
+| `create_mock_order` | `{ restaurantId: uuid, status?: enum[Ordering\|Pending\|Confirmed\|Preparing\|Ready\|Delivered\|Completed\|Cancelled\|OnHold, default Pending], orderType?: enum[DineIn\|Takeout\|Delivery, default DineIn] }` | `{ orderId, restaurantId, status, orderType, subtotal, taxAmount, total, currency: 'MXN', orderNumber }` | **Mutating write.** Transactional INSERT into OrderDb (Customers upsert idempotent on `Id`, Orders + OrderItems). Tax 16%. Reads canonical payload from `resources/seeds/order-seed.json` |
+
+Seed JSON files: `resources/seeds/catalog-seed.json` (1 brand, 3 categories, 11 items, 4 variations, 4 customizations, deterministic GUIDs) and `resources/seeds/order-seed.json` (1 customer, DineIn, CreditCard test PAN `4111111111111111`, 2 items). All seed GUIDs are deterministic so re-running is idempotent.
+
+#### 13.3.7 `event-bus` — `src/tools/event-bus.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `publish_integration_event` | `{ eventName: string, payload: record(string,unknown), rateLimitKey?: string[default 'global'] }` | `{ exchange, eventId, bytes, payload }` or `{ error: 'rate-limited', resetMs }` / `{ error: 'unknown event', known: string[] }` | **Mutating publish.** AMQP publish to fanout exchange `BuildingBlocks.Messaging.Events:{eventName}` via `amqplib`. **Rate-limited 5/min per `rateLimitKey`** (`TokenBucket(5, 12000)` in `src/util/rate-limit.ts`). Event-type lookup table built at boot by scanning `BuildingBlocks/Messaging/Events/*.cs` (skips `IntegrationEvent.cs` base + `I*` interfaces); if run outside the repo any name is allowed. Auto-injects `Id` (UUID), `OccurredOn` (ISO), `MessageVersion` (1) when not present in payload |
+| `inspect_dead_letters` | `{ limitPerQueue?: int[1..50, default 5] }` | `{ generatedAt, deadLetterQueues: [{ queue, messageCount, messages[] }] }` | Read-only. Two-step RabbitMQ Mgmt API call (list queues → fetch each `*_error` via `POST /api/queues/.../get` with `truncate: 10240` — 10 KB cap per message). 3 s timeout each |
+
+#### 13.3.8 `infrastructure` — `src/tools/infrastructure.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `reset_databases` | `{ targets?: enum[catalog\|basket\|ordering\|kitchen\|identity][default all], confirm: literal(true), confirmText: string }` | `{ resetAt, results: Record<target, { ok, error? }> }` | **DESTRUCTIVE.** Two-step confirmation enforced (`confirmText` must equal one of the `targets`). Rate-limited 1/hour. Marten targets (catalog/basket/kitchen/identity): `DROP SCHEMA public CASCADE; CREATE SCHEMA public;`. OrderDb: `ALTER DATABASE OrderDb SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE OrderDb; CREATE DATABASE OrderDb;`. Redis `FLUSHALL` only if all PG/MSSQL targets succeeded |
+| `simulate_service_outage` | `{ serviceName: string, durationSeconds?: int[0..3600, default 30] }` | `{ serviceName, stopped: true, autoRestartIn?: number }` or `{ serviceName, stopped: true, autoRestart: false }` (when `durationSeconds: 0`) | **DESTRUCTIVE.** `docker stop {serviceName}` then `setTimeout(() => docker start …)` (`.unref()`'d). **Allowlist enforced** — API containers only: `catalog.api`, `basket.api`, `ordering.api`, `kitchen.api`, `identity.api`, `discount.grpc`, `yarpapigateway`. Refuses `messagebroker`, any DB container, or any unlisted service with the allowlist echoed back |
+
+#### 13.3.9 `jobs` — `src/tools/jobs.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `seed_historical_sales` | `{ restaurantId: uuid, daysBack?: int[1..365, default 30], ordersPerDay?: int[1..500, default 20] }` | `{ mode: 'executed', total, daysBack, ordersPerDay }` | **Mutating write.** Transactional MSSQL bulk-style multi-row INSERTs in batches of 50. Deterministic per-run via `mulberry32(sha256(restaurantId + ':' + daysBack).readUInt32LE(0))`. Daily volume varies 50–150% of `ordersPerDay`. Status `'Completed'`, OrderType `'DineIn'`, TaxRate 0.16, Currency `'MXN'`. Uses parameterised multi-row INSERTs (`@p{j*COLS+k}` placeholders) |
+| `trigger_scheduled_jobs` | `{ jobName: enum[clear-abandoned-baskets\|daily-reconciliation\|outbox-relay] }` | `{ jobName, url, status, body }` (body capped 2048 chars) | **Mutating HTTP.** `fetch(url, {method:'POST', headers: {'X-Dev-Trigger-Secret': process.env.DEV_TRIGGER_SECRET, 'X-Dev-Trigger-Source': 'orderly-devmcp'}, timeout: 10s})`. Refuses if `DEV_TRIGGER_SECRET` env is unset. Endpoints: `http://basket.api:8080/_dev/trigger/clear-abandoned-baskets`, `http://ordering.api:8080/_dev/trigger/daily-reconciliation`, `http://ordering.api:8080/_dev/trigger/outbox-relay`. **The .NET-side companion dev endpoints are not yet implemented** — tracked as a separate follow-up |
+
+#### 13.3.10 `flow-tracing` — `src/tools/flow-tracing.ts`
+
+| Tool | Input | Output | Side effects |
+|---|---|---|---|
+| `trace_business_flow` | `{ flowName: enum[checkout\|kitchen-order-lifecycle\|discount-application], cleanupRunId?: uuid }` | `GoldenPathDoc = { runId, flowName, startedAt, finishedAt, totalElapsedMs, pass, steps: StepResult[] }` (steps typed: `http` / `amqp_publish` / `mssql_query` / `pg_query` / `redis_check` / `wait` / `info`, with per-step timing) | Generates fresh `userId`/`restaurantId`/`menuItemId`/`orderId` GUIDs per run; persists `var/runs/{runId}.json` (gitignored). `cleanupRunId` deletes Redis basket key from a previous run. **The `discount-application` runner is STUBBED** — throws `Error('discount-application flow requires gRPC client — not yet implemented')`. The diagram is complete; the runner slot is reserved for `@grpc/grpc-js` |
+| `get_flow_architecture` | `{ flowName: enum[checkout\|kitchen-order-lifecycle\|discount-application] }` | `{ flowName, diagram: string }` (Mermaid source) | Read-only. Reads `resources/flows/{flowName}.mmd` |
+| `verify_flow_state` | `{ entityType: enum[order\|basket\|kitchenTicket], entityId: string, expectedState: string }` | `{ entityType, entityId, expected, actual: Record<system,string>, pass: boolean, failures: Array<{ system, expected, actual }> }` | Read-only. Cross-queries OrderDb (`Status`), Redis (`basket:{userId}:{restaurantId}` for `basket`), or Kitchendb (`Status` int). `entityId` shape differs by `entityType` — `basket` is `userId:restaurantId` |
+
+### 13.4 Golden-path flow diagrams
+
+`Orderly.DevMCP.Server/resources/flows/` contains three Mermaid diagrams. The drift lint (`scripts/check-mmds-in-sync.ts`, run via `npm run lint:mmd`) mtime-compares each `.mmd` against `src/tools/flow-tracing.ts` and fails CI on drift — touch a `.mmd` to silence the lint after review; never auto-update.
+
+| File | Type | What it traces | Runner status |
+|---|---|---|---|
+| `checkout.mmd` | sequenceDiagram | Client → Yarp `:6004` → `basket.api :6001` → basketdb `:5434` + Redis basket cache → MassTransit/messagebroker `:5672` → `ordering.api :6003` writes to OrderDb `:1433` + publishes `OrderCreatedIntegrationEvent` → `kitchen.api :6005` creates `kitchen_ticket` in Kitchendb `:5436` + broadcasts to `KitchenHub` SignalR | **Wired.** 3 steps: `POST /basket/items`, `POST /basket/checkout`, verify Orders count |
+| `kitchen-order-lifecycle.mmd` | stateDiagram-v2 | KitchenTicket state machine: `Pending → Accepted → PrepStarted → Ready → Bumped` (terminal), plus `Cancelled` / `Recalled` transitions. Each transition annotated with the IntegrationEvent it publishes (`KitchenOrderAcceptedIntegrationEvent`, etc.) and the parent Order status it triggers | **Wired.** Publishes 3 events (Accepted → PrepStarted → Ready) with 800 ms waits between, then queries RabbitMQ `ordering-api` queue depth. Queue-depth check is an `info` log line, not a hard assertion |
+| `discount-application.mmd` | sequenceDiagram | User → Yarp → `basket.api` → `discount.grpc :6002` (synchronous gRPC) → discountdb SQLite, with optional CouponCode branch. Basket applies reduction via AppliedDiscounts list and refreshes Subtotal | **Stubbed.** Throws — needs `@grpc/grpc-js` + `@grpc/proto-loader` to call `Discount.proto` |
+
+### 13.5 Dev-host allowlist + secret redaction
+
+Every connection factory calls `assertDevHost(host)` before opening any socket. The allowlist is `DEV_HOST=localhost,127.0.0.1` by default; add container DNS names (`postgres`, `redis`, `rabbitmq`, `messagebroker`, etc.) when the dev backend runs in a non-localhost Docker network. A non-allowlisted host throws `HostViolationError` (HTTP 403).
+
+`JWT_SECRET` is read through `getSecret('JWT_SECRET')` — a method-only accessor in `src/config/env.ts` so `console.log(env)` cannot dump it. The pino logger (`src/logger.ts`) additionally redacts the following paths:
+
+```
+JWT_SECRET, Jwt:Secret, password, *.password, *.Password,
+connectionString, ConnectionString, Authorization,
+headers.Authorization, req.headers.authorization, res.headers.authorization
+```
+
+Two destructive tools carry explicit safeguards:
+
+| Tool | Safeguard | Rate limit |
+|---|---|---|
+| `reset_databases` | Two-step confirmation: `confirm: true` AND `confirmText` must equal one of the `targets` | 1/hour |
+| `simulate_service_outage` | Allowlist of 7 API containers; refuses `messagebroker`, DB containers, or any unlisted service (echoes the allowlist back) | n/a |
+
+### 13.6 Reference: env vars (`.env.example`)
+
+Required:
+
+- `NODE_ENV=development` (zod literal — server refuses to start otherwise)
+- `JWT_SECRET` (≥16 chars)
+- `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `SA_PASSWORD` (MSSQL `sa`)
+- `REDIS_PASSWORD`
+- `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`
+
+Optional (with defaults):
+
+- `HOST=0.0.0.0`
+- `PORT=8080`
+- `LOG_LEVEL=info`
+- `DEV_HOST=localhost,127.0.0,1`
+- `ASPNETCORE_Kestrel__Certificates__Default__Password` (matches docker-compose dev cert)
+
+For `trigger_scheduled_jobs`:
+
+- `DEV_TRIGGER_SECRET` (not in `.env.example`; documented in `src/tools/jobs.ts` and the README)
+
+### 13.7 Reference: dev-token workflow
+
+Until the .NET-side fallback dev-secret handler lands, the workflow is:
+
+1. **Connect** the AI assistant to `http://localhost:8080/mcp` (see §13.2).
+2. **Generate** a token: `generate_dev_token(role: 'Admin', restaurantId: '<rid>', ttlSeconds: 3600)` → receive HS256 JWT.
+3. **Verify** the token round-trips: `verify_token(token)` → `{ valid: true, claims: {...} }`.
+4. **Inspect backend state** directly — the 18 non-auth tools query Postgres / MSSQL / Redis / RabbitMQ over `localhost` and don't require any token to be accepted by the .NET services.
+5. **Use the token against the running APIs** (`.fetch(..., { headers: { Authorization: \`Bearer ${token}\` } })`) — **this fails today** because the .NET services validate against the Identity OpenIddict server (asymmetric certs) and do not accept HS256 dev tokens. When the fallback dev-secret handler lands, this step will work.
+
+`generate_dev_token` issues HS256 with claims `{ sub, role, restaurantId?, iss: 'orderly-devmcp', aud: 'OrderlyMicroservices', iat, exp }`. The format matches what the .NET services will accept once the dev-secret handler is wired.
+
+### 13.8 Reference: service port map
+
+| Container | Host port (HTTP) | Host port (HTTPS) | Swagger served? | Notes |
+|---|---|---|---|---|
+| `catalog.api` | 6000 | 6060 | yes | Marten docs + EF Core relational |
+| `basket.api` | 6001 | 6061 | yes | Marten per-tenant DBs |
+| `ordering.api` | 6003 | 6063 | yes | MSSQL `OrderDb` |
+| `kitchen.api` | 6005 | 6065 | yes | SignalR `/hubs/kitchen` |
+| `identity.api` | 6007 | 6067 | yes | OpenIddict OIDC server |
+| `discount.grpc` | 6002 | 6062 | yes | gRPC only (HTTP/2) |
+| `yarpapigateway` | 6004 | 6064 | no | excluded from `SWAGGER_SERVICES` |
+
+Backend ports (used by the MCP server's connection factories):
+
+| Service | Port | Notes |
+|---|---|---|
+| `catalogdb` | 5433 | Postgres |
+| `basketdb` | 5434 | Postgres |
+| `identitydb` | 5435 | Postgres |
+| `kitchendb` | 5436 | Postgres |
+| `OrderDb` | 1433 | MSSQL |
+| `distributedcache` | 6379 | Redis |
+| `messagebroker` (AMQP) | 5672 | RabbitMQ |
+| `messagebroker` (Mgmt) | 15672 | RabbitMQ Management API |
+
+### 13.9 Reference: known gaps
+
+| Gap | Status | Impact |
+|---|---|---|
+| Dev tokens not accepted by running .NET APIs | Follow-up | `generate_dev_token` works for round-trip only; use `inspect_*` / `get_system_snapshot` / `get_recent_logs` to actually read backend state |
+| `trigger_scheduled_jobs` .NET-side endpoints | Follow-up | `POST /_dev/trigger/{name}` on `basket.api` and `ordering.api` not implemented; tool refuses with 503 until they land |
+| `discount-application` flow runner | Stubbed (throws) | Diagram exists in `resources/flows/discount-application.mmd`; runner needs `@grpc/grpc-js` + `@grpc/proto-loader` |
+| `get_system_snapshot`'s `catalog` section | Partial | Counts Marten docs only; does not count `MenuItems` (which live in EF Core) |
+| Server instructions text | Stale | Says "17 tools across 9 modules"; actual is "20 tools across 10 modules" per the boot log "phase 4 ready — 20 tools registered" |
+| README §1 | Stale | Same text as server instructions; actual count is 20/10 |

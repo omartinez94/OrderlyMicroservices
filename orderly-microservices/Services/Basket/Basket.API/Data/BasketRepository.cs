@@ -86,4 +86,14 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
 
         return true;
     }
+
+    /// <summary>
+    /// No-op on the inner repository — cache invalidation lives in the
+    /// <see cref="CachedBasketRepository"/> decorator. Splitting the two
+    /// keeps the inner repository free of caching concerns and lets the
+    /// checkout handler call the wrapper directly when it needs to
+    /// invalidate without re-running the Marten delete.
+    /// </summary>
+    public Task InvalidateCacheAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default) =>
+        Task.CompletedTask;
 }

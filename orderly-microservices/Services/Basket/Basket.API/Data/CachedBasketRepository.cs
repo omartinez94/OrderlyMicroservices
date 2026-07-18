@@ -27,6 +27,17 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
         return true;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Cache-only — does not touch Marten. The checkout handler calls
+    /// this AFTER its <c>IDocumentSession.SaveChangesAsync()</c>
+    /// commits the outbox row + basket delete; invalidating here closes
+    /// the window where a concurrent reader could see a deleted basket
+    /// in the cache.
+    /// </remarks>
+    public async Task InvalidateCacheAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default) =>
+        await cache.RemoveAsync(CacheKey(userId, restaurantId), cancellationToken);
+
     public async Task<Models.Basket> GetBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
         var cacheKey = CacheKey(userId, restaurantId);

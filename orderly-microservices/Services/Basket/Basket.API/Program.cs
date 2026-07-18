@@ -56,6 +56,13 @@ builder.Services.AddMarten(opt =>
     // creation above, this is defense-in-depth — a caller without the
     // matching restaurantId claim cannot reach another tenant's rows.
     opt.Schema.For<Models.Basket>().MultiTenanted();
+
+    // Phase 2 of the Basket plan: the outbox row lives in the same
+    // Marten store as the Basket. MultiTenanted() tags each row with
+    // the current restaurant id so the dispatcher's claim query cannot
+    // publish across tenants. The dispatcher itself is registered as a
+    // hosted service below.
+    opt.Schema.For<CheckoutBasketOutboxMessage>().MultiTenanted();
 })
     .ApplyAllDatabaseChangesOnStartup()
     .UseLightweightSessions();
@@ -93,6 +100,19 @@ builder.Services.AddStackExchangeRedisCache(rediscache =>
 
 // Async comunication services
 builder.Services.AddMessageBroker(builder.Configuration);
+
+// Phase 2 of the Basket plan: outbox dispatcher. The relay polls the
+// mt_doc_checkoutbasketoutboxmessage Marten table every
+// OutboxOptions.ActivePollInterval and forwards staged rows onto the
+// MassTransit broker. Same shape as Discount/Ordering's
+// OutboxDispatcher<TContext> but Marten-flavored — see
+// BASKET_SERVICE_PLAN.md §6 Phase 2 drift item 1.
+builder.Services
+    .AddOptions<OutboxOptions>()
+    .Bind(builder.Configuration.GetSection(OutboxOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddHostedService<CheckoutBasketOutboxDispatcher>();
 
 var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {

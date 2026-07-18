@@ -1,10 +1,12 @@
 global using Basket.API.Behaviors;
 global using Basket.API.Data;
 global using Basket.API.Dtos;
+global using Basket.API.Messaging;
 global using BuildingBlocks.Behaviors;
 global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Exceptions;
 global using FluentAssertions;
+global using Marten;
 global using MediatR;
 global using Microsoft.AspNetCore.Http;
 global using Microsoft.Extensions.Logging;

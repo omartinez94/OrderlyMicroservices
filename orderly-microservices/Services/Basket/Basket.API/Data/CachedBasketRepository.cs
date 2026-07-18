@@ -27,9 +27,8 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
     /// configuration serialises <see cref="NodaTime.Instant"/> as an
     /// empty object — a silent round-trip break that surfaces only when
     /// a cached basket is read back with a default-constructed
-    /// <c>CreatedAt = default</c> / <c>ExpiresAt = default</c>. Phase 1's
-    /// rewrite of this layer did NOT add the shared options; Phase 2.2
-    /// closes the drift item from the Phase 1 plan.
+    /// <c>CreatedAt = default</c> / <c>ExpiresAt = default</c>.
+    /// Rewrite of this layer did NOT add the shared options; closes the drift item.
     /// </remarks>
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -117,11 +116,11 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
         return basket;
     }
 
-    public async Task<Models.Basket> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default)
+    public async Task<(Models.Basket Basket, bool IsCreated)> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(basket);
 
-        var storedBasket = await innerRepository.StoreBasketAsync(basket, cancellationToken);
+        var (storedBasket, isCreated) = await innerRepository.StoreBasketAsync(basket, cancellationToken);
 
         var options = new DistributedCacheEntryOptions
         {
@@ -134,6 +133,6 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
             options,
             cancellationToken);
 
-        return storedBasket;
+        return (storedBasket, isCreated);
     }
 }

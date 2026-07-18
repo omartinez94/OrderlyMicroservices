@@ -50,11 +50,17 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.ComplexProperty(o => o.Payment, paymentBuilder =>
         {
-            paymentBuilder.Property(p => p.CardName).HasMaxLength(50).IsRequired();
-            paymentBuilder.Property(p => p.CardNumber).HasMaxLength(24).IsRequired();
-            paymentBuilder.Property(p => p.Expiration).HasMaxLength(10).IsRequired();
-            paymentBuilder.Property(p => p.Ccv).HasMaxLength(3).IsRequired();
-            paymentBuilder.Property(p => p.PaymentMethod).HasMaxLength(50).IsRequired();
+            // Wire-shape redaction: only the redacted
+            // summary travels — discriminator + brand + last-four. The
+            // previous raw-card columns (CardName / CardNumber /
+            // Expiration / Ccv / PaymentMethod string) are removed.
+            // This is a breaking schema change for existing rows; a
+            // migration script populates Method = Unspecified + Brand =
+            // "Unknown" + LastFour = "0000" for legacy rows so the
+            // domain's NotEqual(Unspecified) guard is satisfied.
+            paymentBuilder.Property(p => p.Method).HasConversion<int>().IsRequired();
+            paymentBuilder.Property(p => p.Brand).HasMaxLength(50).IsRequired();
+            paymentBuilder.Property(p => p.LastFour).HasMaxLength(4).IsRequired();
         });
 
         builder.Property(o => o.Status)

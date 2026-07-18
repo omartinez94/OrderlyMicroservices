@@ -15,7 +15,7 @@ public sealed class OrderTests
         Address.Of("123 Main St", "Springfield", "IL", "12345", "US");
 
     private static Payment ValidPayment() =>
-        Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard");
+        Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111");
 
     private static OrderNumber ValidOrderNumber() => OrderNumber.Of("ORD-2026-0001");
 
@@ -117,7 +117,7 @@ public sealed class OrderTests
 
         var newBilling = Address.Of("1 New St", "Chicago", "IL", "67890", "US");
         var newDelivery = Address.Of("2 New St", "Chicago", "IL", "67890", "US");
-        var newPayment = Payment.Of("Jane Doe", "5555555555554444", "01/31", "321", "Debit");
+        var newPayment = Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Mastercard", "4444");
         var originalStatus = order.Status;
 
         order.Update(newBilling, newDelivery, newPayment);

@@ -6,6 +6,7 @@ global using Basket.API.Endpoints;
 global using Basket.API.Exceptions;
 global using Basket.API.Idempotency;
 global using Basket.API.Messaging;
+global using Basket.API.Payment;
 global using Basket.API.ProblemDetails;
 global using Basket.API.RateLimiting;
 global using BuildingBlocks.Authorization;

@@ -59,7 +59,7 @@ public sealed class OrderingApiIntegrationTests
             Guid.NewGuid(),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
-            Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard"));
+            Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111"));
 
         // Force the desired status for the test (Create sets Pending). The
         // Aggregate exposes Status as a settable property for test seeder

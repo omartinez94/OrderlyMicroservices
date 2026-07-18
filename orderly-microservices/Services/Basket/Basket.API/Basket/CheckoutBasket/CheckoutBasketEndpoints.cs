@@ -15,8 +15,17 @@ public class CheckoutBasketEndpoints : ICarterModule
         // Phase 2.3: BasketIdempotencyFilter enforces the IETF
         // draft-ietf-httpapi-idempotency-key-header contract — required
         // UUID v4 header, replays on body match, 422 on body mismatch.
-        group.MapPost("/cart/checkout", async (BasketCheckoutDto checkoutDto, ISender sender) =>
+        group.MapPost("/cart/checkout", async (System.Security.Claims.ClaimsPrincipal principal, BasketCheckoutDto checkoutDto, ISender sender) =>
         {
+            // spoofing-footgun fix: the body MUST carry Guid.Empty
+            // for UserId / RestaurantId; the validator rejects any other
+            // value with 422 before we get here. The endpoint overwrites
+            // with the JWT-derived identity so the BasketIdentityGuardBehavior
+            // sees matching values when it cross-checks the
+            // command's identity against the JWT.
+            checkoutDto.UserId = principal.GetUserId();
+            checkoutDto.RestaurantId = principal.GetRestaurantId();
+
             var result = await sender.Send(new CheckoutBasketCommand(checkoutDto));
             return result.Success
                 ? Results.Ok(result.Adapt<CheckoutBasketResponse>())
@@ -33,9 +42,8 @@ public class CheckoutBasketEndpoints : ICarterModule
                          "Phase 2: atomic outbox + idempotency-key handling.")
         .RequirePermission("orders:create")
         .AddEndpointFilter<BasketIdempotencyFilter>()
-        // Phase 2.4: rate limiter — 5 requests/minute per
-        // (userId, restaurantId). The other three endpoints stay
-        // unlimited per plan §0.4.8.
+        // Rate limiter — 5 requests/minute per
+        // (userId, restaurantId). The other three endpoints stay unlimited.
         .RequireRateLimiting("checkout");
 
         // Deprecated shim — body wrapper kept for backward compat.

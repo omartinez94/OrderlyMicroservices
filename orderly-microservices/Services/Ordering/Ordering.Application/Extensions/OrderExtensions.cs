@@ -29,7 +29,7 @@ public static class OrderExtensions
             DeliveryStatus: order.DeliveryStatus,
             DeliveryLatitude: order.DeliveryLatitude,
             DeliveryLongitude: order.DeliveryLongitude,
-            Payment: new PaymentDto(order.Payment.CardName, order.Payment.CardNumber, order.Payment.Expiration, order.Payment.Ccv, order.Payment.PaymentMethod),
+            Payment: new PaymentDto(order.Payment.Method, order.Payment.Brand, order.Payment.LastFour),
             EstimatedPrepTimeMinutes: order.EstimatedPrepTimeMinutes,
             ActualPrepTimeMinutes: order.ActualPrepTimeMinutes,
             IsModified: order.IsModified,

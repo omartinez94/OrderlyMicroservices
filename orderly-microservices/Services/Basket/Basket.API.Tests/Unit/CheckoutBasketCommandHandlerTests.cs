@@ -11,24 +11,11 @@ namespace Basket.API.Tests.Unit;
 /// the handler stages the outbox row + deletes the basket in the SAME
 /// <c>IDocumentSession.SaveChangesAsync()</c> call so a publish failure
 /// can no longer delete the cart or a delete failure can no longer
-/// leave the cart behind.
+/// leave the cart behind. Phase 2.1 updated the wire payload to v2
+/// (PaymentMethodSummary instead of raw card fields); the
+/// <see cref="OutboxPayload_DeserializesToBasketCheckoutEvent_WithExpectedFields"/>
+/// test locks the v2 shape.
 /// </summary>
-/// <remarks>
-/// <para>
-/// "Atomic" here means "one Marten commit covers both writes" — verified
-/// by asserting <c>SaveChangesAsync</c> is called exactly once with
-/// <c>Store(outboxMessage)</c> and <c>Delete(basket)</c> both staged
-/// first. The true transactional guarantee (a Postgres-level rollback
-/// if the commit fails) is an integration-test concern; Phase 5's
-/// <c>BasketWebApplicationFactory</c> covers that path with Testcontainers.
-/// </para>
-/// <para>
-/// <c>IPublishEndpoint</c> is intentionally absent from the handler's
-/// constructor (Phase 2 — the relay moved to
-/// <see cref="CheckoutBasketOutboxDispatcher"/>). The tests assert the
-/// handler does NOT publish directly.
-/// </para>
-/// </remarks>
 public sealed class CheckoutBasketCommandHandlerTests
 {
     [Fact]
@@ -37,7 +24,6 @@ public sealed class CheckoutBasketCommandHandlerTests
         var userId = Guid.NewGuid();
         var restaurantId = Guid.NewGuid();
         var emptyBasket = new Models.Basket(userId, restaurantId);
-        // Items list is empty by default on Models.Basket — no setup needed.
 
         var repository = Substitute.For<IBasketRepository>();
         repository
@@ -57,9 +43,6 @@ public sealed class CheckoutBasketCommandHandlerTests
         result.Success.Should().BeFalse();
         result.Message.Should().Be("Basket is empty.");
 
-        // The handler must NOT stage an outbox row, NOT delete the
-        // basket, and NOT call SaveChangesAsync when the cart is empty —
-        // saves a round-trip and keeps the audit trail clean.
         session
             .DidNotReceive()
             .Store(Arg.Any<CheckoutBasketOutboxMessage>());
@@ -105,14 +88,17 @@ public sealed class CheckoutBasketCommandHandlerTests
 
         result.Success.Should().BeTrue();
 
-        // 1. Outbox row was staged.
+        // 1. Outbox row was staged. Phase 2.1 bumped BasketCheckoutEvent
+        //    to MessageVersion=2 — SchemaVersion on the outbox row
+        //    mirrors the event's MessageVersion, so this assertion locks
+        //    the v2 wire shape on the dispatcher side.
         session
             .Received(1)
             .Store(Arg.Is<CheckoutBasketOutboxMessage>(m =>
                 m.Id != Guid.Empty &&
                 m.OccurredOn != default &&
                 m.Type == typeof(BasketCheckoutEvent).FullName &&
-                m.SchemaVersion == 1 &&
+                m.SchemaVersion == 2 &&
                 !string.IsNullOrEmpty(m.Payload) &&
                 m.DispatchedAt == null));
 
@@ -120,8 +106,6 @@ public sealed class CheckoutBasketCommandHandlerTests
         session.Received(1).Delete(basket);
 
         // 3. SaveChangesAsync was called EXACTLY ONCE — atomicity hinge.
-        // Two writes → one commit. Any future contributor who splits
-        // this into two SaveChangesAsync calls breaks Phase 2.
         await session.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
         // 4. Cache invalidation ran AFTER the Marten commit.
@@ -131,25 +115,14 @@ public sealed class CheckoutBasketCommandHandlerTests
     }
 
     [Fact]
-    public void OutboxPayload_DeserializesToBasketCheckoutEvent_WithExpectedFields()
+    public void OutboxPayload_DeserializesToBasketCheckoutEventV2_WithRedactedPaymentSummary()
     {
         var userId = Guid.NewGuid();
         var restaurantId = Guid.NewGuid();
-        var basket = new Models.Basket(userId, restaurantId)
-        {
-            Items =
-            {
-                new Models.BasketItem
-                {
-                    MenuItemId = 7,
-                    Quantity = 3,
-                    UnitPrice = 12.50m,
-                    Variations = { new Models.BasketItemVariation { Name = "Size", Value = "Large", Price = 1.00m } },
-                    Customizations = { new Models.BasketItemCustomization { Ingredient = "Cheese", Action = "Add" } },
-                },
-            },
-        };
 
+        // Phase 2.1 wire shape: the v2 event carries ONLY the redacted
+        // PaymentMethodSummary (discriminator + brand + last-four). Full
+        // PAN, CVV, and CardName do NOT travel — they stay inside Basket.
         var eventMessage = new BasketCheckoutEvent
         {
             UserId = userId,
@@ -162,32 +135,36 @@ public sealed class CheckoutBasketCommandHandlerTests
             State = "London",
             City = "London",
             ZipCode = "WC1E 6BT",
-            CardName = "Ada Lovelace",
-            CardNumber = "4111111111111111",
-            Expiration = "12/30",
-            CVV = "123",
-            PaymentMethod = "1",
+            PaymentMethodSummary = new PaymentMethodSummary(
+                Method: PaymentMethod.Card,
+                Brand: "Visa",
+                LastFour: "1111"),
         };
 
-        // Mirror the handler's payload contract (CheckoutBasketHandler
-        // serialises via the same JsonSerializerOptions shape):
-        var payload = JsonSerializer.Serialize(eventMessage, new JsonSerializerOptions
+        var serializerOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = null,
-            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
-        });
+            Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter<BuildingBlocks.Messaging.Events.PaymentMethod>() },
+        };
 
-        var roundTrip = JsonSerializer.Deserialize<BasketCheckoutEvent>(payload);
+        var payload = JsonSerializer.Serialize(eventMessage, serializerOptions);
+
+        // Pass the same options to deserialize so the typed enum converter
+        // (and any other customisations) round-trip symmetrically. Without
+        // this, the default options would try to read "Card" as a string
+        // instead of as the enum value.
+        var roundTrip = JsonSerializer.Deserialize<BasketCheckoutEvent>(payload, serializerOptions);
         roundTrip.Should().NotBeNull();
         roundTrip!.UserId.Should().Be(userId);
         roundTrip.RestaurantId.Should().Be(restaurantId);
-        roundTrip.TotalAmount.Should().Be(0m); // TotalAmount is set by the handler at stage time.
+        roundTrip.TotalAmount.Should().Be(0m);
         roundTrip.FirstName.Should().Be("Ada");
-        // Phase 2 v1 still carries CardNumber/CVV on the wire — card
-        // redaction (PaymentMethodSummary) is a separate Phase 2.1
-        // commit. This assertion records that the v1 contract is
-        // round-trippable.
-        roundTrip.CardNumber.Should().Be("4111111111111111");
+        roundTrip.PaymentMethodSummary.Should().NotBeNull();
+        roundTrip.PaymentMethodSummary!.Method.Should().Be(PaymentMethod.Card);
+        roundTrip.PaymentMethodSummary.Brand.Should().Be("Visa");
+        roundTrip.PaymentMethodSummary.LastFour.Should().Be("1111");
+        roundTrip.MessageVersion.Should().Be(2,
+            "BasketCheckoutEvent v2 stamps MessageVersion=2 — the dispatcher's MaxSupportedVersion gates v2 rows");
     }
 
     private static CheckoutBasketCommand BuildCommand(Guid userId, Guid restaurantId) =>
@@ -206,6 +183,6 @@ public sealed class CheckoutBasketCommandHandlerTests
             CardNumber = "4111111111111111",
             Expiration = "12/30",
             CVV = "123",
-            PaymentMethod = 1,
+            PaymentMethod = PaymentMethod.Card,
         });
 }

@@ -19,7 +19,7 @@ public sealed class OrderItemTests
             Guid.NewGuid(),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
-            Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard"));
+            Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111"));
         order.Add(NewMenuItemId(), quantity: 1, price: 5m);
         var item = order.OrderItems.Single();
         item.MenuItemName = "Test Burger";

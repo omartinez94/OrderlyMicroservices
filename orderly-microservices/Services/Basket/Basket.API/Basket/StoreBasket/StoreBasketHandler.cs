@@ -8,15 +8,27 @@ public record StoreBasketCommand(Models::Basket Basket) : ICommand<StoreBasketRe
     public Guid RestaurantId => Basket.RestaurantId;
 }
 
-public record StoreBasketResult(Guid UserId, Guid RestaurantId);
+public record StoreBasketResult(bool IsCreated, Guid UserId, Guid RestaurantId);
 
 public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
 {
     public StoreBasketCommandValidator()
     {
         RuleFor(x => x.Basket).NotNull().WithMessage("Basket is required.");
-        RuleFor(x => x.Basket.UserId).NotEmpty().WithMessage("UserId is required.");
-        RuleFor(x => x.Basket.RestaurantId).NotEmpty().WithMessage("RestaurantId is required.");
+
+        // spoofing-footgun fix: UserId / RestaurantId are
+        // forbidden on the wire. The endpoint overwrites them from the
+        // JWT before constructing the command — so this rule validates
+        // the *body*'s values (which the caller MUST leave empty),
+        // not the post-overwrite values. A non-empty body UserId is
+        // rejected with 422 by CustomExceptionHandler; the endpoint
+        // never lets a request with a populated UserId reach the
+        // handler. The identity guard provides the
+        // second-layer check (mismatch between JWT and command).
+        RuleFor(x => x.Basket.UserId).Equal(Guid.Empty)
+            .WithMessage("Basket.UserId must be empty; the JWT-derived identity is authoritative.");
+        RuleFor(x => x.Basket.RestaurantId).Equal(Guid.Empty)
+            .WithMessage("Basket.RestaurantId must be empty; the JWT-derived restaurant is authoritative.");
     }
 }
 
@@ -30,7 +42,7 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Phase 2.2 polyfill.</b> The aggregated <c>EvaluateDiscounts</c>
+/// The aggregated <c>EvaluateDiscounts</c>
 /// RPC lives on Discount's roadmap (not this plan). Until it ships,
 /// the handler iterates the user-input coupon list in parallel
 /// (<see cref="Parallel.ForEachAsync{T}"/>, <c>MaxDegreeOfParallelism = 4</c>),
@@ -47,7 +59,7 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
 /// wire <c>ExpirationDate</c>), the whole upsert fails — the alternative
 /// (skip-and-log) lets a broken Discount integration silently bypass
 /// coupon validation on a money path. A future Idempotency-Key
-/// middleware (sub-deliverable 2.3) lets the caller safely retry.
+/// middleware lets the caller safely retry.
 /// </para>
 /// <para>
 /// <b>Per-coupon clamping.</b> Each <see cref="Models.CouponSnapshot.DiscountAmount"/>
@@ -80,8 +92,8 @@ public class StoreBasketHandler(
             basket.AppliedCoupons = [];
             basket.DiscountAmount = 0m;
 
-            var storedEmpty = await basketRepository.StoreBasketAsync(basket, cancellationToken);
-            return new StoreBasketResult(storedEmpty.UserId, storedEmpty.RestaurantId);
+            var (storedEmpty, isCreatedEmpty) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
+            return new StoreBasketResult(isCreatedEmpty, storedEmpty.UserId, storedEmpty.RestaurantId);
         }
 
         var subtotal = basket.Subtotal;
@@ -147,7 +159,7 @@ public class StoreBasketHandler(
         // total is clamped.
         basket.DiscountAmount = Math.Min(snapshots.Sum(s => s.DiscountAmount), subtotal);
 
-        var stored = await basketRepository.StoreBasketAsync(basket, cancellationToken);
-        return new StoreBasketResult(stored.UserId, stored.RestaurantId);
+        var (stored, isCreated) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
+        return new StoreBasketResult(isCreated, stored.UserId, stored.RestaurantId);
     }
 }

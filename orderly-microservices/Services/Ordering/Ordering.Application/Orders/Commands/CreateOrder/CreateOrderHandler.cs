@@ -24,11 +24,9 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
             dto.DeliveryAddress.Country);
 
         var payment = Payment.Of(
-            dto.Payment.CardName,
-            dto.Payment.CardNumber,
-            dto.Payment.Expiration,
-            dto.Payment.Ccv,
-            dto.Payment.PaymentMethod);
+            dto.Payment.Method,
+            dto.Payment.Brand,
+            dto.Payment.LastFour);
 
         var orderId = OrderId.Of(Guid.NewGuid());
 

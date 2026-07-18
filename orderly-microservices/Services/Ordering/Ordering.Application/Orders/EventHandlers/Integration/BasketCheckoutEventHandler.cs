@@ -40,7 +40,24 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
             )).ToList();
 
             var address = new AddressDto(message.AddressLine, message.City, message.State, message.ZipCode, message.Country);
-            var payment = new PaymentDto(message.CardName, message.CardNumber, message.Expiration, message.CVV, message.PaymentMethod);
+
+            // BasketCheckoutEvent v2 publishes only
+            // PaymentMethodSummary (discriminator + brand + last-four).
+            // Full PAN and CVV never leave Basket's process boundary.
+            // Defensive fallback for the v1→v2 transition window: if a
+            // pre-v2 row slips through (outbox row stamped before the
+            // upgrade), the summary is null — fall back to Unspecified +
+            // "Unknown" / "0000" so the consumer doesn't crash on null.
+            var summary = message.PaymentMethodSummary;
+            var payment = summary is null
+                ? new PaymentDto(
+                    Method: PaymentMethod.Unspecified,
+                    Brand: "Unknown",
+                    LastFour: "0000")
+                : new PaymentDto(
+                    Method: summary.Method,
+                    Brand: summary.Brand,
+                    LastFour: summary.LastFour);
 
             var orderDto = new OrderDto(
                 Id: Guid.Empty,

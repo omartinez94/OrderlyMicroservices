@@ -17,8 +17,27 @@ public class CheckoutBasketCommandValidator : AbstractValidator<CheckoutBasketCo
 {
     public CheckoutBasketCommandValidator()
     {
-        RuleFor(x => x.BasketCheckoutDto.UserId).NotEmpty().WithMessage("UserId is required.");
-        RuleFor(x => x.BasketCheckoutDto.RestaurantId).NotEmpty().WithMessage("RestaurantId is required.");
+        // spoofing-footgun fix: UserId / RestaurantId are
+        // forbidden on the wire. The endpoint overwrites them with the
+        // JWT-derived identity before constructing the command — so
+        // this rule validates the *body*'s values (which the caller
+        // MUST leave empty), not the post-overwrite values. A
+        // non-empty body UserId is rejected with 422 by
+        // CustomExceptionHandler; the endpoint never lets a request
+        // with a populated UserId reach the handler. The identity
+        // guard provides the second-layer check (mismatch
+        // between JWT and command).
+        RuleFor(x => x.BasketCheckoutDto.UserId).Equal(Guid.Empty)
+            .WithMessage("BasketCheckoutDto.UserId must be empty; the JWT-derived identity is authoritative.");
+        RuleFor(x => x.BasketCheckoutDto.RestaurantId).Equal(Guid.Empty)
+            .WithMessage("BasketCheckoutDto.RestaurantId must be empty; the JWT-derived restaurant is authoritative.");
+
+        // PaymentMethod enum: reject values outside the closed
+        // discriminator (Card=1, Cash=2, Wallet=3). Unspecified=0 is
+        // also rejected — a fresh event must carry a defined payment
+        // method; the sentinel exists only for legacy rows.
+        RuleFor(x => x.BasketCheckoutDto.PaymentMethod).IsInEnum()
+            .WithMessage("PaymentMethod must be one of: Card, Cash, Wallet.");
     }
 }
 
@@ -65,7 +84,11 @@ public class CheckoutBasketCommandHandler(
     {
         PropertyNamingPolicy = null,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
-        Converters = { new JsonStringEnumConverter() },
+        // Typed converter so PaymentMethod (the enum on
+        // PaymentMethodSummary) round-trips as the string name on the
+        // wire — stable across versioning, human-readable, matches the
+        // v2 wire contract.
+        Converters = { new JsonStringEnumConverter<PaymentMethod>() },
     };
 
     public async Task<CheckoutBasketResult> Handle(CheckoutBasketCommand command, CancellationToken cancellationToken)
@@ -102,7 +125,15 @@ public class CheckoutBasketCommandHandler(
                     Ingredient = c.Ingredient,
                     Action = c.Action
                 })]
-            })]
+            })],
+            // The wire carries only the redacted summary
+            // (discriminator + brand + last-four). The raw card fields
+            // stay on the DTO for the v1 integration window but never
+            // leave Basket's process boundary.
+            PaymentMethodSummary = new PaymentMethodSummary(
+                Method: command.BasketCheckoutDto.PaymentMethod,
+                Brand: CardSummaryDerivation.DeriveCardBrand(command.BasketCheckoutDto.CardNumber),
+                LastFour: CardSummaryDerivation.ExtractLastFour(command.BasketCheckoutDto.CardNumber)),
         };
 
         // Stage outbox row + delete basket in one Marten session so the
@@ -115,7 +146,12 @@ public class CheckoutBasketCommandHandler(
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),
             Type = typeof(BasketCheckoutEvent).FullName!,
             Payload = JsonSerializer.Serialize(eventMessage, SerializerOptions),
-            SchemaVersion = 1,
+            // Stamp the outbox row's SchemaVersion with the
+            // event's MessageVersion (2). The dispatcher's
+            // OutboxOptions.MaxSupportedVersion gate is bumped to 2 in
+            // appsettings.json so v2 rows are relayed (v1 rows would be
+            // quarantined to outbox_messages_dead).
+            SchemaVersion = eventMessage.MessageVersion,
         };
 
         session.Store(outboxMessage);

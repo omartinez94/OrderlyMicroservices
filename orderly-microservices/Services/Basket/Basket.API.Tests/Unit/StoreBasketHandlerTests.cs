@@ -1,12 +1,11 @@
 using Basket.API.Basket.StoreBasket;
 using Discount.Grpc;
 using Microsoft.Extensions.Logging.Abstractions;
-using NodaTime;
 
 namespace Basket.API.Tests.Unit;
 
 /// <summary>
-/// Unit-level coverage for <see cref="StoreBasketHandler"/>'s Phase 2.2
+/// Unit-level coverage for <see cref="StoreBasketHandler"/>'s
 /// real-discount integration. Locks the eligibility gate
 /// (<c>IsActive &amp;&amp; (ExpirationDate empty || &gt;= now)</c>) and
 /// the per-coupon / basket-level clamp semantics (per-coupon snapshot
@@ -39,7 +38,7 @@ public sealed class StoreBasketHandlerTests
         var repository = Substitute.For<IBasketRepository>();
         repository
             .StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
-            .Returns(basket);
+            .Returns((basket, false));
 
         var discountLookup = Substitute.For<IDiscountLookup>();
         var handler = new StoreBasketHandler(
@@ -257,7 +256,7 @@ public sealed class StoreBasketHandlerTests
 
         var repository = Substitute.For<IBasketRepository>();
         repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
-            .Returns(basket);
+            .Returns((basket, false));
 
         var discountLookup = Substitute.For<IDiscountLookup>();
         discountLookup
@@ -354,6 +353,76 @@ public sealed class StoreBasketHandlerTests
         return basket;
     }
 
+    [Fact]
+    public async Task StoreNewCart_HandlerReturnsIsCreatedTrue()
+    {
+        // Locks the contract: when the repository reports the
+        // basket was newly stored (no existing row replaced), the handler
+        // returns StoreBasketResult.IsCreated = true. The endpoint maps
+        // this to 201 Created + Location: /api/v1/cart.
+        var basket = BuildBasket(subtotal: 100m, appliedDiscounts: []);
+        var repository = Substitute.For<IBasketRepository>();
+        repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
+            .Returns((basket, true));   // ← IsCreated = true
+
+        var handler = new StoreBasketHandler(
+            repository,
+            Substitute.For<IDiscountLookup>(),
+            NullLogger<StoreBasketHandler>.Instance);
+
+        var result = await handler.Handle(new StoreBasketCommand(basket), CancellationToken.None);
+
+        result.IsCreated.Should().BeTrue("a first-time PUT must report IsCreated=true so the endpoint returns 201 Created");
+        result.UserId.Should().Be(basket.UserId);
+        result.RestaurantId.Should().Be(basket.RestaurantId);
+    }
+
+    [Fact]
+    public async Task StoreExistingCart_HandlerReturnsIsCreatedFalse()
+    {
+        // Locks the contract: when the repository reports an
+        // existing row was replaced, the handler returns IsCreated=false.
+        // The endpoint maps this to 200 OK on the idempotent upsert.
+        var basket = BuildBasket(subtotal: 100m, appliedDiscounts: []);
+        var repository = Substitute.For<IBasketRepository>();
+        repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
+            .Returns((basket, false));  // ← IsCreated = false
+
+        var handler = new StoreBasketHandler(
+            repository,
+            Substitute.For<IDiscountLookup>(),
+            NullLogger<StoreBasketHandler>.Instance);
+
+        var result = await handler.Handle(new StoreBasketCommand(basket), CancellationToken.None);
+
+        result.IsCreated.Should().BeFalse("a repeat PUT (cart already exists) must report IsCreated=false so the endpoint returns 200 OK");
+    }
+
+    [Fact]
+    public async Task EmptyCouponsShortCircuit_PreservesIsCreated()
+    {
+        // The empty-cart short-circuit path (no coupons, no items) must
+        // also report IsCreated from the repository — same contract as
+        // the full path. Locks that the IsCreated signal doesn't get
+        // accidentally lost when the handler short-circuits the discount
+        // lookup.
+        var basket = BuildBasket(subtotal: 0m, appliedDiscounts: []);
+        var repository = Substitute.For<IBasketRepository>();
+        repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
+            .Returns((basket, true));
+
+        var handler = new StoreBasketHandler(
+            repository,
+            Substitute.For<IDiscountLookup>(),
+            NullLogger<StoreBasketHandler>.Instance);
+
+        var result = await handler.Handle(new StoreBasketCommand(basket), CancellationToken.None);
+
+        result.IsCreated.Should().BeTrue();
+        basket.DiscountAmount.Should().Be(0m);
+        basket.AppliedCoupons.Should().BeEmpty();
+    }
+
     private static (
         StoreBasketHandler Handler,
         IBasketRepository Repository,
@@ -362,7 +431,7 @@ public sealed class StoreBasketHandlerTests
     {
         var repository = Substitute.For<IBasketRepository>();
         repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())
-            .Returns(basket);
+            .Returns((basket, false));
 
         var discountLookup = Substitute.For<IDiscountLookup>();
         foreach (var (code, snapshot) in snapshots)

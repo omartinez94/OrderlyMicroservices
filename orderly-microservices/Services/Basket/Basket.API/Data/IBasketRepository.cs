@@ -22,7 +22,7 @@ public interface IBasketRepository
     /// </summary>
     Task<Models.Basket> GetActiveCartOrEmptyAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default);
 
-    Task<Models.Basket> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default);
+    Task<(Models.Basket Basket, bool IsCreated)> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default);
 
     Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default);
 

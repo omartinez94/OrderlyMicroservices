@@ -45,7 +45,7 @@ public class InitialData
                 Guid.NewGuid(),
                 Address.Of("123 Main St", "Anytown", "NY", "12345", "USA"),
                 Address.Of("123 Main St", "Anytown", "NY", "12345", "USA"),
-                Payment.Of("John Doe", "1234567890123456", "12/26", "123", "Visa")
+                Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "3456")
             );
             order1.Add(MenuItemId.Of(new Guid("22222222-2222-2222-2222-222222222222")), 2, 10.99m);
             order1.Add(MenuItemId.Of(new Guid("33333333-3333-3333-3333-333333333333")), 1, 3.99m);
@@ -57,7 +57,7 @@ public class InitialData
                 Guid.NewGuid(),
                 Address.Of("456 Elm St", "Othertown", "CA", "54321", "USA"),
                 Address.Of("456 Elm St", "Othertown", "CA", "54321", "USA"),
-                Payment.Of("Jane Smith", "9876543210987654", "01/27", "456", "Mastercard")
+                Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Mastercard", "7654")
             );
             order2.Add(MenuItemId.Of(new Guid("22222222-2222-2222-2222-222222222222")), 1, 10.99m);
 
@@ -68,7 +68,7 @@ public class InitialData
                 Guid.NewGuid(),
                 Address.Of("123 Main St", "Anytown", "NY", "12345", "USA"),
                 Address.Of("123 Main St", "Anytown", "NY", "12345", "USA"),
-                Payment.Of("John Doe", "1234567890123456", "12/26", "123", "Visa")
+                Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "3456")
             );
             order3.Add(MenuItemId.Of(new Guid("33333333-3333-3333-3333-333333333333")), 2, 3.99m);
 
@@ -79,7 +79,7 @@ public class InitialData
                 Guid.NewGuid(),
                 Address.Of("456 Elm St", "Othertown", "CA", "54321", "USA"),
                 Address.Of("456 Elm St", "Othertown", "CA", "54321", "USA"),
-                Payment.Of("Jane Smith", "9876543210987654", "01/27", "456", "Mastercard")
+                Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Mastercard", "7654")
             );
             order4.Add(MenuItemId.Of(new Guid("22222222-2222-2222-2222-222222222222")), 2, 10.99m);
             order4.Add(MenuItemId.Of(new Guid("33333333-3333-3333-3333-333333333333")), 2, 3.99m);

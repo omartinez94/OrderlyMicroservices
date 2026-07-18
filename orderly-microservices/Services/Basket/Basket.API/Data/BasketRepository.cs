@@ -49,7 +49,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
         return basket ?? new Models.Basket(userId, restaurantId);
     }
 
-    public async Task<Models.Basket> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default)
+    public async Task<(Models.Basket Basket, bool IsCreated)> StoreBasketAsync(Models.Basket basket, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(basket);
         AssertTenant(basket.RestaurantId);
@@ -67,7 +67,10 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
         session.Store(basket);
         await session.SaveChangesAsync(cancellationToken);
 
-        return basket;
+        // IsCreated=false when an existing basket was replaced; true when
+        // this is the first PUT for the (user, restaurant) pair. The
+        // endpoint maps IsCreated → 201 Created + Location / 200 OK
+        return (basket, existingBasket is null);
     }
 
     public async Task<bool> DeleteBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)

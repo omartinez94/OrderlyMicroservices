@@ -44,5 +44,10 @@ public record IntegrationEvent
     /// changes. New optional fields are not breaking — they
     /// don't require a bump.
     /// </summary>
-    public int MessageVersion { get; init; } = 1;
+    /// <remarks>
+    /// Declared <c>virtual</c> so record subclasses can <c>override</c>
+    /// the default (e.g., <see cref="BasketCheckoutEvent"/> overrides
+    /// to <c>2</c> after dropping the raw card fields per plan §0.4.10).
+    /// </remarks>
+    public virtual int MessageVersion { get; init; } = 1;
 }

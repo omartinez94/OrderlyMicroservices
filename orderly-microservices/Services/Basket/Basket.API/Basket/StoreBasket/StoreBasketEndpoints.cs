@@ -1,7 +1,7 @@
 namespace Basket.API.Basket.StoreBasket;
 
 public record StoreBasketRequest(Models::Basket Basket);
-public record StoreBasketResponse(Guid UserId, Guid RestaurantId);
+public record StoreBasketResponse(bool IsCreated, Guid UserId, Guid RestaurantId);
 
 public class StoreBasketEndpoints : ICarterModule
 {
@@ -13,19 +13,37 @@ public class StoreBasketEndpoints : ICarterModule
         // the body's UserId/RestaurantId against the JWT and throws
         // ForbiddenException on mismatch. The caller can supply any
         // values in the body — the JWT is authoritative.
-        group.MapPut("/cart", async (Models.Basket basket, ISender sender) =>
+        group.MapPut("/cart", async (System.Security.Claims.ClaimsPrincipal principal, Models.Basket basket, ISender sender) =>
         {
+            // spoofing-footgun fix: the body MUST carry Guid.Empty
+            // for UserId / RestaurantId; the validator rejects any other
+            // value with 422 before we get here. The endpoint overwrites
+            // with the JWT-derived identity so the BasketIdentityGuardBehavior
+            // sees matching values when it cross-checks the
+            // command's identity against the JWT.
+            basket.UserId = principal.GetUserId();
+            basket.RestaurantId = principal.GetRestaurantId();
+
             var result = await sender.Send(new StoreBasketCommand(basket));
-            return Results.Ok(result.Adapt<StoreBasketResponse>());
+
+            // PUT semantics: 201 Created + Location: /api/v1/cart on
+            // a new cart, 200 OK on update. Idempotent — repeated PUTs
+            // with the same body converge to the same final state.
+            return result.IsCreated
+                ? Results.Created("/api/v1/cart", result.Adapt<StoreBasketResponse>())
+                : Results.Ok(result.Adapt<StoreBasketResponse>());
         })
         .WithName("StoreBasket")
+        .Produces<StoreBasketResponse>(StatusCodes.Status201Created)
         .Produces<StoreBasketResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status403Forbidden)
+        .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
         .WithSummary("Upsert active cart")
         .WithDescription("Creates or replaces the authenticated user's active cart for the current restaurant. " +
-                         "The body's UserId / RestaurantId must match the JWT (enforced by the identity guard).")
+                         "Returns 201 Created + Location: /api/v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). " +
+                         "The body's UserId / RestaurantId MUST be Guid.Empty; the JWT-derived identity is authoritative.")
         .RequirePermission("orders:create");
 
         // Deprecated shim — same payload, same identity-guard enforcement.

@@ -27,11 +27,9 @@ public class UpdateOrderHandler(IApplicationDbContext dbContext)
             dto.DeliveryAddress.Country);
 
         var payment = Payment.Of(
-            dto.Payment.CardName,
-            dto.Payment.CardNumber,
-            dto.Payment.Expiration,
-            dto.Payment.Ccv,
-            dto.Payment.PaymentMethod);
+            dto.Payment.Method,
+            dto.Payment.Brand,
+            dto.Payment.LastFour);
 
         // Core update via domain method (raises OrderUpdatedEvent). Status
         // transitions are routed through the dedicated Confirm / MarkReady /

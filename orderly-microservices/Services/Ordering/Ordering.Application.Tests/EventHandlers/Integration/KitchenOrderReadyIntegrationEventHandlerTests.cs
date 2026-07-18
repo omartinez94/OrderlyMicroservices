@@ -1,5 +1,3 @@
-using MassTransit;
-
 namespace Ordering.Application.Tests.EventHandlers.Integration;
 
 /// <summary>
@@ -16,7 +14,7 @@ public sealed class KitchenOrderReadyIntegrationEventHandlerTests
         Address.Of("123 Main St", "Springfield", "IL", "12345", "US");
 
     private static Payment ValidPayment() =>
-        Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard");
+        Payment.Of(PaymentMethod.Card, "Visa", "1111");
 
     private static OrderNumber ValidOrderNumber() => OrderNumber.Of("ORD-2026-0001");
 

@@ -289,7 +289,7 @@ The repository queries by both `UserId` and `RestaurantId`; `[Identity]` is on `
 | Method | Route | Permission | Notes |
 |---|---|---|---|
 | GET | `/api/v1/cart` | `orders:view_own` | **Token-bound**. `(UserId, RestaurantId)` come from JWT. Returns 200 + empty cart body when no cart exists (never 404). |
-| PUT | `/api/v1/cart` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` ignored — JWT is authoritative; mismatch → 403 via the identity guard. |
+| PUT | `/api/v1/cart` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` MUST be `Guid.Empty` (§0.4.10 spoofing-footgun validator rejects any other value with **422**); the endpoint overwrites them with the JWT-derived identity before constructing the command so the identity guard sees matching values. Returns **201 Created** + `Location: /api/v1/cart` on the first PUT (new cart) and **200 OK** on every subsequent PUT (idempotent upsert). |
 | DELETE | `/api/v1/cart` | `orders:create` | **Token-bound**. Idempotent — returns 200 + `IsSuccess = true` even when no cart exists. |
 | POST | `/api/v1/cart/checkout` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` enforced by the identity guard. |
 | GET | `/api/v1/baskets/{userId}/{restaurantId}` | `orders:view_own` | **[DEPRECATED shim]** — legacy shape retained for one release. |
@@ -528,6 +528,9 @@ There are no other `HttpClient` registrations across the services. No service-to
 
 **`OrderCreatedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/OrderCreatedIntegrationEvent.cs`):
 `OrderId`, `OrderNumber`, `RestaurantId`, `TableId?`, `OrderType`, `CustomerId`, `Subtotal`, `TotalAmount`, `TaxAmount`, `DiscountAmount`, `Currency`, `DiscountCode?`, `BillingAddress`, `DeliveryAddress?` (only when `OrderType.Delivery`), `Items: IReadOnlyList<KitchenOrderItemPreview>`, `EstimatedPrepTimeMinutes`, `Notes`. **No** `Payment*` / `Card*` / `Cvv` / `Expiration` fields — those stay internal to Ordering.
+
+**`BasketCheckoutEvent` payload v2** (`BuildingBlocks.Messaging/Events/BasketCheckoutEvent.cs`, Phase 2.1):
+`UserId`, `RestaurantId`, `Items`, `AppliedDiscounts`, `TotalAmount`, `FirstName`, `LastName`, `EmailAddress`, `AddressLine`, `Country`, `State`, `City`, `ZipCode`, **`PaymentMethodSummary?`** (discriminator + brand + last-four). Per plan §0.4.10, the v2 wire drops the raw card fields (`CardName`, `CardNumber`, `Expiration`, `Cvv`, `PaymentMethod` string) — full PAN and CVV stay inside Basket's process boundary. `MessageVersion = 2`; `OutboxOptions.MaxSupportedVersion` is bumped to 2 in `appsettings.json` so the dispatcher relays v2 rows. The deprecated raw fields stay on `BasketCheckoutDto` (request body) for the v1 integration window — the server-side Luhn + regex validators still run, but the values never leave Basket.
 
 **`KitchenOrderPrepStartedIntegrationEvent` payload** (`BuildingBlocks.Messaging/Events/KitchenOrderPrepStartedIntegrationEvent.cs`):
 `OrderId`, `ItemId`, `StaffUserId`, `StartedAt`. Emitted exactly once per ticket by `StartItemPrepHandler` (when the aggregate's `StartedAt` is still `null` before the call), so Ordering's `MarkPreparing` is driven by the kitchen UI's first-item-prep action rather than the manual REST endpoint.

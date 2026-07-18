@@ -39,7 +39,7 @@ public sealed class OrderActivityTests
             Guid.NewGuid(),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
-            Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard"));
+            Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111"));
 
         CorrelationContext.Set("test-corr-id");
 
@@ -48,7 +48,7 @@ public sealed class OrderActivityTests
             order.Update(
                 Address.Of("999 New St", "Springfield", "IL", "12345", "US"),
                 Address.Of("999 New St", "Springfield", "IL", "12345", "US"),
-                Payment.Of("John Doe", "4111111111111111", "12/30", "123", "CreditCard"));
+                Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111"));
 
             order.Activities.Single().CorrelationId.Should().Be("test-corr-id");
         }

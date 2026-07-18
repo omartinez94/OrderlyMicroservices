@@ -1,3 +1,5 @@
+using BuildingBlocks.Messaging.Events;
+
 namespace Basket.API.Dtos;
 
 public class BasketCheckoutDto
@@ -14,10 +16,15 @@ public class BasketCheckoutDto
     public string State { get; set; } = default!;
     public string ZipCode { get; set; } = default!;
 
-    // Payment
+    // Payment — these raw fields stay on the DTO for the v1 integration
+    // window (clients still send them; the validator runs server-side
+    // Luhn + regex checks). The CheckoutBasketHandler reads them to
+    // build PaymentMethodSummary; the wire event payload carries only
+    // the summary (discriminator + brand + last-four). The raw fields
+    // never leave Basket's process boundary.
     public string CardName { get; set; } = default!;
     public string CardNumber { get; set; } = default!;
     public string Expiration { get; set; } = default!;
     public string CVV { get; set; } = default!;
-    public int PaymentMethod { get; set; }
+    public PaymentMethod PaymentMethod { get; set; }
 }

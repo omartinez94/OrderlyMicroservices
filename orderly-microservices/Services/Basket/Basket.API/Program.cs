@@ -1,5 +1,6 @@
 using BuildingBlocks.Messaging.MassTransit;
 using HealthChecks.UI.Client;
+using Marten.NodaTimePlugin;
 using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
@@ -16,6 +17,25 @@ builder.Services.AddJwtAuthentication(
     audience: "OrderlyMicroservices");
 
 builder.Services.AddAuthorizationServices();
+
+// Register the HTTP-context-backed
+// restaurant provider so `BasketRepository` (and the
+// `CachedBasketRepository` decorator) can resolve the active
+// tenant per request. The provider reads the `restaurantId`
+// claim from `HttpContext.User`; in the absence of an
+// authenticated principal it returns `Guid.Empty`, which causes
+// the Marten `MultiTenanted()` global query filter to match no
+// rows — the fail-secure default.
+//
+// Original delivery wired this together with
+// `MapBasketGroup`'s `RequireAuthorization("Default")` so every
+// cart endpoint sees an authenticated principal.
+// Integration tests need the same registration; the test WAF
+// cannot reach the host bootstrap above so the registration
+// must live in the production code path.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<BuildingBlocks.Multitenancy.ICurrentRestaurantProvider,
+                          BuildingBlocks.Multitenancy.ClaimsRestaurantProvider>();
 
 // Add services to the container.
 builder.Services.AddCarter();
@@ -41,6 +61,16 @@ builder.Services.AddMediatR(cfg =>
 var connectionString = builder.Configuration.GetConnectionString("BasketDB")!;
 builder.Services.AddMarten(opt =>
 {
+    // NodaTime plugin (from the `Marten.NodaTime` 8.37.4 package).
+    // Registers custom value comparers + `[DuplicateField]` mappers
+    // for `NodaTime.Instant` so the
+    // `CheckoutBasketOutboxMessage.OccurredOn` + `DispatchedAt`
+    // columns project to typed Postgres `timestamptz` columns.
+    // Without this, Marten 8.x throws
+    // `NotSupportedException: Can't infer NpgsqlDbType for type
+    // NodaTime.Instant` during `IDocumentStore` construction.
+    opt.UseNodaTime();
+
     opt.Connection(connectionString);
     opt.CreateDatabasesForTenants(c =>
     {
@@ -76,7 +106,15 @@ builder.Services.AddMarten(opt =>
     opt.Schema.For<BasketAuditLogEntry>().MultiTenanted();
 })
     .ApplyAllDatabaseChangesOnStartup()
-    .UseLightweightSessions();
+    .UseLightweightSessions()
+    // Custom session factory that sets `TenantId` from the ambient
+    // `restaurantId` claim on every opened `IDocumentSession`. Closes
+    // the gap to wire
+    // but the source never had — without this, request-scoped sessions
+    // carry no tenant, the conjoined `MultiTenanted()` filter matches
+    // no rows, and the `GetBasket_WithCart_Returns200AndBody`
+    // integration test finds nothing.
+    .BuildSessionsWith<TenantedSessionFactory>();
 
 // Register a single ConnectionMultiplexer so the
 // BasketIdempotencyFilter can use atomic StringSetAsync(key, value,

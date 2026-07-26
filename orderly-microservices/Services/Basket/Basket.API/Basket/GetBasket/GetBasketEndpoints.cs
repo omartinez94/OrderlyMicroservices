@@ -36,7 +36,14 @@ public class GetBasketEndpoints : ICarterModule
             var lastModified = basket.LastModifiedAt == default
                 ? basket.CreatedAt
                 : basket.LastModifiedAt;
-            httpContext.Response.Headers.LastModified = lastModified.ToString("R", System.Globalization.CultureInfo.InvariantCulture);
+            // RFC 1123 / 7231 `Last-Modified` format. NodaTime
+            // `Instant` does NOT recognise the .NET "R" standard format
+            // (throws `FormatException: The standard format "R" is not
+            // valid for the NodaTime.Instant type`) — convert to UTC
+            // `DateTime` first so the standard format is honoured.
+            httpContext.Response.Headers.LastModified =
+                lastModified.InZone(NodaTime.DateTimeZone.Utc).ToDateTimeUtc()
+                    .ToString("R", System.Globalization.CultureInfo.InvariantCulture);
 
             // Conditional GET — short-circuit to 304 BEFORE the
             // body serialisation so we don't pay the JSON cost.

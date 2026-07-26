@@ -17,20 +17,26 @@ public class CheckoutBasketCommandValidator : AbstractValidator<CheckoutBasketCo
 {
     public CheckoutBasketCommandValidator()
     {
-        // spoofing-footgun fix: UserId / RestaurantId are
-        // forbidden on the wire. The endpoint overwrites them with the
-        // JWT-derived identity before constructing the command — so
-        // this rule validates the *body*'s values (which the caller
-        // MUST leave empty), not the post-overwrite values. A
-        // non-empty body UserId is rejected with 422 by
-        // CustomExceptionHandler; the endpoint never lets a request
-        // with a populated UserId reach the handler. The identity
-        // guard provides the second-layer check (mismatch
-        // between JWT and command).
-        RuleFor(x => x.BasketCheckoutDto.UserId).Equal(Guid.Empty)
-            .WithMessage("BasketCheckoutDto.UserId must be empty; the JWT-derived identity is authoritative.");
-        RuleFor(x => x.BasketCheckoutDto.RestaurantId).Equal(Guid.Empty)
-            .WithMessage("BasketCheckoutDto.RestaurantId must be empty; the JWT-derived restaurant is authoritative.");
+        // NOTE: The previous `Equal(Guid.Empty)` rules for
+        // `BasketCheckoutDto.UserId` / `BasketCheckoutDto.RestaurantId`
+        // are REMOVED. The endpoint overwrites both fields from the
+        // JWT BEFORE constructing the command (see
+        // `CheckoutBasketEndpoints.cs`), so by the time this
+        // validator runs the command's `BasketCheckoutDto.UserId` /
+        // `BasketCheckoutDto.RestaurantId` are the JWT-derived
+        // values, not `Guid.Empty`. The rule could not validate the
+        // body's pre-overwrite values from this layer.
+        //
+        // The spoofing protection is now provided by the endpoint
+        // overwrite itself (the caller cannot inject a different
+        // identity via the body) + the second-layer
+        // `BasketIdentityGuardBehavior` (which checks the command's
+        // identity against the JWT's).
+        //
+        // Follow-up: re-introduce the body-shape spoofing
+        // check as an `IEndpointFilter` that runs BEFORE the endpoint
+        // code, then wire a regression test in
+        // `CheckoutCartEndpointTests`.
 
         // PaymentMethod enum: reject values outside the closed
         // discriminator (Card=1, Cash=2, Wallet=3). Unspecified=0 is

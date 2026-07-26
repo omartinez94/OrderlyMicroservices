@@ -1,4 +1,5 @@
 global using Basket.API.Behaviors;
+global using Basket.API.Caching;
 global using Basket.API.Data;
 global using Basket.API.Discount;
 global using Basket.API.Dtos;

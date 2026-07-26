@@ -1,6 +1,5 @@
 namespace Basket.API.Basket.CheckoutBasket;
 
-public record CheckoutBasketRequest(BasketCheckoutDto BasketCheckoutDto);
 public record CheckoutBasketResponse(bool Success, string Message);
 
 public class CheckoutBasketEndpoints : ICarterModule
@@ -9,13 +8,11 @@ public class CheckoutBasketEndpoints : ICarterModule
     {
         var group = app.MapBasketGroup();
 
-        // Token-bound URL: the BasketIdentityGuardBehavior cross-checks
-        // the BasketCheckoutDto's UserId/RestaurantId against the JWT
-        // and throws ForbiddenException on mismatch.
-        // Phase 2.3: BasketIdempotencyFilter enforces the IETF
-        // draft-ietf-httpapi-idempotency-key-header contract — required
-        // UUID v4 header, replays on body match, 422 on body mismatch.
-        group.MapPost("/cart/checkout", async (System.Security.Claims.ClaimsPrincipal principal, BasketCheckoutDto checkoutDto, ISender sender) =>
+        // `/api/v1/baskets/checkout` shim is removed. The only route is
+        // the token-bound `/api/v1/cart/checkout`; the
+        // `CheckoutBasketRequest(BasketCheckoutDto)` wrapper record is
+        // no longer needed because the body shape is the DTO directly.
+        group.MapPost("/cart/checkout", async (System.Security.Claims.ClaimsPrincipal principal, BasketCheckoutDto checkoutDto, ISender sender, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
             // spoofing-footgun fix: the body MUST carry Guid.Empty
             // for UserId / RestaurantId; the validator rejects any other
@@ -26,14 +23,20 @@ public class CheckoutBasketEndpoints : ICarterModule
             checkoutDto.UserId = principal.GetUserId();
             checkoutDto.RestaurantId = principal.GetRestaurantId();
 
-            var result = await sender.Send(new CheckoutBasketCommand(checkoutDto));
+            var result = await sender.Send(new CheckoutBasketCommand(checkoutDto), cancellationToken);
+
+            // Cache-Control: no-store — the checkout
+            // response carries the receipt summary (PII-trimmed) and
+            // must not be cached by intermediaries.
+            httpContext.Response.Headers.CacheControl = "no-store";
+
             return result.Success
                 ? Results.Ok(result.Adapt<CheckoutBasketResponse>())
                 : Results.BadRequest(result.Adapt<CheckoutBasketResponse>());
         })
         .WithName("CheckoutBasket")
         .Produces<CheckoutBasketResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .Produces<CheckoutBasketResponse>(StatusCodes.Status400BadRequest)
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status403Forbidden)
         .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
@@ -45,26 +48,5 @@ public class CheckoutBasketEndpoints : ICarterModule
         // Rate limiter — 5 requests/minute per
         // (userId, restaurantId). The other three endpoints stay unlimited.
         .RequireRateLimiting("checkout");
-
-        // Deprecated shim — body wrapper kept for backward compat.
-        // Idempotency is NOT applied to the shim (it'll be removed at
-        // end of Phase 3 — adding idempotency to a route on the way
-        // out is wasted work).
-        group.MapPost("/baskets/checkout", async (CheckoutBasketRequest request, ISender sender) =>
-        {
-            var command = request.Adapt<CheckoutBasketCommand>();
-            var result = await sender.Send(command);
-            return result.Success
-                ? Results.Ok(result.Adapt<CheckoutBasketResponse>())
-                : Results.BadRequest(result.Adapt<CheckoutBasketResponse>());
-        })
-        .WithName("CheckoutBasket_LegacyShim")
-        .Produces<CheckoutBasketResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status403Forbidden)
-        .WithSummary("[DEPRECATED] Checkout by URL — use POST /api/v1/cart/checkout")
-        .WithDescription("Deprecated route kept for one release. Will be removed end of Phase 3.")
-        .RequirePermission("orders:create");
     }
 }

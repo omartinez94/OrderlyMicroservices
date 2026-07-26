@@ -85,10 +85,12 @@ try {
 # 3. Test downstream token validation if Basket API is active
 if ($BaseBasketUrl) {
     Write-Host "`n[STEP 2] Testing Downstream JWT validation on Basket.API (Secured Endpoint)..." -ForegroundColor Cyan
-    $TestUserId = "646679f1-1d3a-4dc2-9b9e-d46f249c97ce"
-    $TestRestId = "b80b023f-45c1-49e5-b083-f2582de6e220"
-    $BasketEndpoint = "$BaseBasketUrl/api/v1/baskets/$TestUserId/$TestRestId"
-    
+    # Phase 3: the /api/v1/baskets/{userId}/{restaurantId} shim was
+    # removed end of Phase 3. The only GET endpoint is the token-bound
+    # /api/v1/cart — identity derives from the Bearer token, not the
+    # URL. Updating the test script to match.
+    $BasketEndpoint = "$BaseBasketUrl/api/v1/cart"
+
     Write-Host "Sending unauthorized request (No Bearer Token)..." -ForegroundColor Gray
     try {
         $response = Invoke-WebRequest -Uri $BasketEndpoint -Method Get -UseBasicParsing
@@ -105,9 +107,11 @@ if ($BaseBasketUrl) {
     try {
         $Headers = @{ Authorization = "Bearer $AccessToken" }
         $response = Invoke-WebRequest -Uri $BasketEndpoint -Method Get -Headers $Headers -UseBasicParsing -ErrorAction Ignore
-        
-        # 200 OK means basket retrieved, 404 means basket empty but authentication passed database lookup
-        if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 404) {
+
+        # 200 OK — the cart is returned (empty-cart body when no cart exists).
+        # Never 404: the Phase 3 contract is 200 + empty body for unknown
+        # carts (plan §0.4.7).
+        if ($response.StatusCode -eq 200) {
             Write-Host "[SUCCESS] Downstream OIDC JWT validation succeeded! Response code: $($response.StatusCode)" -ForegroundColor Green
         } else {
             Write-Host "[FAIL] Downstream request failed with status code: $($response.StatusCode)" -ForegroundColor Red

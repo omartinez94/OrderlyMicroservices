@@ -1,7 +1,6 @@
 namespace Basket.API.Basket.DeleteBasket;
 
-public record DeleteBasketCommand(Guid UserId, Guid RestaurantId) : ICommand<DeleteBasketResult>, IBasketIdentityRequest;
-public record DeleteBasketResult(bool IsSuccess);
+public record DeleteBasketCommand(Guid UserId, Guid RestaurantId) : ICommand<Unit>, IBasketIdentityRequest;
 
 public class DeleteBasketCommandValidator : AbstractValidator<DeleteBasketCommand>
 {
@@ -12,12 +11,22 @@ public class DeleteBasketCommandValidator : AbstractValidator<DeleteBasketComman
     }
 }
 
-public class DeleteBasketHandler(IBasketRepository basketRepository) : ICommandHandler<DeleteBasketCommand, DeleteBasketResult>
+public class DeleteBasketHandler(IBasketRepository basketRepository) : ICommandHandler<DeleteBasketCommand, Unit>
 {
-    public async Task<DeleteBasketResult> Handle(DeleteBasketCommand request, CancellationToken cancellationToken)
+    /// <summary>
+    /// Idempotent delete — the contract is 204 No Content on
+    /// both the "cart exists" and "cart already absent" paths, so the
+    /// handler returns <see cref="Unit.Value"/> regardless of whether
+    /// the Marten row was present. The endpoint ignores the boolean
+    /// the inner repository returns (it was historically
+    /// <c>DeleteBasketResult.IsSuccess</c>); the side effect — cache
+    /// invalidation — happens inside <see cref="Data.CachedBasketRepository.DeleteBasketAsync"/>
+    /// when the inner repository actually deletes a row.
+    /// </summary>
+    public async Task<Unit> Handle(DeleteBasketCommand request, CancellationToken cancellationToken)
     {
-        var isSuccess = await basketRepository.DeleteBasketAsync(request.UserId, request.RestaurantId, cancellationToken);
+        await basketRepository.DeleteBasketAsync(request.UserId, request.RestaurantId, cancellationToken);
 
-        return new DeleteBasketResult(isSuccess);
+        return Unit.Value;
     }
 }

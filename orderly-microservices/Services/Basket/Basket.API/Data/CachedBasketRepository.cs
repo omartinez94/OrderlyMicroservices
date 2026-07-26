@@ -10,7 +10,10 @@ namespace Basket.API.Data;
 /// (<see cref="ForbiddenException"/>, <see cref="BasketNotFoundException"/>)
 /// propagate to the caller without being swallowed.
 /// </summary>
-public class CachedBasketRepository(IBasketRepository innerRepository, IDistributedCache cache)
+public class CachedBasketRepository(
+    IBasketRepository innerRepository,
+    IDistributedCache cache,
+    IBasketCacheLockRegistry cacheLocks)
     : IBasketRepository
 {
     private const int CacheTtlMinutes = 30;
@@ -68,49 +71,114 @@ public class CachedBasketRepository(IBasketRepository innerRepository, IDistribu
     {
         var cacheKey = CacheKey(userId, restaurantId);
 
-        // 1. Try get from Redis
-        var cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
-        if (!string.IsNullOrEmpty(cachedBasketInfo))
-        {
-            return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo, SerializerOptions)!;
-        }
-
-        // 2. Not in cache → get from DB (inner throws on miss / forbidden)
-        var basket = await innerRepository.GetBasketAsync(userId, restaurantId, cancellationToken);
-
-        // 3. Save to Redis for next time
-        var options = new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes)
-        };
-
-        await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket, SerializerOptions), options, cancellationToken);
-
-        return basket;
+        return await GetOrLoadWithSingleFlightAsync(
+            cacheKey,
+            innerLookup: ct => innerRepository.GetBasketAsync(userId, restaurantId, ct),
+            shouldCache: static _ => true,
+            cancellationToken);
     }
 
     public async Task<Models.Basket> GetActiveCartOrEmptyAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
         var cacheKey = CacheKey(userId, restaurantId);
 
+        // Cache ALL results, including empty carts. Closes
+        // the "empty-cart isn't cached" loop hole: skipping the cache
+        // write for empty baskets forced concurrent callers to run
+        // the inner query in series — defeating the
+        // single-flight coalescing. An empty Basket projection is
+        // small (≤ 200 bytes), so caching it does not bloat Redis
+        // meaningfully; eliminating the cache-miss round-trip on the
+        // common "user opens an empty cart" path is worth the
+        // storage.
+        return await GetOrLoadWithSingleFlightAsync(
+            cacheKey,
+            innerLookup: ct => innerRepository.GetActiveCartOrEmptyAsync(userId, restaurantId, ct),
+            shouldCache: static _ => true,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Canonical <i>single-flight GetOrCreate</i> with double-checked
+    /// locking on a per-cache-key <see cref="SemaphoreSlim"/> gate.
+    /// Concurrent cache-miss reads on the same
+    /// <paramref name="cacheKey"/> collapse onto ONE inner-repository
+    /// query — the gate also serialises the cache-write path so the
+    /// follow-up caller inside the gate sees a populated cache and
+    /// skips the inner round-trip.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why a re-check inside the gate.</b> A naive gate that
+    /// serialises the inner call WITHOUT re-checking the cache lets
+    /// N concurrent callers share the gate but still run the inner
+    /// query N times in series — the second caller, on acquiring
+    /// the gate, observes a still-empty cache (its own outer check
+    /// ran before the first caller wrote). The re-check inside the
+    /// gate catches this: the first holder writes cache, releases
+    /// the gate; the second holder, now inside the gate, sees the
+    /// warm cache and returns without re-running the inner.
+    /// </para>
+    /// <para>
+    /// <b>Why the cache-write is inside the gate.</b> If the write
+    /// were outside (a release-then-write), the second holder could
+    /// acquire and run the inner before the first holder's write
+    /// commits — defeating the coalescing. By writing BEFORE
+    /// releasing (the <c>await using</c> disposes the handle on
+    /// scope exit), the cache is guaranteed to be populated for
+    /// the next waiter.
+    /// </para>
+    /// <para>
+    /// <b>Why an outer check AND an inner check.</b> The outer
+    /// check is the warm-path fast-read (no gate acquisition cost).
+    /// The inner check handles the cold/race path. Together they
+    /// collapse concurrent reads to exactly one inner call.
+    /// </para>
+    /// </remarks>
+    private async Task<Models.Basket> GetOrLoadWithSingleFlightAsync(
+        string cacheKey,
+        Func<CancellationToken, Task<Models.Basket>> innerLookup,
+        Func<Models.Basket, bool> shouldCache,
+        CancellationToken cancellationToken)
+    {
+        // Outer fast-path — already-warm cache returns without
+        // ever touching the gate.
         var cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedBasketInfo))
         {
             return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo, SerializerOptions)!;
         }
 
-        var basket = await innerRepository.GetActiveCartOrEmptyAsync(userId, restaurantId, cancellationToken);
+        // Cache-miss path. Acquire the gate so concurrent misses on
+        // this key serialise through the inner-repository query.
+        await using var _handle = await cacheLocks.AcquireAsync(cacheKey, cancellationToken);
 
-        // Only cache populated carts — an empty cart is cheap to reconstruct
-        // from the ids and avoids caching transient "no cart yet" reads.
-        if (basket.Items.Count > 0)
+        // Re-check inside the gate. The previous holder may have
+        // populated the cache before releasing — if so, skip the
+        // inner round-trip entirely.
+        var cachedRetry = await cache.GetStringAsync(cacheKey, cancellationToken);
+        if (!string.IsNullOrEmpty(cachedRetry))
+        {
+            return JsonSerializer.Deserialize<Models.Basket>(cachedRetry, SerializerOptions)!;
+        }
+
+        // First caller through the gate (or all callers, in the
+        // genuine cold-cache case). Run the inner query, then write
+        // through to the cache WHILE STILL HOLDING THE GATE so the
+        // next holder observes the warmed cache.
+        var basket = await innerLookup(cancellationToken);
+
+        if (shouldCache(basket))
         {
             var options = new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes),
             };
-
-            await cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(basket, SerializerOptions), options, cancellationToken);
+            await cache.SetStringAsync(
+                cacheKey,
+                JsonSerializer.Serialize(basket, SerializerOptions),
+                options,
+                cancellationToken);
         }
 
         return basket;

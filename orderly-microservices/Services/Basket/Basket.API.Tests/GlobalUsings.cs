@@ -1,4 +1,5 @@
 global using Basket.API.Behaviors;
+global using Basket.API.Caching;
 global using Basket.API.Data;
 global using Basket.API.Discount;
 global using Basket.API.Dtos;
@@ -7,6 +8,7 @@ global using Basket.API.Messaging;
 global using Basket.API.Payment;
 global using Basket.API.ProblemDetails;
 global using Basket.API.RateLimiting;
+global using Basket.API.Services;
 global using BuildingBlocks.Behaviors;
 global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Exceptions;

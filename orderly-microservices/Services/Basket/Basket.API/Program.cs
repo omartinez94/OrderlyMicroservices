@@ -97,32 +97,31 @@ builder.Services.AddProblemDetails();
 builder.Services.AddScoped<IBasketRepository, BasketRepository>();
 /* Applies decorator pattern using Scrutor. Native DI equivalent:
  * builder.Services.AddScoped<BasketRepository>();
- * builder.Services.AddScoped<IBasketRepository>(p => 
+ * builder.Services.AddScoped<IBasketRepository>(p =>
  *     new CachedBasketRepository(
- *         p.GetRequiredService<BasketRepository>(), 
- *         p.GetRequiredService<IDistributedCache>()
+ *         p.GetRequiredService<BasketRepository>(),
+ *         p.GetRequiredService<IDistributedCache>(),
+ *         p.GetRequiredService<IBasketCacheLockRegistry>()
  *     )
  * );
 */
 builder.Services.Decorate<IBasketRepository, CachedBasketRepository>();
 
-builder.Services.AddStackExchangeRedisCache(rediscache =>
-{
-    rediscache.Configuration = builder.Configuration.GetConnectionString("Redis")!;
-});
-
-// Phase 2.3: register a single ConnectionMultiplexer so the
-// BasketIdempotencyFilter can use atomic StringSetAsync(key, value,
-// expiry, When.NotExists) — IDistributedCache.SetStringAsync is an
-// unconditional write and doesn't expose SETNX. The cache layer uses
-// the same singleton via RedisCacheOptions.ConnectionMultiplexerFactory
-// (already wired by AddStackExchangeRedisCache above).
-builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(_ =>
-{
-    var configurationOptions = StackExchange.Redis.ConfigurationOptions.Parse(
-        builder.Configuration.GetConnectionString("Redis")!);
-    return StackExchange.Redis.ConnectionMultiplexer.Connect(configurationOptions);
-});
+// Per-(user, restaurant) single-flight gate registry.
+// Singleton lifetime — the SemaphoreSlim entries persist across
+// requests so concurrent cache misses coalesce into ONE inner-query
+// instead of N. Disposal wires into IHostApplicationLifetime so the
+// pending waiters are cancelled at host shutdown (capped by
+// IHostOptions.ShutdownTimeout).
+//
+// Drift item: the previous code re-registered
+// AddStackExchangeRedisCache (line 118-121) and IConnectionMultiplexer
+// (line 129) a second time. The first registration, above, is the
+// only one — IDistributedCache + the atomic StringSetAsync multiplexer
+// share a single connection. The duplicate block was reachable but
+// dead — DI resolves the LAST registration, so the upstream
+// ConnectionMultiplexerFactory wire was silently ignored. Removed.
+builder.Services.AddSingleton<IBasketCacheLockRegistry, BasketCacheLockRegistry>();
 
 // Async comunication services
 builder.Services.AddMessageBroker(builder.Configuration);
@@ -139,6 +138,18 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddHostedService<CheckoutBasketOutboxDispatcher>();
+
+// Expiry sweep hosted service. Walks the Marten Basket
+// collection for carts whose ExpiresAt is in the past and deletes
+// them (no event publish — the cart is abandoned, not checked out).
+// Default cadence is 5 minutes; configurable via
+// Basket:ExpirySweep:Interval / :BatchSize / :Enabled in appsettings.
+builder.Services
+    .AddOptions<Basket.API.Services.BasketOptions>()
+    .Bind(builder.Configuration.GetSection(Basket.API.Services.BasketOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddHostedService<Basket.API.Services.BasketExpirySweepService>();
 
 // Phase 2.3: Idempotency-Key filter on POST /api/v1/cart/checkout.
 // Mirrors Discount.Grpc's IIdempotencyKeyProvider shape but reads
@@ -226,7 +237,52 @@ if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
 
 var app = builder.Build();
 
-// Phase 2.4: hand the static CheckoutRateLimiter a reference to the
+// Pre-resolve the cache-lock registry and register an
+// ApplicationStopping callback that disposes it. The host's
+// IHostOptions.ShutdownTimeout (default 30s) bounds how long
+// in-flight callers have to drain — once cancelled, the next
+// AcquireAsync raises OperationCanceledException immediately so
+// the waiters don't block the shutdown.
+{
+    var registry = app.Services.GetRequiredService<Basket.API.Caching.IBasketCacheLockRegistry>();
+    var lifetime = app.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+    lifetime.ApplicationStopping.Register(() =>
+    {
+        // Fire-and-forget: DisposeAsync returns a ValueTask that
+        // semantically completes "fast" (cancel + dispose
+        // semaphores), but the registry semaphore dispose path can
+        // touch kernel handles — log + swallow if it ever throws
+        // rather than crashing the host.
+        try
+        {
+            var valueTask = registry switch
+            {
+                IAsyncDisposable asyncDisposable => asyncDisposable.DisposeAsync(),
+                _ => ValueTask.CompletedTask,
+            };
+            if (!valueTask.IsCompletedSuccessfully)
+            {
+                // Detach: the awaiter continues in the background;
+                // the registry's stopper has already cancelled the
+                // CTS so any pending caller raises quickly. Capture
+                // via a side effect — the host shutdown will not
+                // wait on this task.
+                _ = valueTask.AsTask();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Defensive — the registry's dispose path is robust to
+            // per-semaphore failures (ObjectDisposedException,
+            // SemaphoreFullException). This catch is the last line
+            // of defence so an anomalous failure doesn't crash the
+            // host.
+            app.Logger.LogWarning(ex, "BasketCacheLockRegistry dispose failed at ApplicationStopping.");
+        }
+    });
+}
+
+// Hand the static CheckoutRateLimiter a reference to the
 // hot-reloadable IOptionsMonitor<BasketProblemDetailsOptions> so the
 // OnRejected callback emits the operator-owned `type` URI without
 // taking an instance dependency (the rate-limiter API requires
@@ -238,7 +294,7 @@ Basket.API.RateLimiting.CheckoutRateLimiter.Configure(
 // Configure the HTTP request pipeline.
 app.UseAuthentication();
 app.UseAuthorization();
-// Phase 2.4: UseRateLimiter must come AFTER UseAuthentication +
+// UseRateLimiter must come AFTER UseAuthentication +
 // UseAuthorization because the checkout policy's partition function
 // reads the authenticated principal's userId + restaurantId claims.
 // When an endpoint carries .RequireRateLimiting("checkout"), the

@@ -1,6 +1,5 @@
 namespace Basket.API.Basket.StoreBasket;
 
-public record StoreBasketRequest(Models::Basket Basket);
 public record StoreBasketResponse(bool IsCreated, Guid UserId, Guid RestaurantId);
 
 public class StoreBasketEndpoints : ICarterModule
@@ -9,11 +8,13 @@ public class StoreBasketEndpoints : ICarterModule
     {
         var group = app.MapBasketGroup();
 
-        // Token-bound URL: the BasketIdentityGuardBehavior cross-checks
-        // the body's UserId/RestaurantId against the JWT and throws
-        // ForbiddenException on mismatch. The caller can supply any
-        // values in the body — the JWT is authoritative.
-        group.MapPut("/cart", async (System.Security.Claims.ClaimsPrincipal principal, Models.Basket basket, ISender sender) =>
+        // `[DEPRECATED]`
+        // `/api/v1/baskets/{userId}/{restaurantId}` shim is removed.
+        // The only route is the token-bound `/api/v1/cart`; the
+        // `StoreBasketRequest(Basket)` wrapper record is no longer
+        // needed because the body shape is now `Models.Basket`
+        // directly.
+        group.MapPut("/cart", async (System.Security.Claims.ClaimsPrincipal principal, Models.Basket basket, ISender sender, HttpContext httpContext, CancellationToken cancellationToken) =>
         {
             // spoofing-footgun fix: the body MUST carry Guid.Empty
             // for UserId / RestaurantId; the validator rejects any other
@@ -24,7 +25,11 @@ public class StoreBasketEndpoints : ICarterModule
             basket.UserId = principal.GetUserId();
             basket.RestaurantId = principal.GetRestaurantId();
 
-            var result = await sender.Send(new StoreBasketCommand(basket));
+            var result = await sender.Send(new StoreBasketCommand(basket), cancellationToken);
+
+            // Cache-Control: no-store — the cart
+            // contains PII and must not be cached by intermediaries.
+            httpContext.Response.Headers.CacheControl = "no-store";
 
             // PUT semantics: 201 Created + Location: /api/v1/cart on
             // a new cart, 200 OK on update. Idempotent — repeated PUTs
@@ -44,22 +49,6 @@ public class StoreBasketEndpoints : ICarterModule
         .WithDescription("Creates or replaces the authenticated user's active cart for the current restaurant. " +
                          "Returns 201 Created + Location: /api/v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). " +
                          "The body's UserId / RestaurantId MUST be Guid.Empty; the JWT-derived identity is authoritative.")
-        .RequirePermission("orders:create");
-
-        // Deprecated shim — same payload, same identity-guard enforcement.
-        group.MapPut("/baskets/{userId}/{restaurantId}", async (Guid userId, Guid restaurantId, StoreBasketRequest request, ISender sender) =>
-        {
-            var command = request.Adapt<StoreBasketCommand>();
-            var result = await sender.Send(command);
-            return Results.Ok(result.Adapt<StoreBasketResponse>());
-        })
-        .WithName("StoreBasket_LegacyShim")
-        .Produces<StoreBasketResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status403Forbidden)
-        .WithSummary("[DEPRECATED] Upsert cart by URL ids — use PUT /api/v1/cart")
-        .WithDescription("Deprecated route kept for one release. Will be removed end of Phase 3.")
         .RequirePermission("orders:create");
     }
 }

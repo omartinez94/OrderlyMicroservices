@@ -1,8 +1,5 @@
 erDiagram
 
-    %% ----------------------------------------------------------------
-    %% BRANDS (relational)
-    %% ----------------------------------------------------------------
     Brands {
         uuid Id PK
         string Name
@@ -294,7 +291,7 @@ erDiagram
     %% removed (see that row for the migration note). The relational `Coupons`
     %% entity block was deleted on 2026-07-13 (Phase 6.2 reconciliation) — the
     %% diagram no longer renders a Catalog-owned Coupon table.
-    %%
+
     %% Phase 7 (Discount plan §7 hardening): the Discount-owned relational tables
     %% (Coupons, RewardCodes, DiscountRules, processed_inbound_events, outbox_messages,
     %% outbox_messages_dead) re-render under a Discount — relational tables (SQLite)

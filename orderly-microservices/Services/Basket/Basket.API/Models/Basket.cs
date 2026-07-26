@@ -28,7 +28,7 @@ public class Basket : ITenantEntity
 
     /// <summary>
     /// User-input coupon codes (the strings the cart UI submits).
-    /// Survives Phase 2.2 — the per-coupon breakdown lives in
+    /// Survives — the per-coupon breakdown lives in
     /// <see cref="AppliedCoupons"/> alongside. The wire shape keeps
     /// the string list for backwards compatibility with the existing
     /// <c>BasketCheckoutEvent</c> payload (Phase 2.1 will replace it
@@ -61,6 +61,18 @@ public class Basket : ITenantEntity
 
     public Instant CreatedAt { get; set; }
     public Instant ExpiresAt { get; set; }
+
+    /// <summary>
+    /// Last write timestamp. Updated on every StoreBasket and on the
+    /// admin <c>PUT /api/v1/admin/carts/{userId}</c> path
+    /// (the admin mutation runs the same upsert as the user-facing
+    /// one). Drives the <c>Last-Modified</c> response header on
+    /// <c>GET /api/v1/cart</c> so clients can issue
+    /// <c>If-Modified-Since</c> conditional requests — the handler
+    /// returns <c>304 Not Modified</c> when the supplied header is
+    /// &gt;= this value, saving the response-body round-trip.
+    /// </summary>
+    public Instant LastModifiedAt { get; set; }
 }
 
 /// <summary>
@@ -71,9 +83,9 @@ public class Basket : ITenantEntity
 /// cart total) and <see cref="AppliedAt"/>.
 /// </summary>
 /// <remarks>
-/// Replaces the Phase 2 wire-shape <c>List&lt;string&gt;</c> coupon
+/// Replaces the wire-shape <c>List&lt;string&gt;</c> coupon
 /// list for the v2 <c>BasketCheckoutEvent</c> payload
-/// (Phase 2.1, BuildingBlocks contribution). For Phase 2.2 the
+/// (BuildingBlocks contribution). For the
 /// snapshot lives only on the <see cref="Basket"/> document;
 /// <c>BasketCheckoutEvent</c> still carries <c>AppliedDiscounts</c>
 /// as strings.

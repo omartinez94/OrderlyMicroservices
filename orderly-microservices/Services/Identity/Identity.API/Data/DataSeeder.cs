@@ -79,6 +79,7 @@ public static class DataSeeder
             new() { Id = Guid.NewGuid(), Name = "orders:modify_ordering", Description = "Modify orders in ordering status", Resource = "orders", Action = "modify_ordering" },
             new() { Id = Guid.NewGuid(), Name = "orders:modify_confirmed", Description = "Modify orders in confirmed status", Resource = "orders", Action = "modify_confirmed" },
             new() { Id = Guid.NewGuid(), Name = "orders:modify_ready", Description = "Modify orders in ready status", Resource = "orders", Action = "modify_ready" },
+            new() { Id = Guid.NewGuid(), Name = "orders:admin", Description = "Cross-account basket administration (CS / support tooling). Required for /api/v1/admin/carts/* endpoints (Basket Phase 4).", Resource = "orders", Action = "admin" },
             
             // Menu
             new() { Id = Guid.NewGuid(), Name = "menu:view", Description = "View menu", Resource = "menu", Action = "view" },
@@ -118,7 +119,7 @@ public static class DataSeeder
                 "users:view_all", "users:create", "users:edit", "users:assign_roles", "users:assign_restaurants",
                 "roles:view", "roles:edit", "roles:edit_permissions",
                 "permissions:view",
-                "orders:view_all", "orders:modify_confirmed", "orders:modify_ready",
+                "orders:view_all", "orders:modify_confirmed", "orders:modify_ready", "orders:admin",
                 "menu:view", "menu:edit",
                 "kitchen:view_orders",
                 "reservations:view", "reservations:create", "reservations:edit",

@@ -9,6 +9,7 @@ global using Basket.API.Payment;
 global using Basket.API.ProblemDetails;
 global using Basket.API.RateLimiting;
 global using Basket.API.Services;
+global using Basket.API.Observability;
 global using BuildingBlocks.Behaviors;
 global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Exceptions;

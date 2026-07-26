@@ -19,5 +19,10 @@ public static class BasketEndpointGroup
     public static RouteGroupBuilder MapBasketGroup(this IEndpointRouteBuilder app) =>
         app.MapGroup("/api/v1")
             .RequireAuthorization("Default")
-            .WithTags("Baskets");
+            .WithTags("Baskets")
+            // WithOpenApi() re-enabled — the
+            // `Microsoft.AspNetCore.OpenApi` + `Swashbuckle.AspNetCore`
+            // packages are now project dependencies, so the
+            // generator picks up every endpoint in the group.
+            .WithOpenApi();
 }

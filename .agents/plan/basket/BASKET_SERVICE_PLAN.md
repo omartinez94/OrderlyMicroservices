@@ -1,24 +1,26 @@
-# Basket.API — Service Plan (v1.7)
+# Basket.API — Service Plan (v1.8)
 
-> **Status: Phase 3 Delivered 2026-07-25** (Document Version `1.7`).
+> **Status: Phase 4 Delivered 2026-07-25** (Document Version `1.8`).
 >
-> Phase 1 (tenant safety + identity cross-check + `[PciSensitive]` redaction + 9 unit tests) and the full Phase 2 (atomic-checkout + real-discount + idempotency middleware + payment-method redaction + rate-limiter + 201/200 PUT + wrapper-record cleanup + 46 unit tests across 6 sub-deliverables) shipped 2026-07-17/18. **Phase 3 (cache stampede protection + expiry sweep + DELETE 204 + URL cleanup) shipped 2026-07-25.** Remaining work is Phase 4 (gRPC + bus resilience + observability + Swagger) and Phase 5 (Tests project bootstrap — Testcontainers integration tests). The Phase 2 §1.5 "remaining tests" list (9 unit tests covering full validator coverage + replay-with-different-payload + rate-limit at 6th attempt + outbox-rollback proof) is **also** shipped — they are the test inventory at line 731 of the Phase 2 drift block. Every checkbox in the Phase 3 §6 section is `[x]`. Doc version 1.7.
+> Phase 1 (2026-07-17), Phase 2 (2026-07-18), Phase 3 (2026-07-25), and **Phase 4 (gRPC + bus resilience + observability + Swagger + admin endpoints, 2026-07-25)** all shipped. Remaining work is **Phase 5** — Testcontainers + WebApplicationFactory integration test infrastructure (the deferred `DeleteCartEndpointTests`, `GetCartEndpointTests`, `BasketEndpointTests` HTTP-level tests + the `BasketExpirySweepTests` Marten-fan-out assertions + the multi-replica outbox/concurrency scenarios). Doc version 1.8.
 >
-> **Verification date:** 2026-07-25. Build: 0 errors, 0 warnings under `-p:TreatWarningsAsErrors=true`. Test count: 89 / 89 pass when run individually; the test host has a parallelism issue with concurrent `BasketCacheLockRegistryTests` (Phase 3 drift item 7) that surfaces as a "test host blocked" message — each test passes when run in isolation or in groups of 4 or fewer.
+> **Verification date:** 2026-07-25. Build: 0 errors, 0 warnings under `-p:TreatWarningsAsErrors=true` (Basket.API + Basket.API.Tests). Targeted test count: 19 / 19 pass (Phase 4 commitments: 4 resilience + 3 OtelOptions + 6 ETag + 6 Phase-3-survivors).
 >
 > **Out-of-plan entity moves:** none. The Basket service is a leaf consumer in the architecture and does not own aggregates that should migrate elsewhere.
 >
 > **Origin:** synthesized from the csharp-expert review pass of `Basket.API` (Program.cs, Models/, Data/, Basket/{Get,Store,Delete,CheckoutBasket}/). Sections of `DISCOUNT_SERVICE_PLAN.md` and `CATALOG_SERVICE_PLAN.md` are mirrored by reference wherever they apply unchanged.
 >
-> **Drift items captured in Phase 3 (inline in §6):**
-> 1. `CachedBasketRepository` now caches empty carts (closes the "empty-cart isn't cached" loop hole).
-> 2. `BasketExpirySweepService` is a `BackgroundService` (not `IHostedService` — the `ExecuteAsync` lifecycle is required for the `PeriodicTimer` integration).
-> 3. The `IMartenQueryable<T>` chain is not mockable via NSubstitute — the "expired basket is deleted" / "live basket is untouched" assertions are Testcontainers + Postgres integration tests in Phase 5.
-> 4. The duplicate `AddStackExchangeRedisCache` and `IConnectionMultiplexer` Singleton registrations in `Program.cs` were dead code; the first registration (with `ConnectionMultiplexerFactory`) is the only one DI resolves.
-> 5. DELETE returns 204 No Content; the `DeleteBasketResponse` record was removed; the handler returns `MediatR.Unit.Value`. Endpoint-level tests (`DeleteCartEndpointTests`, `GetCartEndpointTests`, `BasketEndpointTests`) are deferred to Phase 5 (WebApplicationFactory work).
-> 6. `StoreBasketRequest` / `CheckoutBasketRequest` wrapper records were removed along with their shim routes.
-> 7. `test_e2e_auth.ps1` was updated to use the new `/api/v1/cart` URL (the script previously used the now-removed `/api/v1/baskets/{userId}/{restaurantId}` shim).
-> 8. The Phase 1 §0.4.1 URL-cleanup note (e.g. "Removed at end of Phase 3") is now stale and is updated inline.
+> **Phase 4 drift items captured (inline):**
+> 1. **Identity.API dependency — `orders:admin` permission seed** (Commit 0, this delivery). The plan §7 cross-service notes flagged the seed as a `blockedBy` edge for the admin endpoints; the seed is in `Identity.API/Data/DataSeeder.cs` and assigned to `RestaurantAdmin` + (via SuperAdmin inheritance) all roles. Discount's `coupon:read/create/...` and `reward-code:*/discount-rule:*` permissions are NOT seeded (they would land via a future Discount migration; the Basket plan does not depend on them).
+> 2. **`Microsoft.OpenApi 2.7.5` namespace quirk** — the v2.7.5 package types live in the root `Microsoft.OpenApi` namespace (not `Microsoft.OpenApi.Models` as in v1.x). The plan's `OpenApiReference`-based `AddSecurityRequirement` doesn't apply; we use `AddSecurityDefinition` only and let endpoints model auth via `[Authorize]`.
+> 3. **Swashbuckle 10.2.3 needs `Microsoft.AspNetCore.OpenApi`** as a transitive package for the `WithOpenApi()` extension method on `RouteGroupBuilder`; pinned at 9.0.0 (the .NET 10 build refuses 8.x).
+> 4. **OpenTelemetry 1.17.0** is the latest stable line; the 2.0+ line requires .NET 10 explicit opt-in. `Npgsql.OpenTelemetry 10.0.3` provides the `AddNpgsql()` extension in the `Npgsql` namespace (not `OpenTelemetry.Trace`).
+> 5. **Audit log is a flat document, not a child of `Basket`**. A delete leaves a basket-less row that names the deleted (user, restaurant) pair — making the row a sibling of the cart, not a child. The (RestaurantId, OccurredAt) index supports the planned `GET /api/v1/admin/audit` paged query.
+> 6. **`BasketAuditLogEntry.OccurredAt` is stamped at the model-property initializer** via `SystemClock.Instance.GetCurrentInstant()`. Marten reflects on the property setter, so the default value path is rarely hit, but a correct default avoids the "default Instant" trap on read-back.
+> 7. **`GetSubjectId()` extension method does NOT exist on `ClaimsPrincipal` in this codebase** — used `httpContext.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value` directly. The `GetUserId()` / `GetRestaurantId()` extensions live in `BuildingBlocks.Authorization.JwtClaimExtensions` (those names match the JWT-side claims, not the ASP.NET `ClaimTypes`).
+> 8. **`/api/v1/admin/carts/{userId}` is a placeholder GET/PUT/DELETE surface**. The list query handler is a stub (returns empty page) — the paged Marten query is Phase 5 work. The upsert + delete handlers run end-to-end against the `IBasketRepository` decorator chain; the audit row is written BEFORE the mutation (compliance record, not transactional lock).
+> 9. **Swagger UI is gated on `IsDevelopment()`**; the JSON spec is served at `/swagger/v1/swagger.json` in any environment. The committed `docs/api/basket-api-v1.json` mirror is a future Phase 5 follow-up.
+> 10. **`X-Correlation-Id` correlation** — the inbound header is honoured (echoed on the response, stamped on the OTel `Activity`). The `CorrelationContext` ambient AsyncLocal is the BuildingBlocks surface used by `LoggingBehavior`; the two are joined by reading the same header.
 
 ---
 
@@ -795,6 +797,19 @@ The current `CachedBasketRepository` was a single-flight hole that trashed Postg
 - ✅ **Doc-update scope:** §4.3 (single-flight + expiry sweep + DELETE 204), §11 (sweep interval config), §12 (Redis cache hit/miss metric), `current-architecture.md` header note that the deprecated route is gone.
 
 ### Phase 4 — gRPC + bus resilience + observability + Swagger (OPERATIONS)
+
+> **Status: ✅ Delivered 2026-07-25** as seven commits (0–6 below).
+>
+> All Phase 4 sub-deliverables shipped. Build: 0 errors, 0 warnings under `-p:TreatWarningsAsErrors=true` (Basket.API + Basket.API.Tests). Targeted test count: 19 / 19 pass. Remaining Phase 5 work: Testcontainers + WebApplicationFactory integration tests (deferred from Phases 3 and 4 — see the inline drift items for the surface area).
+>
+> **Phase 4 commit history (this delivery):**
+> - **Commit 0 (Identity)**: `Identity.API/Data/DataSeeder.cs` adds the `orders:admin` permission + assigns it to `RestaurantAdmin` (SuperAdmin inherits everything). The Dependency noted in the plan §7 cross-service notes is closed. BuildingBlocks is unchanged.
+> - **Commit 1 (gRPC resilience)**: `Microsoft.Extensions.Http.Resilience` package added (10.8.0); `AddStandardResilienceHandler` wraps the `DiscountProtoServiceClient` with retry (3× exponential + jitter) + circuit breaker (5-failures-in-30s + 30s break) + attempt timeout (3s) + total request timeout (8s). `DiscountGrpcResiliencePipelineTests` (4 tests) lock the option shape + prove the retry policy re-runs the delegate.
+> - **Commit 2 (OpenTelemetry)**: `OpenTelemetry.Extensions.Hosting` 1.17.0 + `OpenTelemetry.Instrumentation.AspNetCore` + `OpenTelemetry.Instrumentation.Http` + `OpenTelemetry.Instrumentation.Runtime` + `Npgsql.OpenTelemetry` 10.0.3 + `OpenTelemetry.Exporter.OpenTelemetryProtocol` packages added. `OtelOptions` (bound from `OpenTelemetry` section with `ValidateOnStart`); `CorrelationIdActivityMiddleware` bridges the inbound `X-Correlation-Id` header into the OTel `Activity` bag. `OtelOptionsTests` (3 tests) lock the defaults + the `Endpoint` `[Required]` validation.
+> - **Commit 3 (health split)**: `/health` retained for backward compat; new `/live` (process-alive only — no checks; `Predicate = _ => false`) + `/ready` (every `Tags.Contains("ready")` check — Postgres + Redis + RabbitMQ + the BasketExpirySweepService + the CheckoutBasketOutboxDispatcher). All three endpoints use `UIResponseWriter.WriteHealthCheckUIResponse`. The Postgres/Redis checks are tagged `["live", "ready"]` so they participate in both probes.
+> - **Commit 4 (Swagger)**: `Swashbuckle.AspNetCore` 10.2.3 + `Microsoft.AspNetCore.OpenApi` 9.0.0 + `Microsoft.OpenApi` 2.7.5 packages added. `MapBasketGroup` re-enables `WithOpenApi()` (Phase 1 deferred this). `AddEndpointsApiExplorer` + `AddSwaggerGen` with v1 doc + Bearer security scheme. `UseSwagger` + `UseSwaggerUI` gated on `IsDevelopment()`. The `/swagger/v1/swagger.json` endpoint is available in any environment; the committed `docs/api/basket-api-v1.json` mirror is Phase 5.
+> - **Commit 5 (ETag + Last-Modified)**: `Basket.Caching.ETag` static helper computes `SHA-256(json(basket))` and checks `If-None-Match` / `If-Modified-Since` per RFC 9110 §13.1.2/§13.1.3. `Basket.LastModifiedAt` field added; `StoreBasketHandler` stamps it on every upsert. The endpoint returns 304 with no body when the inbound signal matches. `ETagTests` (6 tests) lock the helper invariants.
+> - **Commit 6 (admin endpoints)**: New `Basket.API/Endpoints/AdminCartEndpoints.cs` with `GET /api/v1/admin/carts` (paged list, stub handler — Phase 5 paged Marten query), `PUT /api/v1/admin/carts/{userId}` (upsert, 201/200), `DELETE /api/v1/admin/carts/{userId}` (idempotent 204). All three require `orders:admin` (seeded in Commit 0). New `Basket.API/Models/BasketAuditLogEntry` (flat Marten document, `MultiTenanted()`) + `Basket.API/Audit/IBasketAuditLog` + `Basket.API/Audit/MartenBasketAuditLog` (singleton, opens a fresh Marten session per write, publishes `BasketAuditLogAppendedNotification` MediatR event).
 
 - Wrap `DiscountProtoServiceClient` registration with `AddStandardResilienceHandler(...)` (Polly v8 — `Microsoft.Extensions.Http.Resilience`) — retry (3x exponential), circuit breaker (5 failures in 30s open), timeout (3s).
 - Add `services.AddOpenTelemetry().WithTracing(b => b.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddSource("Marten").AddSource("MassTransit").AddNpgsql()).WithMetrics(m => m.AddAspNetCoreInstrumentation().AddRuntimeInstrumentation())`.

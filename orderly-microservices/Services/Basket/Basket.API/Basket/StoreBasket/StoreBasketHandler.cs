@@ -91,6 +91,7 @@ public class StoreBasketHandler(
         {
             basket.AppliedCoupons = [];
             basket.DiscountAmount = 0m;
+            basket.LastModifiedAt = SystemClock.Instance.GetCurrentInstant();
 
             var (storedEmpty, isCreatedEmpty) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
             return new StoreBasketResult(isCreatedEmpty, storedEmpty.UserId, storedEmpty.RestaurantId);
@@ -158,6 +159,13 @@ public class StoreBasketHandler(
         // (per-coupon "would-be" contribution) — only the basket-level
         // total is clamped.
         basket.DiscountAmount = Math.Min(snapshots.Sum(s => s.DiscountAmount), subtotal);
+        // Stamp LastModifiedAt AFTER the snapshot loop — every PUT
+        // bumps it; GET /cart uses it for the Last-Modified response
+        // header. Co-locating the stamp here keeps the
+        // ETag / Last-Modified handshake deterministic (a single
+        // timestamp per upsert, no race between snapshot creation
+        // and persistence).
+        basket.LastModifiedAt = now;
 
         var (stored, isCreated) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
         return new StoreBasketResult(isCreated, stored.UserId, stored.RestaurantId);

@@ -22,6 +22,16 @@ namespace Basket.API.Tests.Integration.Endpoints;
 /// would otherwise fail the call). The real-discount path is
 /// covered by the existing <c>StoreBasketHandlerTests</c> unit
 /// suite.</para>
+/// <para><b>JSON serialization note.</b> All PUT
+/// requests go through <see cref="NodaTimeJson.CreateContent{T}"/>
+/// rather than <c>PutAsJsonAsync</c>. The default
+/// <see cref="System.Text.Json.JsonSerializerOptions"/> on
+/// <see cref="HttpClient"/> does NOT register the NodaTime
+/// converter, so a <c>Basket</c> with <c>Instant</c> properties
+/// serializes them as empty objects <c>{}</c> — the host's
+/// deserializer then rejects the body with an empty-body 400.
+/// <see cref="NodaTimeJson.NodaTimeJsonOptions"/> mirrors the
+/// host's <c>ConfigureHttpJsonOptions</c> configuration.</para>
 /// </remarks>
 [Collection(nameof(BasketWebApplicationFactoryCollection))]
 public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
@@ -37,11 +47,12 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
 
         var basket = NewEmptyBasket();
 
-        // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
-
-        // Debug removed
-        // (was: throw on 400 to capture body; restored)
+        // Act — NodaTime-aware JSON content; see xmldoc above.
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created,
@@ -68,7 +79,11 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var basket = NewEmptyBasket();
 
         // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -83,13 +98,13 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
     public async Task UpsertCart_BodyCarriesUserId_OverwrittenByJwt_Returns200()
     {
         // Arrange
-        // §0.4.10 spoofing-footgun contract: the endpoint MUST
+        // Spoofing-footgun contract: the endpoint MUST
         // overwrite the body's UserId / RestaurantId with the
         // JWT-derived values BEFORE constructing the command, so the
         // body cannot be used to spoof a different identity. The
         // previous `Equal(Guid.Empty)` validator rule was removed
         // (it ran AFTER the overwrite and saw the JWT values, not the
-        // body values — a Phase 2.5 production bug surfaced by the
+        // body values — a production bug surfaced by the
         // Phase 5 integration tests). The protection now lives in
         // (a) the endpoint overwrite + (b) the second-layer
         // `BasketIdentityGuardBehavior` cross-check.
@@ -102,7 +117,11 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         basket.UserId = Guid.NewGuid(); // spoofing attempt — endpoint overwrites
 
         // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert — the endpoint overwrites, the request succeeds
         // with the JWT user id, and the response's UserId is the
@@ -110,16 +129,16 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         response.StatusCode.Should().Match(c => c == HttpStatusCode.OK || c == HttpStatusCode.Created,
             "the endpoint overwrites the body UserId with the JWT user id; the operation succeeds");
 
-        var body2 = await response.Content.ReadFromJsonAsync<StoreBasketResponse>();
-        body2.Should().NotBeNull();
-        body2!.UserId.Should().Be(userId,
+        var body = await response.Content.ReadFromJsonAsync<StoreBasketResponse>();
+        body.Should().NotBeNull();
+        body!.UserId.Should().Be(userId,
             "the endpoint's overwrite wins — the response's UserId is the JWT, not the body's spoofed value");
     }
 
     [Fact]
     public async Task UpsertCart_BodyCarriesRestaurantId_OverwrittenByJwt_Returns200()
     {
-        // Arrange — same §0.4.10 contract as the UserId test.
+        // Arrange — same contract as the UserId test.
         using var client = factory.CreateClient();
         var userId = Guid.NewGuid();
         client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString());
@@ -129,7 +148,11 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         basket.RestaurantId = Guid.NewGuid(); // spoofing attempt
 
         // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Match(c => c == HttpStatusCode.OK || c == HttpStatusCode.Created);
@@ -148,7 +171,11 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var basket = NewEmptyBasket();
 
         // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
@@ -168,21 +195,25 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         basket.Items.Add(new BasketItem
         {
             MenuItemId = 1,
-            Quantity = 0, // §0.4.10: Quantity >= 1
+            Quantity = 0, // Quantity >= 1
             UnitPrice = 1.00m,
         });
 
         // Act
-        var response = await client.PutAsJsonAsync("/api/v1/cart", basket);
+        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        {
+            Content = NodaTimeJson.CreateContent(basket),
+        };
+        var response = await client.SendAsync(request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
-            "§0.4.10: a Quantity < 1 is rejected with 400 by the validator");
+            "A Quantity < 1 is rejected with 400 by the validator");
     }
 
     private static Models.Basket NewEmptyBasket() => new()
     {
-        // §0.4.10: UserId + RestaurantId MUST be Guid.Empty on the
+        // UserId + RestaurantId MUST be Guid.Empty on the
         // wire; the endpoint overwrites both with the JWT-derived
         // values before the command is constructed.
         UserId = Guid.Empty,

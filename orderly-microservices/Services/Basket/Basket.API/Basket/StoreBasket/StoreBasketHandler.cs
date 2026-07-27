@@ -16,26 +16,49 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
     {
         RuleFor(x => x.Basket).NotNull().WithMessage("Basket is required.");
 
-        // NOTE: The previous `Equal(Guid.Empty)` rule for
-        // `Basket.UserId` / `Basket.RestaurantId` is REMOVED. The
-        // endpoint overwrites both fields from the JWT BEFORE
-        // constructing the command (see `StoreBasketEndpoints.cs`),
-        // so by the time this validator runs the command's
-        // `Basket.UserId` / `Basket.RestaurantId` are the
-        // JWT-derived values, not `Guid.Empty`. The rule could not
-        // validate the body's pre-overwrite values from this layer.
-        //
-        // The spoofing protection is now provided by the endpoint
-        // overwrite itself (the caller cannot inject a different
-        // identity via the body) + the second-layer
-        // `BasketIdentityGuardBehavior` (which checks the command's
-        // identity against the JWT's, catching any direct-injection
-        // edge case).
-        //
-        // Follow-up: re-introduce the body-shape spoofing
-        // check as an `IEndpointFilter` that runs BEFORE the endpoint
-        // code (so it sees the body's pre-overwrite values), then
-        // wire a regression test in `UpsertCartEndpointTests`.
+        // Validation rules. The endpoint overwrites
+        // `Basket.UserId` / `Basket.RestaurantId` from the JWT before
+        // constructing the command, so the body-shape spoofing
+        // check (`Equal(Guid.Empty)` on the body's identity fields)
+        // cannot run from this layer — the values are the JWT
+        // values, not `Guid.Empty`, by the time this validator
+        // runs. The endpoint overwrite + the second-layer
+        // `BasketIdentityGuardBehavior` cross-check are the
+        // spoofing protection.
+        RuleFor(x => x.Basket.Items).NotNull().WithMessage("Basket.Items is required.");
+        RuleFor(x => x.Basket.Items.Count).LessThanOrEqualTo(100)
+            .WithMessage("Basket.Items.Count must be <= 100 (per §0.4.10).");
+        RuleForEach(x => x.Basket.Items).ChildRules(item =>
+        {
+            item.RuleFor(x => x.MenuItemId).GreaterThan(0)
+                .WithMessage("BasketItem.MenuItemId must be > 0.");
+            item.RuleFor(x => x.Quantity).InclusiveBetween(1, 99)
+                .WithMessage("BasketItem.Quantity must be in [1, 99] (per §0.4.10).");
+            item.RuleFor(x => x.UnitPrice).GreaterThan(0)
+                .WithMessage("BasketItem.UnitPrice must be > 0.");
+            item.RuleFor(x => x.Variations.Count).LessThanOrEqualTo(10)
+                .WithMessage("BasketItem.Variations.Count must be <= 10 (per §0.4.10).");
+            item.RuleForEach(x => x.Variations).ChildRules(v =>
+            {
+                v.RuleFor(x => x.Name).NotEmpty().MaximumLength(64);
+                v.RuleFor(x => x.Value).NotEmpty().MaximumLength(64);
+                v.RuleFor(x => x.Price).GreaterThanOrEqualTo(0);
+            });
+            item.RuleFor(x => x.Customizations.Count).LessThanOrEqualTo(20)
+                .WithMessage("BasketItem.Customizations.Count must be <= 20 (per §0.4.10).");
+        });
+
+        // Distinct coupon codes, count <= 10, each code
+        // matches ^[A-Z0-9_-]{4,32}$.
+        RuleFor(x => x.Basket.AppliedDiscounts).NotNull();
+        RuleFor(x => x.Basket.AppliedDiscounts.Count).LessThanOrEqualTo(10)
+            .WithMessage("Basket.AppliedDiscounts.Count must be <= 10 (per §0.4.10).");
+        RuleFor(x => x.Basket.AppliedDiscounts)
+            .Must(codes => codes == null || codes.Distinct().Count() == codes.Count)
+            .WithMessage("Basket.AppliedDiscounts must be distinct (per §0.4.10).");
+        RuleForEach(x => x.Basket.AppliedDiscounts)
+            .Matches("^[A-Z0-9_-]{4,32}$")
+            .WithMessage("Basket.AppliedDiscounts[i] must match ^[A-Z0-9_-]{4,32}$ (per §0.4.10).");
     }
 }
 

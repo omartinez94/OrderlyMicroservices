@@ -500,13 +500,31 @@ app.UseAuthorization();
 // UseSwaggerUI is gated on `IsDevelopment()` so production
 // deployments don't expose the schema surface. The generated
 // `swagger.json` is committed under `docs/api/basket-api-v1.json`
-// on every phase commit that changes an endpoint — see
-// BASKET_SERVICE_PLAN.md §6 Phase 4 doc-update scope.
+// on every phase commit that changes an endpoint
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Basket API v1"));
 }
+
+// UseExceptionHandler MUST come BEFORE MapCarter. The exception
+// handler is the FIRST middleware in the pipeline (the rest of the
+// pipeline is `next`), so an exception thrown by Carter's model
+// binding (e.g. `BadHttpRequestException` for a malformed JSON
+// body) bubbles back up to the handler and is mapped to a
+// `ProblemDetails` 400. With the handler registered AFTER
+// `MapCarter`, the exception escapes unhandled and the response
+// is a raw 400 with no body (the X-Correlation-Id header is the
+// only thing the caller sees). The Phase 5 integration tests
+// surfaced this on the `UpsertCart` body-binding 400 — the
+// `Models.Basket` model state validation throws
+// `BadHttpRequestException` from Carter's binder, the handler
+// is too late in the pipeline to catch it, the response is 400 +
+// no ProblemDetails body. Moving the handler here closes the gap.
+// (Pre-Phase 5: same ordering bug existed but the unit tests
+// never exercised the HTTP pipeline end-to-end.)
+app.UseExceptionHandler(options => { });
+
 // UseRateLimiter must come AFTER UseAuthentication +
 // UseAuthorization because the checkout policy's partition function
 // reads the authenticated principal's userId + restaurantId claims.
@@ -516,8 +534,6 @@ if (app.Environment.IsDevelopment())
 app.UseRateLimiter();
 
 app.MapCarter();
-
-app.UseExceptionHandler(options => { });
 
 app.UseHealthChecks("/health",
     new HealthCheckOptions

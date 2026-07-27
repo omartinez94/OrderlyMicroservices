@@ -217,7 +217,7 @@ public sealed class BasketIdempotencyFilter(
 
         // 6. Miss — run the handler, capture the response, cache it.
         //    Swap HttpContext.Response.Body for a MemoryStream so we
-        //    can read what the handler wrote.
+        //    can read what the handler AND the IResult write.
         var originalBody = http.Response.Body;
         await using var capture = new MemoryStream();
         http.Response.Body = capture;
@@ -233,6 +233,33 @@ public sealed class BasketIdempotencyFilter(
             // can write the error response.
             http.Response.Body = originalBody;
             throw;
+        }
+
+        // Execute the IResult against the swap buffer. The IResult is
+        // a value object produced by the endpoint (e.g. `Results.Ok(...)`)
+        // that has NOT yet written to the response — `next(context)`
+        // returns the IResult without calling ExecuteAsync. Without
+        // this step, the captured body would be 0 bytes (the endpoint
+        // only writes headers, e.g. `Cache-Control: no-store`, before
+        // returning the IResult) and the IResult would later fail to
+        // execute against the real response because the filter would
+        // have already started it by writing 0 bytes to the original.
+        // The fix: run the IResult now against the swap so its body
+        // is captured atomically alongside the headers it sets on the
+        // real response.
+        if (result is IResult iresult)
+        {
+            try
+            {
+                await iresult.ExecuteAsync(http);
+            }
+            catch
+            {
+                // Restore the original stream on failure so the
+                // framework can write the error response.
+                http.Response.Body = originalBody;
+                throw;
+            }
         }
 
         // Drain the captured body and restore the original stream.
@@ -271,20 +298,21 @@ public sealed class BasketIdempotencyFilter(
         }
 
         // 8. Forward the captured response to the original stream.
-        http.Response.StatusCode = statusCode;
+        //    NOTE: writing responseBytes starts the response (in
+        //    TestServer, even a 0-byte write flips Response.HasStarted
+        //    to true). Do NOT return the IResult and let the framework
+        //    re-execute it — the IResult would then throw
+        //    "The status code cannot be set, the response has already
+        //    started" at IResult.ExecuteAsync. Return Results.Empty
+        //    so the framework's IResult dispatch is a no-op and the
+        //    pre-captured response is the only one on the wire.
         if (http.Response.ContentLength is null && responseBytes.Length > 0)
         {
             http.Response.ContentLength = responseBytes.Length;
         }
         await http.Response.Body.WriteAsync(responseBytes, context.HttpContext.RequestAborted);
 
-        // Return the handler's own result (typically Results.Ok(...))
-        // so the framework writes any framework-level state (headers
-        // it would normally emit). We already wrote the body, but
-        // returning the result lets the framework run its end-of-
-        // pipeline tasks. Some framework versions check for null and
-        // skip body writes if so; we set ContentLength above.
-        return result;
+        return Results.Empty;
     }
 
     /// <summary>

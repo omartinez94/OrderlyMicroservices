@@ -533,6 +533,27 @@ app.UseExceptionHandler(options => { });
 // and either forwards the request or invokes OnRejected.
 app.UseRateLimiter();
 
+// Body buffering middleware — runs BEFORE MapCarter so the
+// `BasketIdempotencyFilter` can rewind the request body to compute
+// the HMAC body-fingerprint for the IETF Idempotency-Key contract.
+// The filter is an `IEndpointFilter`, which runs AFTER the
+// `[FromBody]` parameter binding in the minimal-API pipeline. The
+// binding consumes the body stream to deserialize the DTO; by
+// the time the filter runs, `request.Body` is at position N and
+// the original bytes are no longer readable through the same
+// stream. Without buffering, the filter reads 0 bytes and the
+// body-fingerprint is always the empty-body HMAC, breaking the
+// same-key + different-body → 422 contract. `EnableBuffering`
+// wraps the body in a `FileBufferingReadStream` that buffers
+// reads so the binding and the filter both observe the same
+// seekable, complete byte stream. The cost is one in-process
+// buffer per request; checkout payloads are small.
+app.Use(async (context, next) =>
+{
+    context.Request.EnableBuffering();
+    await next();
+});
+
 app.MapCarter();
 
 app.UseHealthChecks("/health",

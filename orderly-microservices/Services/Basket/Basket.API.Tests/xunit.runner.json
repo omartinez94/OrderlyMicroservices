@@ -1,0 +1,8 @@
+{
+  "$schema": "https://xunit.net/schema/current/xunit.runner.schema.json",
+
+  "//": "Phase 5.1 Commit 1: serialise xUnit test execution to close the Phase 3 drift item 7 race (`BasketCacheLockRegistryTests` 'test host blocked' when 4+ cache-lock tests ran concurrently across collections). The two WAF collections (`BasketWebApplicationFactoryCollection` + `BasketExpirySweepWebApplicationFactoryCollection`) already serialise tests WITHIN a collection; the race was across collections sharing the static `BasketCacheLockRegistry`. Disabling both collection and assembly parallelism is the direct fix described by `BASKET_SERVICE_PLAN.md` line 772.",
+
+  "parallelizeTestCollections": false,
+  "parallelizeAssembly": false
+}

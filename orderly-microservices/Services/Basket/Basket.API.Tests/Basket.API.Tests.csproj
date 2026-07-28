@@ -44,6 +44,17 @@
     <None Update="appsettings.Test.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!--
+      Phase 5.1 Commit 1: xunit.runner.json closes the Phase 3 drift item 7
+      race (`BasketCacheLockRegistryTests` 'test host blocked' across
+      collections sharing the static registry). Both
+      `parallelizeTestCollections` and `parallelizeAssembly` are set to
+      `false` so every test in this assembly runs serially. See
+      `BASKET_SERVICE_PLAN.md` §6 Phase 5 drift item 7 closure + line 772.
+    -->
+    <Content Update="xunit.runner.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

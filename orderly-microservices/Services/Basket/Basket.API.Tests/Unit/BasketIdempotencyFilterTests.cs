@@ -67,12 +67,22 @@ public sealed class BasketIdempotencyFilterTests
 
         var ctx = BuildInvocationContext(idempotencyKey: ValidUuidV4, body: TestBody);
 
+        // The filter's IResult capture (see BasketIdempotencyFilter
+        // §6) executes the IResult against the swap buffer. The real
+        // `Results.Ok()` resolves `IHttpResponseStreamWriterFactory`
+        // from `httpContext.RequestServices` — an MVC service the
+        // unit test's service provider doesn't carry. The stub
+        // IResult below has the same IResult contract (the filter
+        // only cares that the IResult writes bytes + headers) without
+        // the JSON-serialization machinery. The integration tests
+        // (CheckoutCartEndpointTests) exercise the real
+        // `Results.Ok(...)` against the live WAF.
         var result = await filter.InvokeAsync(ctx, c =>
         {
             handlerCalled = true;
             c.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
             c.HttpContext.Response.ContentType = "application/json";
-            return ValueTask.FromResult<object?>(Results.Ok());
+            return ValueTask.FromResult<object?>(new StubOkResult());
         });
 
         handlerCalled.Should().BeTrue();
@@ -171,7 +181,7 @@ public sealed class BasketIdempotencyFilterTests
         {
             c.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
             c.HttpContext.Response.ContentType = "application/json";
-            return ValueTask.FromResult<object?>(Results.Ok());
+            return ValueTask.FromResult<object?>(new StubOkResult());
         });
 
         var otherUserId = "33333333-3333-3333-3333-333333333333";
@@ -183,7 +193,7 @@ public sealed class BasketIdempotencyFilterTests
             handlerCalled = true;
             c.HttpContext.Response.StatusCode = StatusCodes.Status200OK;
             c.HttpContext.Response.ContentType = "application/json";
-            return ValueTask.FromResult<object?>(Results.Ok());
+            return ValueTask.FromResult<object?>(new StubOkResult());
         });
 
         handlerCalled.Should().BeTrue();
@@ -393,6 +403,35 @@ public sealed class BasketIdempotencyFilterTests
             var bytes = Encoding.UTF8.GetBytes(envelope);
             var mac = System.Security.Cryptography.HMACSHA256.HashData(_key, bytes);
             return Convert.ToHexString(mac);
+        }
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IResult"/> that writes a fixed JSON body
+    /// and sets the response headers — without resolving
+    /// <c>IHttpResponseStreamWriterFactory</c> from
+    /// <c>httpContext.RequestServices</c>. The filter's IResult capture
+    /// (§6 of <see cref="BasketIdempotencyFilter"/>) executes the IResult
+    /// against the swap buffer to capture the body bytes. The real
+    /// <c>Results.Ok(...)</c> requires MVC services that the unit
+    /// test's service provider does not carry, so we use this stub for
+    /// the filter's "miss → run handler → capture IResult" tests. The
+    /// integration tests (<c>CheckoutCartEndpointTests</c>) exercise the
+    /// real <c>Results.Ok(...)</c> against the live WAF, where the full
+    /// DI container is in scope.
+    /// </summary>
+    private sealed class StubOkResult : IResult
+    {
+        private static readonly byte[] Body = """{"success":true,"message":"ok"}"""u8.ToArray();
+
+        public Task ExecuteAsync(HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            httpContext.Response.StatusCode = StatusCodes.Status200OK;
+            httpContext.Response.ContentType = "application/json";
+            httpContext.Response.ContentLength = Body.Length;
+            return httpContext.Response.Body.WriteAsync(Body, 0, Body.Length);
         }
     }
 }

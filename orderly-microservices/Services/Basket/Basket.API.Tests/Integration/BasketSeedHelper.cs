@@ -91,6 +91,21 @@ internal static class BasketSeedHelper
     /// already-past instant so the document sort order is stable
     /// across runs.
     /// </summary>
+    /// <remarks>
+    /// Writes into the sweep-visible tenant partition by opening a
+    /// non-tenant-scoped <see cref="IDocumentSession"/>. The sweep
+    /// service itself uses <c>IDocumentStore.LightweightSession()</c>
+    /// with no tenant id (<see cref="Basket.API.Services.BasketExpirySweepService.SweepOnceAsync"/>),
+    /// which in Marten multi-tenanted mode operates on the DEFAULT
+    /// tenant (<see cref="Guid.Empty"/>). Seeding into the test
+    /// tenant (<see cref="TestRestaurantId"/>) instead would put the
+    /// baskets in a partition the sweep never reads. This helper
+    /// deliberately seeds into DEFAULT so the sweep can find them.
+    /// The <see cref="Models.Basket.RestaurantId"/> on the document is
+    /// still <see cref="TestRestaurantId"/> so production
+    /// <c>AssertTenant</c> checks against the seed data would pass;
+    /// only the Marten <c>tenant_id</c> column carries the default.
+    /// </remarks>
     public static async Task<Models.Basket> SeedExpiredBasketAsync(
         this BasketWebApplicationFactory factory,
         Guid userId,
@@ -101,12 +116,46 @@ internal static class BasketSeedHelper
         var now = SystemClock.Instance.GetCurrentInstant();
         var past = now - (age ?? Duration.FromHours(1));
 
-        return await factory.SeedBasketAsync(userId, b =>
+        return await factory.SeedBasketInSweepTenantAsync(userId, b =>
         {
             b.CreatedAt = past - Duration.FromMinutes(30);
             b.ExpiresAt = past;
             b.LastModifiedAt = past;
         });
+    }
+
+    /// <summary>
+    /// Inserts a <see cref="Models.Basket"/> into the DEFAULT Marten
+    /// tenant partition (the one <see cref="Basket.API.Services.BasketExpirySweepService.SweepOnceAsync"/>
+    /// queries). Mirrors <see cref="SeedBasketAsync"/> except the
+    /// session is opened without a tenant id.
+    /// </summary>
+    public static async Task<Models.Basket> SeedBasketInSweepTenantAsync(
+        this BasketWebApplicationFactory factory,
+        Guid userId,
+        Action<Models.Basket>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+
+        var store = factory.Services.GetRequiredService<IDocumentStore>();
+        // NO tenant id — the sweep service queries with no tenant id,
+        // so the seed must write to the same partition (DEFAULT).
+        await using var session = store.LightweightSession();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        var basket = new Models.Basket
+        {
+            UserId = userId,
+            RestaurantId = TestRestaurantId,
+            CreatedAt = now,
+            ExpiresAt = now + Duration.FromMinutes(30),
+            LastModifiedAt = now,
+        };
+        configure?.Invoke(basket);
+
+        session.Store(basket);
+        await session.SaveChangesAsync();
+        return basket;
     }
 
     /// <summary>

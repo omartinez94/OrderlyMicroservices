@@ -1,10 +1,10 @@
-# Basket.API — Service Plan (v1.2)
+# Basket.API — Service Plan (v1.3)
 
-> **Status: Phase 5 partial delivery 2026-07-26 / 2026-07-27** (Document Version `1.2`).
+> **Status: ✅ CLOSED 2026-07-30** (Document Version `1.3`).
 >
-> Phase 1 (2026-07-17), Phase 2 (2026-07-18), Phase 3 (2026-07-25), Phase 4 (2026-07-25), and **the Phase 5 Testcontainers + WebApplicationFactory integration test scaffolding + endpoint contract tests (2026-07-26)** all shipped. **132 / 132 tests pass** in `Basket.API.Tests` (111 unit + 21 integration endpoint). Phase 5 follow-up work (Phase 5.1): OpenAPI mirror test + first commit of `docs/api/basket-api-v1.json` + `BasketExpirySweepTests.ExpiredBasket_Deleted` + `.LiveBasket_NotTouched` Marten-fan-out assertions + Verify snapshot suite + `.github/workflows/basket-tests.yml` + `current-architecture.md` §11/§12 updates. The Phase 2 outbox multi-replica `FOR UPDATE SKIP LOCKED` switch (Phase 2 drift item 3) remains a Phase 5.x hand-off. Doc version 1.2.
+> Phases 1–5 + Phase 5.1 follow-ups all shipped. **138 / 138 tests pass** in `Basket.API.Tests` (124 unit + 14 integration). Build clean with `-p:TreatWarningsAsErrors=true`. The Basket API surface is feature-complete; the test infrastructure is fully operational. **Phase 5.x items** (outbox multi-replica `FOR UPDATE SKIP LOCKED` switch + `ISessionFactory` ambient tenant wiring + multi-tenancy strategy resolution) are explicitly **delegated to `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md`** (Phase 0 BuildingBlocks ergonomics + Catalog catch-up + Phase 1 Kitchen pilot). They are NOT in scope for this plan and will not be added to a new plan.
 >
-> **Verification date:** 2026-07-27. Build: 0 errors, 0 warnings under `-p:TreatWarningsAsErrors=true` (Basket.API + Basket.API.Tests). Targeted test count: 132 / 132 pass (21 integration endpoint + 111 unit).
+> **Verification date:** 2026-07-30. Build: 0 errors, 0 warnings under `-p:TreatWarningsAsErrors=true` (Basket.API + Basket.API.Tests). Test count: 138 / 138 pass (124 unit + 14 integration). `current-architecture.md` §11 (Local Development test bootstrap snippet, lines 684–686; Test-only OTel suppression paragraph, line 696) confirms the seven Phase 5.1 follow-up items are documented.
 >
 > **Out-of-plan entity moves:** none. The Basket service is a leaf consumer in the architecture and does not own aggregates that should migrate elsewhere.
 >
@@ -892,11 +892,15 @@ The current `CachedBasketRepository` was a single-flight hole that trashed Postg
 6. **`current-architecture.md` §11/§12 updates** — Local Development test bootstrap snippet + Observability test-only trace exporter (line 864).
 7. **`xunit.runner.json` parallelism fix** — `xunit.parallelizeTestCollections=false` (drift item 7, Phase 3 line 772).
 
-**Phase 5.x deferred (out of Phase 5.1 scope):**
+**Phase 5.x deferred — explicitly delegated to `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md` (2026-07-30):**
 
-- **Outbox multi-replica `FOR UPDATE SKIP LOCKED` switch** — Phase 2 drift item 3 (line 641). Replaces the `mt_version` optimistic-concurrency claim with a raw-SQL `SELECT … FOR UPDATE SKIP LOCKED` through `IDocumentSession.Connection`. Required when the Basket service is deployed with `replicas > 1`; Phase 2 v1 is single-replica (matches Basket's current deployment).
-- **`ISessionFactory` ambient tenant wiring** — drift item 3 (production fix; the seed helper works around it for tests). See `MULTITENANCY_ROLLOUT_PLAN.md` for the cross-service rollout plan.
-- **Multi-tenancy strategy resolution** — drift item 4 (pick one of `MultiTenanted()` conjoined or `CreateDatabasesForTenants` per-DB; do not keep both). See `MULTITENANCY_ROLLOUT_PLAN.md`.
+The three Phase 5.x items are not in scope for this plan; they are owned by the multitenancy rollout. Cross-references:
+
+- **Outbox multi-replica `FOR UPDATE SKIP LOCKED` switch** — Phase 2 drift item 3 (line 641). Replaces the `mt_version` optimistic-concurrency claim with a raw-SQL `SELECT … FOR UPDATE SKIP LOCKED` through `IDocumentSession.Connection`. Required when the Basket service is deployed with `replicas > 1`; Phase 2 v1 is single-replica (matches Basket's current deployment). Owner: `MULTITENANCY_ROLLOUT_PLAN.md` Phase 0 (BuildingBlocks ergonomics) or Phase 1 (Kitchen pilot).
+- **`ISessionFactory` ambient tenant wiring** — Phase 5 drift item 3 (production fix; the seed helper works around it for tests). Owner: `MULTITENANCY_ROLLOUT_PLAN.md` Phase 0 (BuildingBlocks ergonomics).
+- **Multi-tenancy strategy resolution** — Phase 5 drift item 4 (pick one of `MultiTenanted()` conjoined or `CreateDatabasesForTenants` per-DB; do not keep both). Owner: `MULTITENANCY_ROLLOUT_PLAN.md` Phase 0 (BuildingBlocks ergonomics).
+
+These three items will be closed as part of the multitenancy rollout, not as part of this plan. Adding a new plan to track them would be ceremony without benefit; they already have a plan and a phase.
 
 ---
 
@@ -955,7 +959,21 @@ The current `CachedBasketRepository` was a single-flight hole that trashed Postg
 
 ---
 
-**Document Version:** 1.2 (Phase 5.1 fully delivered 2026-07-28 — the seven Phase 5.1 follow-ups closed: `OpenApiGenerationTests.AllEndpointsDocumented` + first commit of `docs/api/basket-api-v1.json` (BOM-free, 742 lines, regenerable via `scripts/generate-basket-openapi.ps1`) + `BasketExpirySweepTests` Marten fan-out assertions (4 tests) + `BasketSnapshotsTests.VerifyAllEndpoints` Verify snapshot suite + `.github/workflows/basket-tests.yml` verification (no changes — file already existed) + `current-architecture.md` §11/§12 updates + `xunit.runner.json` parallelism fix. **138 / 138** tests passing in `Basket.API.Tests` (124 unit + 14 integration; net delta +6 from the 132 Phase-5.0 baseline = +4 expiry +1 OpenAPI +1 snapshot). BuildingBlocks + Basket build clean with `-p:TreatWarningsAsErrors=true`. The Basket API surface is feature-complete and the test infrastructure is fully operational. **Phase 5.x deferred** (still in scope, future PR): outbox multi-replica `FOR UPDATE SKIP LOCKED` switch + `ISessionFactory` ambient tenant wiring + multi-tenancy strategy resolution.)
-**Last Updated:** 2026-07-27
+---
+
+## Changelog
+
+### v1.3 (2026-07-30) — Plan closed
+- **Status header:** "Phase 5 partial delivery" → "✅ CLOSED 2026-07-30". Phases 1–5 + Phase 5.1 follow-ups all delivered; 138 / 138 tests pass.
+- **Phase 5.x items delegated** to `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md`: outbox multi-replica `FOR UPDATE SKIP LOCKED` switch (Phase 0 / Phase 1), `ISessionFactory` ambient tenant wiring (Phase 0), multi-tenancy strategy resolution (Phase 0). These items have a plan and a phase; adding a new plan would be ceremony without benefit.
+- **No code changes** — close pass is doc-only. `current-architecture.md` §11 (Local Development) already mentions `xunit.runner.json` (line 680), `OpenApiGenerationTests` (line 680 + 686), `BasketExpirySweepTests` (line 680), `BasketSnapshotsTests` (line 680 + 686), the test bootstrap snippet (lines 684–686), and the test-only OTel suppression paragraph (line 696). The plan's §0.4.6 reference to a separate §12 was a misnomer — the Test-only OTel suppression content lives inside §11. No refresh required.
+
+### v1.2 (2026-07-28) — Phase 5.1 fully delivered
+- (Phase 5.1 implementation notes — see §6 Phase 5 status header for the seven follow-up items: `OpenApiGenerationTests.AllEndpointsDocumented` + first commit of `docs/api/basket-api-v1.json` + `BasketExpirySweepTests` Marten fan-out assertions (4 tests) + `BasketSnapshotsTests.VerifyAllEndpoints` Verify snapshot suite + `.github/workflows/basket-tests.yml` verification + `current-architecture.md` §11/§12 updates + `xunit.runner.json` parallelism fix. 138 / 138 tests passing in `Basket.API.Tests` (124 unit + 14 integration; net delta +6 from the 132 Phase-5.0 baseline = +4 expiry +1 OpenAPI +1 snapshot). BuildingBlocks + Basket build clean with `-p:TreatWarningsAsErrors=true`.)
+
+---
+
+**Document Version:** 1.3 (✅ CLOSED 2026-07-30 — Phase 5.x items delegated to `MULTITENANCY_ROLLOUT_PLAN.md`. No code changes. 138 / 138 tests passing.)
+**Last Updated:** 2026-07-30
 **Maintained By:** Basket working group (TBD)
-**Status:** ✅ Phase 1 (2026-07-17) + Phase 2 (2026-07-18) + Phase 3 (2026-07-25) + Phase 4 (2026-07-25) all delivered. ✅ Phase 5.0 partial delivery (2026-07-26 + 2026-07-27) — Testcontainers + WAF scaffolding + 21 integration endpoint tests + 4 production fixes (132 / 132 tests passing). ⏳ Phase 5.1 follow-ups: OpenAPI mirror test + `docs/api/basket-api-v1.json` + `BasketExpirySweepTests` Marten fan-out + Verify snapshots + `.github/workflows/basket-tests.yml` + §11/§12 doc updates + xUnit parallelism fix.
+**Status:** ✅ CLOSED 2026-07-30. Phases 1 (2026-07-17) + 2 (2026-07-18) + 3 (2026-07-25) + 4 (2026-07-25) + 5.0 (2026-07-26/27) + 5.1 (2026-07-28) all delivered. 138 / 138 tests pass. Phase 5.x items delegated to `MULTITENANCY_ROLLOUT_PLAN.md`. Future Basket work belongs in a new plan.

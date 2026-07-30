@@ -1,3 +1,4 @@
+using BuildingBlocks.Dev;
 using BuildingBlocks.Messaging.MassTransit;
 using HealthChecks.UI.Client;
 using Marten.NodaTimePlugin;
@@ -12,7 +13,7 @@ using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddJwtAuthentication(
+builder.Services.AddJwtAuthenticationWithDevFallback(
     authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 
@@ -235,6 +236,11 @@ builder.Services
     .ValidateDataAnnotations()
     .ValidateOnStart();
 builder.Services.AddHostedService<Basket.API.Services.BasketExpirySweepService>();
+// IBasketExpirySweepRunner handle for the dev-only /_dev/trigger/clear-abandoned-baskets endpoint.
+// Registered as singleton because BasketExpirySweepService is itself a singleton (its
+// SweepOnceAsync opens its own scope per call). See Sub-B.2 of the .NET-side dev-trigger plan.
+builder.Services.AddSingleton<Basket.API.Services.IBasketExpirySweepRunner>(sp =>
+    sp.GetRequiredService<Basket.API.Services.BasketExpirySweepService>());
 
 // Audit log. Singleton — opens a fresh Marten session
 // per write (mirrors the sweep service's scope-per-tick pattern).
@@ -339,6 +345,14 @@ var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountPro
 {
     options.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
 });
+
+// forward the inbound JWT into outbound gRPC calls so
+// Discount.Grpc can authenticate via the same `Bearer` token the
+// caller presented to Basket.API. Registered as an `Interceptor` on
+// the channel so the existing resilience pipeline + grpcClientBuilder
+// pipeline are unaffected. The interceptor resolves the inbound
+// Authorization header from IHttpContextAccessor per call.
+grpcClientBuilder.AddInterceptor<Basket.API.Auth.JwtForwardingInterceptor>();
 
 // Wrap the gRPC client in the standard Polly v8 resilience
 // pipeline (Microsoft.Extensions.Http.Resilience, which uses the
@@ -555,6 +569,27 @@ app.Use(async (context, next) =>
 });
 
 app.MapCarter();
+
+// Dev-only trigger endpoint for the Orderly.DevMCP.Server's `trigger_scheduled_jobs`
+// tool (`POST /_dev/trigger/clear-abandoned-baskets`).
+// Gated on IsDevelopment() + X-Dev-Trigger-Secret header (constant-time compared against
+// DEV_TRIGGER_SECRET env var). The endpoint drives BasketExpirySweepService.SweepOnceAsync
+// directly via the IBasketExpirySweepRunner handle. Throws InvalidOperationException at
+// registration time if called outside Development — defense in depth.
+if (app.Environment.IsDevelopment())
+{
+    app.MapDevTriggerEndpoint(
+        "/_dev/trigger/clear-abandoned-baskets",
+        async (Basket.API.Services.IBasketExpirySweepRunner runner, HttpContext ctx) =>
+        {
+            if (!await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, ctx.RequestAborted))
+            {
+                return Results.Empty;
+            }
+            var deleted = await runner.SweepOnceAsync(ctx.RequestAborted);
+            return Results.Ok(new { deletedCount = deleted });
+        });
+}
 
 app.UseHealthChecks("/health",
     new HealthCheckOptions

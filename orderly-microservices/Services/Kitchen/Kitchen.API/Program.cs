@@ -1,3 +1,4 @@
+using BuildingBlocks.Dev;
 using HealthChecks.UI.Client;
 using Kitchen.API.Application;
 using Kitchen.API.Infrastructure;
@@ -12,7 +13,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = null;
 });
 
-builder.Services.AddJwtAuthentication(
+builder.Services.AddJwtAuthenticationWithDevFallback(
     authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 

@@ -1,3 +1,4 @@
+using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
 using Catalog.API.Health;
 using Catalog.API.Infrastructure;
@@ -19,7 +20,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = null;
 });
 
-builder.Services.AddJwtAuthentication(
+builder.Services.AddJwtAuthenticationWithDevFallback(
     authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 

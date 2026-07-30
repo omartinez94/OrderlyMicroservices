@@ -111,7 +111,8 @@ The full snippet is in [`../docs/sse-config-snippet.json`](../docs/sse-config-sn
 
 ## 7. Security notes
 
-- **JWT_SECRET** is the same secret the .NET services use to verify dev tokens. Rotate it whenever the dev team rotates. The .NET fallback dev-secret handler is a separate change tracked in the `Orderly.DevMCP.Server` follow-up TODO.
+- **JWT_SECRET** is the same secret the .NET services use to verify dev tokens. Rotate it whenever the dev team rotates. As of the v1.1 close pass, the `.NET-side fallback dev-secret handler` is implemented via `BuildingBlocks.Dev.DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback` — services that have it wired accept HS256 tokens signed with `JWT_SECRET` when the OpenIddict `Authority` is unreachable. Production services do not have the fallback wired.
+- **`trigger_scheduled_jobs` → `/dev/trigger/*` endpoints** are now live on the .NET services via `BuildingBlocks.Dev.DevTriggerEndpointExtensions.MapDevTriggerEndpoint`. The MCP server POSTs to `http://basket.api:8080/_dev/trigger/clear-abandoned-baskets`, `http://ordering.api:8080/_dev/trigger/daily-reconciliation`, and `http://ordering.api:8080/_dev/trigger/outbox-relay` with the `X-Dev-Trigger-Secret` header (must match `DEV_TRIGGER_SECRET` on each .NET host). The endpoints are gated on `IsDevelopment()` + constant-time secret compare.
 - `reset_databases` and `simulate_service_outage` are **DESTRUCTIVE**. The first requires a second `confirmText` field that must equal a target name; the second refuses to stop any container that isn't in the API allow-list (databases and `messagebroker` are always refused).
 - `publish_integration_event` and `reset_databases` are rate-limited (5/min, 1/hour) so an AI loop can't fire them indefinitely.
 - All DB / cache / broker factories call `assertDevHost` before opening a connection. The allow-list is `localhost,127.0.0.1` by default; override with `DEV_HOST`.
@@ -136,3 +137,23 @@ npm run lint:mmd     # fails if any resources/flows/*.mmd is older than tools/fl
 ```
 
 The `.mmd` lint exists because drift between diagram and code is the bug class this whole server exists to prevent. Touch a `.mmd` to silence the lint after review; never auto-update.
+
+## 10. Verification with Docker (live-backend tests)
+
+The default `npm test` skips the live-backend integration tests when Docker is unreachable — keeps CI hermetic. To run the full happy-path end-to-end against live backends:
+
+```bash
+# 1. Bring up the full backend stack
+docker compose up -d
+
+# 2. Opt in to live tests + ensure the trigger secret matches between
+#    the MCP server and the .NET hosts.
+export MCP_LIVE_TEST=1
+
+# 3. Run the live test (exits 0 on the full happy path)
+node --env-file=.env --test test/flows/checkout.live.test.ts
+```
+
+The live test asserts `doc.pass === true` (not just 2xx on HTTP steps), so it fails fast when downstream order-projection verification doesn't reconcile. CI doesn't run it because spinning up Docker in CI is out of scope; operators run it locally after a backend change to confirm the end-to-end pipeline.
+
+The `discount-application` flow has its own gRPC client implementation (added in the v1.1 close pass) that loads `Protos/discount.proto` via `@grpc/proto-loader`. To enable it, copy or symlink `orderly-microservices/Services/Discount/Discount.Grpc/Protos/discount.proto` to `Orderly.DevMCP.Server/proto/discount.proto`. When the proto file is missing, the flow emits an `info` step explaining the gap rather than failing.

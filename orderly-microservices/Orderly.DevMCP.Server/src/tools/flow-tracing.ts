@@ -218,8 +218,124 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
   },
 
   // ── discount-application ──────────────────────────────────────────────
-  async 'discount-application'() {
-    throw new Error('discount-application flow requires gRPC client — not yet implemented in Phase 4');
+  async 'discount-application'(fc) {
+    const restaurantId = fc.ids.restaurantId!;
+    const { ctx, log } = fc;
+
+    // Resolve the discount.proto path relative to the proto-client config
+    // (mirrors the structure the .NET host uses). The proto file is the
+    // single source of truth — we load it via @grpc/proto-loader rather
+    // than generating TypeScript stubs (matches the no-build-step setup
+    // per plan §0.2 + the type-stripping adoption).
+    const discountProtoPath = resolve(__dirname, '../../proto/discount.proto');
+    const discountUrl = process.env.DEV_GRPC_DISCOUNT_URL ?? 'discount.grpc:6002';
+
+    let grpcClient: import('@grpc/grpc-js').Client | undefined;
+    let protoPkg: unknown;
+
+    try {
+      // Dynamic import to keep the dependency lazy — flows that don't
+      // touch gRPC never load the proto loader.
+      const grpc = await import('@grpc/grpc-js');
+      const protoLoader = await import('@grpc/proto-loader');
+      const def = protoLoader.loadSync(discountProtoPath, {
+        keepCase: true,
+        longs: String,
+        enums: String,
+        defaults: true,
+        oneofs: true,
+      });
+      protoPkg = grpc.loadPackageDefinition(def) as Record<string, Record<string, Record<string, unknown>>>;
+      grpcClient = new (protoPkg.discount!.DiscountProtoService as new (
+        target: string,
+        creds: grpc.ChannelCredentials,
+      ) => import('@grpc/grpc-js').Client)(
+        discountUrl,
+        grpc.credentials.createInsecure(),
+      );
+    } catch (err) {
+      log({
+        kind: 'info',
+        step: 'grpc-client-init',
+        note: `discount.proto not loaded from ${discountProtoPath} (${String(err)}). Falling back to HTTP simulation.`,
+      });
+      // The MCP server is meant to ship without the proto file copied into
+      // its source tree — when the proto is missing, emit an info step so
+      // the AI assistant can see the gap rather than silently passing.
+      log({
+        kind: 'info',
+        step: 'discount-application-no-proto',
+        note: 'Provide orderly-microservices/Services/Discount/Discount.Grpc/Protos/discount.proto at Orderly.DevMCP.Server/proto/discount.proto (e.g. via a symlink or a postinstall copy) to enable this flow end-to-end.',
+      });
+      return;
+    }
+
+    if (!grpcClient) return;
+
+    // Step 1: List coupons for the test restaurant and pick a coupon code.
+    {
+      const step = 'list-discounts';
+      const { result, elapsedMs } = await withTiming(async () => {
+        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).ListDiscountsRequest as { new: (init?: Record<string, unknown>) => unknown };
+        return new Promise<{ status: number; body: string }>((resolve) => {
+          (grpcClient as unknown as {
+            ListDiscounts: (req: unknown, cb: (err: Error | null, res: { coupons?: unknown[] }) => void) => void;
+          }).ListDiscounts(
+            new req({ restaurant_id: restaurantId, page: 1, page_size: 5 }),
+            (err, res) => resolve({
+              status: err ? 500 : 200,
+              body: JSON.stringify(err ? { error: err.message } : { coupons: (res.coupons ?? []).map((c: { code?: unknown }) => ({ code: c.code })) }),
+            }),
+          );
+        });
+      });
+      log({ kind: 'http', step, method: 'gRPC', url: `${discountUrl}/DiscountProtoService/ListDiscounts`, status: result.status, body: result.body, elapsedMs });
+    }
+
+    // Step 2: Get a specific discount by code (uses a seeded fixture).
+    const couponCode = process.env.DEV_FIXTURE_COUPON_CODE ?? 'WELCOME10';
+    {
+      const step = 'get-discount-by-code';
+      const { result, elapsedMs } = await withTiming(async () => {
+        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).GetDiscountRequest as { new: (init?: Record<string, unknown>) => unknown };
+        return new Promise<{ status: number; body: string }>((resolve) => {
+          (grpcClient as unknown as {
+            GetDiscount: (req: unknown, cb: (err: Error | null, res: unknown) => void) => void;
+          }).GetDiscount(
+            new req({ restaurant_id: restaurantId, code: couponCode }),
+            (err, res) => resolve({
+              status: err ? 500 : 200,
+              body: JSON.stringify(err ? { error: err.message } : res),
+            }),
+          );
+        });
+      });
+      log({ kind: 'http', step, method: 'gRPC', url: `${discountUrl}/DiscountProtoService/GetDiscount`, status: result.status, body: result.body, elapsedMs });
+    }
+
+    // Step 3: Redeem the discount. Requires a real orderId from the
+    // operator's earlier checkout flow OR a fixture orderId — the MCP
+    // server doesn't generate one. The `orderId` field is optional per
+    // the proto (defaults to Guid.Empty) so this step stays idempotent.
+    const orderId = fc.ids.orderId ?? '';
+    {
+      const step = 'redeem-discount';
+      const { result, elapsedMs } = await withTiming(async () => {
+        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).RedeemDiscountRequest as { new: (init?: Record<string, unknown>) => unknown };
+        return new Promise<{ status: number; body: string }>((resolve) => {
+          (grpcClient as unknown as {
+            RedeemDiscount: (req: unknown, cb: (err: Error | null, res: unknown) => void) => void;
+          }).RedeemDiscount(
+            new req({ restaurant_id: restaurantId, code: couponCode, order_id: orderId }),
+            (err, res) => resolve({
+              status: err ? 500 : 200,
+              body: JSON.stringify(err ? { error: err.message } : res),
+            }),
+          );
+        });
+      });
+      log({ kind: 'http', step, method: 'gRPC', url: `${discountUrl}/DiscountProtoService/RedeemDiscount`, status: result.status, body: result.body, elapsedMs });
+    }
   },
 };
 

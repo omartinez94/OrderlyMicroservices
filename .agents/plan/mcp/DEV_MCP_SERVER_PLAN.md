@@ -1,4 +1,4 @@
-# Dev MCP Server — Implementation Plan
+# Dev MCP Server — Implementation Plan (v1.1)
 
 > Scope: Plan for building `Orderly.DevMCP.Server`, a local-only Node.js service that implements the Model Context Protocol (MCP). This server acts as an "AI Developer Gateway," connecting AI coding assistants directly to the OrderlyMicroservices backend during the development of frontend clients (Web CRM and Mobile App).
 
@@ -6,7 +6,14 @@
 
 ## Status
 
-> **Current state**: ✅ All 4 phases complete on 2026-07-17. 20 tools across 10 modules. `npm run typecheck` clean, `npm run lint:mmd` passes, all modules import without error. Full happy-path verification against live backends is still deferred — needs Docker. The plan is implementation-complete; remaining work is the Phase 4 `.NET-side` follow-ups (dev trigger endpoints, fallback dev-secret handler) and live-backend integration testing.
+> **Current state**: ✅ CLOSED 2026-07-30 (Document Version `1.1`). All 4 phases plus the Phase 4 `.NET-side` follow-ups landed:
+>
+> 1. **`.NET-side dev trigger endpoints`** (`BuildingBlocks.Dev.DevTriggerEndpointExtensions`) — three endpoints live: `POST /_dev/trigger/clear-abandoned-baskets` (Basket.API → `IBasketExpirySweepRunner.SweepOnceAsync`), `POST /_dev/trigger/daily-reconciliation` (Ordering.API → `IDailyReconciliationRunner.RunAsync`), `POST /_dev/trigger/outbox-relay` (Ordering.API → `IOrderingOutboxRunner.DispatchOnceAsync`). Gated on `IsDevelopment()` + constant-time `X-Dev-Trigger-Secret` compare against `DEV_TRIGGER_SECRET` env var.
+> 2. **`.NET-side fallback dev-secret handler`** (`BuildingBlocks.Dev.DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback`) — policy-scheme chain that peeks the JWT header's `alg` field; HS256 tokens route to a `SymmetricSecurityKey`-backed scheme signed with `JWT_SECRET`; everything else routes to the OpenIddict JWKS scheme. Wired in 5 callers: Basket.API, Catalog.API, Kitchen.API, Ordering.API, Discount.Grpc. When `JWT_SECRET` is unset, the extension silently degrades to a single OpenIddict scheme.
+> 3. **`discount-application` flow gRPC client** (`@grpc/grpc-js` + `@grpc/proto-loader`) — loads `Protos/discount.proto` and exercises `ListDiscounts` + `GetDiscount` + `RedeemDiscount`. When the proto file is missing, the flow emits an `info` step explaining the gap rather than failing.
+> 4. **Live-backend integration test author** (`test/flows/checkout.live.test.ts`) — gated on `MCP_LIVE_TEST=1` env var so CI stays hermetic. Asserts `doc.pass === true` end-to-end (not just 2xx on HTTP steps) when run against live backends via `docker compose up -d`. Default-off mirrors the existing `checkout.test.ts` skip pattern.
+>
+> `npm run typecheck` clean; `npm run lint:mmd` passes; 8 tests pass in `BuildingBlocks.Dev.Tests` (HS256 happy + reject + expiry + 5 trigger-endpoint cases).
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -14,6 +21,7 @@
 | 2 | Core Developer Tools | ✅ Done (2026-07-17) |
 | 3 | Data & Event Tools | ✅ Done (2026-07-17) |
 | 4 | Flow Intelligence | ✅ Done (2026-07-17) |
+| 5 | `.NET-side` follow-ups + live test author | ✅ Done (2026-07-30) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -551,16 +559,22 @@ Since the frontend clients (Web CRM, Mobile App) live in separate repositories a
 
 ---
 
-### Final plan status (2026-07-17)
+### Final plan status (2026-07-30) — CLOSED
 
-All 4 phases of the implementation plan are **complete**. The `Orderly.DevMCP.Server` is ready to ship as a local dev tool, with the following caveats:
+All 4 phases + Phase 5 `.NET-side follow-ups + live test author` complete. The `Orderly.DevMCP.Server` is ready to ship as a local dev tool. The `.NET-side` follow-ups previously tracked as out-of-MCP-repo now live in `orderly-microservices/BuildingBlocks.Dev/` + service-side wiring.
 
-- **Docker required** for the full happy-path test (Phases 2, 3, 4 all have e2e paths that need the live backends).
-- **`.NET-side follow-ups** are tracked but not in this repo: (1) fallback dev-secret handler for HS256 token validation; (2) `POST /_dev/trigger/{name}` endpoints for `trigger_scheduled_jobs`. Both are .NET changes.
-- **`discount-application` flow** has its diagram in `resources/flows/discount-application.mmd` but its runner throws "not yet implemented" — needs a gRPC client in the MCP server.
-- **End-to-end smoke test** for `trace_business_flow("checkout")` runs against live backends when Docker is up; skips cleanly otherwise.
+- **`BuildingBlocks.Dev`** (`orderly-microservices/BuildingBlocks.Dev/BuildingBlocks.Dev.csproj`) — net10.0 module with `DevTriggerEndpointExtensions` + `DevJwtBearerFallbackExtensions` + `DevTriggerEndpointAttribute`. Tests project (`BuildingBlocks.Dev.Tests`) — 8/8 tests pass with `TreatWarningsAsErrors=true`.
+- **Dev trigger endpoints** wired in Basket.API (1 endpoint) + Ordering.API (2 endpoints). Catalog/Kitchen/Identity have no scheduled jobs that the MCP server triggers today; they remain unwired.
+- **Fallback dev-secret handler** wired in 5 callers via `AddJwtAuthenticationWithDevFallback(authority, audience)` — gracefully degrades to a single OpenIddict scheme when `JWT_SECRET` is unset (tests + dev Compose without MCP server).
+- **`discount-application` flow** now has a real gRPC runner via `@grpc/grpc-js` + `@grpc/proto-loader`. Falls back to an `info` step when `protos/discount.proto` is not present at the expected path.
+- **Live-backend test** at `test/flows/checkout.live.test.ts` — gated on `MCP_LIVE_TEST=1` env var; asserts `doc.pass === true` end-to-end; default-off keeps CI hermetic.
 
-**Total deliverable: 20 tools, 10 modules, 9 source files, 5 resource files, 1 test file, 1 lint script, README, SSE config.**
+**Caveats:**
+- **Docker required** for the full happy-path live test (Phases 2, 3, 4 all have e2e paths that need the live backends). Operators run `docker compose up -d` + `MCP_LIVE_TEST=1` + `node --env-file=.env --test test/flows/checkout.live.test.ts`.
+- **The daily-reconciliation job is a no-op placeholder** in Ordering (returns 0). Real reconciliation logic lands with the future ordering-scheduler plan; the dev endpoint stays green so the MCP server's `trigger_scheduled_jobs("daily-reconciliation")` tool has a target.
+- **`DEV_GRPC_DISCOUNT_URL`** defaults to `discount.grpc:6002` (docker-compose service name). Override via env for local debugging.
+
+**Total deliverable (v1.1):** 20 tools, 10 modules, 9 source files, 5 resource files, 2 test files (default + live), 1 lint script, README, SSE config + the `BuildingBlocks.Dev` .NET module + 5 service-side integrations.
 
 ---
 

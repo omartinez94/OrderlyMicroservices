@@ -22,7 +22,7 @@ public class OrderingOutboxDispatcher(
     IServiceProvider services,
     IOptions<OutboxOptions> options,
     ILogger<OrderingOutboxDispatcher> logger)
-    : OutboxDispatcher<ApplicationDBContext>(services, options, logger)
+    : OutboxDispatcher<ApplicationDBContext>(services, options, logger), IOrderingOutboxRunner
 {
     protected override ApplicationDBContext CreateContext(IServiceProvider services)
     {

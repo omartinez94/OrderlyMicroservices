@@ -3,6 +3,7 @@ using BuildingBlocks.Messaging.Outbox;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Ordering.Application.Data;
 using Ordering.Infrastructure.Data.Interceptors;
+using Ordering.Infrastructure.Services;
 
 namespace Ordering.Infrastructure;
 
@@ -36,7 +37,16 @@ public static class DependencyInjection
         if (outboxEnabled)
         {
             services.AddHostedService<OrderingOutboxDispatcher>();
+            // IOrderingOutboxRunner handle for the dev-only
+            // /_dev/trigger/outbox-relay endpoint. Resolved against the
+            // same singleton hosted service so the dev endpoint and the
+            // periodic timer share the broker-circuit-breaker state.
+            services.AddSingleton<IOrderingOutboxRunner>(sp =>
+                sp.GetRequiredService<OrderingOutboxDispatcher>());
         }
+
+        // IDailyReconciliationRunner handle for /_dev/trigger/daily-reconciliation.
+        services.AddSingleton<IDailyReconciliationRunner, DailyReconciliationRunner>();
 
         return services;
     }

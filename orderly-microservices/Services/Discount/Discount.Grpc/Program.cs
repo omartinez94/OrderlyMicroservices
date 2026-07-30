@@ -1,4 +1,5 @@
 using BuildingBlocks.Authorization;
+using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
@@ -21,7 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // JWT bearer against Identity authority; per-method permission policies evaluated
 // by DiscountAuthorizationInterceptor (gRPC's [Authorize(Policy=...)] is silently ignored).
-builder.Services.AddJwtAuthentication(
+builder.Services.AddJwtAuthenticationWithDevFallback(
     authority: builder.Configuration["Jwt:Authority"] ?? "https://localhost:5057",
     audience: builder.Configuration["Jwt:Audience"] ?? "OrderlyMicroservices");
 builder.Services.AddDiscountPolicies();
@@ -65,6 +66,11 @@ var enableRestaurantConfig = discountOptionsSection.GetValue<bool>(nameof(Discou
 // endpoint does not materialize (no orphaned queue, no silent consumption).
 // The flag flips on by configuration change only — no recompile.
 var enableFeedbackSubmitted = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableFeedbackSubmittedConsumer));
+// disabled by default. Ordering publishes OrderCreatedIntegrationEvent
+// when the Ordering plan's `Phase 8 OrderCreatedConsumer stub` is enabled; this
+// consumer wires up automatically when the operator flips the flag. No
+// recompile needed (mirrors FeedbackSubmittedConsumer's conditional registration).
+var enableOrderCreated = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableOrderCreatedConsumer));
 
 builder.Services.AddMassTransit(o =>
 {
@@ -88,6 +94,11 @@ builder.Services.AddMassTransit(o =>
     if (enableFeedbackSubmitted)
     {
         o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.FeedbackSubmittedConsumer>();
+    }
+
+    if (enableOrderCreated)
+    {
+        o.AddConsumer<Discount.Grpc.Messaging.EventHandlers.OrderCreatedConsumer>();
     }
 });
 

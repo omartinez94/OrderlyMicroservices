@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using BuildingBlocks.Discounts;
 
 namespace Basket.API.Basket.StoreBasket;
 
@@ -63,44 +64,12 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
 }
 
 /// <summary>
-/// Upserts the cart and, on the way through, resolves the user-input
-/// <see cref="Models.Basket.AppliedDiscounts"/> against Discount.Grpc
-/// (per-coupon polyfill via <see cref="IDiscountLookup"/>) so the cart
-/// carries a server-side <see cref="Models.Basket.DiscountAmount"/>
-/// snapshot alongside the per-coupon <see cref="Models.CouponSnapshot"/>
-/// breakdown.
+/// Phase 8 upsert handler — uses <see cref="ApplyDiscountsHelper"/>
+/// from BuildingBlocks.Discounts as the single source of truth for
+/// stacking math. The helper is shared with Ordering's finalize-time
+/// deduction path so a basket preview and a finalized-order deduction
+/// compute the same numbers from the same input.
 /// </summary>
-/// <remarks>
-/// <para>
-/// The aggregated <c>EvaluateDiscounts</c>
-/// RPC lives on Discount's roadmap (not this plan). Until it ships,
-/// the handler iterates the user-input coupon list in parallel
-/// (<see cref="Parallel.ForEachAsync{T}"/>, <c>MaxDegreeOfParallelism = 4</c>),
-/// mirrors <c>Discount.Grpc.Domain.ActiveNow.Coupon</c>'s eligibility
-/// gate (minus the <c>DeletedAt</c> half — Discount's global query
-/// filter excludes soft-deleted coupons before they reach the wire),
-/// and sums the per-coupon contributions into
-/// <see cref="Models.Basket.DiscountAmount"/>, clamped to
-/// <see cref="Models.Basket.Subtotal"/>.
-/// </para>
-/// <para>
-/// <b>gRPC failure policy = fail-closed.</b> If <see cref="IDiscountLookup.GetCouponAsync"/>
-/// throws (broker down, auth failure, transient network error, malformed
-/// wire <c>ExpirationDate</c>), the whole upsert fails — the alternative
-/// (skip-and-log) lets a broken Discount integration silently bypass
-/// coupon validation on a money path. A future Idempotency-Key
-/// middleware lets the caller safely retry.
-/// </para>
-/// <para>
-/// <b>Per-coupon clamping.</b> Each <see cref="Models.CouponSnapshot.DiscountAmount"/>
-/// on <see cref="Models.Basket.AppliedCoupons"/> is the coupon's
-/// contribution unclamped to the cart subtotal; the basket-level
-/// <see cref="Models.Basket.DiscountAmount"/> is the clamp
-/// (<c>Min(sum, subtotal)</c>). Predictable, easy to test, no cascading
-/// logic. Cascade-clamping is a v2 concern if/when the UI displays
-/// per-coupon contributions to the customer.
-/// </para>
-/// </remarks>
 public class StoreBasketHandler(
     IBasketRepository basketRepository,
     IDiscountLookup discountLookup,
@@ -120,7 +89,9 @@ public class StoreBasketHandler(
         if (basket.AppliedDiscounts.Count == 0 || basket.Items.Count == 0)
         {
             basket.AppliedCoupons = [];
+            basket.AppliedDiscountBreakdown = [];
             basket.DiscountAmount = 0m;
+            basket.EffectiveSubtotal = basket.Subtotal;
             basket.LastModifiedAt = SystemClock.Instance.GetCurrentInstant();
 
             var (storedEmpty, isCreatedEmpty) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
@@ -130,7 +101,14 @@ public class StoreBasketHandler(
         var subtotal = basket.Subtotal;
         var now = SystemClock.Instance.GetCurrentInstant();
         var snapshots = new ConcurrentBag<Models.CouponSnapshot>();
+        var applied = new ConcurrentBag<AppliedDiscount>();
 
+        // Per-coupon resolution — same shape as before, but the
+        // per-coupon output now feeds `AppliedDiscountsHelper.Apply(...)`
+        // instead of an inline switch + Math.Round. Fail-closed on gRPC
+        // errors (a broker outage, auth failure, or transient network
+        // error) — the whole upsert fails rather than silently
+        // bypassing coupon validation on a money path.
         await Parallel.ForEachAsync(
             basket.AppliedDiscounts,
             new ParallelOptions
@@ -143,11 +121,6 @@ public class StoreBasketHandler(
                 var snapshot = await discountLookup.GetCouponAsync(
                     basket.RestaurantId, couponCode, innerCt);
 
-                // Eligibility — mirrors Discount.Grpc.Domain.ActiveNow.Coupon
-                // (the source-side global query filter excludes soft-deleted
-                // coupons before they reach the wire, so the DeletedAt half
-                // is enforced at Discount and doesn't need to be re-checked
-                // here).
                 if (!snapshot.IsActive)
                 {
                     logger.LogDebug(
@@ -164,38 +137,74 @@ public class StoreBasketHandler(
                     return;
                 }
 
-                // Per-coupon contribution. The wire `Amount` was already
-                // widened from double to decimal by the lookup; no further
-                // rounding needed beyond what the percentage branch applies.
-                var perCoupon = snapshot.DiscountType switch
-                {
-                    DiscountType.CouponPercentage => Math.Round(subtotal * snapshot.Amount / 100m, 2, MidpointRounding.ToEven),
-                    DiscountType.CouponFixedAmount => snapshot.Amount,
-                    // UNSPECIFIED = pre-Phase-8 legacy row; treat as no
-                    // discount rather than guessing the semantic of `Amount`.
-                    _ => 0m,
-                };
-
                 snapshots.Add(new Models.CouponSnapshot(
                     Code: couponCode,
                     Description: snapshot.Description,
-                    DiscountAmount: perCoupon,
+                    DiscountAmount: 0m, // populated below from the helper result
                     AppliedAt: now));
+
+                // Translate proto-side DiscountType to the BuildingBlocks
+                // counterpart. The proto enum's wire values are
+                // COUPON_PERCENTAGE=1 / COUPON_FIXED_AMOUNT=2; the
+                // BuildingBlocks enum's wire values are Percentage=0 /
+                // FixedAmount=1. A direct int cast would mis-classify
+                // every percentage as a fixed amount.
+                var helperType = snapshot.DiscountType switch
+                {
+                    global::Discount.Grpc.DiscountType.CouponPercentage => BuildingBlocks.Discounts.DiscountType.Percentage,
+                    global::Discount.Grpc.DiscountType.CouponFixedAmount => BuildingBlocks.Discounts.DiscountType.FixedAmount,
+                    _ => BuildingBlocks.Discounts.DiscountType.Percentage, // UNSPECIFIED = treat as percentage; helper produces zero
+                };
+
+                // The IDiscountLookup snapshot doesn't carry CouponId
+                // (only Code/Description/Amount/DiscountType/IsActive/
+                // ExpirationDate per the wire shape); the helper's
+                // AppliedDiscount requires it. We synthesize
+                // CouponId = 0 here — the breakdown's CouponId is
+                // informational for admins; the actual redemption at
+                // Ordering finalize-time looks the row up by Code +
+                // RestaurantId.
+                applied.Add(new AppliedDiscount(
+                    Type: helperType,
+                    Amount: snapshot.Amount,
+                    CouponId: 0,
+                    Code: couponCode,
+                    IsActive: true));
             });
 
+        // Single source of truth for stacking math. Returns the
+        // post-clamp effective subtotal + the per-row breakdown that
+        // gets persisted as `BasketAppliedDiscount` rows.
+        var result = ApplyDiscountsHelper.Apply(subtotal, [.. applied]);
+
         basket.AppliedCoupons = snapshots.ToList();
-        // Final clamp: cumulative discounts can't push the cart total
-        // below zero. Each snapshot's DiscountAmount stays unclamped
-        // (per-coupon "would-be" contribution) — only the basket-level
-        // total is clamped.
-        basket.DiscountAmount = Math.Min(snapshots.Sum(s => s.DiscountAmount), subtotal);
-        // Stamp LastModifiedAt AFTER the snapshot loop — every PUT
-        // bumps it; GET /cart uses it for the Last-Modified response
-        // header. Co-locating the stamp here keeps the
-        // ETag / Last-Modified handshake deterministic (a single
-        // timestamp per upsert, no race between snapshot creation
-        // and persistence).
+        // Legacy fields — preserved for the audit window so pre-Phase-8
+        // code paths still see the same numbers. `DiscountAmount` is
+        // the total reduction (clamped to subtotal); `EffectiveSubtotal`
+        // is the helper's post-clamp result (== subtotal when no
+        // coupons applied, or the running total after each coupon).
+        basket.DiscountAmount = Math.Min(result.TotalReduction, subtotal);
+        basket.EffectiveSubtotal = result.EffectiveSubtotal;
+        basket.AppliedDiscountBreakdown = result.Breakdown
+            .Select(b => new Models.BasketAppliedDiscount(
+                CouponId: b.CouponId,
+                Code: b.Code,
+                DiscountType: (int)b.Type,
+                RequestedAmount: b.RequestedAmount,
+                AppliedAmount: b.AppliedAmount,
+                AppliedAt: now))
+            .ToList();
+
+        // Stamp LastModifiedAt AFTER the helper call — every PUT bumps
+        // it; GET /cart uses it for the Last-Modified response header.
+        // Co-locating the stamp here keeps the ETag / Last-Modified
+        // handshake deterministic (a single timestamp per upsert, no
+        // race between snapshot creation and persistence).
         basket.LastModifiedAt = now;
+
+        logger.LogInformation(
+            "StoreBasket applied {Count} coupons; subtotal={Subtotal} effective={Effective} reduction={Reduction}",
+            result.Breakdown.Count, result.OriginalSubtotal, result.EffectiveSubtotal, result.TotalReduction);
 
         var (stored, isCreated) = await basketRepository.StoreBasketAsync(basket, cancellationToken);
         return new StoreBasketResult(isCreated, stored.UserId, stored.RestaurantId);

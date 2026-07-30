@@ -1,9 +1,4 @@
-using BuildingBlocks.Messaging.Outbox;
-using Discount.Grpc.Data;
 using Discount.Grpc.Messaging.Events;
-using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Discount.Grpc.Tests.Integration;
 
@@ -41,31 +36,39 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
     private static readonly Guid TenantGuid = new("dddddddd-0000-0000-0000-000000000020");
 
     [Fact]
-    public async Task DiscountAppliedIntegrationEvent_StagesOutboxRow_WithSchemaVersion1()
+    public async Task DiscountAppliedIntegrationEvent_StagesOutboxRow_WithSchemaVersion2()
     {
+        // v2 schema: record carries OrderId +
+        // AppliedAt. MessageVersion=2 is overridden on the type itself
+        // so the OutboxPublisher stages the row with SchemaVersion=2
+        // without per-publish-site bookkeeping.
         await factory.CleanAllAsync();
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();
 
+        var orderId = Guid.NewGuid();
         await publisher.PublishAsync(new DiscountAppliedIntegrationEvent(
             CouponId: 42,
             CouponCode: "DISC-APPLIED-TEST",
             RestaurantId: TenantGuid,
-            Quantity: 1));
+            Quantity: 1,
+            OrderId: orderId,
+            AppliedAt: NodaTime.SystemClock.Instance.GetCurrentInstant()));
         await db.SaveChangesAsync();
 
         var row = await db.OutboxMessages
             .IgnoreQueryFilters()
             .FirstAsync(o => o.Type == typeof(DiscountAppliedIntegrationEvent).FullName);
 
-        row.SchemaVersion.Should().Be(1, "publisher copies MessageVersion=1 to SchemaVersion");
+        row.SchemaVersion.Should().Be(2, "publisher copies MessageVersion=2 (overridden on the v2 record) to SchemaVersion");
         row.DispatchedAt.Should().BeNull("the dispatcher hasn't run yet");
         row.Payload.Should().Contain("\"CouponId\":42");
         row.Payload.Should().Contain("\"CouponCode\":\"DISC-APPLIED-TEST\"");
         row.Payload.Should().Contain("\"RestaurantId\":");
         row.Payload.Should().Contain("\"Quantity\":1");
+        row.Payload.Should().Contain(orderId.ToString("D"));
     }
 
     [Fact]
@@ -150,7 +153,8 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
         var publisher = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();
 
         await publisher.PublishAsync(new DiscountAppliedIntegrationEvent(
-            CouponId: 1, CouponCode: "C1", RestaurantId: TenantGuid, Quantity: 1));
+            CouponId: 1, CouponCode: "C1", RestaurantId: TenantGuid, Quantity: 1,
+            OrderId: Guid.NewGuid(), AppliedAt: NodaTime.SystemClock.Instance.GetCurrentInstant()));
         await publisher.PublishAsync(new RewardGeneratedIntegrationEvent(
             RewardCodeId: 1, Code: "R1", RestaurantId: TenantGuid,
             Kind: "Percentage", Value: 10m, OrderId: null));

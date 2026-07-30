@@ -105,6 +105,14 @@ message DeleteDiscountResponse {
 message RedeemDiscountRequest {
   string restaurant_id = 1;
   string code = 2;
+  // optional `order_id` so the auto-apply stub
+  // (`OrderCreatedConsumer`) can record which order the
+  // redemption applies to. Empty for the existing manual callers (admin
+  // UI / preview path) — wire default is `Guid.Empty` per the v2.6
+  // discount plan implementation notes. Tagged field 3; bumping
+  // `SchemaVersion` on the wire is unnecessary because proto3 ignores
+  // unknown fields and the new field is opt-in for legacy callers.
+  string order_id = 3;
 }
 
 message RedeemDiscountResponse {

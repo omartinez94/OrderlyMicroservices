@@ -47,7 +47,7 @@ public sealed class BasketExpirySweepService(
     IServiceProvider services,
     IOptions<BasketOptions> options,
     ILogger<BasketExpirySweepService> logger)
-    : BackgroundService, IAsyncDisposable
+    : BackgroundService, IBasketExpirySweepRunner, IAsyncDisposable
 {
     private readonly BasketOptions.ExpirySweepOptions _options = options.Value.ExpirySweep;
     private readonly ILogger<BasketExpirySweepService> _logger = logger;

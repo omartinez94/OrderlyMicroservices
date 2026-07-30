@@ -29,35 +29,73 @@ public class Basket : ITenantEntity
     /// <summary>
     /// User-input coupon codes (the strings the cart UI submits).
     /// Survives — the per-coupon breakdown lives in
-    /// <see cref="AppliedCoupons"/> alongside. The wire shape keeps
-    /// the string list for backwards compatibility with the existing
-    /// <c>BasketCheckoutEvent</c> payload (Phase 2.1 will replace it
-    /// with a structured <c>CouponSnapshot[]</c>).
+    /// <see cref="AppliedCoupons"/> + <see cref="AppliedDiscountBreakdown"/>
+    /// alongside. The wire shape keeps the string list for backwards
+    /// compatibility with the existing <c>BasketCheckoutEvent</c>
+    /// payload.
     /// </summary>
     public List<string> AppliedDiscounts { get; set; } = [];
 
     /// <summary>
-    /// Per-coupon breakdown. Populated by <c>StoreBasketHandler</c> on
-    /// every PUT; each entry mirrors what the Discount.Grpc <c>GetDiscount</c>
-    /// RPC returned at upsert time. Each <see cref="CouponSnapshot.DiscountAmount"/>
-    /// is the coupon's contribution **unclamped** to the cart subtotal —
-    /// the basket-level <see cref="DiscountAmount"/> is the clamp.
+    /// per-coupon breakdown. Populated by
+    /// <c>StoreBasketHandler</c> on every PUT; each entry mirrors what
+    /// the Discount.Grpc <c>GetDiscount</c> RPC returned at upsert
+    /// time. Each <see cref="CouponSnapshot.DiscountAmount"/> is the
+    /// coupon's contribution **unclamped** to the cart subtotal — the
+    /// basket-level <see cref="DiscountAmount"/> is the clamp.
     /// </summary>
+    /// <remarks>
+    /// widens this list with
+    /// <see cref="AppliedDiscountBreakdown"/>, which carries the full
+    /// <see cref="BuildingBlocks.Discounts.ApplyDiscountsHelper.Apply"/>
+    /// output (floor-at-zero + MidpointRounding.ToEven rounding policy
+    /// included). The two lists are populated together by the handler.
+    /// </remarks>
     public List<CouponSnapshot> AppliedCoupons { get; set; } = [];
+
+    /// <summary>
+    /// per-coupon breakdown carrying the full helper output
+    /// (CouponId, Code, DiscountType, RequestedAmount, AppliedAmount,
+    /// AppliedAt). Embedded as a child list of the Marten document —
+    /// no separate table, no FK, no cascade-delete concern. The
+    /// parent's <see cref="LastModifiedAt"/> write replaces the doc
+    /// atomically. Storing the breakdown lets the UI render a
+    /// customer-visible "X% off applied" line per coupon and gives
+    /// admins an audit trail of which coupons were active at the
+    /// time of the upsert.
+    /// </summary>
+    public List<BasketAppliedDiscount> AppliedDiscountBreakdown { get; set; } = [];
 
     /// <summary>
     /// Server-computed sum of <see cref="AppliedCoupons"/> discounts,
     /// clamped to <see cref="Subtotal"/> so the total can never go
     /// negative. Populated by <c>StoreBasketHandler</c>; carried into
     /// <c>BasketCheckoutEvent.TotalAmount</c> as
-    /// <c>Subtotal - DiscountAmount</c>.
+    /// <c>Subtotal - DiscountAmount</c>. Preserved alongside
+    /// <see cref="EffectiveSubtotal"/> for backwards compatibility
+    /// with pre-Phase-8 consumers (the cart UI, the ETag handler).
     /// </summary>
     public decimal DiscountAmount { get; set; }
+
+    /// <summary>
+    /// customer-visible subtotal after all applied discounts
+    /// have been summed + clamped + rounded per
+    /// <see cref="BuildingBlocks.Discounts.ApplyDiscountsHelper.Apply"/>'s
+    /// contract. Computed at upsert time; the cart UI prefers this
+    /// over the legacy <c>Subtotal - DiscountAmount</c> derivation
+    /// because the helper's floor-at-zero + banker's-rounding policy
+    /// is locked here (single source of truth shared with the
+    /// Ordering finalize path). The legacy
+    /// <see cref="DiscountAmount"/> + <see cref="Total"/> derivation
+    /// stays in place for the audit window — they preserve the
+    /// pre-Phase-8 semantics.
+    /// </summary>
+    public decimal EffectiveSubtotal { get; set; }
 
     public decimal Subtotal => Items.Sum(x => x.TotalPrice);
 
     /// <summary>Derived — the user-visible cart total. Not stored.</summary>
-    public decimal Total => Math.Max(Subtotal - DiscountAmount, 0m);
+    public decimal Total => Math.Max(EffectiveSubtotal > 0 ? EffectiveSubtotal : Subtotal - DiscountAmount, 0m);
 
     public Instant CreatedAt { get; set; }
     public Instant ExpiresAt { get; set; }

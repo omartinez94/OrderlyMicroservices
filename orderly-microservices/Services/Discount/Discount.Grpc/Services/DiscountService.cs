@@ -247,23 +247,27 @@ public class DiscountService(
             OldValues: oldValues,
             NewValues: SerializeNewValues(updated)));
 
-        // Phase 6 (architecture-event-deferred): DiscountAppliedIntegrationEvent
+        // (architecture-event-deferred): DiscountAppliedIntegrationEvent
         // is gated behind EnableDiscountAppliedPublishing. The flag flips on
-        // when a downstream consumer lands (no consumer in this plan's window —
-        // see plan §6.5 + §7 Phase 6). Wire flag = fail-secure default.
+        // when a downstream consumer lands. Wire flag = fail-secure default.
         //
-        // Note: the event intentionally OMITS an OrderId field. §0.3.3 says
-        // RedeemDiscountCommand.OrderId is required, but the shipped
-        // RedeemDiscountRequest proto lacks an order_id field — adding it
-        // requires a coordinated proto + Basket client bump. Tracked for
-        // the §0.3.3 reconciliation pass.
+        // v2 schema: the event carries OrderId + AppliedAt.
+        // Proto's `order_id` field is optional — manual callers (admin UI
+        // / preview path) leave it empty, in which case we publish
+        // `Guid.Empty`. The auto-apply stub (`OrderCreatedConsumer) populates OrderId from the inbound `OrderCreatedIntegrationEvent.Id`.
         if (options.Value.EnableDiscountAppliedPublishing)
         {
+            var orderId = string.IsNullOrEmpty(request.OrderId)
+                ? Guid.Empty
+                : Guid.Parse(request.OrderId);
+
             await outbox.PublishAsync(new DiscountAppliedIntegrationEvent(
                 CouponId: updated.Id,
                 CouponCode: updated.Code,
                 RestaurantId: updated.RestaurantId,
-                Quantity: 1));
+                Quantity: 1,
+                OrderId: orderId,
+                AppliedAt: now));
         }
 
         return new RedeemDiscountResponse { Success = true };

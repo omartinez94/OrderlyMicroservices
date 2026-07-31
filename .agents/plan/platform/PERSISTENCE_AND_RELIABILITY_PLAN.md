@@ -6,7 +6,7 @@
 
 ## Status
 
-> **Plan version**: `v2.0` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Plan version**: `v2.1` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
 > **Current state**: ⏸ Not started
 
 | Phase | Name | Status |
@@ -23,18 +23,19 @@
 
 > **Update rule**: **on every phase completion, the plan MUST be updated in the same pair of commits as the phase work (a code commit + a plan commit — see [How to use this template](#how-to-use-this-template)).** The plan is the source of truth for what was decided and what shipped.
 
+
 ---
 
 ## 0. Skill & documentation conventions
 
-### 0.1 Skill mandate — `csharp-developer`
-> **All implementation work on this plan MUST invoke the `csharp-developer` skill** (base directory `.claude/skills/csharp-developer`). The skill is the source of truth for C# 12+ / .NET 10 idiom, EF Core + Marten, ASP.NET Core + Carter, MassTransit outbox patterns, xUnit + Testcontainers test scaffolding, and the project's "MUST DO / MUST NOT DO" guard rails (nullable enabled, primary constructors, async/await with `CancellationToken`, `Result<T>` for error paths, no blocking calls, DTO mapping for API responses).
+### 0.1 Coding standards mandate
+> **All implementation work on this plan MUST follow the project conventions defined in `AGENTS.md`** (repository root). `AGENTS.md` is the source of truth for C# 12+ / .NET 10 idiom, EF Core + Marten, ASP.NET Core + Carter, NodaTime usage, and the project's architectural patterns (Vertical Slice for Catalog/Basket, Clean Architecture for Ordering). Additional reference material for C# patterns, ASP.NET Core, Entity Framework, and performance lives in `.claude/skills/csharp-developer/references/` (`modern-csharp.md`, `aspnet-core.md`, `entity-framework.md`, `performance.md`) and may be consulted for implementation guidance.
 
-Companion reference files (loaded on demand per the skill's table): `modern-csharp.md`, `aspnet-core.md`, `entity-framework.md`, `performance.md`. Phase 4 (OpenTelemetry) additionally loads `dotnet-best-practices` for instrumentation conventions.
+Key guard rails inherited from `AGENTS.md` and the reference material: nullable enabled, primary constructors, async/await with `CancellationToken`, `Result<T>` for error paths, no blocking calls, Carter for minimal APIs (no MVC controllers), MediatR for CQRS, FluentValidation pipeline behaviours, MassTransit outbox patterns, DTO mapping for API responses.
 
 > **EF Core checkpoint:** after any code change that mutates the schema (Phase 1's Discount SQLite → Postgres rewrite; Phase 2's migration-host-service changes), the implementer runs `dotnet ef migrations add <Name>` per the project's `--startup-project` rule (Discount: `--startup-project Discount.Grpc`; see memory `ordering-ef-migration-startup-project.md` for dev-DB passwords + ports). Phase 1's Postgres migrations are **hand-authored** — EF cannot infer the cross-engine schema conversion from SQLite `text`/`integer`/`blob` to PostgreSQL `text`/`integer`/`bytea`.
 
-The skill is *additional* to whatever other skills are relevant (e.g. `csharp-xunit` for test scaffolding; `dotnet-best-practices` for the project-wide guard rails). It is **not** a substitute for the plan; the plan wins where they disagree.
+The coding standards are **not** a substitute for the plan; the plan wins where they disagree.
 
 ### 0.2 Code-quality guard rails
 
@@ -47,7 +48,7 @@ This plan **inherits the project-wide guard rails from the catalog / ordering / 
 - **All persistent volumes are declared in `docker-compose.yml`, not just `docker-compose.override.yml`** — overrides are dev-only; production compose files use the same volume definitions.
 - **OpenTelemetry is wired uniformly via `BuildingBlocks.Observability.AddOrderlyOpenTelemetry`** — services do not call `AddOpenTelemetry()` directly. The `ServiceDefaults` + `AppHost` projects that ship today as empty `obj/`+`bin/` shells are restored.
 - **OpenAPI spec is generated via `Microsoft.AspNetCore.OpenApi` (built into .NET 10)** — no Swashbuckle unless a service already uses it. Each service emits `openapi.json` at `/openapi/v1.json`.
-- **`/live` and `/ready` are separate endpoints** with `MapHealthChecks("/live", ...)` for liveness (no checks — always green) and `MapHealthChecks("/ready", ...)` with `Predicate = check => check.Tags.Contains("ready")` for readiness. The single `/health` endpoint in Ordering today is split in Phase 5.
+- **`/live` and `/ready` are separate endpoints** with `MapHealthChecks("/live", ...)` for liveness (no checks — always green) and `MapHealthChecks("/ready", ...)` with `Predicate = check => check.Tags.Contains("ready")` for readiness. Ordering today has a single `UseHealthChecks("/health", ...)` call in `DependencyInjection.cs`; Phase 5 replaces it with the split pattern.
 
 #### 0.2.1 Global usings (project-specific)
 
@@ -72,13 +73,13 @@ The 2026-07-30 production-readiness audit found 8 P0 / P1 defects in the persist
 5. **Kitchen's `OrderCreatedIntegrationEventHandler.AddAsync` is not idempotent** (`OrderCreatedIntegrationEventHandler.cs:24-47`). The race produces `DbUpdateException` which is uncaught → MassTransit nacks indefinitely → poison message.
 6. **OpenTelemetry is wired in 1 of 5 services** (Basket only). The `orderly-microservices.ServiceDefaults` + `orderly-microservices.AppHost` projects exist on disk but ship only `obj/`+`bin/` artifacts (no `.csproj`, not in `.slnx`). Distributed debugging across 4/5 services is impossible.
 7. **No OTEL collector in compose** — Basket's exporter points at `http://localhost:4317` which doesn't exist.
-8. **No `/live` + `/ready` split in Ordering** — single `/health` endpoint. Kubernetes will kill pods on any health-check dip (the failure mode Basket already documented at `Basket.API/Program.cs:438-441`).
+8. **No `/live` + `/ready` split in Ordering** — single `UseHealthChecks("/health")` endpoint in `DependencyInjection.cs`. Kubernetes will kill pods on any health-check dip (the failure mode Basket already documented at `Basket.API/Program.cs:438-441`).
 9. **No `HEALTHCHECK` directive in any Dockerfile** — K8s liveness probes fall back to "is the process running?" rather than "can it serve `/ready`?"
 10. **`ASPNETCORE_ENVIRONMENT=Development` hardcoded on every service in compose** — defeats the `IsDevelopment()` gates that `TRUST_ROOT_HARDENING_PLAN.md` Phase 1 will add. Sibling plan's env gates are no-ops until this is fixed.
 11. **No OpenAPI / Swagger generation outside Basket** — external integrators have no machine-readable contract; CI can't lint spec drift.
 12. **EF Core `EnableRetryOnFailure` not enabled** in Catalog, Ordering, Identity.
 
-Reference plans: `DISCOUNT_SERVICE_PLAN.md` (Outbox + dispatcher shape), `KITCHEN_SERVICE_PLAN.md` (handler convention), `BASKET_SERVICE_PLAN.md` (OpenTelemetry pattern — the only existing wiring), `ORDER_ACTIVITY_PLAN.md` (transactional handler pattern).
+Reference plans: `.agents/plan/discount/DISCOUNT_SERVICE_PLAN.md` (Outbox + dispatcher shape), `.agents/plan/kitchen/KITCHEN_SERVICE_PLAN.md` (handler convention), `.agents/plan/basket/BASKET_SERVICE_PLAN.md` (OpenTelemetry pattern — the only existing wiring), `ORDER_ACTIVITY_PLAN.md` (transactional handler pattern — may be a sub-plan within ordering or kitchen).
 
 ---
 
@@ -100,8 +101,8 @@ Concrete deliverables:
 - `BuildingBlocks.Observability.AddOrderlyOpenTelemetry(IServiceCollection)` extension; restored `ServiceDefaults` + `AppHost` `.csproj` files; `Program.cs` in each service calls the extension.
 - `Kitchen.API/Application/KitchenTickets/Commands/{AcceptOrder,BumpOrder,CancelOrder,MarkOrderReady,StartItemPrep}Handler.cs` — swap `IPublishEndpoint` for `IOutboxPublisher`.
 - `Kitchen.API/Messaging/EventHandlers/OrderCreatedIntegrationEventHandler.cs` — wrap `repository.AddAsync` in `try/catch(DbUpdateException)`.
-- `Ordering.API/Program.cs` — `MapHealthChecks("/live")` + `MapHealthChecks("/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })`.
-- Every service's `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:8080/ready || exit 1`.
+- `Ordering.API/Program.cs` — replace `UseHealthChecks("/health")` (currently in `DependencyInjection.cs`) with `MapHealthChecks("/live")` + `MapHealthChecks("/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })`.
+- Every service's `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:8080/ready || exit 1`. **Note:** the final Docker image stage must include `curl` (Alpine: `apk add --no-cache curl`; Debian: `apt-get install -y --no-install-recommends curl`). Alternatively, use `wget -qO- http://localhost:8080/ready || exit 1` which is available in Alpine by default.
 
 ---
 
@@ -181,7 +182,7 @@ orderly-microservices/
 │   │   └── Integration/
 │   │       └── DiscountWebApplicationFactory.cs (modified — spin up PostgreSqlContainer)
 │   ├── Kitchen/Kitchen.API/
-│   │   ├── Application/KitchenTickets/Commands/{AcceptOrder,BumpOrder,CancelOrder,MarkOrderReady,StartItemPrep}.cs (modified — IOutboxPublisher)
+│   │   ├── Application/KitchenTickets/Commands/{AcceptOrder/AcceptOrderHandler,BumpOrder/BumpOrderHandler,CancelOrder/CancelOrderHandler,MarkOrderReady/MarkOrderReadyHandler,StartItemPrep/StartItemPrepHandler}.cs (modified — IOutboxPublisher)
 │   │   ├── Application/EventHandlers/Integration/
 │   │   │   └── OrderCreatedIntegrationEventHandler.cs (modified — try/catch DbUpdateException)
 │   │   └── Program.cs                       (modified — AddOrderlyOpenTelemetry)
@@ -259,7 +260,7 @@ Two new projects: `BuildingBlocks.Observability` (shared OpenTelemetry extension
 * **`Discount.Grpc/Data/Extensions.cs:11`** — make `UseMigration` `async`/`Task<IDisposable>`; `await context.Database.MigrateAsync()` inside an `await app.UseAsync...` block before `app.Run()`.
 * **`Catalog.API/Program.cs`** — replace inline `await dbContext.Database.MigrateAsync()` with a new `MigratorHostedService : IHostedService` that retries with exponential backoff (`2s, 4s, 8s, 16s, 32s, 64s` — 6 attempts, ~2 minutes total) before failing the pod.
 * **`Ordering.API/Program.cs`** — same `MigratorHostedService` pattern; reuse the `BuildingBlocks.Persistence.MigratorHostedService` once extracted.
-* **`BuildingBlocks/Persistence/MigratorHostedService.cs`** (new) — generic `IHostedService<TDbContext>` that runs `MigrateAsync` on `StartAsync` with the retry policy above. One implementation, used by every relational service.
+* **`BuildingBlocks/Persistence/MigratorHostedService.cs`** (new) — generic `IHostedService<TDbContext>` that runs `MigrateAsync` on `StartAsync` with the retry policy above. One implementation, used by every relational service. A configurable `MigrationTimeoutSeconds` setting (default: `120`) triggers a hard fail if the total retry window is exceeded, preventing indefinite startup hangs.
 * **`Ordering.Infrastructure/DependencyInjection.cs:27-31`** — `options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null))`.
 * **`Catalog.API/Program.cs:150-157`** — `npgsqlOptions.EnableRetryOnFailure(5, TimeSpan.FromSeconds(10), null)`.
 * **`Identity.API/Program.cs`** — same Npgsql retry flag.
@@ -271,12 +272,13 @@ Two new projects: `BuildingBlocks.Observability` (shared OpenTelemetry extension
     HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
       CMD curl -fsS http://localhost:8080/ready || exit 1
     ```
-    (Basket's port may differ — adjust per service.)
+    **Port adjustments:** Basket's port may differ — adjust per service. Discount.Grpc may use a different HTTP port alongside gRPC — verify the `ASPNETCORE_URLS` / Kestrel binding for each service.
+    **`curl` dependency:** the final Docker image stage must include `curl`. For `mcr.microsoft.com/dotnet/aspnet` (Debian-based): `RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*`. For Alpine variants: `RUN apk add --no-cache curl`. Alternatively, use `wget -qO- ... || exit 1` which is available in Alpine by default.
 
 ### 6.3 Kitchen outbox wiring + duplicate-event fix
 
-* **`Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder.cs`** — in `AcceptOrderHandler`, replace `IPublishEndpoint` constructor injection with `IOutboxPublisher`; the existing `await publisher.PublishAsync(evt, ct)` call becomes `await publisher.Publish(evt, ct)` (same shape).
-* **`BumpOrder.cs`, `CancelOrder.cs`, `MarkOrderReady.cs`, `StartItemPrep.cs`** — apply the same dependency swap in the command handlers.
+* **`Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder/AcceptOrderHandler.cs`** — replace `IPublishEndpoint` constructor injection with `IOutboxPublisher`; the existing `await publisher.PublishAsync(evt, ct)` call becomes `await publisher.Publish(evt, ct)` (same shape).
+* **`BumpOrder/BumpOrderHandler.cs`, `CancelOrder/CancelOrderHandler.cs`, `MarkOrderReady/MarkOrderReadyHandler.cs`, `StartItemPrep/StartItemPrepHandler.cs`** — apply the same dependency swap in the command handlers.
 * **`Kitchen.API/Program.cs`** — `AddOutboxPublisher` is already registered (per the audit); `IPublishEndpoint` registration stays for non-domain-event broker interactions (if any). No DI change.
 * **`Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler.cs`** — wrap the `AddAsync` + `SaveChangesAsync` pair in:
     ```csharp
@@ -319,7 +321,7 @@ Two new projects: `BuildingBlocks.Observability` (shared OpenTelemetry extension
     ```
 * **`orderly-microservices.ServiceDefaults/Extensions/ServiceDefaultsExtensions.cs`** — restored; `AddOrderlyDefaults` calls `AddOrderlyOpenTelemetry(config, "OrderlyMicroservices")` + `AddServiceDiscovery()` + `AddHealthChecks()`.
 * **`orderly-microservices.AppHost/Program.cs`** — restored Aspire AppHost that references every service project for local dev orchestration.
-* **`Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs`** — replace any inline `AddOpenTelemetry` with `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Catalog")` (etc.). Basket is already wired; this normalises the call.
+* **`Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs`, `Basket.API/Program.cs`** — replace any inline `AddOpenTelemetry` with `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Catalog")` (etc.). Basket is the only service currently wired (using Swashbuckle-based OpenTelemetry); this normalises the call to use the shared extension.
 * **`docker-compose.yml`** — add `otel-collector` service:
     ```yaml
     otel-collector:
@@ -337,7 +339,7 @@ Two new projects: `BuildingBlocks.Observability` (shared OpenTelemetry extension
 ### 6.5 OpenAPI per service + `/live`+`/ready` split
 
 * **`Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs`** — `builder.Services.AddOpenApi();` + `app.MapOpenApi();` → serves `/openapi/v1.json`. Per-endpoint `.WithOpenApi(...)` on every Carter module (mirrors Basket's `.WithTags("Basket")` scaffolding).
-* **`Ordering.API/Program.cs`** — replace `MapHealthChecks("/health", ...)` with:
+* **`Ordering.API/DependencyInjection.cs`** — replace `UseHealthChecks("/health", ...)` with `MapHealthChecks` calls in `Program.cs`:
     ```csharp
     app.MapHealthChecks("/live", new HealthCheckOptions { Predicate = _ => false });  // always green
     app.MapHealthChecks("/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") });
@@ -421,6 +423,8 @@ No protocol changes; no new integration events.
 - [ ] `docker-compose.yml` — add `discountdb` Postgres service + `discount-data` volume + `depends_on: condition: service_healthy`.
 - [ ] Integration test: `Discount.Grpc.Tests/Integration/PostgresPersistenceTests` — start `discountdb` via Testcontainers; persist a coupon; restart the container; assert the coupon survives.
 
+**Rollback strategy**: Revert the commit to restore SQLite packages and migrations. Dev data is disposable per this plan's own declaration (§3, §4); no data-preservation rollback is needed. The SQLite file is the fallback engine.
+
 **Exit criteria**: `docker-compose up -d --build discount.grpc` boots against `discountdb`; seeding a coupon via gRPC and then `docker-compose restart discount.grpc discountdb` preserves the coupon; `dotnet test Discount.Grpc.Tests` passes with the new Postgres provider.
 
 ---
@@ -433,14 +437,14 @@ No protocol changes; no new integration events.
 
 **Deliverables**:
 - [ ] `BuildingBlocks/Persistence/MigratorHostedService.cs` (new) — generic `IHostedService<TDbContext>` with exponential-backoff retry.
-- [ ] `Catalog.API`, `Ordering.API`, `Identity.API`, `Kitchen.API`, `Discount.Grpc` — register `MigratorHostedService<TContext>()` instead of inline `MigrateAsync()`.
+- [ ] `Catalog.API`, `Ordering.API`, `Identity.API`, `Kitchen.API`, `Discount.Grpc` — register `MigratorHostedService<TContext>()` instead of inline `MigrateAsync()`. `MigratorHostedService` includes a configurable `MigrationTimeoutSeconds` (default: 120).
 - [ ] `Catalog.API/Program.cs`, `Ordering.Infrastructure/DependencyInjection.cs`, `Identity.API/Program.cs` — `EnableRetryOnFailure(5, 10s)`.
-- [ ] Every `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1` (Basket + ApiGateway ports adjusted to their actual exposed ports).
+- [ ] Every `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1` (Basket + ApiGateway ports adjusted to their actual exposed ports). Final image stage must include `curl` (or use `wget -qO-` alternative for Alpine images).
 - [ ] `docker-compose.yml` — every `depends_on` uses `condition: service_healthy`; every backing-store container has a `healthcheck:` block.
 - [ ] `docker-compose.override.yml` → renamed `docker-compose.override.dev.yml`; carries `ASPNETCORE_ENVIRONMENT=Development`, dev passwords.
 - [ ] `docker-compose.dcproj` — update `<DockerComposeProjectFiles>` to set `docker-compose.yml;docker-compose.override.dev.yml` to preserve Visual Studio container debugging.
 - [ ] `docker-compose.yml` — `ASPNETCORE_ENVIRONMENT` defaults to `${ASPNETCORE_ENVIRONMENT:-Production}`.
-- [ ] Root `.gitignore` (new) — covers `bin/`, `obj/`, `.vs/`, `*.user`, `appsettings.Development.json`, `appsettings.Local.json`, `*.pfx`, `.env`, `*.sqlite`, `*.db`.
+- [ ] Root `.gitignore` (updated — file exists at repo root but needs additional entries) — ensure coverage of `*.sqlite`, `*.db`, `*.pfx`, `.env`, `appsettings.Local.json`. Existing entries for `bin/`, `obj/`, `.vs/`, `*.user` are already present.
 - [ ] README updated: `docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build` is the dev command; production uses just `docker-compose.yml`.
 
 **Exit criteria**: `docker-compose -f docker-compose.yml up -d --build` (without dev override) boots cleanly with `ASPNETCORE_ENVIRONMENT=Production`; rolling-restart of any service during a Postgres failover does not crash-loop (the `MigratorHostedService` retries); `curl http://localhost:8080/ready` returns 200 within 30s of container start.
@@ -454,7 +458,7 @@ No protocol changes; no new integration events.
 **Status**: ⏸ Pending
 
 **Deliverables**:
-- [ ] `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder.cs`, `BumpOrder.cs`, `CancelOrder.cs`, `MarkOrderReady.cs`, `StartItemPrep.cs` — in command handlers, swap `IPublishEndpoint` constructor injection for `IOutboxPublisher`.
+- [ ] `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder/AcceptOrderHandler.cs`, `BumpOrder/BumpOrderHandler.cs`, `CancelOrder/CancelOrderHandler.cs`, `MarkOrderReady/MarkOrderReadyHandler.cs`, `StartItemPrep/StartItemPrepHandler.cs` — in command handlers, swap `IPublishEndpoint` constructor injection for `IOutboxPublisher`.
 - [ ] `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler.cs` — wrap `AddAsync` + `SaveChangesAsync` in `try/catch(DbUpdateException)` + `IsDuplicateKey` helper.
 - [ ] `Kitchen.API/Infrastructure/IsDuplicateKey.cs` (new helper) — `bool IsDuplicateKey(DbUpdateException ex) => ex.InnerException is Npgsql.PostgresException pg && pg.SqlState == "23505";`
 - [ ] Integration test: `Kitchen.API.Tests/Integration/DuplicateOrderCreatedTests` — sends two identical events; asserts the second is logged + skipped; no nack; only one `KitchenTicket` row created.
@@ -475,7 +479,7 @@ No protocol changes; no new integration events.
 - [ ] `orderly-microservices.ServiceDefaults/Extensions/ServiceDefaultsExtensions.cs` + `.csproj` restored (was empty `obj/`+`bin/` shell).
 - [ ] `orderly-microservices.AppHost/Program.cs` + `AppHost.cs` + `.csproj` restored.
 - [ ] `orderly-microservices.slnx` — add the 3 projects.
-- [ ] Every service `Program.cs` — `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.<Service>")`.
+- [ ] Every service `Program.cs` (Catalog, Ordering, Kitchen, Identity, Discount, **Basket**) — `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.<Service>")`. Basket currently uses inline `AddOpenTelemetry()` via Swashbuckle — this normalises the call to the shared extension.
 - [ ] `docker-compose.yml` — add `otel-collector` service + `otel-collector-config.yaml` mounted.
 - [ ] `otel-collector-config.yaml` (new) — receivers `otlp` (gRPC + HTTP); processors `batch`; exporters `debug` + `otlp/http` (configurable via `OTEL_EXPORTER_OTLP_ENDPOINT`).
 - [ ] Every service's `docker-compose.yml` entry gains `OpenTelemetry__Endpoint: http://otel-collector:4317`.
@@ -494,7 +498,7 @@ No protocol changes; no new integration events.
 **Deliverables**:
 - [ ] `Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs` — `AddOpenApi()` + `MapOpenApi()`.
 - [ ] Per-endpoint `.WithOpenApi(...)` on every Carter module in every service (mirrors Basket's existing `.WithTags("Basket")`).
-- [ ] `Ordering.API/Program.cs` — split `MapHealthChecks("/health")` into `/live` (always green) + `/ready` (tags `"ready"`).
+- [ ] `Ordering.API` — replace `UseHealthChecks("/health")` (currently in `DependencyInjection.cs`) with `MapHealthChecks("/live")` (always green) + `MapHealthChecks("/ready")` (tags `"ready"`) in `Program.cs`.
 - [ ] Tag every readiness check in Ordering with `"ready"` (Postgres, MSSQL, broker, outbox DLQ).
 - [ ] `.github/workflows/ci.yml` (new) — matrix on every `.slnx` project; each project boots + curls `/openapi/v1.json` + asserts the response is valid JSON.
 - [ ] Integration test: `Ordering.API.Tests/LiveReadyEndpointTests` — asserts `/live` always 200 + `/ready` returns 503 when broker is down + 200 when broker is up.
@@ -552,6 +556,20 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v2.1 (2026-07-30) — plan review reconciliation
+- **§0.1**: Replaced Claude-specific `.claude/skills/csharp-developer` skill mandate with `AGENTS.md` conventions reference (tool-agnostic).
+- **§0.2**: Corrected Ordering health endpoint description — it uses `UseHealthChecks("/health")` in `DependencyInjection.cs`, not `MapHealthChecks` in `Program.cs`.
+- **§1**: Fixed reference plan paths to use full `.agents/plan/<domain>/` paths.
+- **§5, §6.3, Phase 3**: Fixed Kitchen handler file paths from `AcceptOrder.cs` to `AcceptOrder/AcceptOrderHandler.cs` pattern throughout.
+- **§6.2**: Added configurable `MigrationTimeoutSeconds` (default: 120) to `MigratorHostedService` specification.
+- **§6.2**: Added `curl` dependency note for Dockerfile HEALTHCHECK directives (Alpine: `apk add curl`; Debian: `apt-get install curl`; or use `wget -qO-` alternative).
+- **§6.2**: Corrected service port note — each service's HEALTHCHECK port must match its actual binding.
+- **§6.4**: Added `Basket.API` explicitly to the Phase 4 service list for OpenTelemetry normalization.
+- **§6.5**: Corrected Ordering health endpoint location from `Program.cs` to `DependencyInjection.cs`.
+- **Phase 1**: Added rollback strategy note (revert commit to restore SQLite; dev data is disposable).
+- **Phase 2**: Updated `.gitignore` deliverable from "new" to "updated" — file exists at repo root but needs `*.sqlite`, `*.db`, `*.pfx`, `.env` entries.
+- **Phase 2**: Added `curl` dependency and HEALTHCHECK port-matching notes to deliverables.
 
 ### v2.0 (2026-07-30) — updated specifications and tech decisions
 - Fixed EF Core PostgreSQL package references to use correct name `Npgsql.EntityFrameworkCore.PostgreSQL`.

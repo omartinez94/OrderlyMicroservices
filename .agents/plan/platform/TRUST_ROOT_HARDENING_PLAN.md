@@ -6,7 +6,7 @@
 
 ## Status
 
-> **Plan version**: `v2.0` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Plan version**: `v2.1` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
 > **Current state**: ⏸ Not started
 
 | Phase | Name | Status |
@@ -17,6 +17,7 @@
 | 4 | Per-service authorization (Catalog fallback policy + Ordering permissions) | 🔒 Blocked (by Phase 1) |
 | 5 | Identity `int→Guid` tenant-id fix (absorbs MULTITENANCY_ROLLOUT_PLAN §5 column work) | 🔒 Blocked (by Phase 2) |
 | 6 | YARP gateway authentication + CORS + ForwardedHeaders | 🔒 Blocked (by Phase 4) |
+| 7 | End-to-end trust-chain validation | 🔒 Blocked (by Phase 6) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -28,14 +29,14 @@
 
 ## 0. Skill & documentation conventions
 
-### 0.1 Skill mandate — `csharp-developer`
-> **All implementation work on this plan MUST invoke the `csharp-developer` skill** (base directory `.claude/skills/csharp-developer`). The skill is the source of truth for C# 12+ / .NET 10 idiom, ASP.NET Core + Carter, EF Core, OpenIddict server wiring, xUnit test scaffolding, and the project's "MUST DO / MUST NOT DO" guard rails (nullable enabled, primary constructors, async/await with `CancellationToken`, `Result<T>` for error paths, no blocking calls).
+### 0.1 Coding standards mandate
+> **All implementation work on this plan MUST follow the project conventions defined in `AGENTS.md`** (repository root). `AGENTS.md` is the source of truth for C# 12+ / .NET 10 idiom, ASP.NET Core + Carter, EF Core, NodaTime usage, and the project's architectural patterns (Vertical Slice for Catalog/Basket, Clean Architecture for Ordering). Additional reference material for C# patterns, ASP.NET Core, and Entity Framework lives in `.claude/skills/csharp-developer/references/` (`modern-csharp.md`, `aspnet-core.md`, `entity-framework.md`) and may be consulted for implementation guidance.
 
-Companion reference files (loaded on demand per the skill's table): `modern-csharp.md`, `aspnet-core.md`, `entity-framework.md`. Phase 6 (YARP auth) may additionally load `api-design-principles` for the per-route policy shape.
+Key guard rails inherited from `AGENTS.md` and the reference material: nullable enabled, primary constructors, async/await with `CancellationToken`, `Result<T>` for error paths, no blocking calls, Carter for minimal APIs (no MVC controllers), MediatR for CQRS, FluentValidation pipeline behaviours.
 
 > **OpenIddict checkpoint:** any code change in `Identity.API/Extensions/OpenIddictServerExtensions.cs` or any OpenIddict-related migration must be paired with a smoke test that exercises `/connect/token` round-trip via `WebApplicationFactory` (see Phase 2 exit criteria).
 
-The skill is *additional* to whatever other skills are relevant (e.g. `csharp-xunit` for test scaffolding; `dotnet-best-patterns` for the project-wide guard rails). It is **not** a substitute for the plan; the plan wins where they disagree.
+The coding standards are **not** a substitute for the plan; the plan wins where they disagree.
 
 ### 0.2 Code-quality guard rails
 
@@ -48,6 +49,7 @@ This plan **inherits the project-wide guard rails from the catalog / ordering / 
 - **No raw `"admin@orderly.com / Admin@123456"` seed in any environment.** `DataSeeder.SeedSuperAdminAsync` is gated on `IsDevelopment()`. Production deploys that lack a SuperAdmin fail-fast at startup with a clear remediation message.
 - **All authorization attributes are explicit.** Per-route `.RequireAuthorization()` (or `.RequirePermission("...")`) on every Carter endpoint; per-method `[Permission]` on every gRPC method. There is no default fallback policy in services other than Catalog (where Phase 4 establishes one); identity is enforced, not assumed.
 - **Tests for every new gate**: at minimum one WebApplicationFactory test per route that proves the 401 / 403 / 200 path. The pattern lives in `Basket.API.Tests` and `Ordering.API.Tests` — copy-paste-modify.
+- **Permission catalog**: all permission strings introduced by this plan (`catalog:menu_update`, `orders:write`, `orders:view_own`, etc.) must be documented in `docs/architecture/permissions.md` alongside the existing kitchen permissions. This file is the single source of truth for permission names across all services.
 
 #### 0.2.1 Global usings (project-specific)
 
@@ -70,7 +72,7 @@ The 2026-07-30 production-readiness audit (per-service reports and synthesis sav
 9. **SuperAdmin seeded with `Admin@123456` on every startup.** No environment gate.
 10. **`restaurantId` is `int` in `Identity.API/Models/UserRestaurant.cs:7` but every consumer parses it as `Guid`.** `Guid.TryParse("42")` returns false → `RestaurantId == Guid.Empty` everywhere → tenant filter silently matches no rows. The JWT emits `"restaurantId": "42"`; the consumer sees `Guid.Empty`.
 
-Reference plans: `MULTITENANCY_ROLLOUT_PLAN.md` (Phase 5 absorbs the Identity provider-registration work after Phase 5 here lands), `DISCOUNT_SERVICE_PLAN.md` (Permission policy pattern), `BASKET_SERVICE_PLAN.md` (per-route policy pattern), `KITCHEN_SERVICE_PLAN.md` (permission attribute pattern).
+Reference plans: `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md` (Phase 5 absorbs the Identity provider-registration work after Phase 5 here lands), `.agents/plan/discount/DISCOUNT_SERVICE_PLAN.md` (Permission policy pattern), `.agents/plan/basket/BASKET_SERVICE_PLAN.md` (per-route policy pattern), `.agents/plan/kitchen/KITCHEN_SERVICE_PLAN.md` (permission attribute pattern).
 
 ---
 
@@ -184,7 +186,7 @@ No new project; no new top-level folders. All edits land in existing trees.
 * **`DataSeeder.SeedOpenIddictClientsAsync(IServiceProvider)`** — called from `Program.cs` after `MigrateAsync()` on first startup. Creates (idempotent — checks `FindByClientIdAsync` first):
     * **SPA client**: `ClientId = "orderly-spa"`, `DisplayName = "Orderly SPA"`, `Type = ClientType.Public`, `ConsentType = ConsentTypes.Explicit`, `RedirectUris = [configuration["Spa:RedirectUri"]]`, `PostLogoutRedirectUris = [configuration["Spa:PostLogoutRedirectUri"]]`, `Permissions = [Endpoints.Authorization, Endpoints.Token, Endpoints.Logout, Endpoints.Revocation, ResponseTypes.Code, Scopes.Email, Scopes.Profile, Scopes.Roles, "restaurantId", Scopes.OfflineAccess]`, `Requirements = [Requirements.Features.CodeChallengeProof]`. PKCE is mandatory.
     * **M2M client**: `ClientId = configuration["M2M:ClientId"]`, `DisplayName = "Orderly Service Bus"`, `Type = ClientType.Confidential`, `ConsentType = ConsentTypes.Systematic`, `ClientSecret = configuration["M2M:ClientSecret"]` (PBKDF2-hashed via `Secret` property), `Permissions = [Endpoints.Token, ResponseTypes.Token, Scopes.Profile, "internal"]`.
-* **`DataSeeder.SeedSuperAdminAsync`** — entire body wrapped in `if (env.IsDevelopment())`; the production path logs a warning if no SuperAdmin exists in the DB, and `Program.cs` fails-fast at startup with `MissingSuperAdminException` listing the seed command.
+* **`DataSeeder.SeedSuperAdminAsync`** — entire body wrapped in `if (env.IsDevelopment())`; the production path logs a warning if no SuperAdmin exists in the DB, and `Program.cs` fails-fast at startup with `MissingSuperAdminException` listing the seed command. The SuperAdmin check queries `UserManager<ApplicationUser>.GetUsersInRoleAsync("SuperAdmin")` at startup; an empty result in non-Development triggers the fail-fast.
 
 ### 6.3 Discount authorization interceptor
 
@@ -255,7 +257,21 @@ No new project; no new top-level folders. All edits land in existing trees.
          .AllowAnyMethod()
          .AllowCredentials()));
     ```
-    Then `app.UseForwardedHeaders()` before `UseAuthentication()` + `UseAuthorization()`. YARP route config in `appsettings.json` references named policies `catalog-auth`, `basket-auth`, etc.
+* **Middleware pipeline ordering** — the exact ordering in `Program.cs` MUST be:
+    ```csharp
+    app.UseForwardedHeaders();
+    app.UseCors();
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.UseRateLimiter();        // existing
+    app.MapReverseProxy();
+    ```
+    `UseForwardedHeaders` before auth ensures the real client IP is available for logging/auditing. `UseCors` before auth ensures preflight `OPTIONS` requests succeed without a token. `UseRateLimiter` after auth prevents unauthenticated callers from consuming rate-limit budget.
+* **Health-check endpoint exclusion** — map `GET /health` (or `/ready`) **before** the auth middleware so container orchestration probes (Docker `HEALTHCHECK`, K8s liveness/readiness) are not blocked by JWT validation:
+    ```csharp
+    app.MapGet("/health", () => Results.Ok("healthy")).AllowAnonymous();
+    ```
+* **`ForwardedHeadersOptions.KnownNetworks`** — configure in `appsettings.json` (not hardcoded): `"ForwardedHeaders": { "KnownNetworks": ["172.16.0.0/12"] }` for dev (Docker default network range), `"10.0.0.0/8"` for prod. Without `KnownNetworks`, header spoofing is possible in non-dev.
 * **`appsettings.json`** (YARP) — under each `Clusters.<name>.Destinations.*`, add `"Metadata": { "AuthorizationPolicy": "<name>-auth" }`. Under each `Routes.<name>`, add `"AuthorizationPolicy": "<name>-auth"`, and explicitly map `"CorsPolicy": "Default"`.
 * **`appsettings.Development.json`** (new) — `"Cors": { "AllowedOrigins": [ "http://localhost:3000" ] }` for React dev server.
 * **E2E Validation** — Instead of a new test project, extend the existing `test_e2e_auth.ps1` script to cover gateway routing, authentication, and CORS responses.
@@ -307,9 +323,10 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 | **1** | BuildingBlocks.Dev + Identity dev/posture split | `BuildingBlocks.Dev`, `Identity.API/Program.cs`, `Identity.API/Extensions/OpenIddictServerExtensions.cs` | Dev HS256 + dev signing certs are gated on `IsDevelopment()`; production posture fails-fast on misconfiguration |
 | **2** | OpenIddict production posture | `Identity.API/Extensions/OpenIddictServerExtensions.cs`, `Identity.API/Data/DataSeeder.cs`, `docker-compose.yml` | Production certs loaded from PEM/PFX; SPA + M2M clients seeded; `DisableTransportSecurityRequirement()` dropped; SuperAdmin gated |
 | **3** | Discount authorization interceptor | `Discount.Grpc/Program.cs`, `Discount.Grpc/Services/DiscountProtoServiceBase.cs` (new), `Discount.Grpc/Authorization/AuthorizationPolicies.cs`, `Discount.Grpc.Tests/Integration/RpcEndpointTests.cs` | Every `[Permission]` attribute enforced; integration tests un-skipped |
-| **4** | Per-service authorization | `Catalog.API/Program.cs`, `Ordering.API/Endpoints/*.cs` | Catalog fallback policy + Ordering per-permission gates |
+| **4** | Per-service authorization | `Catalog.API/Program.cs`, `Ordering.API/Endpoints/*.cs`, `docs/architecture/permissions.md` (new) | Catalog fallback policy + Ordering per-permission gates + permission catalog |
 | **5** | Identity int→Guid tenant-id fix | `Identity.API/Models/UserRestaurant.cs`, `Identity.API/Data/Migrations/UserRestaurantIdToGuid.cs` (new), `Identity.API/Services/ClaimsTransformer.cs` | JWT emits Guid-shaped `restaurantId`; MULTITENANCY_ROLLOUT_PLAN §5 reduced |
-| **6** | YARP gateway hardening | `ApiGateway/YarpApiGateway/Program.cs`, `ApiGateway/YarpApiGateway/appsettings.json`, `appsettings.Development.json` (new) | Gateway authenticates + propagates claims + CORS allowlist + ForwardedHeaders |
+| **6** | YARP gateway hardening | `ApiGateway/YarpApiGateway/Program.cs`, `ApiGateway/YarpApiGateway/appsettings.json`, `appsettings.Development.json` (new) | Gateway authenticates + propagates claims + CORS allowlist + ForwardedHeaders + health endpoint |
+| **7** | End-to-end trust-chain validation | all services, `docker-compose.override.prod.yml` (new), `test_e2e_auth.ps1` | Full-stack smoke test in both Development and Production postures |
 
 ---
 
@@ -377,7 +394,8 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 - [ ] `Catalog.API/Program.cs` — configure authorization services; omit global fallback policy on read endpoints.
 - [ ] Per-module `.RequirePermission("catalog:menu_update")` (or `.RequireAuthorization()`) on write endpoints (`Catalog.API/Features/Restaurants/{Create,Update,Delete}/*Endpoint.cs`, `Catalog.API/Features/Brands/{Create,Update,Delete}/*Endpoint.cs`, `Catalog.API/Features/MenuCategories/...` writes, `Catalog.API/Features/BulkOrderUploads/Approve*`); read/GET endpoints remain public/anonymous.
 - [ ] `Ordering.API/Endpoints/CreateOrder.cs`, `UpdateOrder.cs`, `DeleteOrder.cs`, `GetOrders.cs`, `GetOrderById.cs`, `GetOrdersByCustomer.cs` — add `.RequirePermission("orders:write")` (or `"orders:view_own"` for reads).
-- [ ] Integration tests in `Catalog.API.Tests` + `Ordering.API.Tests` — one per route asserting 401/403/200.
+- [ ] Integration tests in `Catalog.API.Tests` (new project) + `Ordering.API.Tests` (new project) — one per route asserting 401/403/200. These test projects do not exist yet and must be scaffolded (see `BuildingBlocks.Dev.Tests` for the existing test project pattern).
+- [ ] `docs/architecture/permissions.md` (new) — central permission catalog listing every permission string across all services: `catalog:menu_update`, `orders:write`, `orders:view_own`, `kitchen:update_prep_status`, `kitchen:view_activities`, `kitchen:confirm_order`, and all Discount permissions from the `[Permission]` attributes.
 
 **Exit criteria**: anonymous `POST /api/v1/restaurants` returns 401; anonymous `GET /api/v1/restaurants` returns 200; valid token without `catalog:menu_update` permission returns 403 on `PUT /api/v1/menu-categories/{id}`; anonymous `POST /api/v1/orders` returns 401; valid token without `orders:write` returns 403.
 
@@ -395,8 +413,10 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 - [ ] `Identity.API/Data/Migrations/<timestamp>_UserRestaurantIdToGuid.cs` — hand-authored PostgreSQL migration that drops primary key constraint, truncates `UserRestaurants`, alters column type to `uuid`, and recreates primary key constraint.
 - [ ] `Identity.API/Features/Users/AssignRestaurants/AssignRestaurantsCommand.cs` — accept `Guid RestaurantId`.
 - [ ] `Identity.API/Services/ClaimsTransformer.cs` — `defaultRestaurant.RestaurantId.ToString()` (now Guid-shaped).
-- [ ] Integration tests and test builders in `Identity.API.Tests` — update seed/test values to use `Guid`.
-- [ ] `MULTITENANCY_ROLLOUT_PLAN.md §5` updated in the same commit to reflect the reduced scope (register `ClaimsRestaurantProvider` + `IHttpContextAccessor` only).
+- [ ] Integration tests and test builders in `Identity.API.Tests` (new project — scaffold alongside Phase 4 test projects) — update seed/test values to use `Guid`.
+- [ ] `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md §5` updated in the same commit to reflect the reduced scope (register `ClaimsRestaurantProvider` + `IHttpContextAccessor` only).
+
+**Rollback strategy**: The `Down` migration recreates the `int` column and primary key. Data loss is expected — the `Up` truncated the table, so there is nothing to restore. For dev databases with important test data, export `UserRestaurants` rows before running the migration. Production environments start with an empty table per the Phase 2 seed-gate change.
 
 **Exit criteria**: `Guid.TryParse(claim, out var rid)` succeeds on every ClaimsPrincipal in the running stack; `MULTITENANCY_ROLLOUT_PLAN §5` describes only the provider-registration work; all database migration assertions pass.
 
@@ -409,12 +429,28 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 **Status**: ⏸ Pending
 
 **Deliverables**:
-- [ ] `ApiGateway/YarpApiGateway/Program.cs` — `AddJwtAuthenticationWithDevFallback`, `AddAuthorization`, `AddCors`, `UseForwardedHeaders` (before auth).
-- [ ] `ApiGateway/YarpApiGateway/appsettings.json` — per-route + per-cluster `AuthorizationPolicy` references; CORS policy explicitly mapped to routes; SPA CORS origin in `appsettings.Development.json`.
-- [ ] `ApiGateway/YarpApiGateway/appsettings.Development.json` (new) — `Cors:AllowedOrigins = ["http://localhost:3000"]`.
-- [ ] E2E integration test: Extend `test_e2e_auth.ps1` to cover gateway routing, unauthorized block, valid token forwarding, and CORS response headers.
+- [ ] `ApiGateway/YarpApiGateway/Program.cs` — `AddJwtAuthenticationWithDevFallback`, `AddAuthorization`, `AddCors`, `UseForwardedHeaders` (before auth), middleware in exact order per §6.6.
+- [ ] `ApiGateway/YarpApiGateway/Program.cs` — `MapGet("/health", ...)` anonymous health-check endpoint mapped before auth middleware.
+- [ ] `ApiGateway/YarpApiGateway/appsettings.json` — per-route + per-cluster `AuthorizationPolicy` references; CORS policy explicitly mapped to routes; `ForwardedHeaders:KnownNetworks` configured per environment.
+- [ ] `ApiGateway/YarpApiGateway/appsettings.Development.json` (new) — `Cors:AllowedOrigins = ["http://localhost:3000"]`, `ForwardedHeaders:KnownNetworks = ["172.16.0.0/12"]`.
+- [ ] E2E integration test: Extend `test_e2e_auth.ps1` to cover gateway routing, unauthorized block, valid token forwarding, CORS response headers, and health-check anonymity.
 
-**Exit criteria**: `curl -H "Origin: http://localhost:3000" http://gateway/catalog-api/api/v1/restaurants` returns 200 (preflight 200, then forwarded GET); without `Authorization` header returns 401; `test_e2e_auth.ps1` validates the gateway authentication successfully.
+**Exit criteria**: `curl -H "Origin: http://localhost:3000" http://gateway/catalog-api/api/v1/restaurants` returns 200 (preflight 200, then forwarded GET); without `Authorization` header returns 401; `curl http://gateway/health` returns 200 without auth; `test_e2e_auth.ps1` validates the gateway authentication successfully.
+
+---
+
+### Phase 7 — End-to-end trust-chain validation
+
+**Goal**: full-stack smoke test proves all 6 phases work together in both Development and Production postures.
+
+**Status**: 🔒 Blocked (by Phase 6)
+
+**Deliverables**:
+- [ ] `docker-compose.override.prod.yml` (new) — overrides `ASPNETCORE_ENVIRONMENT=Production` on all services + supplies self-signed PEM certs for OpenIddict + omits `JWT_SECRET`. Enables testing the production trust posture locally without waiting for `PERSISTENCE_AND_RELIABILITY_PLAN.md` to flip the default.
+- [ ] Extend `test_e2e_auth.ps1` with a `--posture production` flag that: (1) starts the stack with `docker-compose -f docker-compose.yml -f docker-compose.override.prod.yml up -d --build`, (2) asserts Identity boots with the configured certificate (not dev cert), (3) asserts `JWT_SECRET` is rejected, (4) exercises a full PKCE token flow via the `orderly-spa` client, (5) asserts every protected endpoint rejects anonymous traffic through the gateway.
+- [ ] Extend `test_e2e_auth.ps1` with a `--posture development` flag (default) that: (1) starts the stack with the current compose override, (2) asserts the dev HS256 token is accepted, (3) asserts the gateway forwards authenticated traffic to all downstream services.
+
+**Exit criteria**: `./test_e2e_auth.ps1 --posture development` passes (dev tokens accepted, all routes reachable); `./test_e2e_auth.ps1 --posture production` passes (production certs loaded, PKCE flow works, anonymous traffic rejected at gateway + per-service level); both runs complete without manual intervention.
 
 ---
 
@@ -426,7 +462,7 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 
 - **No new project / no new global-using promotion** — all changes land in existing trees. `[P1 ✅]` confirmed.
 - **`JWT_SECRET` is forbidden in Production** — fail-closed semantics survive container restarts; the dev scheme's env-var check runs every startup, not once. `[P1 ✅]` enforced by Phase 1 integration test.
-- **`ASPNETCORE_ENVIRONMENT=Development` is currently hardcoded on every service in `docker-compose.override.yml`** — Phase 6 (in `PERSISTENCE_AND_RELIABILITY_PLAN.md`) flips this to a default of `Production` with a `docker-compose.override.dev.yml` for the dev defaults. Until that lands, this plan's `IsDevelopment()` guards are effectively no-ops in compose. Document this in the README. `[Pending — sibling plan]`.
+- **`ASPNETCORE_ENVIRONMENT=Development` is currently hardcoded on every service in `docker-compose.override.yml`** — Phase 6 (in `PERSISTENCE_AND_RELIABILITY_PLAN.md`) flips this to a default of `Production` with a `docker-compose.override.dev.yml` for the dev defaults. Until that lands, this plan's `IsDevelopment()` guards are effectively no-ops in compose. **Phase 7 of this plan introduces `docker-compose.override.prod.yml`** as a stopgap so the production posture can be tested immediately without waiting for the sibling plan. Document this in the README. `[Mitigated — Phase 7]`.
 - **The Discount interceptor's reflection target must include `DiscountProtoServiceBase`**, not `DiscountBase` — `DiscountRuleService` and `RewardCodeService` today inherit `DiscountBase` directly. The new abstract class `DiscountProtoServiceBase` is the only common ancestor across all three. Phase 3 migration step required.
 - **YARP `ForwardedHeaders` requires `KnownProxies`/`KnownNetworks` to be set in non-dev** — without this, header spoofing is possible. Phase 6 sets `KnownNetworks` to the docker network range `172.16.0.0/12` in dev / `10.0.0.0/8` in prod. Documented as a Phase 6 caveat.
 - **`docker-compose.yml` writable `/root/.aspnet/https` mount is the only way the dev cert survives restarts** — without it, every container restart regenerates the cert and downstream JWKS caches (15-min default rotation) reject all tokens until the cache clears. Phase 2 commit must update `docker-compose.yml`, not just `docker-compose.override.yml`.
@@ -438,13 +474,26 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 
 ### 10.3 Phase 5 — Identity int→Guid
 
-- **EF Core cannot infer `int → uniqueidentifier`** — `[P5 ✅]` hand-authored `Up` is mandatory. The migration must backfill (`UPDATE UserRestaurants SET RestaurantId = CAST(RestaurantId AS uniqueidentifier) WHERE RestaurantId IS NOT NULL`) for any non-empty dev DB; the production deploy starts on an empty `UserRestaurants` table per the seed-gate change in Phase 2.
+- **EF Core cannot infer `int → uuid`** — `[P5 ✅]` hand-authored `Up` is mandatory. The migration truncates `UserRestaurants` before altering the column type because integer values (e.g. `42`) cannot be cast to valid UUIDs. This is safe: old integer IDs are meaningless as Guid tenant identifiers anyway, and the production deploy starts on an empty `UserRestaurants` table per the seed-gate change in Phase 2. For dev databases with important test data, export rows before running the migration.
 - **`MULTITENANCY_ROLLOUT_PLAN.md §5` originally combined the column-type fix with the provider-registration work** — once Phase 5 lands, §5 reduces to "register `ClaimsRestaurantProvider` + `IHttpContextAccessor` + `NullCurrentRestaurantProvider` in `Identity.API/Program.cs`." This is the only edit to the multitenancy plan required by this plan; everything else in §5 stands.
 
 ### 10.4 Phase 6 — YARP
 
 - **YARP `AuthorizationPolicy` is per-cluster / per-route metadata** — `[P6 ✅]` the same `AuthorizationPolicy` name (`catalog-auth`, etc.) is referenced from both `Clusters.<name>.Metadata` and `Routes.<name>.Metadata` so that both upstream pool selection AND route matching require auth. (YARP lets either be omitted; both are required for defense-in-depth.)
 - **SPA CORS allowlist must include both dev (`http://localhost:3000`) and any future prod origin** — `[P6 ✅]` configured via `Cors:AllowedOrigins` array in `appsettings.{Environment}.json`, never inline.
+- **Gateway health endpoint must be anonymous** — `MapGet("/health", ...)` is mapped before the auth middleware so Docker `HEALTHCHECK` and K8s probes work without a token. This is a hard requirement for any containerized deployment.
+- **`ForwardedHeaders.KnownNetworks` is a Phase 6 deliverable, not just a caveat** — without it, `X-Forwarded-For` header spoofing is trivially possible in non-dev. The value comes from config (`ForwardedHeaders:KnownNetworks` in `appsettings.json`), not inline code.
+
+### 10.5 Phase 7 — Validation
+
+- **`docker-compose.override.prod.yml` is a testing tool, not a deployment artifact** — it ships self-signed certs and a `JWT_SECRET`-free environment for local validation of the production trust posture. It is NOT the actual production compose file (which lives in the CI/CD pipeline, out of scope for this plan).
+- **The `--posture` flag on `test_e2e_auth.ps1` controls which compose files are used** — `development` (default) uses the current `docker-compose.override.yml`; `production` uses `docker-compose.override.prod.yml`. Both share the base `docker-compose.yml`.
+
+### 10.6 Test project status
+
+- **Existing test projects**: `BuildingBlocks.Dev.Tests` and `BuildingBlocks.Tests` exist in the repository.
+- **Test projects to be created by this plan**: `Catalog.API.Tests` (Phase 4), `Ordering.API.Tests` (Phase 4), `Identity.API.Tests` (Phase 5). These must be scaffolded as new xUnit projects referencing `Microsoft.AspNetCore.Mvc.Testing` and added to the solution file (`orderly-microservices.slnx`). Use `BuildingBlocks.Dev.Tests` as the structural template.
+- **Test projects assumed to exist** (created by sibling plans): `Discount.Grpc.Tests` (created by `DISCOUNT_SERVICE_PLAN.md`, Phase 8 — confirmed closed).
 
 ---
 
@@ -455,6 +504,25 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 ---
 
 ## Changelog
+
+### v2.1 (2026-07-30) — plan review reconciliation
+- **§0.1**: Replaced Claude-specific `.claude/skills/csharp-developer` skill mandate with `AGENTS.md` conventions reference (tool-agnostic).
+- **§0.2**: Added permission catalog requirement (`docs/architecture/permissions.md`) for all permission strings introduced by this plan.
+- **§1**: Fixed reference plan paths to use full `.agents/plan/<domain>/` paths.
+- **§6.2**: Added `UserManager.GetUsersInRoleAsync("SuperAdmin")` detail for the production SuperAdmin existence check.
+- **§6.6**: Added explicit middleware pipeline ordering (`UseForwardedHeaders → UseCors → UseAuthentication → UseAuthorization → UseRateLimiter → MapReverseProxy`).
+- **§6.6**: Added anonymous `/health` endpoint requirement for container orchestration probes.
+- **§6.6**: Promoted `ForwardedHeaders.KnownNetworks` from §10.1 caveat to Phase 6 deliverable.
+- **§10.3**: Removed contradictory backfill note (`CAST(... AS uniqueidentifier)` was SQL Server syntax, not PostgreSQL, and contradicted the truncation strategy in §6.5).
+- **Phase 4**: Clarified that `Catalog.API.Tests` and `Ordering.API.Tests` are new projects to be scaffolded.
+- **Phase 5**: Added rollback strategy note for the destructive `UserRestaurants` truncation.
+- **Phase 5**: Fixed `MULTITENANCY_ROLLOUT_PLAN.md` path reference.
+- **Phase 6**: Added health-check endpoint, `KnownNetworks` config, and middleware ordering to deliverables and exit criteria.
+- **Phase 7** (new): Added end-to-end trust-chain validation phase with `docker-compose.override.prod.yml` and `test_e2e_auth.ps1 --posture` flag.
+- **§10.1**: Updated `ASPNETCORE_ENVIRONMENT` note — Phase 7 now mitigates the gap with `docker-compose.override.prod.yml`.
+- **§10.4**: Added health endpoint and `KnownNetworks` as explicit deliverables.
+- **§10.5** (new): Phase 7 technical considerations.
+- **§10.6** (new): Test project status inventory (existing vs. to-be-created).
 
 ### v2.0 (2026-07-30) — updated specifications and tech decisions
 - Changed Catalog API authorization pattern to keep GET endpoints open/anonymous for guest/customer browsing.

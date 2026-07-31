@@ -2,14 +2,20 @@ using BuildingBlocks.Dev;
 using BuildingBlocks.Exceptions.Handler;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Ordering.API;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddApiServices(
+        this IServiceCollection services,
+        IWebHostEnvironment environment,
+        IConfiguration configuration)
     {
         services.AddJwtAuthenticationWithDevFallback(
+            environment,
+            configuration,
             authority: configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
             audience: "OrderlyMicroservices");
         services.AddAuthorizationServices();

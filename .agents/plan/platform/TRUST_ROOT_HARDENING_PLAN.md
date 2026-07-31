@@ -6,12 +6,12 @@
 
 ## Status
 
-> **Plan version**: `v2.1` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v2.2` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phase 1 in progress (code committed locally; tests green at 17/17 + 94/94 Identity regression)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | BuildingBlocks.Dev + Identity dev/posture split | ⏸ Pending |
+| 1 | BuildingBlocks.Dev + Identity dev/posture split | ✅ Done |
 | 2 | OpenIddict production posture (signing keys, Applications seed, TLS, SuperAdmin) | 🔒 Blocked (by Phase 1) |
 | 3 | Discount authorization interceptor wiring + policy reflection | 🔒 Blocked (by Phase 1) |
 | 4 | Per-service authorization (Catalog fallback policy + Ordering permissions) | 🔒 Blocked (by Phase 1) |
@@ -337,12 +337,12 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 **Status**: ⏸ Pending
 
 **Deliverables**:
-- [ ] `BuildingBlocks.Dev/DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback` accepts an `IWebHostEnvironment` (via `IServiceProvider`); `IsDevelopment()` guard around the HS256 scheme.
-- [ ] `BuildingBlocks.Dev/Dev/DevJwtEnvironment.IsDevJwtAllowed(env, config)` helper.
-- [ ] `BuildingBlocks.Dev/Dev/ProductionJwtKeyLoadException` type.
-- [ ] `Identity.API/Extensions/OpenIddictServerExtensions.cs` — `AddDevelopmentSigningCertificate()` / `AddDevelopmentEncryptionCertificate()` wrapped in `if (env.IsDevelopment())`.
-- [ ] Integration test: `BuildingBlocks.Dev.Tests/ProductionEnvThrowsTests` — fake `IWebHostEnvironment` with `IsDevelopment() == false` + `JWT_SECRET=foo` → throws `ProductionJwtKeyLoadException`.
-- [ ] Integration test: `Identity.API.Tests/OpenIddictServerEnvGateTests` — `IsDevelopment() == false` + no config paths → throws `OpenIddictCertificateLoadException`.
+- [x] `BuildingBlocks.Dev/DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback` accepts an `IWebHostEnvironment` (via `IServiceProvider`); `IsDevelopment()` guard around the HS256 scheme.
+- [x] `BuildingBlocks.Dev/Dev/DevJwtEnvironment.IsDevJwtAllowed(env, config)` helper.
+- [x] `BuildingBlocks.Dev/Dev/ProductionJwtKeyLoadException` type.
+- [x] `Identity.API/Extensions/OpenIddictServerExtensions.cs` — `AddDevelopmentSigningCertificate()` / `AddDevelopmentEncryptionCertificate()` wrapped in `if (env.IsDevelopment())`.
+- [x] Integration test: `BuildingBlocks.Dev.Tests/ProductionEnvThrowsTests` — fake `IWebHostEnvironment` with `IsDevelopment() == false` + `JWT_SECRET=foo` → throws `ProductionJwtKeyLoadException`.
+- [ ] Integration test: `Identity.API.Tests/OpenIddictServerEnvGateTests` — `IsDevelopment() == false` + no config paths → throws `OpenIddictCertificateLoadException`. **Deferred to Phase 2**: this test references `OpenIddictCertificateLoadException` (introduced by the OpenIddict production cert loader), so it lives next to that exception's first appearance rather than Phase 1.
 
 **Exit criteria**: `docker-compose up -d --build` with `ASPNETCORE_ENVIRONMENT=Production` and `JWT_SECRET=foo` in the override causes the Identity + every downstream service to exit with the `ProductionJwtKeyLoadException` message logged; with `ASPNETCORE_ENVIRONMENT=Development` (the current default) the stack still boots and the dev HS256 tokens are accepted.
 
@@ -504,6 +504,17 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 ---
 
 ## Changelog
+
+### v2.2 (2026-07-30) — Phase 1 shipped
+- **MINOR bump**: Phase 1 is implemented. Status table shows ✅; deliverables ticked.
+- **`BuildingBlocks.Dev/Dev/ProductionJwtKeyLoadException.cs`** (new) — sealed `InvalidOperationException` derivative thrown when `JWT_SECRET` is set in a non-Development environment.
+- **`BuildingBlocks.Dev/Dev/DevJwtEnvironment.cs`** (new) — `IsDevJwtAllowed(env, config)` (the dev path predicate) + `IsProductionWithLeakedJwtSecret(env, config)` (the production guard predicate).
+- **`BuildingBlocks.Dev/DevJwtBearerFallbackExtensions.cs`** — new required signature `AddJwtAuthenticationWithDevFallback(this IServiceCollection, IWebHostEnvironment, IConfiguration, string authority, string audience)`. Production guard runs before any `AddJwtBearer`. The dev HS256 fallback registers only when `IsDevJwtAllowed` returns true. **Deviation from §6.1**: the spec suggested passing `IWebHostEnvironment` via `IServiceProvider`; the implementation takes it as an explicit required parameter on the extension (avoiding the `BuildServiceProvider()` anti-pattern). All 5 service-host callers updated.
+- **`Identity.API/Extensions/OpenIddictServerExtensions.cs`** — signature changed from `(IServiceCollection, IConfiguration)` to `(IServiceCollection, IConfiguration, IWebHostEnvironment)`. The dev signing/encryption cert calls wrap in `if (environment.IsDevelopment())`. **Interim state**: until Phase 2 introduces the PEM/PFX production branch, a non-Development host runs OpenIddict without certs (it will fail to issue tokens); acceptable because today's bug is the unconditional dev-cert registration, not the missing production branch.
+- **`Identity.API/Program.cs`** + **`Services/Ordering/Ordering.API/DependencyInjection.cs`** + **`Services/Ordering/Ordering.API/Program.cs`** — caller updates to pass `IWebHostEnvironment` through.
+- **`BuildingBlocks.Dev.Tests/ProductionEnvThrowsTests.cs`** (new) — 8 tests covering the 4×2 env/secret matrix. Asserts `ProductionJwtKeyLoadException` shape (env name + config key in message) on the production-with-secret cells; no-throw on the other two. Helper-level tests cover the matrix at `DevJwtEnvironment` directly.
+- **Test counts**: 17/17 `BuildingBlocks.Dev.Tests` pass; 94/94 `Identity.API.Tests` regression-clean.
+- **`OpenIddictServerEnvGateTests`** — deferred to Phase 2; the test scenario requires `OpenIddictCertificateLoadException`, which is a Phase 2 deliverable.
 
 ### v2.1 (2026-07-30) — plan review reconciliation
 - **§0.1**: Replaced Claude-specific `.claude/skills/csharp-developer` skill mandate with `AGENTS.md` conventions reference (tool-agnostic).

@@ -1,7 +1,10 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BuildingBlocks.Dev;
@@ -30,15 +33,19 @@ namespace BuildingBlocks.Dev;
 /// JWKS path). The default authenticate / challenge scheme is the
 /// policy scheme, so the <c>PermissionPolicyProvider</c> still gates
 /// correctly.</para>
-/// <para><b>Caller responsibility:</b> this extension throws
-/// <see cref="InvalidOperationException"/> at registration time when
-/// <c>JWT_SECRET</c> is not set. The HS256 scheme uses a single
-/// symmetric key from <see cref="JwtSecretEnvVar"/> — shipping that
-/// to production would expose the same signing material that issues
-/// tokens, which is the opposite of what the OpenIddict RS256 path
-/// gives us. Wire this extension only in dev / local environments,
-/// alongside <c>if (app.Environment.IsDevelopment())</c> gates for
-/// any dev-only routes.</para>
+/// <para><b>Environment gating:</b> the dev HS256 fallback registers
+/// only when <see cref="DevJwtEnvironment.IsDevJwtAllowed"/> returns
+/// true (Development environment + a non-empty <c>JWT_SECRET</c>).
+/// When <c>JWT_SECRET</c> is set in a non-Development environment —
+/// a leak that turns every dev token into a forgeable production
+/// admin token — the extension throws
+/// <see cref="ProductionJwtKeyLoadException"/> at registration time
+/// so the host refuses to start rather than silently degrading.</para>
+/// <para><b>Caller responsibility:</b> always pass the host's
+/// <see cref="IWebHostEnvironment"/> and <see cref="IConfiguration"/>;
+/// the production guard reads them to decide the registration shape.
+/// The OpenIddict scheme is registered unconditionally; the HS256
+/// fallback is the gated layer.</para>
 /// </remarks>
 public static class DevJwtBearerFallbackExtensions
 {
@@ -88,6 +95,19 @@ public static class DevJwtBearerFallbackExtensions
     /// tokens.
     /// </summary>
     /// <param name="services">The service collection.</param>
+    /// <param name="environment">
+    /// The host's <see cref="IWebHostEnvironment"/>. Drives the
+    /// dev-vs-production gate; <see cref="IHostEnvironment.IsDevelopment"/>
+    /// returns <c>true</c> only when
+    /// <c>ASPNETCORE_ENVIRONMENT=Development</c>.
+    /// </param>
+    /// <param name="configuration">
+    /// The host's <see cref="IConfiguration"/>. The extension reads
+    /// <c>JWT_SECRET</c> from this so a leaked env var cannot bypass
+    /// the production guard; .NET's default configuration providers
+    /// pick up env vars automatically, which keeps the
+    /// <c>Orderly.DevMCP.Server</c> env-var contract intact.
+    /// </param>
     /// <param name="authority">
     /// Production OpenIddict metadata URL. Same value as the
     /// non-fallback extension.
@@ -95,27 +115,51 @@ public static class DevJwtBearerFallbackExtensions
     /// <param name="audience">
     /// Production audience. Same value as the non-fallback extension.
     /// </param>
+    /// <exception cref="ProductionJwtKeyLoadException">
+    /// Thrown when <c>JWT_SECRET</c> is set in a non-Development
+    /// environment. The exception is the fail-closed signal: the host
+    /// refuses to start rather than registering a forgeable HS256
+    /// scheme.
+    /// </exception>
     /// <remarks>
-    /// When <c>JWT_SECRET</c> is unset (typical for tests, or for a
-    /// dev Compose stack that hasn't enabled the MCP server), the
-    /// extension silently degrades to a single OpenIddict scheme —
-    /// the same shape as <c>AddJwtAuthentication</c>. This makes it
-    /// safe to call from any environment; the dev fallback simply
-    /// opts in when the env var is present.
+    /// Behaviour matrix:
+    /// <list type="table">
+    /// <listheader><term>Environment</term><description><c>JWT_SECRET</c></description><description>Result</description></listheader>
+    /// <item><term>Development</term><description>set</description><description>OpenIddict + HS256 fallback (today)</description></item>
+    /// <item><term>Development</term><description>unset</description><description>OpenIddict only (silent no-op, today)</description></item>
+    /// <item><term>Staging / Production</term><description>set</description><description><see cref="ProductionJwtKeyLoadException"/> — host refuses to start</description></item>
+    /// <item><term>Staging / Production</term><description>unset</description><description>OpenIddict only (today)</description></item>
+    /// </list>
     /// </remarks>
     public static IServiceCollection AddJwtAuthenticationWithDevFallback(
         this IServiceCollection services,
+        IWebHostEnvironment environment,
+        IConfiguration configuration,
         string authority,
         string audience)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(authority);
         ArgumentException.ThrowIfNullOrWhiteSpace(audience);
 
-        var secret = Environment.GetEnvironmentVariable(JwtSecretEnvVar);
+        // Production guard: fail closed if a leaked JWT_SECRET would
+        // otherwise register a forgeable HS256 scheme. The check
+        // belongs before any AddJwtBearer so the OpenIddict JWKS
+        // scheme is also unreachable in that posture.
+        if (DevJwtEnvironment.IsProductionWithLeakedJwtSecret(environment, configuration))
+        {
+            throw new ProductionJwtKeyLoadException(
+                $"JWT_SECRET is set in environment '{environment.EnvironmentName}'; " +
+                "the dev HS256 fallback is forbidden outside Development. " +
+                "Unset the env var or run with ASPNETCORE_ENVIRONMENT=Development.");
+        }
+
+        var secret = configuration[JwtSecretEnvVar];
 
         // OpenIddict / production JWKS scheme — same shape as the
-        // non-fallback extension's AddJwtBearer.
+        // non-fallback extension's AddJwtBearer. Always registered.
         var authBuilder = services.AddAuthentication(options =>
         {
             options.DefaultScheme = PolicyScheme;
@@ -134,7 +178,7 @@ public static class DevJwtBearerFallbackExtensions
             };
         });
 
-        if (!string.IsNullOrEmpty(secret))
+        if (DevJwtEnvironment.IsDevJwtAllowed(environment, configuration))
         {
             // Dev-only HS256 fallback scheme. Signing key is read
             // once at registration from JWT_SECRET; rotation requires
@@ -149,7 +193,7 @@ public static class DevJwtBearerFallbackExtensions
                     ValidateAudience = true,
                     ValidAudience = audience,
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret!)),
                     ValidateLifetime = true,
                     ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                     NameClaimType = "name",

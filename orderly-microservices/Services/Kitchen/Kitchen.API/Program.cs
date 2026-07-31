@@ -14,6 +14,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddJwtAuthenticationWithDevFallback(
+    builder.Environment,
+    builder.Configuration,
     authority: builder.Configuration.GetValue<string>("IdentityServiceUrl") ?? "https://localhost:5057",
     audience: "OrderlyMicroservices");
 

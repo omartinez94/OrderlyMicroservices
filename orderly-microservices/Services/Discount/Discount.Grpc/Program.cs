@@ -1,4 +1,3 @@
-using BuildingBlocks.Authorization;
 using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
@@ -6,7 +5,6 @@ using BuildingBlocks.Multitenancy;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Discount.Grpc.Health;
-using Discount.Grpc.Messaging;
 using Discount.Grpc.Messaging.Outbox;
 using Discount.Grpc.Options;
 using Discount.Grpc.Services;
@@ -23,6 +21,8 @@ var builder = WebApplication.CreateBuilder(args);
 // JWT bearer against Identity authority; per-method permission policies evaluated
 // by DiscountAuthorizationInterceptor (gRPC's [Authorize(Policy=...)] is silently ignored).
 builder.Services.AddJwtAuthenticationWithDevFallback(
+    builder.Environment,
+    builder.Configuration,
     authority: builder.Configuration["Jwt:Authority"] ?? "https://localhost:5057",
     audience: builder.Configuration["Jwt:Audience"] ?? "OrderlyMicroservices");
 builder.Services.AddDiscountPolicies();

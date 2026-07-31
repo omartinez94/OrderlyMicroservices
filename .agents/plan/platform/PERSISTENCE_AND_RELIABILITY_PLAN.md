@@ -6,17 +6,16 @@
 
 ## Status
 
-> **Plan version**: `v3.0` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Plan version**: `v3.1` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
 > **Current state**: ⏸ Not started
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Discount SQLite → PostgreSQL migration | ⏸ Pending |
-| 2 | Migration reliability + Docker HEALTHCHECK + compose environment posture | 🔒 Blocked (by Phase 1) |
+| 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | 🔒 Blocked (by Phase 1) |
 | 3 | Kitchen outbox wiring + duplicate-event fix | 🔒 Blocked (by Phase 1) |
 | 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) |
 | 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | 🔒 Blocked (by Phase 4) |
-| 6 | Boot-time regression fixes (Catalog Hangfire + Kitchen broker override + Ordering ready-wait) | 🔒 Blocked (by Phase 2) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -86,7 +85,7 @@ Reference plans: `.agents/plan/discount/DISCOUNT_SERVICE_PLAN.md` (Outbox + disp
 
 ## 2. Goal
 
-By the end of Phase 5:
+By the end of Phase 5 (all core phases complete):
 
 1. Discount is backed by PostgreSQL with a `discountdb` container and a persistent volume. A `docker-compose restart` of `discount.grpc` preserves every row.
 2. Migrations are awaited at startup (or run in a retrying `IHostedService`); every relational service has `EnableRetryOnFailure`.
@@ -94,16 +93,20 @@ By the end of Phase 5:
 4. Every service emits OpenTelemetry traces + metrics + structured logs; the OTEL collector in compose receives them; a single user request through 3 services materialises as a connected trace.
 5. Every service emits `/openapi/v1.json`; Ordering has separate `/live` + `/ready` endpoints; every Dockerfile has a `HEALTHCHECK` directive.
 6. `ASPNETCORE_ENVIRONMENT` defaults to `Production` in `docker-compose.yml`; `docker-compose.override.dev.yml` overrides to `Development` for the dev defaults.
+7. All services boot cleanly without Hangfire startup race conditions, missing RabbitMQ broker environment settings, or database cold-start connection timeouts.
 
 Concrete deliverables:
 
 - `Discount.Grpc.csproj` swaps `Microsoft.EntityFrameworkCore.Sqlite` → `Microsoft.EntityFrameworkCore.PostgreSQL`; migrations are rewritten for PG semantics (e.g. `FOR UPDATE SKIP LOCKED` in `DiscountOutboxDispatcher`).
 - `docker-compose.yml` declares the `discountdb` Postgres service + `discount-data` named volume; `docker-compose.override.dev.yml` ships the dev defaults (existing override is renamed).
 - `BuildingBlocks.Observability.AddOrderlyOpenTelemetry(IServiceCollection)` extension; restored `ServiceDefaults` + `AppHost` `.csproj` files; `Program.cs` in each service calls the extension.
-- `Kitchen.API/Application/KitchenTickets/Commands/{AcceptOrder,BumpOrder,CancelOrder,MarkOrderReady,StartItemPrep}Handler.cs` — swap `IPublishEndpoint` for `IOutboxPublisher`.
+- `Kitchen.API/Application/KitchenTickets/Commands/{AcceptOrder/AcceptOrderHandler,BumpOrder/BumpOrderHandler,CancelOrder/CancelOrderHandler,MarkOrderReady/MarkOrderReadyHandler,StartItemPrep/StartItemPrepHandler}.cs` — swap `IPublishEndpoint` for `IOutboxPublisher`.
 - `Kitchen.API/Messaging/EventHandlers/OrderCreatedIntegrationEventHandler.cs` — wrap `repository.AddAsync` in `try/catch(DbUpdateException)`.
 - `Ordering.API/Program.cs` — replace `UseHealthChecks("/health")` (currently in `DependencyInjection.cs`) with `MapHealthChecks("/live")` + `MapHealthChecks("/ready", new HealthCheckOptions { Predicate = c => c.Tags.Contains("ready") })`.
 - Every service's `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:8080/ready || exit 1`. **Note:** the final Docker image stage must include `curl` (Alpine: `apk add --no-cache curl`; Debian: `apt-get install -y --no-install-recommends curl`). Alternatively, use `wget -qO- http://localhost:8080/ready || exit 1` which is available in Alpine by default.
+- `Catalog.API/Program.cs` registers job execution via Hangfire's `IRecurringJobManager` to prevent global initialization race conditions.
+- `BuildingBlocks.Messaging/MassTransit/Extensions.cs` checks for required host connection settings and throws `BrokerConfigurationException` if missing.
+- `docker-compose.yml` and `docker-compose.override.dev.yml` use upgraded `depends_on: condition: service_healthy` configurations for all dependency-reliant services.
 
 ---
 
@@ -163,6 +166,11 @@ orderly-microservices/
 │   │   └── BuildingBlocks.Observability.csproj (new)
 │   └── Persistence/                         (NEW — shared DbContext migrator)
 │       └── MigratorHostedService.cs         (new)
+├── BuildingBlocks.Messaging/                (modified)
+│   ├── MassTransit/
+│   │   └── Extensions.cs                    (modified — throw BrokerConfigurationException)
+│   └── Exceptions/
+│       └── BrokerConfigurationException.cs  (new Exception type)
 ├── Services/
 │   ├── Discount/Discount.Grpc/
 │   │   ├── Discount.Grpc.csproj             (modified — Npgsql package)
@@ -186,10 +194,14 @@ orderly-microservices/
 │   │   ├── Application/KitchenTickets/Commands/{AcceptOrder/AcceptOrderHandler,BumpOrder/BumpOrderHandler,CancelOrder/CancelOrderHandler,MarkOrderReady/MarkOrderReadyHandler,StartItemPrep/StartItemPrepHandler}.cs (modified — IOutboxPublisher)
 │   │   ├── Application/EventHandlers/Integration/
 │   │   │   └── OrderCreatedIntegrationEventHandler.cs (modified — try/catch DbUpdateException)
-│   │   └── Program.cs                       (modified — AddOrderlyOpenTelemetry)
+│   │   ├── Program.cs                       (modified — AddOrderlyOpenTelemetry)
+│   │   └── appsettings.json                 (modified — default dev MessageBroker config)
 │   ├── Catalog/Catalog.API/
-│   │   ├── Program.cs                       (modified — AddOrderlyOpenTelemetry, retrying migration hosted service)
+│   │   ├── Program.cs                       (modified — AddOrderlyOpenTelemetry, retrying Hangfire registration, retrying migration hosted service)
 │   │   └── Dockerfile                       (modified — HEALTHCHECK)
+│   ├── Catalog/Catalog.API.Tests/
+│   │   └── Integration/
+│   │       └── CatalogHangfireBootTests.cs  (new integration test)
 │   ├── Ordering/Ordering.API/
 │   │   ├── Program.cs                       (modified — AddOrderlyOpenTelemetry, /live + /ready split, AddOpenApi)
 │   │   └── Dockerfile                       (modified — HEALTHCHECK)
@@ -396,11 +408,10 @@ No protocol changes; no new integration events.
 | Phase | Name | Service / module touched | Goal |
 |:---:|---|---|---|
 | **1** | Discount SQLite → PostgreSQL migration | `Discount.Grpc`, `docker-compose.yml` | Discount data survives container restart; outbox uses `FOR UPDATE SKIP LOCKED` |
-| **2** | Migration reliability + compose posture + Docker HEALTHCHECK | `BuildingBlocks.Persistence`, `Catalog.API`, `Ordering.API`, `Identity.API`, every `Dockerfile`, `docker-compose*.yml` | Migrations awaited + retrying; every service has `HEALTHCHECK`; compose splits into prod + dev |
+| **2** | Migration reliability + boot-time regression fixes + compose posture + Docker HEALTHCHECK | `BuildingBlocks.Persistence`, `Catalog.API`, `Ordering.API`, `Identity.API`, `BuildingBlocks.Messaging`, `Kitchen.API`, every `Dockerfile`, `docker-compose*.yml` | Migrations awaited + retrying; Hangfire resolved safely; broker settings/exceptions handled; every service has `HEALTHCHECK`; compose splits with dependency condition checks |
 | **3** | Kitchen outbox wiring + duplicate-event fix | `Kitchen.API/Application/KitchenTickets/Commands/*`, `Kitchen.API/Messaging/EventHandlers/OrderCreatedIntegrationEventHandler.cs` | Every Kitchen integration event published via outbox; duplicate events are no-ops |
 | **4** | OpenTelemetry across all services + OTEL collector | `BuildingBlocks.Observability` (new), `ServiceDefaults` + `AppHost` (restored), every service `Program.cs`, `docker-compose.yml` | Distributed traces end-to-end; OTEL collector receives them |
 | **5** | OpenAPI per service + `/live`+`/ready` split in Ordering | every service `Program.cs`, `Ordering.API/Endpoints/*` | Every service exposes `/openapi/v1.json`; Ordering has separate liveness/readiness |
-| **6** | Boot-time regression fixes (Catalog Hangfire + Kitchen broker override + Ordering ready-wait) | `Catalog.API/Program.cs`, `docker-compose.override.yml` (Kitchen block), `docker-compose.yml` (orderdb healthcheck) | The three services that exited 139 today boot cleanly: Catalog via DI-based Hangfire API; Kitchen via MessageBroker env vars; Ordering via `condition: service_healthy` on `orderdb` |
 
 ---
 
@@ -431,9 +442,9 @@ No protocol changes; no new integration events.
 
 ---
 
-### Phase 2 — Migration reliability + compose posture
+### Phase 2 — Migration reliability + boot-time regression fixes + compose posture
 
-**Goal**: every relational service awaits migration (or retries via `IHostedService`); every Dockerfile has `HEALTHCHECK`; `docker-compose.yml` splits into prod + dev.
+**Goal**: every relational service awaits migration (or retries via `IHostedService`); every Dockerfile has `HEALTHCHECK`; Hangfire resolved safely; broker settings/exceptions handled; `docker-compose.yml` splits into prod + dev with upgraded `depends_on: condition: service_healthy` configurations.
 
 **Status**: ⏸ Pending
 
@@ -442,15 +453,27 @@ No protocol changes; no new integration events.
 - [ ] `Catalog.API`, `Ordering.API`, `Identity.API`, `Kitchen.API`, `Discount.Grpc` — register `MigratorHostedService<TContext>()` instead of inline `MigrateAsync()`. `MigratorHostedService` includes a configurable `MigrationTimeoutSeconds` (default: 120).
 - [ ] `Catalog.API/Program.cs`, `Ordering.Infrastructure/DependencyInjection.cs`, `Identity.API/Program.cs` — `EnableRetryOnFailure(5, 10s)`.
 - [ ] Every `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1` (Basket + ApiGateway ports adjusted to their actual exposed ports). Final image stage must include `curl` (or use `wget -qO-` alternative for Alpine images).
-- [ ] `docker-compose.yml` — every `depends_on` uses `condition: service_healthy`; every backing-store container has a `healthcheck:` block. **`orderdb` (MSSQL) healthcheck uses `sqlcmd` against `SELECT 1` with `start_period: 30s` to cover MSSQL's 60–90s cold-init window.**
-- [ ] `docker-compose.override.yml` — `kitchen.api` environment block gains `MessageBroker__Host=amqp://messagebroker:5672`, `MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}`, `MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}`. (Boot-time regression 2026-07-30: Kitchen crashed at startup with `ArgumentNullException` because Kitchen's `appsettings.json` has no `MessageBroker` section AND the override didn't set those env vars. Basket + Ordering blocks set them; Kitchen block was missed.)
-- [ ] `docker-compose.override.yml` → renamed `docker-compose.override.dev.yml`; carries `ASPNETCORE_ENVIRONMENT=Development`, dev passwords.
+- [ ] `Catalog.API/Program.cs:198-216` — replace static `RecurringJob.AddOrUpdate<T>(...)` calls with generic calls on `IRecurringJobManager` resolved from DI (`app.Services.GetRequiredService<IRecurringJobManager>()`). Affected jobs: `ReservationReminderJob`, `ReservationNoShowJob`, `WalkInNoShowJob`, `SeasonalAvailabilityJob`.
+- [ ] `Catalog.API.Tests` — `CatalogHangfireBootTests` integration test that boots the real `Program.cs` pipeline (with Testcontainers Postgres) and asserts that the boot completes without `InvalidOperationException`.
+- [ ] `BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs` (new file) — declare `public sealed class BrokerConfigurationException : Exception` under the `BuildingBlocks.Messaging.Exceptions` namespace.
+- [ ] `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` — defensively validate presence of `MessageBroker:Host`, `MessageBroker:UserName`, and `MessageBroker:Password` configs. Throw `BrokerConfigurationException` instead of running `new Uri(null!)`.
+- [ ] `Kitchen.API/appsettings.json` — add default `MessageBroker` section containing dev-friendly localhost fallback settings.
+- [ ] `docker-compose.override.yml` → renamed `docker-compose.override.dev.yml`; carries `ASPNETCORE_ENVIRONMENT=Development`, dev defaults, and passwords.
+- [ ] `docker-compose.override.dev.yml` — `kitchen.api` environment block gains three lines:
+    ```yaml
+    - MessageBroker__Host=amqp://messagebroker:5672
+    - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
+    - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
+    ```
+- [ ] `docker-compose.yml` and `docker-compose.override.dev.yml` — every service's `depends_on:` is upgraded to use the `condition: service_healthy` form. This wires services to wait on their databases and broker (e.g. `ordering.api` -> `orderdb` and `messagebroker`).
+- [ ] `docker-compose.yml` — every backing-store container has a `healthcheck:` block. **`orderdb` (MSSQL) healthcheck uses `sqlcmd` against `SELECT 1` with `start_period: 30s` to cover MSSQL's 60–90s cold-init window.**
 - [ ] `docker-compose.dcproj` — update `<DockerComposeProjectFiles>` to set `docker-compose.yml;docker-compose.override.dev.yml` to preserve Visual Studio container debugging.
 - [ ] `docker-compose.yml` — `ASPNETCORE_ENVIRONMENT` defaults to `${ASPNETCORE_ENVIRONMENT:-Production}`.
 - [ ] Root `.gitignore` (updated — file exists at repo root but needs additional entries) — ensure coverage of `*.sqlite`, `*.db`, `*.pfx`, `.env`, `appsettings.Local.json`. Existing entries for `bin/`, `obj/`, `.vs/`, `*.user` are already present.
+- [ ] Lint check (CI script or local): `grep -L 'MessageBroker__Host' docker-compose.override.dev.yml` returns no service blocks to verify dev broker overrides.
 - [ ] README updated: `docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build` is the dev command; production uses just `docker-compose.yml`.
 
-**Exit criteria**: `docker-compose -f docker-compose.yml up -d --build` (without dev override) boots cleanly with `ASPNETCORE_ENVIRONMENT=Production`; rolling-restart of any service during a Postgres failover does not crash-loop (the `MigratorHostedService` retries); `curl http://localhost:8080/ready` returns 200 within 30s of container start; `kitchen.api` boots without `ArgumentNullException` from MassTransit bus creation.
+**Exit criteria**: `docker-compose -f docker-compose.yml up -d --build` (without dev override) boots cleanly with `ASPNETCORE_ENVIRONMENT=Production` without exiting 139 or throwing startup exceptions; rolling-restart of any service during a Postgres failover does not crash-loop; `curl http://localhost:8080/ready` returns 200 within 30s of container start; `kitchen.api` boots cleanly without broker configuration exceptions; `catalog.api` recurring Hangfire jobs register successfully without `InvalidOperationException`.
 
 ---
 
@@ -508,31 +531,6 @@ No protocol changes; no new integration events.
 
 **Exit criteria**: `curl http://localhost:8080/openapi/v1.json` returns a valid OpenAPI 3.0 doc with every endpoint documented; `curl http://localhost:8080/live` returns 200 unconditionally; `curl http://localhost:8080/ready` returns 503 when broker is down.
 
----
-
-### Phase 6 — Boot-time regression fixes (Catalog Hangfire + Kitchen broker override + Ordering ready-wait)
-
-**Goal**: the three services that exited `139` on 2026-07-30 (`catalog.api`, `ordering.api`, `kitchen.api`) boot cleanly via a single end-to-end `docker-compose up -d --build`. Phase 2 already covers the structural fixes (`depends_on: condition: service_healthy`, compose posture split, `MigratorHostedService`); Phase 6 covers the per-service code bugs and missing-override env vars that Phase 2 doesn't address.
-
-**Status**: ⏸ Pending
-
-**Deliverables**:
-
-- [ ] `Catalog.API/Program.cs:198-216` — replace `RecurringJob.AddOrUpdate<T>("id", job => job.RunAsync(...), cron)` with `IRecurringJobManager.AddOrUpdate<T>("id", job => job.RunAsync(...), cron)`. Inject `IRecurringJobManager` into the registration scope (constructor-injected or resolved via `app.Services.GetRequiredService<IRecurringJobManager>()`). The 4 jobs affected: `ReservationReminderJob`, `ReservationNoShowJob`, `WalkInNoShowJob`, `SeasonalAvailabilityJob`. The `CatalogScheduledJobs` feature-flag gate stays.
-- [ ] `Catalog.API.Tests` — `CatalogHangfireBootTests` integration test that boots the real `Program.cs` pipeline (with Testcontainers Postgres) and asserts that the boot completes without `InvalidOperationException`. Today no test covers this path — every test uses `RecurringJob` mocking.
-- [ ] `docker-compose.override.yml` — `kitchen.api` `environment:` block gains three lines:
-    ```yaml
-    - MessageBroker__Host=amqp://messagebroker:5672
-    - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
-    - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
-    ```
-    (Same shape as `basket.api` lines 112-114 and `ordering.api` lines 184-186. The omission is a copy-paste miss from when the override was last hand-edited.)
-- [ ] `docker-compose.override.yml` — every service's `depends_on:` is upgraded to use the `condition: service_healthy` form. Phase 2 already adds the `healthcheck:` blocks; Phase 6 closes the loop by wiring each service to wait on its dependencies. (Specifically: `ordering.api` → `orderdb: condition: service_healthy`; `catalog.api` → `catalogdb: condition: service_healthy`; `kitchen.api` → `kitchendb: condition: service_healthy`.)
-- [ ] `Kitchen.API/appsettings.json` — add `MessageBroker: { Host: "amqp://localhost:5672", UserName: "guest", Password: "guest" }` so the service is bootable without compose overrides (the dev-friendly default).
-- [ ] `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` — defensively throw a `BrokerConfigurationException` (new sealed type) instead of `new Uri(null)` when `MessageBroker:Host` is missing. Currently the failure surfaces as `ArgumentNullException` with no diagnostic; the named exception makes the cause obvious in logs.
-- [ ] Lint check (CI script or local): `grep -L 'MessageBroker__Host' docker-compose.override.yml` returns no service blocks. Catches future regressions where a new service is added without the broker override.
-
-**Exit criteria**: `docker-compose up -d --build` boots all 5 core services (`catalog.api`, `ordering.api`, `kitchen.api`, `basket.api`, `discount.grpc`) without exiting 139 within 5 minutes of startup. `docker ps -a` shows all five with status `Up`. `curl http://localhost:6003/catalog-api/health` returns 200; `curl http://localhost:6005/ordering-api/health` returns 200; `curl http://localhost:6006/kitchen-api/health` returns 200.
 
 ---
 
@@ -548,17 +546,12 @@ No protocol changes; no new integration events.
 - **`MigratorHostedService` must NOT run when no DbContext exists** — `[P2 ✅]` the generic constraint `where TDbContext : DbContext` catches that at compile time; a missing registration falls back to "no migration, just boot" (dev-friendly behaviour).
 - **Discount SQLite → Postgres data preservation is intentionally absent** — `[P1 ✅]` aligns with the seed-gate change in `TRUST_ROOT_HARDENING_PLAN.md` Phase 2 (SuperAdmin is dev-only; production starts on an empty table).
 - **Boot-time regressions surfaced 2026-07-30 (same day as plan authoring)** — three services exited `139` on a clean `docker-compose up -d --build`:
-    - `catalog.api` — `Catalog.API/Program.cs:198` uses the static `RecurringJob.AddOrUpdate<T>(...)` API which requires `JobStorage.Current` to be set globally; the DI registration at `Program.cs:103-114` is correct, but the static call throws `InvalidOperationException: Current JobStorage instance has not been initialized yet` before the first Hangfire tick. Fix in Phase 6.
-    - `ordering.api` — `MigrateWithRetryAsync` exhausts retries against `orderdb` because `docker-compose.override.yml` declares `depends_on: orderdb` without `condition: service_healthy`, and `orderdb` (MSSQL) needs 60–90s to finish cold-init. Fix in Phase 2 (`healthcheck:` block) + Phase 6 (`condition: service_healthy` upgrade).
-    - `kitchen.api` — `System.ArgumentNullException: Value cannot be null. (Parameter 'uriString')` at `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` because Kitchen's `appsettings.json` has no `MessageBroker` section AND `docker-compose.override.yml` `kitchen.api` block was missing `MessageBroker__Host/UserName/Password` (compare `basket.api` lines 112-114 which set them). Fix in Phase 6.
-- **The `libgssapi_krb5.so.2` warning in Kitchen's logs is informational** — `[P6 ✅]` RabbitMQ.Client emits this on Linux whenever SASL GSSAPI is unavailable; it's harmless when not using Kerberos auth. The actual fatal is the `ArgumentNullException` immediately after.
+    - `catalog.api` — `Catalog.API/Program.cs:198` uses the static `RecurringJob.AddOrUpdate<T>(...)` API which requires `JobStorage.Current` to be set globally; the DI registration at `Program.cs:103-114` is correct, but the static call throws `InvalidOperationException: Current JobStorage instance has not been initialized yet` before the first Hangfire tick. Fix in Phase 2.
+    - `ordering.api` — `MigrateWithRetryAsync` exhausts retries against `orderdb` because `docker-compose.override.dev.yml` declares `depends_on: orderdb` without `condition: service_healthy`, and `orderdb` (MSSQL) needs 60–90s to finish cold-init. Fix in Phase 2.
+    - `kitchen.api` — `System.ArgumentNullException: Value cannot be null. (Parameter 'uriString')` at `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` because Kitchen's `appsettings.json` has no `MessageBroker` section AND `docker-compose.override.dev.yml` `kitchen.api` block was missing `MessageBroker__Host/UserName/Password` (compare `basket.api` lines 112-114 which set them). Fix in Phase 2.
+- **The `libgssapi_krb5.so.2` warning in Kitchen's logs is informational** — `[P2 ✅]` RabbitMQ.Client emits this on Linux whenever SASL GSSAPI is unavailable; it's harmless when not using Kerberos auth. The actual fatal is the `ArgumentNullException` immediately after.
 
-### 10.7 Phase 6 — Boot-time regression fixes
 
-- **Catalog's static Hangfire API must be replaced before Phase 2 lands** — `[P6 ✅]` Phase 2 introduces `MigratorHostedService` retry semantics; if Phase 6 is delayed past Phase 2, ordering.api will still pass (it has its own retry), but catalog.api will continue to crash with the Hangfire exception. Independent code path.
-- **Kitchen's broker override is a copy-paste miss, not a config-design bug** — `[P6 ✅]` the basket + ordering blocks set `MessageBroker__Host/UserName/Password`; the kitchen block was missed. The Phase 6 lint check (`grep -L 'MessageBroker__Host'`) catches future regressions when a new service is added.
-- **`BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` should throw a named exception** — `[P6 ✅]` today's `new Uri(null)` failure surfaces as `ArgumentNullException` with no diagnostic about which config key is missing. `BrokerConfigurationException` makes the root cause obvious: "MessageBroker:Host configuration is required." Same exception type also catches `MassTransit:Host`, `MassTransit:UserName`, `MassTransit:Password` individually.
-- **Ordering's `appsettings.json` connection string is intentionally `localhost`** — `[P6 ✅]` confirmed dev-friendly default; the override sets `orderdb`. Devs running `dotnet run Ordering.API` natively need the `localhost` value. The Phase 6 deliverable does NOT change `appsettings.json`; only the override.
 
 ### 10.2 Phase 1 — Discount SQLite → PostgreSQL
 
@@ -571,6 +564,10 @@ No protocol changes; no new integration events.
 - **`EnableRetryOnFailure` is incompatible with user-initiated transactions** — `[P2 ✅]` the retry strategy wraps the implicit EF Core transaction only; explicit `BeginTransactionAsync` calls (e.g. in the outbox dispatcher) are excluded. Documented in code comments.
 - **`docker-compose.override.dev.yml` must NOT be committed with default passwords in production-shape branches** — `[P2 ✅]` the file carries `ASPNETCORE_ENVIRONMENT=Development` + dev defaults; production deploys use `docker-compose.yml` alone. CI lint asserts the override file is not referenced by any production-pipeline workflow.
 - **Root `.gitignore` is a cross-cutting hygiene item** — `[P2 ✅]` the file is mandatory; without it, `git add -A` in a dev workstation can leak `appsettings.Local.json` + `.pfx` files. Same item is referenced in the platform audit (P0 #12) and `TRUST_ROOT_HARDENING_PLAN.md` §10.1.
+- **Catalog's static Hangfire API must be resolved in Phase 2** — `[P2 ✅]` Since Phase 2 introduces `MigratorHostedService` and dependency retry semantics, Catalog's startup crash would block testing and verification of Phase 2's exit criteria.
+- **Kitchen's broker override is a copy-paste miss** — `[P2 ✅]` the basket + ordering blocks set `MessageBroker__Host/UserName/Password`; the kitchen block was missed. The Phase 2 lint check (`grep -L 'MessageBroker__Host' docker-compose.override.dev.yml`) catches future regressions when a new service is added.
+- **`BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` should throw a named exception** — `[P2 ✅]` today's `new Uri(null)` failure surfaces as `ArgumentNullException` with no diagnostic about which config key is missing. `BrokerConfigurationException` makes the root cause obvious.
+- **Ordering's `appsettings.json` connection string is intentionally `localhost`** — `[P2 ✅]` confirmed dev-friendly default; the override sets `orderdb`. Devs running `dotnet run Ordering.API` natively need the `localhost` value. The Phase 2 deliverable does NOT change `appsettings.json`; only the dev override.
 
 ### 10.4 Phase 3 — Kitchen outbox wiring
 
@@ -597,6 +594,23 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.1 (2026-07-30) — Merge Phase 6 into Phase 2 (dependency cycle resolution)
+- **Restructuring**: Merged Phase 6 (boot-time regression fixes) into Phase 2. This resolves the circular block where Phase 2's exit criteria (services boot cleanly, health checks pass) was blocked by the regressions fixed in Phase 6.
+- **§2 Goal**: Updated to reflect merged deliverables for Phase 2 (Hangfire, Broker overrides, `BrokerConfigurationException`, upgraded compose dependency health conditions).
+- **§5 Folder Layout**: Added `BuildingBlocks.Messaging/MassTransit/Extensions.cs`, `BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs`, `Services/Catalog/Catalog.API.Tests/Integration/CatalogHangfireBootTests.cs`, and `Services/Kitchen/Kitchen.API/appsettings.json`.
+- **References**: Fixed all remaining references of `docker-compose.override.yml` in Phase 2 / Section 10 to use `docker-compose.override.dev.yml` for file renaming consistency.
+- **Section 10**: Merged §10.7 technical considerations directly into §10.3 and updated references.
+
+### v3.0 (2026-07-30) — Phase 6 added (boot-time regression fixes)
+- **MAJOR bump**: plan restructured with a new Phase 6 for the three boot-time regressions surfaced by inspecting `docker logs` on the same day the plan was authored.
+- **Catalog**: `Program.cs:198-216` uses the static `RecurringJob.AddOrUpdate<T>(...)` API; requires `JobStorage.Current` to be set globally. The DI registration is correct, but the static call throws before the first Hangfire tick. Phase 6 fixes by injecting `IRecurringJobManager`.
+- **Ordering**: `depends_on: orderdb` lacks `condition: service_healthy`; MSSQL needs 60–90s cold-init. Phase 2 already adds the `healthcheck:` block; Phase 6 closes the loop with `condition: service_healthy`.
+- **Kitchen**: `docker-compose.override.yml` `kitchen.api` block was missing `MessageBroker__Host/UserName/Password` (Basket + Ordering blocks set them). Phase 6 adds the three lines + a `MessageBroker` section in `Kitchen.API/appsettings.json` for native-dev parity + a named `BrokerConfigurationException` in `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` to make future config omissions obvious.
+- §1 Context updated with the three regression causes.
+- Phase 2 deliverables sharpened with the explicit `orderdb` healthcheck form (`sqlcmd -S localhost -U sa -P $$SA_PASSWORD -Q 'SELECT 1' || exit 1`, `start_period: 30s`) and the Kitchen broker override line.
+- New §10.7 documents Phase 6-specific considerations.
+- Lint check (`grep -L 'MessageBroker__Host' docker-compose.override.yml`) added to Phase 6 deliverables to catch future copy-paste omissions.
 
 ### v2.1 (2026-07-30) — plan review reconciliation
 - **§0.1**: Replaced Claude-specific `.claude/skills/csharp-developer` skill mandate with `AGENTS.md` conventions reference (tool-agnostic).
@@ -625,13 +639,3 @@ No protocol changes; no new integration events.
 - Created plan with 5 phases.
 - Sections 0–9 drafted; Section 10 review notes appended.
 - Cross-references: `TRUST_ROOT_HARDENING_PLAN.md` (Phase 6 flips env defaults; Phase 2 here splits the compose file), `MULTITENANCY_ROLLOUT_PLAN.md` (no overlap).
-
-### v3.0 (2026-07-30) — Phase 6 added (boot-time regression fixes)
-- **MAJOR bump**: plan restructured with a new Phase 6 for the three boot-time regressions surfaced by inspecting `docker logs` on the same day the plan was authored.
-- **Catalog**: `Program.cs:198-216` uses the static `RecurringJob.AddOrUpdate<T>(...)` API; requires `JobStorage.Current` to be set globally. The DI registration is correct, but the static call throws before the first Hangfire tick. Phase 6 fixes by injecting `IRecurringJobManager`.
-- **Ordering**: `depends_on: orderdb` lacks `condition: service_healthy`; MSSQL needs 60–90s cold-init. Phase 2 already adds the `healthcheck:` block; Phase 6 closes the loop with `condition: service_healthy`.
-- **Kitchen**: `docker-compose.override.yml` `kitchen.api` block was missing `MessageBroker__Host/UserName/Password` (Basket + Ordering blocks set them). Phase 6 adds the three lines + a `MessageBroker` section in `Kitchen.API/appsettings.json` for native-dev parity + a named `BrokerConfigurationException` in `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` to make future config omissions obvious.
-- §1 Context updated with the three regression causes.
-- Phase 2 deliverables sharpened with the explicit `orderdb` healthcheck form (`sqlcmd -S localhost -U sa -P $$SA_PASSWORD -Q 'SELECT 1' || exit 1`, `start_period: 30s`) and the Kitchen broker override line.
-- New §10.7 documents Phase 6-specific considerations.
-- Lint check (`grep -L 'MessageBroker__Host' docker-compose.override.yml`) added to Phase 6 deliverables to catch future copy-paste omissions.

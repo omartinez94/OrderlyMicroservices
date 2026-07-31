@@ -163,6 +163,15 @@ services:
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
       - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
+      # Default OpenIddict cert paths point at the mounted /root/.aspnet/https
+      # volume. The volume is mounted writable (no :ro) so the dev signing
+      # certificate survives container restarts — see Phase 2 of
+      # TRUST_ROOT_HARDENING_PLAN.md. In a production deploy, override these
+      # with paths to real PEM/PFX files.
+      - OpenIddict__SigningCertificatePath=/root/.aspnet/https/aspnetapp.pfx
+      - OpenIddict__SigningCertificatePassword=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
+      - OpenIddict__EncryptionCertificatePath=/root/.aspnet/https/aspnetapp.pfx
+      - OpenIddict__EncryptionCertificatePassword=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
     ports:
       - "6007:8080"
       - "6067:8081"
@@ -170,7 +179,11 @@ services:
       - identitydb
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
-      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
+      # Writable (no :ro) so the dev OpenIddict signing/encryption cert
+      # persisted by AddDevelopmentSigningCertificate() survives container
+      # restarts. Without this, every restart regenerates the cert and breaks
+      # downstream JWKS caches (15-minute default rotation).
+      - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https
 
   ordering.api:
     container_name: ordering.api

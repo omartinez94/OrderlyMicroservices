@@ -52,6 +52,6 @@ app.UseHealthChecks("/health",
         ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
     });
 
-await DataSeeder.SeedDataAsync(app.Services);
+await DataSeeder.SeedDataAsync(app.Services, app.Environment);
 
 app.Run();

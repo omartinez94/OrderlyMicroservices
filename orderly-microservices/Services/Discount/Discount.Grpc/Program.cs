@@ -30,7 +30,25 @@ builder.Services.AddDiscountPolicies();
 // gRPC + dev-only reflection service. MapGrpcReflectionService is registered
 // only in Development so production doesn't leak the schema to anyone who
 // can reach the port.
-builder.Services.AddGrpc();
+//
+// The DiscountAuthorizationInterceptor is registered as a server-side
+// interceptor: gRPC's [Authorize(Policy=...)] is silently ignored (gRPC
+// services aren't routed through the MVC pipeline), so a global
+// interceptor is the project's actual enforcement mechanism. The
+// per-method permission map it consults is built at startup by
+// AddDiscountPolicies() (which reflects over DiscountService,
+// DiscountRuleService, and RewardCodeService).
+//
+// Interceptor pipeline ordering: DiscountAuthorizationInterceptor must
+// run AFTER the auth middleware (so HttpContext.User is populated) but
+// BEFORE the gRPC method body. ASP.NET Core gRPC executes interceptors
+// in registration order, and AddDiscountPolicies() registers the
+// authorization services before this AddGrpc call — so the IAuthorizationService
+// is available to the interceptor by the time UnaryServerHandler fires.
+builder.Services.AddGrpc(o =>
+{
+    o.Interceptors.Add<DiscountAuthorizationInterceptor>();
+});
 if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddGrpcReflection();

@@ -90,6 +90,19 @@ public sealed class BasketCacheLockRegistry : IBasketCacheLockRegistry, IAsyncDi
         // the linked token alone, the waiter throws
         // OperationCanceledException regardless of gate state.
         _stoppingCts.Cancel();
+
+        // Yield back to the scheduler so that pending WaitAsync callers
+        // on threadpool threads can observe the linked-CTS cancellation
+        // and throw OperationCanceledException BEFORE we dispose the
+        // semaphores underneath them. Without this yield, semaphore
+        // disposal can race ahead of the cancellation callback,
+        // leaving the WaitAsync in a state where it never completes
+        // (the internal wait handle is torn down before the
+        // cancellation fires).
+        await Task.Yield();
+
+        // Now safe to dispose the CTS — all linked tokens have already
+        // observed the cancellation signal above.
         _stoppingCts.Dispose();
 
         // Dispose every semaphore we ever created. SemaphoreSlim only
@@ -113,12 +126,6 @@ public sealed class BasketCacheLockRegistry : IBasketCacheLockRegistry, IAsyncDi
                 // Concurrent teardown — already gone.
             }
         }
-
-        // Suppress the "method might not be awaited" / "method
-        // contains no await" diagnostic on the IAsyncDisposable
-        // contract — DisposeAsync is part of the interface and IS
-        // complete at this point.
-        await Task.CompletedTask.ConfigureAwait(false);
     }
 
     /// <summary>

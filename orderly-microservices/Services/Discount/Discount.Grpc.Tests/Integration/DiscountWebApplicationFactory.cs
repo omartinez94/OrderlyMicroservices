@@ -1,3 +1,4 @@
+using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.TestHost;
 
 namespace Discount.Grpc.Tests.Integration;
@@ -81,17 +82,28 @@ public class DiscountWebApplicationFactory : WebApplicationFactory<Program>, IAs
 
         // Register the gRPC auth-bridge interceptor that closes the
         // ASP.NET Core gRPC gap on arbitrary Metadata → HttpContext.User
-        // promotion. Added here (rather than only in ConfigureTestServices)
-        // because the Interceptors collection on GrpcServiceOptions is
-        // configured at AddGrpc time. Order in the global pipeline:
-        // TestGrpcAuthInterceptor (sets HttpContext.User) runs FIRST so
-        // the existing DiscountAuthorizationInterceptor sees a populated
-        // principal when it runs AuthorizeAsync.
+        // promotion. The Interceptors collection on GrpcServiceOptions is
+        // populated by the production AddGrpc() in Program.cs, which now
+        // adds DiscountAuthorizationInterceptor at the end of the chain.
+        // We need TestGrpcAuthInterceptor (sets HttpContext.User) to run
+        // FIRST so DiscountAuthorizationInterceptor sees a populated
+        // principal when it calls AuthorizeAsync.
+        //
+        // PostConfigure<GrpcServiceOptions> runs AFTER every Configure
+        // callback (including the production AddGrpc). The `Add<T>()`
+        // extension appends, so we then move the registration to index 0
+        // — the public ctor of InterceptorRegistration isn't available
+        // in this grpc.core.api version, so we use the working
+        // `Add<T>() + RemoveAt + Insert` dance instead.
         builder.ConfigureServices(services =>
         {
-            services.AddGrpc(o =>
+            services.PostConfigure<GrpcServiceOptions>(options =>
             {
-                o.Interceptors.Add<TestGrpcAuthInterceptor>();
+                options.Interceptors.Add<TestGrpcAuthInterceptor>();
+                var lastIndex = options.Interceptors.Count - 1;
+                var last = options.Interceptors[lastIndex];
+                options.Interceptors.RemoveAt(lastIndex);
+                options.Interceptors.Insert(0, last);
             });
         });
     }

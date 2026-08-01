@@ -145,12 +145,11 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
         // The claim + dispatch + stamp cycle runs inside one explicit
         // transaction so the engine-native row lock from
         // BuildClaimSql(...) holds until SaveChangesAsync commits.
-        //
-        // Phase 2: wrapped in Database.CreateExecutionStrategy().ExecuteAsync
+        // Wrapped in Database.CreateExecutionStrategy().ExecuteAsync
         // so EnableRetryOnFailure(5, 10s) at the adopter's
         // UseNpgsql/UseSqlServer chain doesn't crash with
         // "The configured execution strategy ... does not support
-        // user-initiated transactions" (per plan §10.3). The wrapping
+        // user-initiated transactions". The wrapping
         // is a no-op for services without EnableRetryOnFailure but is
         // uniformly applied so the contract is identical across
         // adopters.

@@ -8,7 +8,7 @@ public static class Extensions
 {
     public static IServiceCollection AddMessageBroker(this IServiceCollection services, IConfiguration configuration, Assembly? assembly = null)
     {
-        // Phase 2: defensively validate every required MessageBroker
+        // Defensively validate every required MessageBroker
         // key. Previously `new Uri(configuration["MessageBroker:Host"]!)`
         // threw ArgumentNullException with no diagnostic about which key
         // was missing — operators had to guess. BrokerConfigurationException

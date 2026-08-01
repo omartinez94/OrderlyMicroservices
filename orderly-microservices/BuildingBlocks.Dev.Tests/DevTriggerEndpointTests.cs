@@ -39,36 +39,60 @@ public class DevTriggerEndpointTests
     [Fact]
     public async Task ValidateSecret_HeaderMissing_Returns401()
     {
+        var prev = Environment.GetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar);
         Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, Secret);
-        var ctx = BuildContext();
+        try
+        {
+            var ctx = BuildContext();
 
-        var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
+            var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
 
-        ok.Should().BeFalse();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+            ok.Should().BeFalse();
+            ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, prev);
+        }
     }
 
     [Fact]
     public async Task ValidateSecret_HeaderMatches_ReturnsTrue()
     {
+        var prev = Environment.GetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar);
         Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, Secret);
-        var ctx = BuildContext(secretValue: Secret);
+        try
+        {
+            var ctx = BuildContext(secretValue: Secret);
 
-        var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
+            var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
 
-        ok.Should().BeTrue();
+            ok.Should().BeTrue();
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, prev);
+        }
     }
 
     [Fact]
     public async Task ValidateSecret_HeaderMismatches_Returns401()
     {
+        var prev = Environment.GetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar);
         Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, Secret);
-        var ctx = BuildContext(secretValue: "wrong-secret-also-long-enough");
+        try
+        {
+            var ctx = BuildContext(secretValue: "wrong-secret-also-long-enough");
 
-        var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
+            var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
 
-        ok.Should().BeFalse();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+            ok.Should().BeFalse();
+            ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, prev);
+        }
     }
 
     [Fact]
@@ -77,13 +101,21 @@ public class DevTriggerEndpointTests
         // Pin the constant-time equality: a partial prefix match
         // must not produce a short-circuit success. CryptographicOperations.FixedTimeEquals
         // returns false on length mismatch, but verify behaviorally.
+        var prev = Environment.GetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar);
         Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, Secret);
-        var ctx = BuildContext(secretValue: Secret.Substring(0, 5));
+        try
+        {
+            var ctx = BuildContext(secretValue: Secret.Substring(0, 5));
 
-        var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
+            var ok = await DevTriggerEndpointExtensions.ValidateSecretAsync(ctx, CancellationToken.None);
 
-        ok.Should().BeFalse();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+            ok.Should().BeFalse();
+            ctx.Response.StatusCode.Should().Be(StatusCodes.Status401Unauthorized);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(DevTriggerEndpointExtensions.SecretEnvVar, prev);
+        }
     }
 
     private static HttpContext BuildContext(string? secretValue = null)

@@ -55,9 +55,8 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var response = await client.SendAsync(request);
 
         // Assert
-        var responseBodyStr = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.Created,
-            $"§0.4.3: a new cart PUT returns 201 Created + Location: /api/v1/cart. Response was: {responseBodyStr}");
+            "§0.4.3: a new cart PUT returns 201 Created + Location: /api/v1/cart");
         response.Headers.Location.Should().NotBeNull();
         response.Headers.Location!.ToString().Should().EndWith("/api/v1/cart");
 

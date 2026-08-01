@@ -440,7 +440,18 @@
             },
             "nullable": true
           },
+          "appliedDiscountBreakdown": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BasketAppliedDiscount"
+            },
+            "nullable": true
+          },
           "discountAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "effectiveSubtotal": {
             "type": "number",
             "format": "double"
           },
@@ -461,6 +472,35 @@
             "$ref": "#/components/schemas/Instant"
           },
           "lastModifiedAt": {
+            "$ref": "#/components/schemas/Instant"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BasketAppliedDiscount": {
+        "type": "object",
+        "properties": {
+          "couponId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "discountType": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "requestedAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "appliedAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "appliedAt": {
             "$ref": "#/components/schemas/Instant"
           }
         },

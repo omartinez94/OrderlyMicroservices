@@ -1,0 +1,88 @@
+# docker-compose.override.prod.yml — production trust posture
+#
+# This file is a TESTING TOOL, not a deployment artifact. It exists so the
+# trust-root hardening plan can be validated end-to-end on a local machine
+# before any production deploy plan lands. Per TRUST_ROOT_HARDENING_PLAN.md
+# §6.7 + §10.5, test_e2e_auth.ps1 --posture production brings the stack
+# up with this override; --posture development uses docker-compose.override.yml
+# instead. The two share the base docker-compose.yml.
+#
+# The cert mounted into the Identity container is self-signed (generated
+# at runtime by test_e2e_auth.ps1). It is NOT a real production cert —
+# see the deployment playbook for the real PKI integration.
+
+services:
+  # ----- Cert volume shared across services -----
+  # Generated at runtime by test_e2e_auth.ps1; mounted read-only into
+  # the services that need it. The same volume holds both the signing
+  # cert and its private key.
+  orderly-prod-certs:
+    image: alpine:3.19
+    container_name: orderly-prod-certs
+    command: ["sleep", "infinity"]
+    volumes:
+      - prod-certs-data:/certs:ro
+
+  catalog.api:
+    container_name: catalog.api
+    environment:
+      # Override the dev override's Development value.
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - prod-certs-data:/etc/openiddict:ro
+
+  basket.api:
+    container_name: basket.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+
+  discount.grpc:
+    container_name: discount.grpc
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+
+  ordering.api:
+    container_name: ordering.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+
+  identity.api:
+    container_name: identity.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Production posture: JWT_SECRET must NOT be set (Phase 1 fail-
+      # closed guard). The dev override sets it; this override
+      # explicitly does not.
+      # The cert is loaded from OpenIddict:SigningCertificatePath /
+      # OpenIddict:EncryptionCertificatePath, both pointing at
+      # /etc/openiddict/identity.pfx (the PFX in prod-certs-data).
+      - OpenIddict__SigningCertificatePath=/etc/openiddict/identity.pfx
+      - OpenIddict__SigningCertificatePassword=${PROD_IDENTITY_CERT_PASSWORD:-changeit-please}
+      - OpenIddict__EncryptionCertificatePath=/etc/openiddict/identity.pfx
+      - OpenIddict__EncryptionCertificatePassword=${PROD_IDENTITY_CERT_PASSWORD:-changeit-please}
+    volumes:
+      - prod-certs-data:/etc/openiddict:ro
+
+  kitchen.api:
+    container_name: kitchen.api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+
+  yarpapigateway:
+    container_name: yarpapigateway
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # The gateway's JWT validation is the same as dev; HS256 dev
+      # tokens still work because the dev fallback gates on
+      # IsDevelopment() at the EXTENSION method level. In Production
+      # posture, the extension rejects JWT_SECRET and only allows
+      # RS256-signed tokens. Identity above will sign with the prod
+      # cert, so the gateway's RS256 path is exercised.
+      # The dev override's JWT_SECRET is explicitly NOT carried over
+      # because prod override is meant to be used STANDALONE.
+      # (Phase 7's e2e script uses one or the other, never both.)
+      - IdentityServiceUrl=http://identity.api:8080
+      - Jwt__Audience=OrderlyMicroservices
+
+volumes:
+  prod-certs-data:

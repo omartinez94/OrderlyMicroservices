@@ -16,6 +16,7 @@ public class ApproveBulkOrderUploadEndpoint : ICarterModule
             var result = await sender.Send(new ApproveBulkOrderUploadCommand(restaurantId, id));
             return Results.Ok(result.Adapt<ApproveBulkOrderUploadResponse>());
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Approves a previously-uploaded bulk batch. Idempotent on already-completed uploads.")
         .WithName("ApproveBulkOrderUpload")
         .Produces<ApproveBulkOrderUploadResponse>(StatusCodes.Status200OK)

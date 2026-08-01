@@ -26,6 +26,7 @@ public class CreateBrandEndpoint : ICarterModule
 
             return Results.Created($"/api/v1/brands/{response.Id}", response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Creates a new brand.")
         .WithName("CreateBrand")
         .Produces<CreateBrandResponse>(StatusCodes.Status201Created)

@@ -16,6 +16,7 @@ public class DeleteRestaurantEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Deletes a restaurant.")
         .WithName("DeleteRestaurant")
         .Produces<DeleteRestaurantResponse>(StatusCodes.Status200OK)

@@ -25,6 +25,7 @@ public class UpdateBrandEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Updates a brand.")
         .WithName("UpdateBrand")
         .Produces<UpdateBrandResponse>(StatusCodes.Status200OK)

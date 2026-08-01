@@ -19,6 +19,7 @@ public class DeleteOrder : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("orders:write")
         .WithDescription("Deletes an order.")
         .WithName("DeleteOrder")
         .Produces<DeleteOrderResponse>(StatusCodes.Status200OK)

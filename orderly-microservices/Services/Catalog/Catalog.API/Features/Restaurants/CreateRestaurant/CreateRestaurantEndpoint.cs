@@ -31,6 +31,7 @@ public class CreateRestaurantEndpoint : ICarterModule
 
             return Results.Created($"/api/v1/restaurants/{response.Id}", response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Creates a new restaurant.")
         .WithName("CreateRestaurant")
         .Produces<CreateRestaurantResponse>(StatusCodes.Status201Created)

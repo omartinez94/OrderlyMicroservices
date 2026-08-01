@@ -15,6 +15,7 @@ public class DeleteMenuCategoryEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Deletes a menu category.")
         .WithName("DeleteMenuCategory")
         .Produces<DeleteMenuCategoryResponse>(StatusCodes.Status200OK)

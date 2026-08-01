@@ -22,6 +22,7 @@ public class CreateMenuCategoryEndpoint : ICarterModule
 
             return Results.Created($"/api/v1/menu-categories/{response.Id}", response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Creates a new menu category for a restaurant.")
         .WithName("CreateMenuCategory")
         .Produces<CreateMenuCategoryResponse>(StatusCodes.Status201Created)

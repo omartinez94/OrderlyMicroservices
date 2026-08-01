@@ -18,6 +18,7 @@ public class GetOrders : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("orders:view_own")
         .WithDescription("Gets a paginated list of orders.")
         .WithName("GetOrders")
         .Produces<GetOrdersResponse>(StatusCodes.Status200OK)

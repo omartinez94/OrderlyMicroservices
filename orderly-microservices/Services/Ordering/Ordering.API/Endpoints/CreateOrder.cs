@@ -20,6 +20,7 @@ public class CreateOrder : ICarterModule
 
             return Results.Created($"/api/v1/orders/{response.Id}", response);
         })
+        .RequirePermission("orders:write")
         .WithDescription("Creates a new order.")
         .WithName("CreateOrder")
         .Produces<CreateOrderResponse>(StatusCodes.Status201Created)

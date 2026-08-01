@@ -18,6 +18,7 @@ public class GetOrdersByCustomer : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("orders:view_own")
         .WithDescription("Gets orders by customer Id.")
         .WithName("GetOrdersByCustomer")
         .Produces<GetOrdersByCustomerResponse>(StatusCodes.Status200OK)

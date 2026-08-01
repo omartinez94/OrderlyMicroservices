@@ -21,6 +21,7 @@ public class UploadBulkOrderEndpoint : ICarterModule
             var result = await sender.Send(command);
             return Results.Created($"/api/v1/restaurants/{restaurantId}/bulk-order-uploads/{result.Id}", result.Adapt<UploadBulkOrderResponse>());
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Accepts a batch of parsed order rows and persists a BulkOrderUpload envelope for approval.")
         .WithName("UploadBulkOrder")
         .Produces<UploadBulkOrderResponse>(StatusCodes.Status201Created)

@@ -20,6 +20,7 @@ public class UpdateOrder : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("orders:write")
         .WithDescription("Updates an existing order.")
         .WithName("UpdateOrder")
         .Produces<UpdateOrderResponse>(StatusCodes.Status200OK)

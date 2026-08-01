@@ -19,6 +19,7 @@ public class RejectBulkOrderUploadEndpoint : ICarterModule
             var result = await sender.Send(new RejectBulkOrderUploadCommand(restaurantId, id, request.Reason));
             return Results.Ok(result.Adapt<RejectBulkOrderUploadResponse>());
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Rejects a previously-uploaded bulk batch. Idempotent on already-failed uploads.")
         .WithName("RejectBulkOrderUpload")
         .Produces<RejectBulkOrderUploadResponse>(StatusCodes.Status200OK)

@@ -16,6 +16,7 @@ public class DeleteBrandEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("catalog:menu_update")
         .WithDescription("Deletes a brand.")
         .WithName("DeleteBrand")
         .Produces<DeleteBrandResponse>(StatusCodes.Status200OK)

@@ -90,21 +90,17 @@ public sealed class MenuItemChangedConsumer(
             // deactivation atomic across the affected CouponIds without
             // needing a separate audit hook for the consumer path.
             //
-            // The `nowTicks` value mirrors the previous
-            // `InstantToLongConverter` storage (UnixTimeTicks → bigint) so
-            // the raw-SQL parameter type is `long`, which the EF Core
-            // Npgsql provider can map directly. Passing an Instant via
-            // ExecuteSqlInterpolatedAsync would surface a
-            // parameter-type-mapping error.
-            var nowTicks = SystemClock.Instance.GetCurrentInstant().ToUnixTimeTicks();
+            // The `now` value is a NodaTime.Instant. Since the Npgsql NodaTime plugin is configured,
+            // it natively maps to timestamp with time zone.
+            var now = SystemClock.Instance.GetCurrentInstant();
             var actor = DiscountActors.Service;
-            var idList = string.Join(',', affectedRuleIds);
+            var affectedRuleIdsArray = affectedRuleIds.ToArray();
             var affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
                 UPDATE ""Coupons""
                 SET ""IsActive"" = {false},
                     ""LastModifiedBy"" = {actor},
-                    ""LastModifiedAt"" = {nowTicks}
-                WHERE ""Id"" IN ({idList})
+                    ""LastModifiedAt"" = {now}
+                WHERE ""Id"" = ANY({affectedRuleIdsArray})
                   AND ""RestaurantId"" = {evt.RestaurantId}
                   AND ""IsActive"" = {true}
                   AND ""DeletedAt"" IS NULL

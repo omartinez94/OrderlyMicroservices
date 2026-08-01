@@ -12,7 +12,16 @@ public static class IdentityDbContextExtensions
 
         services.AddDbContext<Data.IdentityDbContext>(options =>
         {
-            options.UseNpgsql(configuration.GetConnectionString("IdentityDB"));
+            options.UseNpgsql(
+                configuration.GetConnectionString("IdentityDB")!,
+                npgsqlOptions => npgsqlOptions
+                    // Phase 2: EnableRetryOnFailure enabled project-wide
+                    // (plan §6.1). Identity has no outbox dispatcher, so
+                    // no ExecutionStrategy wrapping is needed here.
+                    .EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorCodesToAdd: null));
             options.UseOpenIddict();
             options.UseModel(IdentityDbContextModel.Instance);
             options.AddInterceptors(new AuditableEntityInterceptor());

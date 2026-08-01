@@ -1,8 +1,10 @@
 using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
+using BuildingBlocks.Persistence;
 using Catalog.API.Health;
 using Catalog.API.Infrastructure;
 using Catalog.API.Infrastructure.Interceptors;
+using Catalog.API.Persistence;
 using Catalog.API.Scheduling;
 using Hangfire.PostgreSql;
 using HealthChecks.UI.Client;
@@ -38,7 +40,7 @@ builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 // a redeploy.
 builder.Services.AddFeatureManagement();
 
-// Cache subsystem (Phase 1).
+// Cache subsystem.
 builder.Services.AddOptions<CatalogOptions>()
     .Bind(builder.Configuration.GetSection(CatalogOptions.SectionName))
     .ValidateDataAnnotations()
@@ -61,7 +63,7 @@ builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 // unconditionally and toggled at runtime.
 builder.Services.AddHostedService<CacheDriftRepairService>();
 
-// Phase 3: Ingredient Availability Engine reconcile hosted service. Same
+// Ingredient Availability Engine reconcile hosted service. Same
 // feature-flag-gated pattern as CacheDriftRepairService. The
 // default flag value (`CatalogAvailabilityEngineReconcile=false`) means
 // the loop is dormant in production until ops flip the flag.
@@ -92,7 +94,7 @@ builder.Services.AddCarter();
 // audit row commits in the same transaction as the mutation.
 builder.Services.AddScoped<IPriceHistoryRecorder, PriceHistoryRecorder>();
 
-// Phase 5: Hangfire + recurring jobs. Jobs self-gate on the
+// Hangfire + recurring jobs. Jobs self-gate on the
 // FeatureManagement__CatalogScheduledJobs flag (default false), so the
 // schedule is armed even when the flag is off — the flag just makes every
 // job tick a no-op. Storage is the `hangfire` schema in the same
@@ -154,9 +156,27 @@ builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
     options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
     options.UseNpgsql(dataSource, npgsqlOptions =>
     {
-        npgsqlOptions.UseNodaTime();
+        npgsqlOptions.UseNodaTime()
+            // EnableRetryOnFailure is now enabled project-wide
+            // The outbox dispatcher's BeginTransactionAsync is
+            // wrapped in Database.CreateExecutionStrategy().ExecuteAsync
+            // (BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:148) so
+            // the retrying strategy no longer crashes the dispatcher.
+            .EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null);
     });
 });
+
+// Register the migration hosted service. Replaces the inline
+// `await MigrateAsync()` block that previously sat between builder.Build
+// and app.MapCarter. The migrator retries with exponential backoff
+// (default 2s → 32s) up to MigrationTimeoutSeconds (default 120s), then
+// fails the host. Survives Postgres cold-start during rolling restart.
+builder.Services.Configure<MigratorHostedServiceOptions>(
+    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+builder.Services.AddHostedService<CatalogMigratorHostedService>();
 
 if(builder.Environment.IsDevelopment())
 {
@@ -178,9 +198,10 @@ builder.Services.AddHealthChecks()
 
 var app = builder.Build();
 
-await using var scope = app.Services.CreateAsyncScope();
-var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-await dbContext.Database.MigrateAsync();
+// Schema application is now owned by CatalogMigratorHostedService
+// (registered above). It runs at IHostedService.StartAsync before any HTTP
+// traffic; the inline `await MigrateAsync()` that previously sat here is
+// removed to avoid double-applying the schema.
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -188,31 +209,36 @@ app.UseAuthorization();
 app.MapCarter();
 
 // Hangfire recurring-job registration. Each job class is resolved
-// from the DI scope on every tick (the registration is the schedule;
-// RecurringJob.AddOrUpdate is the firing mechanism). Cron expressions come
-// from HangfireOptions (validated at startup). Tests / local-dev opt out
-// via `Catalog:Hangfire:Enabled=false`.
+// from the DI scope on every tick. Fixes the boot-time crash, the static
+// `RecurringJob.AddOrUpdate<T>(...)` API requires `JobStorage.Current` to
+// be set globally, which throws `InvalidOperationException: Current
+// JobStorage instance has not been initialized yet` before the first
+// Hangfire tick when called outside DI. The fix is to resolve
+// `IRecurringJobManager` from the application services and call
+// `.AddOrUpdate<T>(...)` on the manager — same scheduling semantics, no
+// static JobStorage dependency.
 var hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
 if (hangfireEnabled)
 {
     var hfOptions = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
+    var recurringJobManager = app.Services.GetRequiredService<IRecurringJobManager>();
 
-    RecurringJob.AddOrUpdate<ReservationReminderJob>(
+    recurringJobManager.AddOrUpdate<ReservationReminderJob>(
         "reservation-reminder",
         job => job.RunAsync(CancellationToken.None),
         hfOptions.ReservationReminderCron);
 
-    RecurringJob.AddOrUpdate<ReservationNoShowJob>(
+    recurringJobManager.AddOrUpdate<ReservationNoShowJob>(
         "reservation-no-show",
         job => job.RunAsync(CancellationToken.None),
         hfOptions.ReservationNoShowCron);
 
-    RecurringJob.AddOrUpdate<WalkInNoShowJob>(
+    recurringJobManager.AddOrUpdate<WalkInNoShowJob>(
         "walk-in-no-show",
         job => job.RunAsync(CancellationToken.None),
         hfOptions.WalkInNoShowCron);
 
-    RecurringJob.AddOrUpdate<SeasonalAvailabilityJob>(
+    recurringJobManager.AddOrUpdate<SeasonalAvailabilityJob>(
         "seasonal-availability",
         job => job.RunAsync(CancellationToken.None),
         hfOptions.SeasonalAvailabilityCron);

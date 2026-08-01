@@ -145,81 +145,93 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
         // The claim + dispatch + stamp cycle runs inside one explicit
         // transaction so the engine-native row lock from
         // BuildClaimSql(...) holds until SaveChangesAsync commits.
-        await using var tx = await dbContext.Database.BeginTransactionAsync(
-            cancellationToken);
-
-        var pending = await ClaimPendingAsync(dbContext, cancellationToken);
-        if (pending.Count == 0)
+        //
+        // Phase 2: wrapped in Database.CreateExecutionStrategy().ExecuteAsync
+        // so EnableRetryOnFailure(5, 10s) at the adopter's
+        // UseNpgsql/UseSqlServer chain doesn't crash with
+        // "The configured execution strategy ... does not support
+        // user-initiated transactions" (per plan §10.3). The wrapping
+        // is a no-op for services without EnableRetryOnFailure but is
+        // uniformly applied so the contract is identical across
+        // adopters.
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async ct =>
         {
-            // Empty claim — commit (no-op transaction) before returning
-            // so we don't leak a held connection.
-            await tx.CommitAsync(cancellationToken);
-            return 0;
-        }
+            await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
 
-        var now = SystemClock.Instance.GetCurrentInstant();
-        foreach (var row in pending)
-        {
-            // Schema-version gate:
-            // a future-version row wasn't yet known when this
-            // dispatcher rolled out. Copy to outbox_messages_dead so an
-            // operator can triage (bump MaxSupportedVersion after a new
-            // consumer deploys) and skip the broker publish — the
-            // destination consumer doesn't have the matching CLR type
-            // yet.
-            if (row.SchemaVersion > _options.MaxSupportedVersion)
+            var pending = await ClaimPendingAsync(dbContext, ct);
+            if (pending.Count == 0)
             {
-                dbContext.OutboxDeadMessages.Add(new OutboxDeadMessage
+                // Empty claim — commit (no-op transaction) before returning
+                // so we don't leak a held connection.
+                await tx.CommitAsync(ct);
+                return 0;
+            }
+
+            var now = SystemClock.Instance.GetCurrentInstant();
+            foreach (var row in pending)
+            {
+                // Schema-version gate:
+                // a future-version row wasn't yet known when this
+                // dispatcher rolled out. Copy to outbox_messages_dead so an
+                // operator can triage (bump MaxSupportedVersion after a new
+                // consumer deploys) and skip the broker publish — the
+                // destination consumer doesn't have the matching CLR type
+                // yet.
+                if (row.SchemaVersion > _options.MaxSupportedVersion)
                 {
-                    Id = row.Id,
-                    OccurredOn = row.OccurredOn,
-                    Type = row.Type,
-                    Payload = row.Payload,
-                    SchemaVersion = row.SchemaVersion,
-                    Reason = Reasons.UnsupportedSchemaVersion,
-                    RejectedAt = now,
-                });
-                dbContext.OutboxMessages.Remove(row);
+                    dbContext.OutboxDeadMessages.Add(new OutboxDeadMessage
+                    {
+                        Id = row.Id,
+                        OccurredOn = row.OccurredOn,
+                        Type = row.Type,
+                        Payload = row.Payload,
+                        SchemaVersion = row.SchemaVersion,
+                        Reason = Reasons.UnsupportedSchemaVersion,
+                        RejectedAt = now,
+                    });
+                    dbContext.OutboxMessages.Remove(row);
 
-                _logger.LogWarning(
-                    "Outbox row {OutboxId} ({MessageType}) was stamped schema v{Schema} but the dispatcher only supports up to v{Max}. Quarantined to outbox_messages_dead.",
-                    row.Id, row.Type, row.SchemaVersion, _options.MaxSupportedVersion);
-                continue;
+                    _logger.LogWarning(
+                        "Outbox row {OutboxId} ({MessageType}) was stamped schema v{Schema} but the dispatcher only supports up to v{Max}. Quarantined to outbox_messages_dead.",
+                        row.Id, row.Type, row.SchemaVersion, _options.MaxSupportedVersion);
+                    continue;
+                }
+
+                try
+                {
+                    var messageType = Type.GetType(row.Type)
+                        ?? throw new InvalidOperationException(
+                            $"Outbox row {row.Id} references unknown type '{row.Type}'.");
+
+                    var message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
+                        ?? throw new InvalidOperationException(
+                            $"Outbox row {row.Id} payload deserialized to null.");
+
+                    await publishEndpoint.Publish(message, messageType, ct);
+                    row.DispatchedAt = now;
+
+                    _logger.LogDebug(
+                        "Outbox row {OutboxId} ({MessageType}) dispatched at {DispatchedAt}.",
+                        row.Id, row.Type, now);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Outbox row {OutboxId} ({MessageType}) dispatch failed; will retry.",
+                        row.Id, row.Type);
+                    // Leave DispatchedAt null so the next tick retries.
+                }
             }
 
-            try
-            {
-                var messageType = Type.GetType(row.Type)
-                    ?? throw new InvalidOperationException(
-                        $"Outbox row {row.Id} references unknown type '{row.Type}'.");
-
-                var message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
-                    ?? throw new InvalidOperationException(
-                        $"Outbox row {row.Id} payload deserialized to null.");
-
-                await publishEndpoint.Publish(message, messageType, cancellationToken);
-                row.DispatchedAt = now;
-
-                _logger.LogDebug(
-                    "Outbox row {OutboxId} ({MessageType}) dispatched at {DispatchedAt}.",
-                    row.Id, row.Type, now);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(
-                    ex,
-                    "Outbox row {OutboxId} ({MessageType}) dispatch failed; will retry.",
-                    row.Id, row.Type);
-                // Leave DispatchedAt null so the next tick retries.
-            }
-        }
-
-        // EF sees the open transaction and won't auto-open its own;
-        // SaveChanges flushes the row updates against the same
-        // connection. The explicit commit releases the row locks.
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
-        return pending.Count;
+            // EF sees the open transaction and won't auto-open its own;
+            // SaveChanges flushes the row updates against the same
+            // connection. The explicit commit releases the row locks.
+            await dbContext.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+            return pending.Count;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<List<OutboxMessage>> ClaimPendingAsync(

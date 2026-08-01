@@ -1,36 +1,124 @@
+# docker-compose.yml is now the production-shaped base file.
+# Every backing-store container carries a healthcheck block (so
+# `condition: service_healthy` can wait for readiness before dependent
+# services start) and every service depends_on block uses the
+# condition-keyed form (no more plain-list dependencies). The dev
+# defaults (ASPNETCORE_ENVIRONMENT=Development, default passwords,
+# volume mounts) live in docker-compose.override.dev.yml; the
+# production-shaped overrides (ASPNETCORE_ENVIRONMENT=Production, no
+# dev defaults) live in docker-compose.override.prod.yml. The base file
+# deliberately omits ASPNETCORE_ENVIRONMENT so production deploys
+# default to `${ASPNETCORE_ENVIRONMENT:-Production}`.
+
 services:
   catalogdb:
-    image: postgres
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Catalogdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   basketdb:
-    image: postgres
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Basketdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   distributedcache:
-    image: redis
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   orderdb:
     image: mcr.microsoft.com/mssql/server:2022-latest
+    healthcheck:
+      # sqlcmd against SELECT 1 — covers MSSQL's 60-90s cold-init window
+      # via the long start_period. The mssql-tools path varies by image
+      # version; the wildcard handles both /opt/mssql-tools/bin and
+      # /opt/mssql-tools18/bin.
+      test:
+        - "CMD-SHELL"
+        - '/opt/mssql-tools*/bin/sqlcmd -S localhost -U sa -P "$$SA_PASSWORD" -Q "SELECT 1" || exit 1'
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
 
   kitchendb:
-    image: postgres
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Kitchendb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   messagebroker:
     image: rabbitmq:3-management
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  identitydb:
+    image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Identitydb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   discountdb:
     image: postgres:16-alpine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Discountdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   catalog.api:
     image: ${DOCKER_REGISTRY-}catalogapi
     build:
       context: .
       dockerfile: Services/Catalog/Catalog.API/Dockerfile
+    depends_on:
+      catalogdb:
+        condition: service_healthy
+      distributedcache:
+        condition: service_healthy
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
+      kitchendb:
+        condition: service_healthy
+      identitydb:
+        condition: service_healthy
 
   basket.api:
     image: ${DOCKER_REGISTRY-}basketapi
     build:
       context: .
       dockerfile: Services/Basket/Basket.API/Dockerfile
+    depends_on:
+      basketdb:
+        condition: service_healthy
+      distributedcache:
+        condition: service_healthy
+      discount.grpc:
+        condition: service_started
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
+      catalog.api:
+        condition: service_started
 
   discount.grpc:
     image: ${DOCKER_REGISTRY-}discountgrpc
@@ -40,33 +128,62 @@ services:
     depends_on:
       discountdb:
         condition: service_healthy
-
-  identitydb:
-    image: postgres
+      identity.api:
+        condition: service_started
 
   identity.api:
     image: ${DOCKER_REGISTRY-}identityapi
     build:
       context: .
       dockerfile: Services/Identity/Identity.API/Dockerfile
+    depends_on:
+      identitydb:
+        condition: service_healthy
 
   ordering.api:
     image: ${DOCKER_REGISTRY-}orderingapi
     build:
       context: .
       dockerfile: Services/Ordering/Ordering.API/Dockerfile
+    depends_on:
+      identity.api:
+        condition: service_started
+      orderdb:
+        condition: service_healthy
+      messagebroker:
+        condition: service_healthy
 
   kitchen.api:
     image: ${DOCKER_REGISTRY-}kitchenapi
     build:
       context: .
       dockerfile: Services/Kitchen/Kitchen.API/Dockerfile
+    depends_on:
+      kitchendb:
+        condition: service_healthy
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
 
   yarpapigateway:
     image: ${DOCKER_REGISTRY-}yarpapigateway
     build:
       context: .
       dockerfile: ApiGateway/YarpApiGateway/Dockerfile
+    depends_on:
+      catalog.api:
+        condition: service_started
+      basket.api:
+        condition: service_started
+      discount.grpc:
+        condition: service_started
+      ordering.api:
+        condition: service_started
+      kitchen.api:
+        condition: service_started
+      identity.api:
+        condition: service_started
 
 volumes:
   postgres_catalog:

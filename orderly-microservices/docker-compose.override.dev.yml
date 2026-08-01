@@ -90,10 +90,14 @@ services:
       - "6000:8080"
       - "6060:8081"
     depends_on:
-      - catalogdb
-      - distributedcache
-      - identity.api
-      - messagebroker
+      catalogdb:
+        condition: service_healthy
+      distributedcache:
+        condition: service_healthy
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
@@ -113,11 +117,16 @@ services:
       - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
       - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
     depends_on:
-      - basketdb
-      - distributedcache
-      - discount.grpc
-      - identity.api
-      - messagebroker
+      basketdb:
+        condition: service_healthy
+      distributedcache:
+        condition: service_healthy
+      discount.grpc:
+        condition: service_started
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
     ports:
       - "6001:8080"
       - "6061:8081"
@@ -197,7 +206,8 @@ services:
       - "6007:8080"
       - "6067:8081"
     depends_on:
-      - identitydb
+      identitydb:
+        condition: service_healthy
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       # Writable (no :ro) so the dev OpenIddict signing/encryption cert
@@ -224,9 +234,12 @@ services:
       - "6003:8080"
       - "6063:8081"
     depends_on:
-      - identity.api
-      - orderdb
-      - messagebroker
+      identity.api:
+        condition: service_started
+      orderdb:
+        condition: service_healthy
+      messagebroker:
+        condition: service_healthy
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
@@ -241,12 +254,25 @@ services:
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
       - ConnectionStrings__KitchenDB=Server=kitchendb;Port=5432;Database=Kitchendb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
       - IdentityServiceUrl=http://identity.api:8080
+      # Phase 2: kitchen.api was missing MessageBroker__Host / UserName /
+      # Password — Kitchen.API crashed on startup with
+      # ArgumentNullException at BuildingBlocks.Messaging/MassTransit/
+      # Extensions.cs:19 because AddMessageBroker found a missing key.
+      # Now defensive (BrokerConfigurationException names every absent
+      # key) but still needs the values supplied here.
+      - MessageBroker__Host=amqp://messagebroker:5672
+      - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
+      - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
     ports:
       - "6005:8080"
       - "6065:8081"
     depends_on:
-      - kitchendb
-      - identity.api
+      kitchendb:
+        condition: service_healthy
+      identity.api:
+        condition: service_started
+      messagebroker:
+        condition: service_healthy
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
@@ -263,12 +289,18 @@ services:
       - "6004:8080"
       - "6064:8081"
     depends_on:
-      - catalog.api
-      - basket.api
-      - discount.grpc
-      - ordering.api
-      - kitchen.api
-      - identity.api
+      catalog.api:
+        condition: service_started
+      basket.api:
+        condition: service_started
+      discount.grpc:
+        condition: service_started
+      ordering.api:
+        condition: service_started
+      kitchen.api:
+        condition: service_started
+      identity.api:
+        condition: service_started
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro

@@ -1,8 +1,10 @@
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
+using BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Ordering.Application.Data;
 using Ordering.Infrastructure.Data.Interceptors;
+using Ordering.Infrastructure.Persistence;
 using Ordering.Infrastructure.Services;
 
 namespace Ordering.Infrastructure;
@@ -27,10 +29,31 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDBContext>((sp, options) =>
         {
             options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>());
-            options.UseSqlServer(connectionString);
+            options.UseSqlServer(
+                connectionString,
+                sqlServerOptions => sqlServerOptions
+                    // EnableRetryOnFailure enabled project-wide
+                    // The outbox dispatcher's
+                    // BeginTransactionAsync is wrapped in
+                    // Database.CreateExecutionStrategy().ExecuteAsync(...)
+                    // (BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:148).
+                    .EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorNumbersToAdd: null));
         });
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDBContext>());
+
+        // Replace the dev-only inline MigrateWithRetryAsync
+        // (Ordering.Infrastructure/Data/Extensions/DatabaseExtensions.cs)
+        // with the shared MigratorHostedService. The hosted service runs
+        // at IHostedService.StartAsync with exponential-backoff retry on
+        // MSSQL transient SqlException numbers (1801, 4060, 40613, 233,
+        // -2) — surviving the 60-90s MSSQL cold-init window.
+        services.Configure<MigratorHostedServiceOptions>(
+            configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+        services.AddHostedService<OrderingMigratorHostedService>();
 
         var outboxEnabled = configuration.GetValue(
             $"{OutboxOptions.SectionName}:Enabled", true);

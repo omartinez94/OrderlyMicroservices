@@ -7,12 +7,22 @@
     <DockerLaunchAction>None</DockerLaunchAction>
     <DockerServiceUrl>{Scheme}://localhost:{ServicePort}</DockerServiceUrl>
     <DockerServiceName>basket.api</DockerServiceName>
+    <!--
+      Explicitly declare which compose files Visual Studio loads
+      when the developer presses F5 with the Docker Compose debugger.
+      Without this, VS defaults to `docker-compose.override.yml` (the
+      old name) and silently misses the renamed `docker-compose.override.dev.yml`,
+      so the dev defaults (ASPNETCORE_ENVIRONMENT=Development, dev passwords,
+      volume mounts) never apply and the stack boots in Production posture.
+    -->
+    <DockerComposeProjectFiles>docker-compose.yml;docker-compose.override.dev.yml</DockerComposeProjectFiles>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="docker-compose.override.yml">
+    <None Include="docker-compose.yml" />
+    <None Include="docker-compose.override.dev.yml">
       <DependentUpon>docker-compose.yml</DependentUpon>
     </None>
-    <None Include="docker-compose.yml" />
+    <None Include="docker-compose.override.prod.yml" />
     <None Include=".dockerignore" />
   </ItemGroup>
 </Project>

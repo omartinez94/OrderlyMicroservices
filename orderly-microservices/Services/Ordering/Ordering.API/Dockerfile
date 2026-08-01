@@ -31,5 +31,11 @@ RUN dotnet publish "./Ordering.API.csproj" -c $BUILD_CONFIGURATION -o /app/publi
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
+# Phase 2: install curl so the HEALTHCHECK directive can probe /ready.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish .
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://localhost:8080/ready || exit 1
 ENTRYPOINT ["dotnet", "Ordering.API.dll"]

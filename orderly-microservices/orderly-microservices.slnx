@@ -4,6 +4,7 @@
   </Folder>
   <Folder Name="/BuildingBlocks/">
     <Project Path="BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj" Id="08fe9165-7f16-4fda-95bc-13eeecdb978c" />
+    <Project Path="BuildingBlocks.Persistence/BuildingBlocks.Persistence.csproj" />
     <Project Path="BuildingBlocks/BuildingBlocks.csproj" Id="646679f1-1d3a-4dc2-9b9e-d46f249c97ce" />
     <Project Path="BuildingBlocks.Dev/BuildingBlocks.Dev.csproj" />
     <Project Path="BuildingBlocks.Dev.Tests/BuildingBlocks.Dev.Tests.csproj" />

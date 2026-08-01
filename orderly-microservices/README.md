@@ -37,7 +37,13 @@ Running the project via Docker is the simplest method as it automatically provis
 3. Run the following command to build and attach to the containers:
 
 ```bash
-docker-compose up -d --build
+docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build
+```
+
+The `-f` flags explicitly load both files. `docker-compose.yml` is the production-shaped base (every backing-store has a `healthcheck:` block; every service uses `depends_on: condition: service_healthy`). `docker-compose.override.dev.yml` carries the dev-only defaults (`ASPNETCORE_ENVIRONMENT=Development`, dev passwords, volume mounts, dev certs, dev broker credentials). To run the production posture instead, swap the second `-f` for `docker-compose.override.prod.yml`:
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.override.prod.yml up -d --build
 ```
 
 To view the logs or stop the environment:
@@ -49,17 +55,18 @@ To view the logs or stop the environment:
 #### Environment variables
 
 All credentials are externalized. Out of the box, `docker-compose up` uses the
-dev defaults baked into `docker-compose.override.yml`. To override any
+dev defaults baked into `docker-compose.override.dev.yml`. To override any
 credential (e.g. a stronger DB password for a shared environment), copy
 `.env.example` to `.env` in this same directory (next to
-`docker-compose.override.yml`) and edit it. Docker Compose auto-loads that
+`docker-compose.override.dev.yml`) and edit it. Docker Compose auto-loads that
 `.env` when you run `docker-compose up` from here. The `.env` file is
 git-ignored — do not commit real secrets.
 
 Variables: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `ACCEPT_EULA`,
 `SA_PASSWORD`, `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`,
 `REDIS_PASSWORD`,
-`ASPNETCORE_Kestrel__Certificates__Default__Password` (cert).
+`ASPNETCORE_Kestrel__Certificates__Default__Password` (cert),
+`PROD_IDENTITY_CERT_PASSWORD` (prod override only).
 
 ### Option 2: Running Locally (Visual Studio or .NET CLI)
 
@@ -72,7 +79,7 @@ You still need the backing services.
 To debug the code locally, you still need the background services (PostgreSQL, Redis, etc.) active. A highly recommended hybrid approach is to spin up **only the backing services** using Docker Compose:
 
 ```bash
-docker-compose up catalogdb basketdb identitydb kitchendb orderdb distributedcache messagebroker -d
+docker-compose up catalogdb basketdb identitydb kitchendb orderdb discountdb distributedcache messagebroker -d
 ```
 
 *(With this, your databases run via Docker and their ports are mapped automatically, allowing you to debug the .NET APIs natively).*
@@ -92,6 +99,7 @@ Or ensure you have local instances of the backing services running on the mapped
 | IdentityDB          | PostgreSQL    | `5435`          |
 | KitchenDB           | PostgreSQL    | `5436`          |
 | OrderDB             | SQL Server    | `1433`          |
+| DiscountDB          | PostgreSQL    | `5437`          |
 | Distributed cache   | Redis         | `6379`          |
 | Message broker      | RabbitMQ      | `5672` (mgmt UI `15672`) |
 

@@ -2,11 +2,13 @@ using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
+using BuildingBlocks.Persistence;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
 using Discount.Grpc.Health;
 using Discount.Grpc.Messaging.Outbox;
 using Discount.Grpc.Options;
+using Discount.Grpc.Persistence;
 using Discount.Grpc.Services;
 using HealthChecks.UI.Client;
 using MassTransit;
@@ -65,10 +67,14 @@ builder.Services.AddSingleton<ICurrentRestaurantProvider, ClaimsRestaurantProvid
 // NodaTime.Instant maps natively to `timestamp with time zone`. The data
 // source is consumed by UseNpgsql below; EF reuses it internally via
 // DbContextOptions. The pattern mirrors Catalog.API/Program.cs:141-159.
-// EnableRetryOnFailure is intentionally NOT added in Phase 1 — the outbox
-// dispatcher uses Database.BeginTransactionAsync, which conflicts with
-// EF's retrying execution strategy (see plan §10.3). Phase 2 introduces
-// ExecutionStrategy wrapping project-wide.
+//
+// Phase 2: EnableRetryOnFailure is enabled project-wide (plan §6.1).
+// The outbox dispatcher's Database.BeginTransactionAsync call is now
+// wrapped in Database.CreateExecutionStrategy().ExecuteAsync(...)
+// (BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:148) so the
+// retrying strategy no longer crashes the dispatcher with
+// "The configured execution strategy ... does not support user-initiated
+// transactions" — see plan §10.3.
 var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(
     builder.Configuration.GetConnectionString("Database")!);
 dataSourceBuilder.UseNodaTime();
@@ -77,8 +83,22 @@ var dataSource = dataSourceBuilder.Build();
 builder.Services.AddDbContext<DiscountContext>((sp, options) =>
 {
     options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>())
-        .UseNpgsql(dataSource, npgsqlOptions => npgsqlOptions.UseNodaTime());
+        .UseNpgsql(dataSource, npgsqlOptions => npgsqlOptions
+            .UseNodaTime()
+            .EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorCodesToAdd: null));
 });
+
+// Phase 2: replace Phase 1's inline-await migration with a hosted
+// service. The migrator runs at host startup with exponential-backoff
+// retry (see BuildingBlocks.Persistence/MigratorHostedService.cs) and
+// fails fast after MigratorHostedServiceOptions.MigrationTimeoutSeconds
+// (default 120s) — covering Postgres cold-start during rolling restart.
+builder.Services.Configure<MigratorHostedServiceOptions>(
+    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+builder.Services.AddHostedService<DiscountMigratorHostedService>();
 
 // Outbox: bind options, configure
 // MassTransit with an in-memory bus, register the scoped
@@ -164,17 +184,10 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 
-// Inline-await migration (was Data/Extensions.UseMigration(), which was
-// fire-and-forget). Mirrors Catalog.API/Program.cs:181-183. Must happen
-// BEFORE MapGrpcService so the schema is in place when gRPC traffic
-// arrives. The EF runner applies any pending migrations under
-// `Migrations/`. Top-level statements with `await` compile to async Task
-// Main, so `app.Run()` after this still works synchronously.
-await using (var scope = app.Services.CreateAsyncScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-    await dbContext.Database.MigrateAsync();
-}
+// Phase 2: schema application is now owned by DiscountMigratorHostedService
+// (registered above), which runs at IHostedService.StartAsync before
+// any HTTP traffic. The inline-await migration that Phase 1 added is
+// removed to avoid double-applying the schema.
 
 app.MapGrpcService<DiscountService>();
 app.MapGrpcService<DiscountRuleService>();

@@ -25,7 +25,17 @@ public static class DependencyInjection
             options.AddInterceptors(sp.GetServices<SaveChangesInterceptor>());
             options.UseNpgsql(
                 configuration.GetConnectionString("KitchenDB")!,
-                npgsqlOptions => npgsqlOptions.UseNodaTime());
+                npgsqlOptions => npgsqlOptions
+                    .UseNodaTime()
+                    // Phase 2: EnableRetryOnFailure enabled project-wide
+                    // (plan §6.1). The outbox dispatcher's
+                    // BeginTransactionAsync is wrapped in
+                    // Database.CreateExecutionStrategy().ExecuteAsync(...)
+                    // (BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:148).
+                    .EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorCodesToAdd: null));
         });
 
         services.AddScoped<IKitchenTicketRepository, KitchenTicketRepository>();

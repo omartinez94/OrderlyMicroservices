@@ -1,9 +1,5 @@
-using BuildingBlocks.Messaging.Events;
-using Catalog.API.Data;
-using Catalog.API.Models;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using NodaTime;
 
 namespace Catalog.API.Messaging.EventHandlers;
 
@@ -18,7 +14,7 @@ namespace Catalog.API.Messaging.EventHandlers;
 /// <remarks>
 /// <para><b>Why not use the unique index on MenuItemAnalytics.</b> The
 /// table's natural key is <c>(MenuItemId, AnalysisDate)</c>, but the
-/// plan's §6.5 idempotency contract is on <c>(OrderId, MenuItemId)</c>:
+/// idempotency contract is on <c>(OrderId, MenuItemId)</c>:
 /// two <c>OrderCompleted</c> events for the same menu item on the same
 /// day must both increment <c>TimesOrdered</c>/<c>TotalRevenue</c>.
 /// Therefore the dedup table carries the order id explicitly.</para>
@@ -39,56 +35,67 @@ public sealed class OrderCompletedIntegrationEventHandler(
         var message = context.Message;
         var analysisDate = LocalDate.FromDateTime(message.CompletedAt.ToDateTimeUtc());
 
-        await using var tx = await dbContext.Database.BeginTransactionAsync(context.CancellationToken).ConfigureAwait(false);
-
-        foreach (var item in message.Items)
+        // Wrap the BeginTransactionAsync + commit cycle in
+        // Database.CreateExecutionStrategy().ExecuteAsync(...) so
+        // EnableRetryOnFailure(5, 10s) on the CatalogDbContext (added
+        // in Catalog.API/Program.cs) doesn't crash with "The configured
+        // execution strategy ... does not support user-initiated
+        // transactions". This is the consumer-side
+        // mirror of the OutboxDispatcher.DispatchBatchAsync wrapping.
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async ct =>
         {
-            // 1. Idempotency gate — composite PK (OrderId, MenuItemId) throws on duplicate.
-            try
+            await using var tx = await dbContext.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            foreach (var item in message.Items)
             {
-                dbContext.ProcessedOrderItems.Add(new ProcessedOrderItem
+                // 1. Idempotency gate — composite PK (OrderId, MenuItemId) throws on duplicate.
+                try
                 {
-                    OrderId = message.OrderId,
-                    MenuItemId = item.MenuItemId,
-                    ProcessedAt = SystemClock.Instance.GetCurrentInstant(),
-                });
-                await dbContext.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
-            }
-            catch (DbUpdateException ex) when (IsUniqueViolation(ex))
-            {
-                logger.LogDebug(
-                    "OrderCompleted {OrderId} already processed for MenuItem {MenuItemId}; skipping.",
-                    message.OrderId, item.MenuItemId);
-                continue;
-            }
-
-            // 2. Upsert MenuItemAnalytics row keyed by (MenuItemId, AnalysisDate).
-            var row = await dbContext.MenuItemAnalytics
-                .FirstOrDefaultAsync(m =>
-                    m.MenuItemId == item.MenuItemId && m.AnalysisDate == analysisDate,
-                    context.CancellationToken).ConfigureAwait(false);
-
-            if (row is null)
-            {
-                dbContext.MenuItemAnalytics.Add(new MenuItemAnalytics
+                    dbContext.ProcessedOrderItems.Add(new ProcessedOrderItem
+                    {
+                        OrderId = message.OrderId,
+                        MenuItemId = item.MenuItemId,
+                        ProcessedAt = SystemClock.Instance.GetCurrentInstant(),
+                    });
+                    await dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+                catch (DbUpdateException ex) when (IsUniqueViolation(ex))
                 {
-                    MenuItemId = item.MenuItemId,
-                    RestaurantId = message.RestaurantId,
-                    AnalysisDate = analysisDate,
-                    TimesOrdered = item.Quantity,
-                    TotalRevenue = item.UnitPrice * item.Quantity,
-                });
-            }
-            else
-            {
-                row.TimesOrdered += item.Quantity;
-                row.TotalRevenue += item.UnitPrice * item.Quantity;
+                    logger.LogDebug(
+                        "OrderCompleted {OrderId} already processed for MenuItem {MenuItemId}; skipping.",
+                        message.OrderId, item.MenuItemId);
+                    continue;
+                }
+
+                // 2. Upsert MenuItemAnalytics row keyed by (MenuItemId, AnalysisDate).
+                var row = await dbContext.MenuItemAnalytics
+                    .FirstOrDefaultAsync(m =>
+                        m.MenuItemId == item.MenuItemId && m.AnalysisDate == analysisDate,
+                        ct).ConfigureAwait(false);
+
+                if (row is null)
+                {
+                    dbContext.MenuItemAnalytics.Add(new MenuItemAnalytics
+                    {
+                        MenuItemId = item.MenuItemId,
+                        RestaurantId = message.RestaurantId,
+                        AnalysisDate = analysisDate,
+                        TimesOrdered = item.Quantity,
+                        TotalRevenue = item.UnitPrice * item.Quantity,
+                    });
+                }
+                else
+                {
+                    row.TimesOrdered += item.Quantity;
+                    row.TotalRevenue += item.UnitPrice * item.Quantity;
+                }
+
+                await dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
             }
 
-            await dbContext.SaveChangesAsync(context.CancellationToken).ConfigureAwait(false);
-        }
-
-        await tx.CommitAsync(context.CancellationToken).ConfigureAwait(false);
+            await tx.CommitAsync(ct).ConfigureAwait(false);
+        }, context.CancellationToken).ConfigureAwait(false);
     }
 
     private static bool IsUniqueViolation(DbUpdateException ex) =>

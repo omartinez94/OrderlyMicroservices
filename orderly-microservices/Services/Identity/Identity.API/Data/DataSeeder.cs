@@ -15,7 +15,11 @@ public static class DataSeeder
         var applicationManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
         var scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
 
-        await dbContext.Database.MigrateAsync(ct);
+        // Phase 2: schema application moved to IdentityMigratorHostedService
+        // (registered in Program.cs). The hosted service runs at
+        // IHostedService.StartAsync before this seeder runs, so the
+        // schema is in place when the seed inserts begin. This is the
+        // single source of truth for migration order on Identity.
 
         await SeedRolesAsync(roleManager, ct);
         await SeedPermissionsAsync(dbContext, ct);

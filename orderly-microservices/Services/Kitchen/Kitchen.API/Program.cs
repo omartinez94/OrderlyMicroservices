@@ -1,7 +1,9 @@
 using BuildingBlocks.Dev;
+using BuildingBlocks.Persistence;
 using HealthChecks.UI.Client;
 using Kitchen.API.Application;
 using Kitchen.API.Infrastructure;
+using Kitchen.API.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.FeatureManagement;
 
@@ -46,18 +48,20 @@ builder.Services.AddFeatureManagement();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
 
+// Phase 2: replace the dev-only inline MigrateAsync with the shared
+// MigratorHostedService. Schema application now runs at host startup
+// (unconditional, not gated on IsDevelopment()) with exponential-backoff
+// retry — survives Postgres cold-start during rolling restart.
+builder.Services.Configure<MigratorHostedServiceOptions>(
+    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+builder.Services.AddHostedService<KitchenMigratorHostedService>();
+
 var app = builder.Build();
 
-// Apply pending EF Core migrations on startup. Postgres rarely has the
-// MSSQL "database still recovering" race that Ordering works around with
-// retry; the simple call mirrors Catalog's pattern. See
-// KITCHEN_SERVICE_PLAN.md §8.4 for the future retry-helper work.
-if (app.Environment.IsDevelopment())
-{
-    await using var scope = app.Services.CreateAsyncScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<KitchenDbContext>();
-    await dbContext.Database.MigrateAsync();
-}
+// Phase 2: schema application is now owned by KitchenMigratorHostedService
+// (registered above). The dev-only inline `await MigrateAsync()` block
+// is removed to avoid double-applying the schema and to make production
+// deploys also self-migrate.
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -67,6 +71,23 @@ app.MapHub<KitchenHub>("/hubs/kitchen");
 
 app.UseExceptionHandler(options => { });
 
+// Phase 2: split /live + /ready. /live is unconditional green (process
+// up); /ready is the readiness probe used by compose's
+// `condition: service_healthy` chain and the HEALTHCHECK directive in
+// every Dockerfile. The existing /health endpoint is kept for backwards
+// compatibility (SignalR clients historically pinged it).
+app.MapHealthChecks("/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
+    ResultStatusCodes =
+    {
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = StatusCodes.Status200OK,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+        [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
+});
 app.UseHealthChecks("/health",
     new HealthCheckOptions
     {

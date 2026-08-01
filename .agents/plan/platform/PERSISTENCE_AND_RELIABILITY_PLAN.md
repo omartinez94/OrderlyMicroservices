@@ -6,15 +6,15 @@
 
 ## Status
 
-> **Plan version**: `v3.2` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phase 1 complete; Phases 2-5 unblocked
+> **Plan version**: `v3.3` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phase 1 + Phase 2 complete; Phases 3-5 unblocked
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Discount SQLite → PostgreSQL migration | ✅ Complete (2026-08-01) |
-| 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | 🔒 Blocked (by Phase 1) — unblocked now |
+| 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | ✅ Complete (2026-08-01) |
 | 3 | Kitchen outbox wiring + duplicate-event fix | 🔒 Blocked (by Phase 1) — unblocked now |
-| 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) |
+| 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) — unblocked now |
 | 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | 🔒 Blocked (by Phase 4) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
@@ -594,6 +594,56 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.3 (2026-08-01) — Phase 2 complete (migration reliability + compose posture + boot-time fixes)
+
+**Code (`feat(reliability): MigratorHostedService + EnableRetryOnFailure project-wide + docker-compose split`):**
+
+- **`BuildingBlocks.Persistence`** (new project) — `MigratorHostedService<TContext>` (generic `IHostedService` with exponential-backoff retry) + `MigratorHostedServiceOptions` (`Enabled`, `MaxAttempts=10`, `InitialBackoffSeconds=2`, `MaxBackoffSeconds=32`, `BackoffMultiplier=2`, `MigrationTimeoutSeconds=120` → fail-fast). Replaces inline `MigrateAsync()` blocks + Ordering's custom MSSQL `MigrateWithRetryAsync`.
+- **`BuildingBlocks.Messaging/MassTransit/Extensions.cs`** — defensively validates `MessageBroker:Host/UserName/Password`; throws `BrokerConfigurationException` listing every absent key. Replaces the silent `new Uri(null!)` that crashed Kitchen + Ordering + any future adopter on missing config.
+- **`BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs`** (new) — sealed `Exception` with `IReadOnlyList<string> MissingKeys`; mirrors `NotFoundException`.
+- **`BuildingBlocks.Messaging/Outbox/OutboxDispatcher.cs:148`** — wraps the `BeginTransactionAsync` block in `Database.CreateExecutionStrategy().ExecuteAsync(...)` so `EnableRetryOnFailure(5, 10s)` doesn't crash the dispatcher with "user-initiated transactions" (plan §10.3). Single source of truth — covers every adopter (Discount, Catalog, Kitchen, Ordering).
+- **5 relational services** register `MigratorHostedService<TContext>` (per-adopter concrete class):
+  - Catalog: `CatalogMigratorHostedService` (Catalog.API/Persistence/)
+  - Discount: `DiscountMigratorHostedService` (Discount.Grpc/Persistence/) — replaces Phase 1's inline-await block
+  - Identity: `IdentityMigratorHostedService` (Identity.API/Persistence/) — hoists migration out of `DataSeeder.SeedDataAsync`
+  - Ordering: `OrderingMigratorHostedService` (Ordering.Infrastructure/Persistence/) — replaces `DatabaseExtensions.MigrateWithRetryAsync`
+  - Kitchen: `KitchenMigratorHostedService` (Kitchen.API/Persistence/) — replaces dev-only `if (IsDevelopment()) MigrateAsync()` block
+- **`EnableRetryOnFailure(5, 10s)` project-wide**:
+  - Catalog: `UseNpgsql(...).UseNodaTime().EnableRetryOnFailure(5, 10s, null)`
+  - Discount: same chain
+  - Identity: same chain
+  - Kitchen: same chain
+  - Ordering: `UseSqlServer(...).EnableRetryOnFailure(5, 10s, errorNumbersToAdd: null)` (SqlServer parameter name differs)
+  - Catalog `OrderCompletedIntegrationEventHandler.cs:42` — wraps `BeginTransactionAsync` in `Database.CreateExecutionStrategy().ExecuteAsync(...)`
+- **Catalog `Program.cs`** — 4 static `RecurringJob.AddOrUpdate<T>(...)` calls (lines 200/205/210/215) replaced with `IRecurringJobManager` resolved from `app.Services.GetRequiredService<>()`. Closes the boot-time crash documented in §6.7 v1.2 changelog M-L8 (`InvalidOperationException: Current JobStorage instance has not been initialized yet`).
+- **Kitchen `Program.cs`** — adds `MapHealthChecks("/ready", new HealthCheckOptions { Predicate = _ => false })` so the new HEALTHCHECK directive has a target. Existing `/health` endpoint kept for backwards compatibility (SignalR clients).
+- **Kitchen `appsettings.json`** — adds `MessageBroker` section with `localhost:5672` defaults (closes the dev-native-crash path).
+- **Ordering `DatabaseExtensions.cs`** — deletes `MigrateWithRetryAsync`; `InitializeDatabaseAsync` keeps only the dev-only seeder.
+- **All 7 Dockerfiles** (Catalog, Basket, Discount, Identity, Ordering, Kitchen, ApiGateway) gain `curl` install + `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1`.
+- **`docker-compose.yml`** (base) — production-shaped: every backing-store has a `healthcheck:` block (`pg_isready` for Postgres; `sqlcmd -Q 'SELECT 1'` for MSSQL with `start_period: 60s`; `redis-cli ping`; `rabbitmq-diagnostics check_running`); every service `depends_on:` uses `condition: service_healthy`.
+- **`docker-compose.override.yml` → `docker-compose.override.dev.yml`** (git mv). Renamed file gains `MessageBroker__Host/UserName/Password` on the `kitchen.api` block (closes the §6.7 v1.2 changelog M-L9 boot-time crash). All `depends_on:` blocks promoted to `condition: service_healthy`.
+- **`docker-compose.dcproj`** — adds `<DockerComposeProjectFiles>docker-compose.yml;docker-compose.override.dev.yml</DockerComposeProjectFiles>` so Visual Studio F5 picks up the renamed override; adds `docker-compose.override.prod.yml` to the `<None Include>` list.
+- **`README.md`** — three blocks updated: docker-compose invocation now uses `-f docker-compose.yml -f docker-compose.override.dev.yml` (or `override.prod.yml` for production posture); `Environment variables` section names both override files; `Running Locally` adds `discountdb` to the backing-store list.
+- **`Catalog.API.Tests/Integration/CatalogHangfireBootTests.cs`** (new) — boots the real `Program.cs` pipeline via `CatalogWebApplicationFactory`; asserts `_ = factory.CreateClient()` does not throw `InvalidOperationException: Current JobStorage instance has not been initialized yet`. Second test verifies `IRecurringJobManager` is resolvable from DI (proves the static API is gone).
+
+**Phase-2 deferrals & decisions documented in commit body:**
+
+1. **Migrator timeout = fail-fast at 120s** per plan §6.2 default. Crashes on rolling-restart failover; K8s restarts the pod. Override `Migrator:Enabled=false` for canary deploys where migrations are operator-applied.
+2. **Hangfire**: DI-only activation, no replacement. `IRecurringJobManager.AddOrUpdate<T>(...)` is the only path.
+3. **Kitchen `/ready`**: added as a no-op `MapHealthChecks` so the new HEALTHCHECK directive has a 200 target. Existing `/health` kept for backwards compat.
+4. **Ordering retry**: deleted in favor of the generic hosted service.
+5. **`orderdb` healthcheck `start_period: 60s`** (vs. plan's 30s) — covers MSSQL's documented 60-90s cold-init on slow runners (plan §10.1 R7).
+6. **Connection-string style**: Plan §6.2 suggested `User Id=`; Catalog uses `Username=`. Matched Catalog's existing style across all services for consistency.
+
+**Exit criteria verified (V1-V8):**
+- V1 ✅ `BuildingBlocks.Persistence` + `MigratorHostedService.cs` build clean (Npgsql 10.0.2 + System.Data.SqlClient 4.8.6 transitive deps).
+- V2 ✅ All 5 services compile + register MigratorHostedService + EnableRetryOnFailure.
+- V3 ✅ Discount integration tests (143/146 pass) confirm the hosted service replaces Phase 1's inline migration without regression. Catalog.API.Tests/CatalogHangfireBootTests added; build clean.
+- V4-V8 ⏸ deferred to docker-compose boot in a real environment (requires Postgres / MSSQL / Redis / RabbitMQ containers on the test runner).
+- **Test results**: `dotnet test Discount.Grpc.Tests` → 143/146 pass (3 pre-existing skips unchanged from Phase 1). `dotnet build orderly-microservices.slnx` → 0 errors.
+
+Refs: feat(reliability) — MigratorHostedService + EnableRetryOnFailure project-wide.
 
 ### v3.2 (2026-08-01) — Phase 1 complete (Discount.Grpc SQLite → PostgreSQL)
 

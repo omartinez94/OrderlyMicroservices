@@ -4,7 +4,12 @@ using Discount.Grpc.Messaging.EventHandlers;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Discount.Grpc.Models;
 
 namespace Discount.Grpc.Tests.Integration;
 
@@ -40,17 +45,98 @@ public sealed class MenuItemChangedConsumerTests(DiscountWebApplicationFactory f
 {
     private static readonly Guid TenantGuid = new("eeeeeeee-0000-0000-0000-000000000001");
 
-    [Fact(Skip = "NSubstitute<ConsumeContext<T>> path doesn't reproduce the broker surface; needs MassTransit test harness. Tracked for follow-up — see class-level comment for the skip rationale.")]
+    [Fact]
     public async Task DeletedEvent_DeactivatesCouponsPointedAtTheMenuItem()
     {
-        // See class-level comment for the skip rationale.
-        await Task.CompletedTask;
+        await factory.CleanAllAsync();
+        
+        var menuItemId = Guid.NewGuid();
+        var coupon = await factory.SeedCouponAsync(TenantGuid, "TEST-MENU");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+            var rule = new DiscountRule
+            {
+                CouponId = coupon.Id,
+                RestaurantId = TenantGuid,
+                RuleType = DiscountRuleKind.RequiredMenuItems,
+                RuleDataJson = $"[\"{menuItemId:N}\"]",
+                IsActive = true
+            };
+            db.DiscountRules.Add(rule);
+            await db.SaveChangesAsync();
+        }
+
+        var evt = new MenuItemChangedIntegrationEvent
+        {
+            RestaurantId = TenantGuid,
+            MenuItemId = menuItemId,
+            ChangeType = MenuItemChangeType.Deleted
+        };
+            
+        await ConsumeAsync(evt);
+        
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+            var updatedCoupon = await db.Coupons.IgnoreQueryFilters().FirstAsync(c => c.Id == coupon.Id);
+            updatedCoupon.IsActive.Should().BeFalse();
+        }
     }
 
-    [Fact(Skip = "Same NSubstitute path limitation as DeletedEvent_DeactivatesCouponsPointedAtTheMenuItem. The dedup-table-direct assertion in ProcessedInboundeventTests exercises the SQL path.")]
+    [Fact]
     public async Task RedeliveredEvent_IsIdempotent_LeavesOneDedupRow()
     {
-        await Task.CompletedTask;
+        await factory.CleanAllAsync();
+
+        var evt = new MenuItemChangedIntegrationEvent
+        {
+            RestaurantId = TenantGuid,
+            MenuItemId = Guid.NewGuid(),
+            ChangeType = MenuItemChangeType.Deleted
+        };
+            
+        await ConsumeAsync(evt);
+        await ConsumeAsync(evt);
+        
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+            var rows = await db.ProcessedInboundevents
+                .Where(p => p.EventId == evt.Id && p.ConsumerType == nameof(MenuItemChangedConsumer))
+                .ToListAsync();
+                
+            rows.Should().HaveCount(1);
+        }
+    }
+
+    private async Task ConsumeAsync(MenuItemChangedIntegrationEvent message)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var sp = scope.ServiceProvider;
+        
+        var consumer = new MenuItemChangedConsumer(
+            new SingleScopeFactory(sp),
+            NullLogger<MenuItemChangedConsumer>.Instance);
+
+        var context = Substitute.For<ConsumeContext<MenuItemChangedIntegrationEvent>>();
+        context.Message.Returns(message);
+        context.CancellationToken.Returns(CancellationToken.None);
+
+        await consumer.Consume(context);
+    }
+
+    private sealed class SingleScopeFactory(IServiceProvider root) : IServiceScopeFactory
+    {
+        public IServiceScope CreateScope() => new NoopScope(root);
+        public IServiceScope CreateAsyncScope() => new NoopScope(root);
+
+        private sealed class NoopScope(IServiceProvider sp) : IServiceScope
+        {
+            public IServiceProvider ServiceProvider => sp;
+            public void Dispose() { }
+        }
     }
 }
 

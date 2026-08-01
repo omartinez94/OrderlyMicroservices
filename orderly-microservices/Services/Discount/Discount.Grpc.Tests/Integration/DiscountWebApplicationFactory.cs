@@ -1,6 +1,7 @@
 using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.TestHost;
 using Testcontainers.PostgreSql;
+using MassTransit;
 
 namespace Discount.Grpc.Tests.Integration;
 
@@ -81,6 +82,8 @@ public class DiscountWebApplicationFactory : WebApplicationFactory<Program>, IAs
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     TestAuthHandler.SchemeName, _ => { });
+
+            services.AddMassTransitTestHarness();
         });
 
         // Register the gRPC auth-bridge interceptor that closes the

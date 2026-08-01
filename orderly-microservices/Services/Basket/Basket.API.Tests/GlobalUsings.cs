@@ -33,3 +33,5 @@ global using System.Threading;
 global using System.Threading.RateLimiting;
 global using System.Threading.Tasks;
 global using Xunit;
+
+[assembly: CollectionBehavior(DisableTestParallelization = true)]

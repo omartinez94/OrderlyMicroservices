@@ -1,10 +1,7 @@
-using BuildingBlocks.Discounts;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
 using Discount.Grpc.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using NodaTime;
 
 // The proto-generated `Discount.Grpc.DiscountType` enum shadows the
 // namespace-unqualified `BuildingBlocks.Discounts.DiscountType` in this
@@ -53,13 +50,6 @@ public class DiscountContext(
     // Task<int> SaveChangesAsync(...) is inherited from DbContext and likewise satisfies
     // the interface; nothing to override here.
 
-    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
-    {
-        configurationBuilder
-            .Properties<Instant>()
-            .HaveConversion<InstantToLongConverter>();
-    }
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -70,10 +60,11 @@ public class DiscountContext(
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OutboxMessage).Assembly);
 
         // Coupon.DiscountType — closed enum from BuildingBlocks.Discounts.
-        // Stored as INTEGER (SQLite enum↔int mapping); default = Percentage
-        // (the enum's underlying 0 value). Phase 8's migration adds the
-        // column with DEFAULT 0 — every pre-existing row is re-classified
-        // as Percentage on the next read (audit note per plan §8.1).
+        // Stored as int (PostgreSQL maps `HasConversion<int>()` to integer);
+        // default = Percentage (the enum's underlying 0 value). The Phase 8
+        // migration adds the column with DEFAULT 0 — every pre-existing row
+        // is re-classified as Percentage on the next read (audit note per
+        // plan §8.1).
         modelBuilder.Entity<Coupon>(entity =>
         {
             entity.Property(o => o.DiscountType)
@@ -100,40 +91,10 @@ public class DiscountContext(
             r.DeletedAt == null &&
             r.RestaurantId == _restaurantProvider.RestaurantId);
 
-        modelBuilder.Entity<Coupon>().HasData(
-            new
-            {
-                Id = 1,
-                RestaurantId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                Code = "DISCOUNT10",
-                Description = "10% off your order",
-                DiscountType = DbDiscountType.Percentage,
-                Amount = 10m,
-                RedeemAmount = 0,
-                MaxRedeemAmount = 100,
-                ExpirationDate = Instant.FromUtc(2024, 12, 31, 23, 59, 59),
-                CreatedBy = "System",
-                CreatedAt = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
-                LastModifiedBy = "System",
-                IsActive = true
-            },
-            new
-            {
-                Id = 2,
-                RestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                Code = "DISCOUNT20",
-                Description = "20% off your order",
-                DiscountType = DbDiscountType.Percentage,
-                Amount = 20m,
-                RedeemAmount = 10,
-                MaxRedeemAmount = 200,
-                ExpirationDate = Instant.FromUtc(2024, 12, 31, 23, 59, 59),
-                CreatedBy = "System",
-                CreatedAt = Instant.FromUtc(2024, 1, 1, 0, 0, 0),
-                LastModifiedBy = "System",
-                IsActive = true
-            }
-        );
+        // Phase 1 deliberately drops the dev-only DISCOUNT10/DISCOUNT20
+        // HasData seeds (plan §3 + §4: production deploys start on an
+        // empty Coupons table). Developers seed via gRPC after the stack
+        // boots.
 
         modelBuilder.Entity<DiscountRule>(entity =>
         {
@@ -153,9 +114,12 @@ public class DiscountContext(
             // Practical filter indexes for the consumer's
             // RequiredMenuItemIds match query (filter by RestaurantId,
             // JSON-touched predicate). CouponId is the PK-side of the
-            // match path; the consumer reads via JsonContains or
-            // LIKE-on-JSON, both of which are SQLite-sequential without
-            // a JSON1 extension — acceptable for traffic shape.
+            // match path. The current consumer LINQ (`RuleDataJson.Contains(...)`)
+            // compiles on PostgreSQL to `LIKE '%pattern%'`, which is a
+            // sequential scan on `text` — acceptable for current traffic.
+            // Follow-up: migrate `RuleDataJson` to `jsonb` + add
+            // `GIN (RuleDataJson jsonb_path_ops)` + switch to
+            // `EF.Functions.JsonContains` per plan §6.1.
             entity.HasIndex(r => new { r.RestaurantId, r.IsActive })
                 .HasDatabaseName("ix_discount_rules_restaurant_active");
         });
@@ -164,8 +128,8 @@ public class DiscountContext(
         {
             // Composite PK on (EventId, ConsumerType) — the idempotency
             // key. Insertion race-resolution is enforced by the PK + the
-            // handler's catch on SqliteException.SqlState == "1555"
-            // (SQLITE_CONSTRAINT_PRIMARYKEY).
+            // handler's catch on Npgsql.PostgresException.SqlState == "23505"
+            // (SQLSTATE unique_violation).
             entity.HasKey(p => new { p.EventId, p.ConsumerType });
 
             // Diagnostic index — operators may want to find all rows
@@ -192,16 +156,5 @@ public class DiscountContext(
             entity.HasIndex(r => new { r.RestaurantId, r.IsActive, r.ExpirationDate })
                 .HasDatabaseName("ix_reward_codes_restaurant_active_expiry");
         });
-    }
-}
-
-public class InstantToLongConverter : ValueConverter<Instant, long>
-{
-    public InstantToLongConverter()
-        : base(
-            v => v.ToUnixTimeTicks(),
-            v => Instant.FromUnixTimeTicks(v),
-            null)
-    {
     }
 }

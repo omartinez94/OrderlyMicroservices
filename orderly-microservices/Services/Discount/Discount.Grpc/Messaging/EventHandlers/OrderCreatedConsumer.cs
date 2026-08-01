@@ -112,14 +112,14 @@ public sealed class OrderCreatedConsumer(
             var coupon = candidates[0];
 
             var rowsAffected = await db.Database.ExecuteSqlInterpolatedAsync($@"
-                UPDATE Coupons
-                SET RedeemAmount    = RedeemAmount + 1,
-                    LastModifiedAt  = {now},
-                    LastModifiedBy  = {DiscountActors.Service}
-                WHERE Id = {coupon.Id}
-                  AND IsActive = 1
-                  AND DeletedAt IS NULL
-                  AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+                UPDATE ""Coupons""
+                SET ""RedeemAmount""    = ""RedeemAmount"" + 1,
+                    ""LastModifiedAt""  = {now},
+                    ""LastModifiedBy""  = {DiscountActors.Service}
+                WHERE ""Id"" = {coupon.Id}
+                  AND ""IsActive"" = {true}
+                  AND ""DeletedAt"" IS NULL
+                  AND (""MaxRedeemAmount"" IS NULL OR ""RedeemAmount"" < ""MaxRedeemAmount"")
             ", context.CancellationToken);
 
             if (rowsAffected == 0)

@@ -324,9 +324,9 @@ public class RewardCodeService(
             quantity: request.Quantity <= 0 ? 1 : request.Quantity,
             kind: row.Kind);
 
-        // Atomic conditional UPDATE. SQLite serializes the row inside its
-        // implicit transaction; concurrent redemptions serialize and the
-        // loser sees rowsAffected = 0 instead of incrementing past
+        // Atomic conditional UPDATE. PostgreSQL serializes the row inside
+        // its implicit transaction; concurrent redemptions serialize and
+        // the loser sees rowsAffected = 0 instead of incrementing past
         // MaxRedeemAmount. WHERE-clause guards:
         //   - alive   (DeletedAt IS NULL)        — defensive; the read enforced this
         //   - active  (IsActive = 1)              — defensive; the global filter doesn't yet gate on IsActive
@@ -339,16 +339,16 @@ public class RewardCodeService(
         var now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
         var quantity = request.Quantity <= 0 ? 1 : request.Quantity;
         var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE RewardCodes
-            SET RedeemAmount       = RedeemAmount + {quantity},
-                RedeemedInOrderId  = {orderId},
-                RedeemedAt         = {now},
-                LastModifiedAt     = {now},
-                LastModifiedBy     = {DiscountActors.System}
-            WHERE Id = {row.Id}
-              AND IsActive = 1
-              AND DeletedAt IS NULL
-              AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+            UPDATE ""RewardCodes""
+            SET ""RedeemAmount""       = ""RedeemAmount"" + {quantity},
+                ""RedeemedInOrderId""  = {orderId},
+                ""RedeemedAt""         = {now},
+                ""LastModifiedAt""     = {now},
+                ""LastModifiedBy""     = {DiscountActors.System}
+            WHERE ""Id"" = {row.Id}
+              AND ""IsActive"" = {true}
+              AND ""DeletedAt"" IS NULL
+              AND (""MaxRedeemAmount"" IS NULL OR ""RedeemAmount"" < ""MaxRedeemAmount"")
         ");
 
         if (rowsAffected == 0)

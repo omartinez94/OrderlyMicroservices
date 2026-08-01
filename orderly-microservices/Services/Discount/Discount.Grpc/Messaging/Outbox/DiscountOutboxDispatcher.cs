@@ -5,17 +5,19 @@ using Microsoft.Extensions.Options;
 namespace Discount.Grpc.Messaging.Outbox;
 
 /// <summary>
-/// First SQLite <see cref="OutboxDispatcher{TContext}"/> implementation. Extends
-/// the shared <c>OutboxDispatcher</c> base class with three service hooks:
+/// Discount.Grpc outbox dispatcher. Extends the shared <see cref="OutboxDispatcher{TContext}"/>
+/// base class with three service hooks:
 ///
 /// <list type="bullet">
 /// <item><see cref="CreateContext"/> — resolves a fresh <see cref="DiscountContext"/>
 /// from the per-poll scope so a broker failure rolls back cleanly without
 /// poisoning the surrounding request scope.</item>
-/// <item><see cref="BuildClaimSql"/> — emits a SELECT of undispatched rows.
-/// SQLite serializes writes via the database lock held by
-/// <c>BeginTransactionAsync</c> in the base class; for single-replica
-/// deployments this is sufficient.</item>
+/// <item><see cref="BuildClaimSql"/> — emits a SELECT of undispatched rows
+/// with <c>FOR UPDATE SKIP LOCKED</c>. The base class wraps the FromSql
+/// call in <c>BeginTransactionAsync</c>; PostgreSQL holds row-level locks
+/// for the duration of the transaction, and <c>SKIP LOCKED</c> lets a
+/// second replica claim disjoint outbox batches from the same table.
+/// Multi-replica safe.</item>
 /// <item><see cref="ExecuteAsync"/> — overrides the base loop to add a
 /// broker-circuit breaker per plan §6.7 v1.2 changelog M-L10. Counts
 /// top-level <c>DispatchOnceAsync</c> throws (TX-commit failure, broker
@@ -24,12 +26,6 @@ namespace Discount.Grpc.Messaging.Outbox;
 /// <c>OutboxOptions.BrokerBackoffSeconds</c> once tripped, and resets
 /// on the first successful dispatch.</item>
 /// </list>
-///
-/// <para>
-/// The multi-replica <c>ClaimId</c>-based claiming pattern is
-/// deferred to a follow-up. SQLite has no <c>SKIP LOCKED</c> equivalent; we
-/// stage the column via a follow-up migration when HA is in scope.
-/// </para>
 /// </summary>
 public sealed class DiscountOutboxDispatcher(
     IServiceProvider services,
@@ -48,13 +44,14 @@ public sealed class DiscountOutboxDispatcher(
 
     /// <inheritdoc />
     /// <remarks>
-    /// SQLite claim SQL. The base class wraps the FromSql call in
-    /// <c>BeginTransactionAsync</c>; the engine-level database lock held by
-    /// that transaction prevents any other process from claiming the same
-    /// rows in flight.
+    /// PostgreSQL claim SQL. The base class wraps the FromSql call in
+    /// <c>BeginTransactionAsync</c>; the row-level locks held by
+    /// <c>FOR UPDATE SKIP LOCKED</c> for the transaction's duration let a
+    /// second replica skip already-claimed rows and proceed with its own
+    /// disjoint batch. Multi-replica safe; see plan §6.1 / §10.2.
     /// </remarks>
     protected override FormattableString BuildClaimSql(int batchSize) =>
-        $"SELECT * FROM outbox_messages WHERE DispatchedAt IS NULL ORDER BY OccurredOn ASC LIMIT {batchSize}";
+        $"SELECT * FROM outbox_messages WHERE \"DispatchedAt\" IS NULL ORDER BY \"OccurredOn\" ASC LIMIT {batchSize} FOR UPDATE SKIP LOCKED";
 
     /// <inheritdoc />
     /// <remarks>

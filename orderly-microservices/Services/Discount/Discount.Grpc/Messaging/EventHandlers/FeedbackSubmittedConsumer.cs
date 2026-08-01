@@ -10,8 +10,6 @@ using Discount.Grpc.Models;
 using Discount.Grpc.Validators;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 
 namespace Discount.Grpc.Messaging.EventHandlers;
@@ -192,7 +190,7 @@ public sealed class FeedbackSubmittedConsumer(
         {
             await db.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        catch (DbUpdateException ex) when (InboundEventDedup.IsUniqueViolation(ex))
         {
             // Race: a parallel dispatcher / redelivered message inserted the
             // same Code before our SaveChangesAsync committed. Swallow —
@@ -238,10 +236,6 @@ public sealed class FeedbackSubmittedConsumer(
             row.RedeemAmount,
             row.MaxRedeemAmount,
         });
-
-    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
-        ex.InnerException is Microsoft.Data.Sqlite.SqliteException sqlite
-        && sqlite.SqlState is "1555" or "2067";
 
     /// <summary>
     /// Stable per-feedback anchor: MD5 of the int's bytes → 16 bytes →

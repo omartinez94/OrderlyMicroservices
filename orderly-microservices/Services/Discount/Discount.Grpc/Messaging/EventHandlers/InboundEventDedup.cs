@@ -2,7 +2,6 @@ using BuildingBlocks.Messaging.Events;
 using Discount.Grpc.Data;
 using Discount.Grpc.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Discount.Grpc.Messaging.EventHandlers;
 
@@ -10,10 +9,10 @@ namespace Discount.Grpc.Messaging.EventHandlers;
 /// Shared idempotency primitive for Discount's MassTransit consumers.
 /// Tries to insert a <see cref="ProcessedInboundevent"/> row keyed by
 /// <c>(EventId, ConsumerType)</c>; the unique-key violation on
-/// <see cref="SqliteException.SqlState"/> == <c>"1555"</c> is the
-/// "already processed" signal. The handler swallows that exception and
-/// returns <c>true</c> from <see cref="TryRecordAsync"/>, telling the
-/// caller to skip the work.
+/// <see cref="Npgsql.PostgresException.SqlState"/> == <c>"23505"</c>
+/// (SQLSTATE <c>unique_violation</c>) is the "already processed" signal.
+/// The handler swallows that exception and returns <c>true</c> from
+/// <see cref="TryRecordAsync"/>, telling the caller to skip the work.
 /// </summary>
 /// <remarks>
 /// <para>This is the "otherwise gate on processed_inbound_events"
@@ -53,9 +52,16 @@ internal static class InboundEventDedup
         }
     }
 
-    private static bool IsUniqueViolation(DbUpdateException ex) =>
-        ex.InnerException is Microsoft.Data.Sqlite.SqliteException sqlite
-            && sqlite.SqlState is "1555" or "2067" /* SQLITE_CONSTRAINT_PRIMARYKEY | UNIQUE */;
+    /// <summary>
+    /// Inspects the inner <see cref="Npgsql.PostgresException"/> for the
+    /// SQLSTATE <c>unique_violation</c> code (<c>"23505"</c>). Exposed
+    /// <c>internal</c> so other consumers (e.g.
+    /// <see cref="FeedbackSubmittedConsumer"/>) can call it instead of
+    /// duplicating the check.
+    /// </summary>
+    internal static bool IsUniqueViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException pg
+            && pg.SqlState == "23505" /* SQLSTATE unique_violation */;
 
     /// <summary>Reads the <see cref="IntegrationEvent.Id"/> from an
     /// inbound event via reflection — keeps the dedup helper free of

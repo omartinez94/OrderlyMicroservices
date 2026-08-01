@@ -13,6 +13,7 @@ using MassTransit;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,9 +61,24 @@ builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>(
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
 
+// PostgreSQL: build a single NpgsqlDataSource with the NodaTime plugin so
+// NodaTime.Instant maps natively to `timestamp with time zone`. The data
+// source is consumed by UseNpgsql below; EF reuses it internally via
+// DbContextOptions. The pattern mirrors Catalog.API/Program.cs:141-159.
+// EnableRetryOnFailure is intentionally NOT added in Phase 1 — the outbox
+// dispatcher uses Database.BeginTransactionAsync, which conflicts with
+// EF's retrying execution strategy (see plan §10.3). Phase 2 introduces
+// ExecutionStrategy wrapping project-wide.
+var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(
+    builder.Configuration.GetConnectionString("Database")!);
+dataSourceBuilder.UseNodaTime();
+var dataSource = dataSourceBuilder.Build();
+
 builder.Services.AddDbContext<DiscountContext>((sp, options) =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("Database"))
-        .AddInterceptors(new AuditableEntityInterceptor()));
+{
+    options.AddInterceptors(sp.GetServices<ISaveChangesInterceptor>())
+        .UseNpgsql(dataSource, npgsqlOptions => npgsqlOptions.UseNodaTime());
+});
 
 // Outbox: bind options, configure
 // MassTransit with an in-memory bus, register the scoped
@@ -137,7 +153,7 @@ builder.Services.AddOptions<DiscountOptions>()
 builder.Services.AddSingleton<IIdempotencyKeyProvider, IdempotencyKeyProvider>();
 
 // Readiness probes — /live + /ready split (mirrors Catalog).
-builder.Services.AddDiscountHealthChecks();
+builder.Services.AddDiscountHealthChecks(builder.Configuration);
 
 // Expiry sweep — soft-deletes coupons whose ExpirationDate has passed.
 builder.Services.Configure<DiscountExpirySweepOptions>(
@@ -147,7 +163,18 @@ builder.Services.AddHostedService<DiscountExpirySweepService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-app.UseMigration();
+
+// Inline-await migration (was Data/Extensions.UseMigration(), which was
+// fire-and-forget). Mirrors Catalog.API/Program.cs:181-183. Must happen
+// BEFORE MapGrpcService so the schema is in place when gRPC traffic
+// arrives. The EF runner applies any pending migrations under
+// `Migrations/`. Top-level statements with `await` compile to async Task
+// Main, so `app.Run()` after this still works synchronously.
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 app.MapGrpcService<DiscountService>();
 app.MapGrpcService<DiscountRuleService>();

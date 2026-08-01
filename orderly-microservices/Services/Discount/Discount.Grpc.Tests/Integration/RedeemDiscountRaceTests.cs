@@ -3,7 +3,7 @@ namespace Discount.Grpc.Tests.Integration;
 /// <summary>
 /// Drives the same atomic conditional UPDATE that
 /// <see cref="Grpc.Services.DiscountService.RedeemDiscount"/> emits and
-/// asserts the SQLite write-lock serializes concurrent redemptions
+/// asserts the Postgres write-lock serializes concurrent redemptions
 /// correctly. Plan §7 Phase 1 race-fix verification.
 /// </summary>
 [Collection(nameof(DiscountWebApplicationFactoryCollection))]
@@ -40,12 +40,11 @@ public sealed class RedeemDiscountRaceTests(DiscountWebApplicationFactory factor
             redeemAmount: 0,
             maxRedeemAmount: 3);
 
-        // Five parallel attempts against a cap of three. SQLite serializes
-        // writes via the engine-level write lock held by
-        // BeginTransactionAsync in the dispatcher's relay loop — but
-        // each ExecuteSqlInterpolatedAsync here opens its own implicit
-        // transaction, so the contended write is real. Expect exactly
-        // 3 to increment and 2 to fail the predicate.
+        // Five parallel attempts against a cap of three. PostgreSQL
+        // serializes writes via row-level locks; each
+        // ExecuteSqlInterpolatedAsync opens its own implicit transaction
+        // that holds a row lock until commit, so the contended write is
+        // real. Expect exactly 3 to increment and 2 to fail the predicate.
         var tasks = Enumerable.Range(0, 5).Select(_ => Task.Run(() =>
             RunConditionalRedeemAsync(coupon.Id))).ToArray();
 
@@ -85,12 +84,12 @@ public sealed class RedeemDiscountRaceTests(DiscountWebApplicationFactory factor
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
         return await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE Coupons
-            SET RedeemAmount = RedeemAmount + 1
-            WHERE Id = {couponId}
-              AND IsActive = 1
-              AND DeletedAt IS NULL
-              AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+            UPDATE ""Coupons""
+            SET ""RedeemAmount"" = ""RedeemAmount"" + 1
+            WHERE ""Id"" = {couponId}
+              AND ""IsActive"" = {true}
+              AND ""DeletedAt"" IS NULL
+              AND (""MaxRedeemAmount"" IS NULL OR ""RedeemAmount"" < ""MaxRedeemAmount"")
         ");
     }
 }

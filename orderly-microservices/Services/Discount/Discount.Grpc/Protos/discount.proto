@@ -7,7 +7,7 @@ package discount;
 import "google/protobuf/timestamp.proto";
 
 // Closed enum mirroring BuildingBlocks.Discounts.DiscountType. The numeric
-// values are the SQLite-stored INTEGER; the proto serializer / deserializer
+// values are the Postgres-stored integer; the proto serializer / deserializer
 // pick them up automatically when this enum is referenced.
 //
 // NOTE: the proto3 package-scoped enum-value namespace collides with the

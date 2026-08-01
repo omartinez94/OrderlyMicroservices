@@ -2,9 +2,9 @@ namespace Discount.Grpc.Tests.Integration;
 
 /// <summary>
 /// xUnit collection definition ensuring the
-/// <see cref="DiscountWebApplicationFactory"/> (per-fixture temp-file SQLite
-/// host) is created once for all integration tests under this collection.
-/// Decorate each integration test class with
+/// <see cref="DiscountWebApplicationFactory"/> (a Testcontainers-managed
+/// PostgreSQL host) is created once for all integration tests under this
+/// collection. Decorate each integration test class with
 /// <c>[Collection(nameof(DiscountWebApplicationFactoryCollection))]</c>.
 /// </summary>
 [CollectionDefinition(nameof(DiscountWebApplicationFactoryCollection))]

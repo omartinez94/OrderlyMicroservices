@@ -74,13 +74,13 @@ public sealed class RestaurantConfigurationChangedConsumer(
             var nowTicks = SystemClock.Instance.GetCurrentInstant().ToUnixTimeTicks();
             var actor = DiscountActors.Service;
             var deactivated = await db.Database.ExecuteSqlInterpolatedAsync($@"
-                UPDATE Coupons
-                SET IsActive = 0,
-                    LastModifiedBy = {actor},
-                    LastModifiedAt = {nowTicks}
-                WHERE RestaurantId = {evt.RestaurantId}
-                  AND IsActive = 1
-                  AND DeletedAt IS NULL
+                UPDATE ""Coupons""
+                SET ""IsActive"" = {false},
+                    ""LastModifiedBy"" = {actor},
+                    ""LastModifiedAt"" = {nowTicks}
+                WHERE ""RestaurantId"" = {evt.RestaurantId}
+                  AND ""IsActive"" = {true}
+                  AND ""DeletedAt"" IS NULL
             ", context.CancellationToken);
 
             logger.LogInformation(

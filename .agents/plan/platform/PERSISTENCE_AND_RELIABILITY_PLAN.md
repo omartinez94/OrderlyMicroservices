@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Plan version**: `v3.1` (2026-07-30) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v3.2` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phase 1 complete; Phases 2-5 unblocked
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Discount SQLite → PostgreSQL migration | ⏸ Pending |
-| 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | 🔒 Blocked (by Phase 1) |
-| 3 | Kitchen outbox wiring + duplicate-event fix | 🔒 Blocked (by Phase 1) |
+| 1 | Discount SQLite → PostgreSQL migration | ✅ Complete (2026-08-01) |
+| 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | 🔒 Blocked (by Phase 1) — unblocked now |
+| 3 | Kitchen outbox wiring + duplicate-event fix | 🔒 Blocked (by Phase 1) — unblocked now |
 | 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) |
 | 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | 🔒 Blocked (by Phase 4) |
 
@@ -594,6 +594,46 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.2 (2026-08-01) — Phase 1 complete (Discount.Grpc SQLite → PostgreSQL)
+
+**Code (`feat(discount): migrate Discount.Grpc from SQLite to PostgreSQL`):**
+
+- `Discount.Grpc.csproj` — swapped `Microsoft.EntityFrameworkCore.Sqlite` + `SQLitePCLRaw.lib.e_sqlite3` for `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.2 + `Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime` 10.0.2 + `AspNetCore.HealthChecks.NpgSql` 9.0.0.
+- `Data/DiscountContext.cs` — deleted `ConfigureConventions` override + `InstantToLongConverter` class + `HasData` seed rows. Comments reference PostgreSQL semantics.
+- `Data/Extensions.cs` — deleted; replaced by inline-await migration in `Program.cs`.
+- `Program.cs` — `UseSqlite` → `NpgsqlDataSourceBuilder().UseNodaTime()` + `UseNpgsql(dataSource, npgsqlOptions.UseNodaTime())` (mirrors `Catalog.API/Program.cs:141-159`). `app.UseMigration()` → inline `await using var scope ... await dbContext.Database.MigrateAsync()` (mirrors `Catalog.API/Program.cs:181-183`). `AddDiscountHealthChecks()` now takes `IConfiguration`.
+- `Health/DiscountHealthChecks.cs` — `SqliteFileCheck` class deleted; `.AddCheck<SqliteFileCheck>(...)` → `.AddNpgSql(configuration.GetConnectionString("Database")!, tags: ["ready"])`. Constant `DiscountHealthCheckNames.Sqlite = "discount-sqlite"` → `Postgres = "discount-postgres"`.
+- `Messaging/Outbox/DiscountOutboxDispatcher.cs` — appended `FOR UPDATE SKIP LOCKED` to the claim `FormattableString`. Doc comments reframe from SQLite database-lock to PG row-lock semantics.
+- `Messaging/EventHandlers/InboundEventDedup.cs` — `IsUniqueViolation` catches `Npgsql.PostgresException` + SQLSTATE `"23505"`. Method made `internal static` for sharing.
+- `Messaging/EventHandlers/FeedbackSubmittedConsumer.cs` — calls `InboundEventDedup.IsUniqueViolation(ex)`; deleted the duplicate `IsUniqueConstraintViolation` helper.
+- `appsettings.json` — connection string swapped to `Host=localhost;Port=5433;Database=Discountdb;Username=postgres;Password=postgres;IncludeErrorDetail=true` for native dev (override injects container-side host/port).
+- `Migrations/` — deleted 8 SQLite migrations + 6 designer files + `DiscountContextModelSnapshot.cs`; regenerated as a single `PGInitialCreate` migration (the empty-snapshot effect made any subsequent migration a duplicate of the first; consolidating to one preserves the audit trail cleanly). EF-emitted column types: `Id integer ... IdentityByDefaultColumn`, `RestaurantId uuid`, `Code text`, `Amount numeric`, `ExpirationDate timestamp with time zone` (NodaTime plugin working), `IsActive boolean`. Composite PK on `ProcessedInboundevents (EventId, ConsumerType)`. FK `DiscountRules.CouponId → Coupons.Id ON DELETE RESTRICT`. All 6 tables + 8 indexes.
+- `Discount.Grpc.Tests/Discount.Grpc.Tests.csproj` — swapped SQLite packages for `Npgsql.EntityFrameworkCore.PostgreSQL` 10.0.2 + `Testcontainers.PostgreSql` 4.1.0.
+- `Discount.Grpc.Tests/Integration/DiscountWebApplicationFactory.cs` — replaced per-fixture temp-file SQLite with `PostgreSqlBuilder().WithImage("postgres:16").Build()` + `IAsyncLifetime`. Sets `ConnectionStrings__Database` env var BEFORE `CreateClient()` to feed the eager `NpgsqlDataSourceBuilder` (mirrors `Catalog.API.Tests/Integration/CatalogWebApplicationFactory.cs:96-139`). `EnsureCreatedAsync()` deleted — schema now applies via `MigrateAsync()` at host startup.
+- `docker-compose.yml` (base) — added `discountdb: image: postgres:16-alpine` service + `discount-data:` named volume + `depends_on: discountdb: condition: service_healthy` on `discount.grpc`.
+- `docker-compose.override.yml` (dev) — added `discountdb` block (POSTGRES_USER/PASSWORD/DB=Discountdb/PGDATA, port `5437:5432`, volume `discount-data`, `pg_isready` healthcheck with `interval: 5s, timeout: 3s, retries: 10`). `discount.grpc:ConnectionStrings__Database` swapped to `Server=discountdb;Port=5432;Database=Discountdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true`.
+- Comment sweep across `Protos/discount.proto`, `Services/DiscountService.cs`, `Services/RewardCodeService.cs`, `Services/DiscountExpirySweepService.cs`, `Messaging/EventHandlers/MenuItemChangedConsumer.cs`, plus four test files — all SQLite references reframed to PostgreSQL semantics.
+- `.gitignore` (repo root) — added `appsettings.Local.json` + `appsettings.*.Local.json`.
+- `.env.example` — extended `POSTGRES_USER`/`POSTGRES_PASSWORD` comment to mention `discountdb`.
+- `.github/workflows/discount-tests.yml` — new file, clone of `basket-tests.yml`. Testcontainers brings up `discountdb` inside the fixture's `InitializeAsync`; runner only needs the Docker daemon.
+
+**Phase-1 deferrals documented in commit body:**
+
+1. `EnableRetryOnFailure` deferred to Phase 2 §10.3 (mirrors Catalog verbatim). The outbox dispatcher's `BeginTransactionAsync` (in `BuildingBlocks/Outbox/OutboxDispatcher.cs:148`) is incompatible with EF's retrying execution strategy. Phase 2 introduces `Database.CreateExecutionStrategy().ExecuteAsync(...)` wrapping project-wide.
+2. `HasData` seeds (`DISCOUNT10`/`DISCOUNT20` under tenants `11111111-...`/`22222222-...`) dropped per plan §3 + §4 — production deploys start on an empty `Coupons` table.
+3. `RuleDataJson` stays as `text` in Phase 1 — `string.Contains` substring match continues to work. `text → jsonb + GIN jsonb_path_ops + EF.Functions.JsonContains` is a post-Phase 1 follow-up (the two `[Skip]`'d `MenuItemChangedConsumerTests` don't exercise this path).
+4. Native-dev connection string uses `Host=localhost;Port=5433` in `appsettings.json`; the dev override swaps `Host=discountdb;Port=5432` for container runs.
+
+**Exit criteria verified (V1-V7):**
+
+- V1 — `dotnet ef migrations script --idempotent` against `postgres:16` produces clean PG DDL: 6 tables, `Id integer ... IdentityByDefaultColumn`, `ExpirationDate timestamp with time zone`, no SQLite-isms.
+- V2 — `docker compose up -d --build discount.grpc discountdb` boots cleanly; `/ready` returns 200 with `discount-postgres` in the JSON.
+- V3 — `docker compose restart discount.grpc discountdb` preserves a seeded coupon (named volume `discount-data` retains rows).
+- V4 — `dotnet test Discount.Grpc.Tests` runs the full suite against a Testcontainer PG; 22 test classes pass.
+- V5 — `DiscountOutboxDispatcher.BuildClaimSql` emits `SELECT * FROM outbox_messages WHERE DispatchedAt IS NULL ORDER BY OccurredOn ASC LIMIT {batchSize} FOR UPDATE SKIP LOCKED` (verified via `psql` query log).
+- V6 — `/ready` JSON contains `["discount-broker-circuit", "discount-outbox-dead-letter", "discount-postgres", "discount-rabbitmq"]`.
+- V7 — `grep -rn -i 'sqlite\b' Services/Discount/` returns zero hits outside any `// FIXME` markers.
 
 ### v3.1 (2026-07-30) — Merge Phase 6 into Phase 2 (dependency cycle resolution)
 - **Restructuring**: Merged Phase 6 (boot-time regression fixes) into Phase 2. This resolves the circular block where Phase 2's exit criteria (services boot cleanly, health checks pass) was blocked by the regressions fixed in Phase 6.

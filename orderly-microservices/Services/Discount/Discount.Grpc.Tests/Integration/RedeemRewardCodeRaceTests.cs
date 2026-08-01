@@ -4,9 +4,9 @@ namespace Discount.Grpc.Tests.Integration;
 /// Mirrors <see cref="RedeemDiscountRaceTests"/> for the
 /// <see cref="Grpc.Services.RewardCodeService.RedeemRewardCode"/> atomic
 /// conditional UPDATE. Plan §7 Phase 3 closes the same TOCTOU race for
-/// reward codes that Phase 1 closed for coupons. SQLite serializes
-/// writes via the engine-level write lock; concurrent redemptions against
-/// a cap produce exactly <c>cap</c> winners and <c>attempts - cap</c> losers.
+/// reward codes that Phase 1 closed for coupons. PostgreSQL serializes
+/// writes via row-level locks; concurrent redemptions against a cap
+/// produce exactly <c>cap</c> winners and <c>attempts - cap</c> losers.
 /// </summary>
 [Collection(nameof(DiscountWebApplicationFactoryCollection))]
 public sealed class RedeemRewardCodeRaceTests(DiscountWebApplicationFactory factory)
@@ -99,12 +99,12 @@ public sealed class RedeemRewardCodeRaceTests(DiscountWebApplicationFactory fact
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
         return await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE RewardCodes
-            SET RedeemAmount = RedeemAmount + 1
-            WHERE Id = {rewardCodeId}
-              AND IsActive = 1
-              AND DeletedAt IS NULL
-              AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+            UPDATE ""RewardCodes""
+            SET ""RedeemAmount"" = ""RedeemAmount"" + 1
+            WHERE ""Id"" = {rewardCodeId}
+              AND ""IsActive"" = {true}
+              AND ""DeletedAt"" IS NULL
+              AND (""MaxRedeemAmount"" IS NULL OR ""RedeemAmount"" < ""MaxRedeemAmount"")
         ");
     }
 }

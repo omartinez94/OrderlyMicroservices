@@ -1,0 +1,73 @@
+name: Discount Tests
+
+on:
+  pull_request:
+    paths:
+      - 'orderly-microservices/Services/Discount/**'
+      - 'orderly-microservices/BuildingBlocks/**'
+      - 'orderly-microservices/.github/workflows/discount-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'orderly-microservices/Services/Discount/**'
+      - 'orderly-microservices/BuildingBlocks/**'
+  workflow_dispatch:
+
+# The Discount integration tests spin up a real Postgres container
+# via Testcontainers. Concurrency is capped at one job per ref to
+# avoid hammering the Docker host on a busy PR.
+concurrency:
+  group: discount-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: dotnet test (Discount)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Enable Docker BuildKit
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-discount-nuget-${{ hashFiles('orderly-microservices/Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-discount-nuget-
+
+      - name: Restore
+        working-directory: orderly-microservices
+        run: dotnet restore Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj
+
+      - name: Build
+        working-directory: orderly-microservices
+        run: dotnet build Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj -p:TreatWarningsAsErrors=true --no-restore
+
+      - name: Test (unit)
+        working-directory: orderly-microservices
+        run: dotnet test Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName!~Integration"
+
+      - name: Test (integration / Testcontainers)
+        working-directory: orderly-microservices
+        # The Testcontainers Postgres container requires the runner's
+        # Docker daemon. The integration tests boot a real gRPC host
+        # (Carter + EF Core Npgsql + MassTransit in-memory bus) on top
+        # of the container and exercise the DiscountService / DiscountRuleService
+        # / RewardCodeService contracts via WebApplicationFactory<Program>.
+        # The suite takes ~2-4 minutes wall-clock on a fresh runner; the
+        # 30-minute job timeout is conservative.
+        run: dotnet test Services/Discount/Discount.Grpc.Tests/Discount.Grpc.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName~Integration"
+        env:
+          DOTNET_CLI_TELEMETRY_OPTOUT: true
+          DOCKER_BUILDKIT: 1

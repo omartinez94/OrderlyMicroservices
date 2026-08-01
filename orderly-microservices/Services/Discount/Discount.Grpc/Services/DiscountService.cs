@@ -190,15 +190,16 @@ public class DiscountService(
             return new RedeemDiscountResponse { Success = false };
         }
 
-        // Atomic conditional UPDATE. SQLite locks the row inside its implicit
-        // transaction; concurrent redemptions serialize and the loser sees
-        // rowsAffected = 0 instead of incrementing past MaxRedeemAmount. The
-        // pre-existing TOCTOU race is closed because the read-then-write pair
-        // collapses into one engine-native UPDATE. WHERE-clause guards:
+        // Atomic conditional UPDATE. PostgreSQL locks the row inside its
+        // implicit transaction; concurrent redemptions serialize and the
+        // loser sees rowsAffected = 0 instead of incrementing past
+        // MaxRedeemAmount. The pre-existing TOCTOU race is closed because
+        // the read-then-write pair collapses into one engine-native
+        // UPDATE. WHERE-clause guards:
         //   - alive   (DeletedAt IS NULL)        — defensive; the read already enforced this
         //   - active  (IsActive = 1)              — defensive; the global filter doesn't yet gate on IsActive
         //   - under cap (RedeemAmount < cap, OR cap unset)
-        // Plan §1 row "concurrency" calls this the SQLite-correct race fix.
+        // Plan §1 row "concurrency" calls this the Postgres-correct race fix.
         //
         // Audit-column note: raw ExecuteSqlInterpolatedAsync bypasses the
         // AuditableEntityInterceptor, so we set LastModifiedAt + LastModifiedBy
@@ -214,14 +215,14 @@ public class DiscountService(
 
         var now = SystemClock.Instance.GetCurrentInstant();
         var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE Coupons
-            SET RedeemAmount    = RedeemAmount + 1,
-                LastModifiedAt  = {now},
-                LastModifiedBy  = {DiscountActors.System}
-            WHERE Id = {coupon.Id}
-              AND IsActive = 1
-              AND DeletedAt IS NULL
-              AND (MaxRedeemAmount IS NULL OR RedeemAmount < MaxRedeemAmount)
+            UPDATE ""Coupons""
+            SET ""RedeemAmount""    = ""RedeemAmount"" + 1,
+                ""LastModifiedAt""  = {now},
+                ""LastModifiedBy""  = {DiscountActors.System}
+            WHERE ""Id"" = {coupon.Id}
+              AND ""IsActive"" = {true}
+              AND ""DeletedAt"" IS NULL
+              AND (""MaxRedeemAmount"" IS NULL OR ""RedeemAmount"" < ""MaxRedeemAmount"")
         ");
 
         if (rowsAffected == 0)

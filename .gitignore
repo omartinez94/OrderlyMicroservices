@@ -291,6 +291,10 @@ ServiceFabricBackup/
 *.sqlite3
 discountdb
 
+# Local appsettings overrides — secrets/creds stay out of source control
+appsettings.Local.json
+appsettings.*.Local.json
+
 # Business Intelligence projects
 *.rdl.data
 *.bim.layout

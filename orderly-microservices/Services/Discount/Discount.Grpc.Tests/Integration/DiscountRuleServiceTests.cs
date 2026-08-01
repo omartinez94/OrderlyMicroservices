@@ -63,8 +63,8 @@ public sealed class DiscountRuleServiceTests(DiscountWebApplicationFactory facto
         await db.SaveChangesAsync();
 
         // Second insert with the same (RestaurantId, CouponId) violates
-        // the unique index. SQLite surfaces this as DbUpdateException
-        // wrapping SqliteException.SqlState 1555 (PRIMARY KEY).
+        // the unique index. PostgreSQL surfaces this as DbUpdateException
+        // wrapping Npgsql.PostgresException.SqlState "23505" (unique_violation).
         db.DiscountRules.Add(new DiscountRule
         {
             RestaurantId = TestRestaurantGuid,

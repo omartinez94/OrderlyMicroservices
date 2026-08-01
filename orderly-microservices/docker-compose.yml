@@ -17,6 +17,9 @@ services:
   messagebroker:
     image: rabbitmq:3-management
 
+  discountdb:
+    image: postgres:16-alpine
+
   catalog.api:
     image: ${DOCKER_REGISTRY-}catalogapi
     build:
@@ -34,6 +37,9 @@ services:
     build:
       context: .
       dockerfile: Services/Discount/Discount.Grpc/Dockerfile
+    depends_on:
+      discountdb:
+        condition: service_healthy
 
   identitydb:
     image: postgres
@@ -72,3 +78,5 @@ volumes:
   postgres_kitchen:
 
   mssql_order:
+
+  discount-data:

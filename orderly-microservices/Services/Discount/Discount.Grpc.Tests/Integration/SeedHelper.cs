@@ -61,7 +61,7 @@ public static class SeedHelper
         // RedeemDiscount matches the row. The save above gives us the
         // assigned Id; the explicit UPDATE locks in the active flag.
         await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE Coupons SET IsActive = {1} WHERE Id = {coupon.Id}
+            UPDATE ""Coupons"" SET ""IsActive"" = {true} WHERE ""Id"" = {coupon.Id}
         ");
 
         // Refresh the entity so the caller sees IsActive=1 without a
@@ -131,7 +131,7 @@ public static class SeedHelper
         await db.SaveChangesAsync();
 
         await db.Database.ExecuteSqlInterpolatedAsync($@"
-            UPDATE RewardCodes SET IsActive = {(isActive ? 1 : 0)} WHERE Id = {row.Id}
+            UPDATE ""RewardCodes"" SET ""IsActive"" = {isActive} WHERE ""Id"" = {row.Id}
         ");
 
         await db.Entry(row).ReloadAsync();

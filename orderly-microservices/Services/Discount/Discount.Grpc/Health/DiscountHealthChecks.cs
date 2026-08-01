@@ -18,9 +18,10 @@ namespace Discount.Grpc.Health;
 /// <para>Four <c>IHealthCheck</c> implementations live under the
 /// <c>"ready"</c> tag:</para>
 /// <list type="bullet">
-/// <item><see cref="SqliteFileCheck"/> — connects to the SQLite file
-/// via <c>DiscountContext.Database.CanConnectAsync()</c>. Cheap;
-/// catches dropped / corrupted / missing DB-file errors.</item>
+/// <item><c>AddNpgSql(...)</c> — uses <c>AspNetCore.HealthChecks.NpgSql</c>
+/// to verify the PostgreSQL connection string opens successfully. Cheap;
+/// catches connection-string typos, network partitions, and
+/// container-restart windows.</item>
 /// <item><see cref="BrokerHealthCheck"/> — reads <see cref="BrokerHealthState"/>.
 /// The dispatcher writes to it on top-level <c>DispatchOnceAsync</c>
 /// throws. Flips <c>Unhealthy</c> when the counter exceeds
@@ -46,10 +47,16 @@ public static class DiscountHealthChecks
     /// <c>Predicate = _ =&gt; false</c> on <c>MapHealthChecks("/live",
     /// ...)</c> in <c>Program.cs</c> (Catalog's convention).
     /// </summary>
-    public static IServiceCollection AddDiscountHealthChecks(this IServiceCollection services)
+    /// <param name="configuration">Host configuration; supplies
+    /// <c>ConnectionStrings:Database</c> for the Npgsql probe.</param>
+    public static IServiceCollection AddDiscountHealthChecks(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddHealthChecks()
-            .AddCheck<SqliteFileCheck>(DiscountHealthCheckNames.Sqlite, tags: new[] { "ready" })
+            .AddNpgSql(
+                configuration.GetConnectionString("Database")!,
+                tags: new[] { "ready" })
             .AddCheck<BrokerHealthCheck>(DiscountHealthCheckNames.BrokerCircuit, tags: new[] { "ready" })
             .AddCheck<OutboxDeadLetterCheck>(DiscountHealthCheckNames.OutboxDeadLetter, tags: new[] { "ready" })
             .AddCheck<RabbitMqBrokerCheck>(DiscountHealthCheckNames.RabbitMqBroker, tags: new[] { "ready" });
@@ -64,43 +71,10 @@ public static class DiscountHealthChecks
 /// </summary>
 public static class DiscountHealthCheckNames
 {
-    public const string Sqlite = "discount-sqlite";
+    public const string Postgres = "discount-postgres";
     public const string BrokerCircuit = "discount-broker-circuit";
     public const string OutboxDeadLetter = "discount-outbox-dead-letter";
     public const string RabbitMqBroker = "discount-rabbitmq";
-}
-
-/// <summary>
-/// Verifies the SQLite database file is reachable. Opens a fresh
-/// <see cref="DiscountContext"/> via the registered
-/// <see cref="IServiceScopeFactory"/> (not the request scope — the
-/// readiness probe runs on the host's health-check thread, not on a
-/// request thread) and runs <c>Database.CanConnectAsync()</c>.
-/// </summary>
-public sealed class SqliteFileCheck(
-    IServiceScopeFactory scopes,
-    ILogger<SqliteFileCheck> logger) : IHealthCheck
-{
-    /// <inheritdoc />
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken).ConfigureAwait(false);
-            return canConnect
-                ? HealthCheckResult.Healthy("SQLite reachable.")
-                : HealthCheckResult.Unhealthy("SQLite CanConnect returned false.");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "SQLite readiness probe failed.");
-            return HealthCheckResult.Unhealthy("SQLite connection threw.", ex);
-        }
-    }
 }
 
 /// <summary>

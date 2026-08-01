@@ -70,7 +70,7 @@ public sealed class OutboxHistoryPublisherTests(DiscountWebApplicationFactory fa
             await db.SaveChangesAsync();
 
             var rows = await db.OutboxMessages.IgnoreQueryFilters()
-                .Where(o => o.Type == typeof(DiscountHistoryAppendedIntegrationEvent).FullName)
+                .Where(o => o.Type == typeof(DiscountHistoryAppendedIntegrationEvent).AssemblyQualifiedName)
                 .OrderBy(o => o.OccurredOn)
                 .ToListAsync();
 
@@ -122,7 +122,7 @@ public sealed class OutboxHistoryPublisherTests(DiscountWebApplicationFactory fa
             await db.SaveChangesAsync();
 
             var row = await db.OutboxMessages.IgnoreQueryFilters()
-                .FirstAsync(o => o.Type == typeof(DiscountHistoryAppendedIntegrationEvent).FullName);
+                .FirstAsync(o => o.Type == typeof(DiscountHistoryAppendedIntegrationEvent).AssemblyQualifiedName);
 
             row.Payload.Should().Contain("\"ChangeType\":\"Updated\"");
             // Both OldValues and NewValues are JSON-string-encoded inside

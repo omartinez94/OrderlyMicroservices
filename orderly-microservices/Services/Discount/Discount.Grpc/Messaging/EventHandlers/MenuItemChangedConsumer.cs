@@ -6,8 +6,6 @@ using Discount.Grpc.Data;
 using Discount.Grpc.Models;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using NodaTime;
 
 namespace Discount.Grpc.Messaging.EventHandlers;
@@ -92,24 +90,24 @@ public sealed class MenuItemChangedConsumer(
             // deactivation atomic across the affected CouponIds without
             // needing a separate audit hook for the consumer path.
             //
-            // The `nowTicks` value mirrors `InstantToLongConverter`'s
-            // storage (UnixTimeTicks → INTEGER) so the raw-SQL parameter
-            // type is `long`, which the EF Core SQLite provider can map
-            // directly. Passing an Instant via ExecuteSqlInterpolatedAsync
-            // would surface a parameter-type-mapping error (the
-            // converter scopes to column mapping only).
+            // The `nowTicks` value mirrors the previous
+            // `InstantToLongConverter` storage (UnixTimeTicks → bigint) so
+            // the raw-SQL parameter type is `long`, which the EF Core
+            // Npgsql provider can map directly. Passing an Instant via
+            // ExecuteSqlInterpolatedAsync would surface a
+            // parameter-type-mapping error.
             var nowTicks = SystemClock.Instance.GetCurrentInstant().ToUnixTimeTicks();
             var actor = DiscountActors.Service;
             var idList = string.Join(',', affectedRuleIds);
             var affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
-                UPDATE Coupons
-                SET IsActive = 0,
-                    LastModifiedBy = {actor},
-                    LastModifiedAt = {nowTicks}
-                WHERE Id IN ({idList})
-                  AND RestaurantId = {evt.RestaurantId}
-                  AND IsActive = 1
-                  AND DeletedAt IS NULL
+                UPDATE ""Coupons""
+                SET ""IsActive"" = {false},
+                    ""LastModifiedBy"" = {actor},
+                    ""LastModifiedAt"" = {nowTicks}
+                WHERE ""Id"" IN ({idList})
+                  AND ""RestaurantId"" = {evt.RestaurantId}
+                  AND ""IsActive"" = {true}
+                  AND ""DeletedAt"" IS NULL
             ", context.CancellationToken);
 
             logger.LogInformation(

@@ -60,7 +60,7 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
 
         var row = await db.OutboxMessages
             .IgnoreQueryFilters()
-            .FirstAsync(o => o.Type == typeof(DiscountAppliedIntegrationEvent).FullName);
+            .FirstAsync(o => o.Type == typeof(DiscountAppliedIntegrationEvent).AssemblyQualifiedName);
 
         row.SchemaVersion.Should().Be(2, "publisher copies MessageVersion=2 (overridden on the v2 record) to SchemaVersion");
         row.DispatchedAt.Should().BeNull("the dispatcher hasn't run yet");
@@ -91,7 +91,7 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
 
         var row = await db.OutboxMessages
             .IgnoreQueryFilters()
-            .FirstAsync(o => o.Type == typeof(RewardGeneratedIntegrationEvent).FullName);
+            .FirstAsync(o => o.Type == typeof(RewardGeneratedIntegrationEvent).AssemblyQualifiedName);
 
         row.SchemaVersion.Should().Be(1);
         row.DispatchedAt.Should().BeNull();
@@ -123,7 +123,7 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
 
         var row = await db.OutboxMessages
             .IgnoreQueryFilters()
-            .FirstAsync(o => o.Type == typeof(RewardRedeemedIntegrationEvent).FullName);
+            .FirstAsync(o => o.Type == typeof(RewardRedeemedIntegrationEvent).AssemblyQualifiedName);
 
         row.SchemaVersion.Should().Be(1);
         row.DispatchedAt.Should().BeNull();
@@ -167,9 +167,9 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
             .IgnoreQueryFilters()
             .Where(o => new[]
             {
-                typeof(DiscountAppliedIntegrationEvent).FullName!,
-                typeof(RewardGeneratedIntegrationEvent).FullName!,
-                typeof(RewardRedeemedIntegrationEvent).FullName!,
+                typeof(DiscountAppliedIntegrationEvent).AssemblyQualifiedName!,
+                typeof(RewardGeneratedIntegrationEvent).AssemblyQualifiedName!,
+                typeof(RewardRedeemedIntegrationEvent).AssemblyQualifiedName!,
             }.Contains(o.Type))
             .OrderBy(o => o.Type)
             .ToListAsync();
@@ -177,9 +177,9 @@ public sealed class OutboxDeferredEventPublishersTests(DiscountWebApplicationFac
         rows.Should().HaveCount(3, "three distinct publishes should land three distinct rows");
         rows.Select(r => r.Type).Should().BeEquivalentTo(new[]
         {
-            typeof(DiscountAppliedIntegrationEvent).FullName!,
-            typeof(RewardGeneratedIntegrationEvent).FullName!,
-            typeof(RewardRedeemedIntegrationEvent).FullName!,
+            typeof(DiscountAppliedIntegrationEvent).AssemblyQualifiedName!,
+            typeof(RewardGeneratedIntegrationEvent).AssemblyQualifiedName!,
+            typeof(RewardRedeemedIntegrationEvent).AssemblyQualifiedName!,
         });
     }
 }

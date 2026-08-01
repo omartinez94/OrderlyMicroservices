@@ -142,8 +142,8 @@ public sealed class DiscountExpirySweepService(
 /// <summary>
 /// Configuration knobs for <see cref="DiscountExpirySweepService"/>. Defaults
 /// are tuned for low-traffic local dev (5 minutes — short enough to flush a
-/// stale row before integration tests run, long enough to not hammer SQLite).
-/// Production should crank the interval up (recommend 1 hour).
+/// stale row before integration tests run, long enough to not hammer
+/// PostgreSQL). Production should crank the interval up (recommend 1 hour).
 /// </summary>
 public sealed class DiscountExpirySweepOptions
 {

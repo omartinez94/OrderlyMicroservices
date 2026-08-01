@@ -176,7 +176,8 @@ public sealed class RpcEndpointTests(DiscountWebApplicationFactory factory)
         // Verify the row's RedeemAmount incremented in the DB.
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-        var coupon = await db.Coupons.AsNoTracking()
+        var coupon = await db.Coupons.IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstAsync(c => c.Code == code);
         coupon.RedeemAmount.Should().Be(1);
     }
@@ -211,7 +212,8 @@ public sealed class RpcEndpointTests(DiscountWebApplicationFactory factory)
         // Verify the row exists in the DB with the assigned Id.
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-        var stored = await db.Coupons.AsNoTracking()
+        var stored = await db.Coupons.IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Code == code);
         stored.Should().NotBeNull();
         stored!.RestaurantId.Should().Be(TestRestaurantGuid);
@@ -241,7 +243,8 @@ public sealed class RpcEndpointTests(DiscountWebApplicationFactory factory)
         // the DiscountRule + RewardCode path).
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-        var stored = await db.Coupons.AsNoTracking()
+        var stored = await db.Coupons.IgnoreQueryFilters()
+            .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Code == code);
         stored.Should().BeNull("Coupon is hard-deleted (vs. DiscountRule/RewardCode which soft-delete)");
     }

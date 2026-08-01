@@ -1,50 +1,54 @@
 using Grpc.AspNetCore.Server;
 using Microsoft.AspNetCore.TestHost;
+using Testcontainers.PostgreSql;
 
 namespace Discount.Grpc.Tests.Integration;
 
 /// <summary>
 /// xUnit collection fixture that builds the Discount.Grpc
-/// <see cref="WebApplicationFactory{TEntryPoint}"/> on top of a per-fixture
-/// SQLite file in the OS temp directory. No containers — Discount is
-/// SQLite-based and the in-memory provider was rejected because EF Core's
-/// <c>AuditableEntityInterceptor</c> runs on the SQLite provider only,
-/// not on the in-memory provider.
+/// <see cref="WebApplicationFactory{TEntryPoint}"/> on top of a real
+/// PostgreSQL container managed by Testcontainers. Mirrors the
+/// <see cref="Catalog.API.Tests.Integration.CatalogWebApplicationFactory"/>
+/// pattern: the fixture owns the container lifecycle, the connection
+/// string is injected as both in-memory config AND an env var (the env
+/// var is what reaches the <c>NpgsqlDataSourceBuilder</c> at
+/// <c>Program.cs</c> startup — Discount reads the connection string
+/// eagerly, before <see cref="WebApplicationFactory{TEntryPoint}.ConfigureAppConfiguration"/>
+/// runs).
 /// </summary>
 /// <remarks>
-/// <para>
-/// Config overrides:
-/// </para>
+/// <para>Config overrides:</para>
 /// <list type="bullet">
-/// <item><c>ConnectionStrings:Database</c> points at a unique temp file
-/// (<c>discountdb-test-{guid}.db</c> + <c>Cache=Shared</c>) so multiple
-/// scopes (and the WebApplicationFactory's host process) share state.
-/// The file is removed in <see cref="DisposeAsync"/>.</item>
+/// <item><c>ConnectionStrings:Database</c> → Testcontainer PG connection string.</item>
 /// <item><c>Outbox:Enabled=false</c> skips the relay loop; circuit-breaker
 /// and dead-letter tests drive <see cref="OutboxDispatcher{TContext}.DispatchOnceAsync"/>
 /// directly.</item>
 /// <item><c>IdentityServiceUrl=http://localhost:1</c> is unreachable —
-/// <see cref="Discount.Grpc.Authorization.DiscountAuthorizationInterceptor"/>
-/// uses a <see cref="DiscountAuthorizationInterceptor"/> that reads
-/// <c>TestAuthHandler</c>'s claims, not Identity's JWT.</item>
+/// <see cref="DiscountAuthorizationInterceptor"/> reads
+/// <see cref="TestAuthHandler"/>'s claims, not Identity's JWT.</item>
 /// <item><c>DiscountExpirySweep:Enabled=false</c> keeps the sweep service
 /// from running during the test window; the expiry-sweep test invokes
 /// the service directly with a fake clock.</item>
 /// </list>
 /// <para>The host runs under the <c>Testing</c> environment so the
 /// <c>AspNetCore.HealthChecks.UI.Client.UIResponseWriter.WriteHealthCheckUIResponse</c>
-/// path is reachable via the standard middleware.</para>
+/// path is reachable via the standard middleware. Schema is applied by
+/// <c>Program.cs</c>'s inline-await <c>MigrateAsync()</c> at host startup.</para>
 /// </remarks>
 public class DiscountWebApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    /// <summary>Per-fixture temp-file SQLite path. Each factory instance
-    /// gets its own file; cleaned up in <see cref="DisposeAsync"/>.</summary>
-    public string DatabasePath { get; } =
-        Path.Combine(Path.GetTempPath(), $"discountdb-test-{Guid.NewGuid():N}.db");
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
+        .WithImage("postgres:16")
+        .Build();
 
-    /// <summary>SQLite connection string with <c>Cache=Shared</c> so
-    /// scopes within the same fixture see the same rows.</summary>
-    public string ConnectionString => $"Data Source={DatabasePath};Cache=Shared";
+    private static readonly string[] EnvVarKeys =
+    {
+        "ConnectionStrings__Database",
+        "Outbox__Enabled",
+        "DiscountExpirySweep__Enabled",
+        "IdentityServiceUrl",
+        "Discount__IdempotencyKey",
+    };
 
     /// <inheritdoc/>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -55,7 +59,6 @@ public class DiscountWebApplicationFactory : WebApplicationFactory<Program>, IAs
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:Database"] = ConnectionString,
                 ["Outbox:Enabled"] = "false",
                 ["DiscountExpirySweep:Enabled"] = "false",
                 ["IdentityServiceUrl"] = "http://localhost:1",
@@ -111,38 +114,39 @@ public class DiscountWebApplicationFactory : WebApplicationFactory<Program>, IAs
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
-        // Build the host; defer schema creation to the test's first
-        // DbContext access via EnsureCreated(). We don't use Migrate()
-        // because the .NET 9+ PendingModelChangesWarning check rejects
-        // any model change not yet captured in a migration; that's the
-        // production safety rail but for tests we just need a working
-        // schema on the per-fixture SQLite file.
-        _ = CreateClient();
+        // Start the Postgres Testcontainer FIRST. The connection string
+        // becomes available only after StartAsync() resolves.
+        await _postgres.StartAsync();
 
-        await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-        await db.Database.EnsureCreatedAsync();
+        // Discount's Program.cs reads the connection string eagerly via
+        // NpgsqlDataSourceBuilder, so WebApplicationFactory's
+        // ConfigureAppConfiguration (applied later in the host pipeline)
+        // is too late. Environment variables are read by
+        // WebApplication.CreateBuilder at CreateClient() time, which
+        // forces the host to build with the env-var values. Mirror
+        // Catalog.API.Tests.Integration.CatalogWebApplicationFactory:108-118.
+        Environment.SetEnvironmentVariable(
+            "ConnectionStrings__Database", _postgres.GetConnectionString());
+        Environment.SetEnvironmentVariable("Outbox__Enabled", "false");
+        Environment.SetEnvironmentVariable("DiscountExpirySweep__Enabled", "false");
+        Environment.SetEnvironmentVariable("IdentityServiceUrl", "http://localhost:1");
+        Environment.SetEnvironmentVariable("Discount__IdempotencyKey", null);
+
+        // Trigger host build → NpgsqlDataSourceBuilder reads env vars →
+        // inline-await MigrateAsync() applies the schema.
+        _ = CreateClient();
     }
 
     /// <inheritdoc/>
     public new async Task DisposeAsync()
     {
-        await base.DisposeAsync();
+        foreach (var key in EnvVarKeys)
+        {
+            Environment.SetEnvironmentVariable(key, null);
+        }
 
-        // Best-effort cleanup of the per-fixture SQLite file. Multiple
-        // connections can hold the file open if a test leaked a scope;
-        // swallow IOException so the test runner doesn't fail teardown.
-        try
-        {
-            if (File.Exists(DatabasePath))
-            {
-                File.Delete(DatabasePath);
-            }
-        }
-        catch (IOException)
-        {
-            // Intentionally swallowed — file is per-fixture temporary storage.
-        }
+        await _postgres.DisposeAsync();
+        await base.DisposeAsync();
     }
 
     /// <summary>

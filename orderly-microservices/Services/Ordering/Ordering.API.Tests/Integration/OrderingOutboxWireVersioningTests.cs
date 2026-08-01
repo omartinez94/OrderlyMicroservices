@@ -1,9 +1,7 @@
-using System.Text.Json;
-using BuildingBlocks.Messaging.Events;
 using BuildingBlocks.Messaging.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using Ordering.Infrastructure.Data.Interceptors;
@@ -43,7 +41,7 @@ public sealed class OrderingOutboxWireVersioningTests
             {
                 "Id": "{{Guid.NewGuid()}}",
                 "OccurredOn": "2026-07-10T00:00:00Z",
-                "EventType": "{{typeof(VersionedIntegrationEvent).FullName}}",
+                "EventType": "{{typeof(VersionedIntegrationEvent).AssemblyQualifiedName}}",
                 "MessageVersion": 1,
                 "FutureField": "this is from a future v2 publisher"
             }
@@ -53,7 +51,7 @@ public sealed class OrderingOutboxWireVersioningTests
         {
             Id = Guid.NewGuid(),
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),
-            Type = typeof(VersionedIntegrationEvent).FullName!,
+            Type = typeof(VersionedIntegrationEvent).AssemblyQualifiedName!,
             Payload = v1PlusExtra,
             SchemaVersion = 1,
         };
@@ -61,6 +59,7 @@ public sealed class OrderingOutboxWireVersioningTests
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
+            await db.OutboxMessages.ExecuteDeleteAsync();
             db.OutboxMessages.Add(row);
             await db.SaveChangesAsync();
         }
@@ -71,8 +70,9 @@ public sealed class OrderingOutboxWireVersioningTests
             BatchSize = 100,
             MaxSupportedVersion = 1,
         });
+        var loggerFactory = LoggerFactory.Create(b => b.AddConsole());
         var dispatcher = new OrderingOutboxDispatcher(
-            _factory.Services, options, NullLogger<OrderingOutboxDispatcher>.Instance);
+            _factory.Services, options, loggerFactory.CreateLogger<OrderingOutboxDispatcher>());
 
         var dispatched = await dispatcher.DispatchOnceAsync(CancellationToken.None);
 

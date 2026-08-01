@@ -37,6 +37,9 @@ public sealed class OrderingOutboxMultiReplicaTests
 
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
+            await dbContext.OutboxMessages.ExecuteDeleteAsync();
+
             var publisher = scope.ServiceProvider
                 .GetRequiredService<IOutboxPublisher>();
             for (var i = 0; i < rowCount; i++)

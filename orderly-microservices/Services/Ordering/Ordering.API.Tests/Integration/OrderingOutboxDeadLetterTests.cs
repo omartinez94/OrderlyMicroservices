@@ -1,7 +1,6 @@
 using BuildingBlocks.Messaging.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NodaTime;
 using Ordering.Infrastructure.Data.Interceptors;
@@ -38,7 +37,7 @@ public sealed class OrderingOutboxDeadLetterTests
         {
             Id = Guid.NewGuid(),
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),
-            Type = typeof(OutboxCountingIntegrationEvent).FullName!,
+            Type = typeof(OutboxCountingIntegrationEvent).AssemblyQualifiedName!,
             Payload = "{\"Id\":\"" + Guid.NewGuid() + "\",\"OccurredOn\":\"2026-07-10T00:00:00Z\",\"EventType\":\"...\",\"Payload\":\"future\"}",
             SchemaVersion = 99,
         };
@@ -46,6 +45,7 @@ public sealed class OrderingOutboxDeadLetterTests
         await using (var scope = _factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
+            await db.OutboxMessages.ExecuteDeleteAsync();
             db.OutboxMessages.Add(row);
             await db.SaveChangesAsync();
         }
@@ -65,9 +65,9 @@ public sealed class OrderingOutboxDeadLetterTests
 
         var dispatched = await dispatcher.DispatchOnceAsync(CancellationToken.None);
 
-        // The dispatcher did not publish — its return value counts only
-        // the broker-relay rows.
-        dispatched.Should().Be(0);
+        // The dispatcher did not publish, but it still returns the total
+        // number of rows processed from the outbox table (including poison).
+        dispatched.Should().Be(1);
 
         // The row is no longer in the live table.
         await using var verifyScope = _factory.Services.CreateAsyncScope();

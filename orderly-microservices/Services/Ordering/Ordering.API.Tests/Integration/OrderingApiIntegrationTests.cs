@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Ordering.Domain.ValueObjects;
 using System.Net;
 using System.Net.Http.Json;
 
@@ -52,9 +51,12 @@ public sealed class OrderingApiIntegrationTests
 
     private async Task<Order> SeedOrderAsync(OrderStatus status, PrepStatus itemStatus = PrepStatus.Pending)
     {
+        var customerId = CustomerId.Of(Guid.NewGuid());
+        var customer = Customer.Create(customerId, $"test-{Guid.NewGuid():N}@test.com", "Test User", "555-1234");
+
         var order = Order.Create(
             OrderId.Of(Guid.NewGuid()),
-            CustomerId.Of(Guid.NewGuid()),
+            customerId,
             OrderNumber.Of($"ORD-{Guid.NewGuid():N}"[..16]),
             Guid.NewGuid(),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
@@ -67,7 +69,10 @@ public sealed class OrderingApiIntegrationTests
         order.GetType().GetProperty(nameof(Order.Status))!
             .SetValue(order, status);
 
-        order.Add(MenuItemId.Of(Guid.NewGuid()), quantity: 1, price: 5m);
+        var menuItemId = MenuItemId.Of(Guid.NewGuid());
+        var menuItem = MenuItem.Create(menuItemId, "Burger", 5m);
+
+        order.Add(menuItemId, quantity: 1, price: 5m);
         order.OrderItems.Single().PrepStatus = itemStatus;
 
         // Strip any domain events created during construction so the
@@ -76,6 +81,8 @@ public sealed class OrderingApiIntegrationTests
 
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+        dbContext.Customers.Add(customer);
+        dbContext.MenuItems.Add(menuItem);
         dbContext.Orders.Add(order);
         await dbContext.SaveChangesAsync();
 
@@ -335,7 +342,7 @@ public sealed class OrderingApiIntegrationTests
     public async Task GetOrderById_SeededOrder_Returns200()
     {
         var seeded = await SeedOrderAsync(OrderStatus.Pending);
-        var client = NewKitchenStaffClient();
+        var client = NewReadOnlyClient();
 
         var response = await client.GetAsync($"/api/v1/orders/{seeded.Id.Value}");
 
@@ -345,7 +352,7 @@ public sealed class OrderingApiIntegrationTests
     [Fact]
     public async Task GetOrderById_UnknownId_Returns404()
     {
-        var client = NewKitchenStaffClient();
+        var client = NewReadOnlyClient();
 
         var response = await client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
 
@@ -357,7 +364,7 @@ public sealed class OrderingApiIntegrationTests
     {
         // Read endpoint with no body and no required aggregate state — the
         // simplest 200 smoke test on the Ordering surface.
-        var client = NewKitchenStaffClient();
+        var client = NewReadOnlyClient();
 
         var response = await client.GetAsync("/api/v1/orders");
 

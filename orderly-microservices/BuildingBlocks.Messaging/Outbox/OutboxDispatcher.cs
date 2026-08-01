@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NodaTime.Serialization.SystemTextJson;
 
 namespace BuildingBlocks.Messaging.Outbox;
 
@@ -24,6 +25,13 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
     private readonly IServiceProvider _services;
     private readonly OutboxOptions _options;
     private readonly ILogger _logger;
+
+    private static readonly System.Text.Json.JsonSerializerOptions SerializerOptions = new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = null,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.Never,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+    }.ConfigureForNodaTime(NodaTime.DateTimeZoneProviders.Tzdb);
 
     protected OutboxDispatcher(
         IServiceProvider services,
@@ -185,7 +193,7 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
                     ?? throw new InvalidOperationException(
                         $"Outbox row {row.Id} references unknown type '{row.Type}'.");
 
-                var message = JsonSerializer.Deserialize(row.Payload, messageType)
+                var message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
                     ?? throw new InvalidOperationException(
                         $"Outbox row {row.Id} payload deserialized to null.");
 

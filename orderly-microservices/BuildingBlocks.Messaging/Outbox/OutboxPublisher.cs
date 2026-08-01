@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using BuildingBlocks.Messaging.Events;
 using Microsoft.Extensions.Logging;
+using NodaTime.Serialization.SystemTextJson;
 
 namespace BuildingBlocks.Messaging.Outbox;
 
@@ -19,12 +20,12 @@ namespace BuildingBlocks.Messaging.Outbox;
 public abstract class OutboxPublisher<TContext> : IOutboxPublisher
     where TContext : class, IOutboxDbContext
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions SerializerOptions = new JsonSerializerOptions
     {
         PropertyNamingPolicy = null,
         DefaultIgnoreCondition = JsonIgnoreCondition.Never,
         Converters = { new JsonStringEnumConverter() }
-    };
+    }.ConfigureForNodaTime(NodaTime.DateTimeZoneProviders.Tzdb);
 
     /// <summary>The ambient DbContext whose change tracker receives the
     /// outbox row. Resolved per-call so the publisher respects the
@@ -45,7 +46,7 @@ public abstract class OutboxPublisher<TContext> : IOutboxPublisher
         {
             Id = Guid.NewGuid(),
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),
-            Type = typeof(T).FullName!,
+            Type = typeof(T).AssemblyQualifiedName!,
             Payload = payload,
             DispatchedAt = null,
             SchemaVersion = schemaVersion,

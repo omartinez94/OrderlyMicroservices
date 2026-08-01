@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Behaviors;
+using BuildingBlocks.Behaviors;
 using BuildingBlocks.Messaging.MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +18,7 @@ public static class DependencyInjection
             cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
         });
 
+        services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
         services.AddFeatureManagement();
 
         // Async comunication services

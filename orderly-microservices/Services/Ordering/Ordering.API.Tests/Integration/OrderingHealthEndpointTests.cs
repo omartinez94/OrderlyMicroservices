@@ -27,9 +27,8 @@ public sealed class OrderingHealthEndpointTests
         var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/health");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, body);
         body.Should().NotBeNullOrWhiteSpace();
     }
 
@@ -46,22 +45,19 @@ public sealed class OrderingHealthEndpointTests
         var client = _factory.CreateClient();
 
         var response = await client.GetAsync("/health");
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, body);
 
         using var doc = JsonDocument.Parse(body);
         var entries = doc.RootElement.GetProperty("entries");
         // The SqlServer check is registered without an explicit name in
-        // Ordering.API/DependencyInjection.cs, so it falls back to the
-        // registered type's display name. Iterate to be safe.
-        var healthyEntry = entries.EnumerateObject()
-            .FirstOrDefault(p => p.Value.GetProperty("status").GetString() == "Healthy");
+        // Ordering.API/DependencyInjection.cs, so it defaults to "sqlserver".
+        var sqlServerEntry = entries.EnumerateObject()
+            .FirstOrDefault(p => p.Name.Equals("sqlserver", StringComparison.OrdinalIgnoreCase));
 
-        healthyEntry.Value.GetProperty("data")
-            .GetProperty("_.Azure.SqlPing")
-            .GetBoolean()
+        sqlServerEntry.Value.GetProperty("status")
+            .GetString()
             .Should()
-            // Performed a successful round-trip to the DB.
-            .BeTrue();
+            .Be("Healthy");
     }
 }

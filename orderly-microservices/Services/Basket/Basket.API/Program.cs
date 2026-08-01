@@ -354,6 +354,7 @@ var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountPro
 // the channel so the existing resilience pipeline + grpcClientBuilder
 // pipeline are unaffected. The interceptor resolves the inbound
 // Authorization header from IHttpContextAccessor per call.
+builder.Services.AddTransient<Basket.API.Auth.JwtForwardingInterceptor>();
 grpcClientBuilder.AddInterceptor<Basket.API.Auth.JwtForwardingInterceptor>();
 
 // Wrap the gRPC client in the standard Polly v8 resilience

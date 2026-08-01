@@ -14,7 +14,7 @@ public record GetUserResponse(
     List<string> Roles,
     List<UserRestaurantResponse> Restaurants);
 
-public record UserRestaurantResponse(int RestaurantId, bool IsDefault);
+public record UserRestaurantResponse(Guid RestaurantId, bool IsDefault);
 
 public class GetUserQueryHandler(
     UserManager<ApplicationUser> userManager,

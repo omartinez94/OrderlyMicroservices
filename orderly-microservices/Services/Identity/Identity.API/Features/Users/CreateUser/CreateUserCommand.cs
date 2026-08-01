@@ -7,8 +7,8 @@ public record CreateUserCommand(
     string LastName,
     string? PhoneNumber,
     List<string> Roles,
-    List<int> RestaurantIds,
-    int? DefaultRestaurantId) : ICommand<CreateUserResponse>;
+    List<Guid> RestaurantIds,
+    Guid? DefaultRestaurantId) : ICommand<CreateUserResponse>;
 
 public record CreateUserResponse(Guid UserId, string Email, string FirstName, string LastName);
 

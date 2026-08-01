@@ -29,8 +29,8 @@ public sealed class CreateUserCommandHandlerTests
         string email = "new@test.com",
         string password = "P@ssword1!",
         List<string>? roles = null,
-        List<int>? restaurantIds = null,
-        int? defaultRestaurantId = null)
+        List<Guid>? restaurantIds = null,
+        Guid? defaultRestaurantId = null)
         => new(email, password, "Jane", "Doe", null, roles ?? [], restaurantIds ?? [], defaultRestaurantId);
 
     /// <summary>
@@ -59,12 +59,17 @@ public sealed class CreateUserCommandHandlerTests
     [Fact]
     public async Task Handle_WithExplicitDefaultRestaurant_MarksThatRowDefault()
     {
-        await _sut.Handle(NewCommand(restaurantIds: [10, 20, 30], defaultRestaurantId: 20), CancellationToken.None);
+        var defaultRid = new Guid("11111111-2222-3333-4444-555555555555");
+        var otherRid1 = new Guid("22222222-3333-4444-5555-666666666666");
+        var otherRid2 = new Guid("33333333-4444-5555-6666-777777777777");
+        await _sut.Handle(
+            NewCommand(restaurantIds: [otherRid1, defaultRid, otherRid2], defaultRestaurantId: defaultRid),
+            CancellationToken.None);
 
         var user = _dbContext.Users.Single();
         _dbContext.UserRestaurants.Where(ur => ur.UserId == user.Id).Should().HaveCount(3);
-        _dbContext.UserRestaurants.Single(ur => ur.RestaurantId == 20).IsDefault.Should().BeTrue();
-        _dbContext.UserRestaurants.Where(ur => ur.RestaurantId != 20).Should()
+        _dbContext.UserRestaurants.Single(ur => ur.RestaurantId == defaultRid).IsDefault.Should().BeTrue();
+        _dbContext.UserRestaurants.Where(ur => ur.RestaurantId != defaultRid).Should()
             .OnlyContain(ur => ur.IsDefault == false);
     }
 
@@ -77,11 +82,16 @@ public sealed class CreateUserCommandHandlerTests
     [Fact]
     public async Task Handle_WithoutDefaultRestaurant_FirstIdBecomesDefault()
     {
-        await _sut.Handle(NewCommand(restaurantIds: [100, 200, 300], defaultRestaurantId: null), CancellationToken.None);
+        var firstRid = new Guid("99999999-8888-7777-6666-555555555555");
+        var otherRid1 = new Guid("88888888-7777-6666-5555-444444444444");
+        var otherRid2 = new Guid("77777777-6666-5555-4444-333333333333");
+        await _sut.Handle(
+            NewCommand(restaurantIds: [firstRid, otherRid1, otherRid2], defaultRestaurantId: null),
+            CancellationToken.None);
 
         var user = _dbContext.Users.Single();
-        _dbContext.UserRestaurants.Single(ur => ur.RestaurantId == 100).IsDefault.Should().BeTrue();
-        _dbContext.UserRestaurants.Where(ur => ur.RestaurantId != 100).Should()
+        _dbContext.UserRestaurants.Single(ur => ur.RestaurantId == firstRid).IsDefault.Should().BeTrue();
+        _dbContext.UserRestaurants.Where(ur => ur.RestaurantId != firstRid).Should()
             .OnlyContain(ur => ur.IsDefault == false);
     }
 

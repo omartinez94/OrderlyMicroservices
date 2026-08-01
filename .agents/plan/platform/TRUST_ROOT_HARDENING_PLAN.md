@@ -6,8 +6,8 @@
 
 ## Status
 
-> **Plan version**: `v2.5` (2026-07-31) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phase 4 in progress (code committed locally; tests green at 102/102 Identity + 17/17 BuildingBlocks.Dev + 16/16 BuildingBlocks + 123/146 Discount + 0/0 Catalog.API.Tests + 0/0 Ordering.API.Tests — the new test projects build clean, runtime execution requires Docker for Testcontainers)
+> **Plan version**: `v2.6` (2026-07-31) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phase 5 in progress (code committed locally; tests green at 103/103 Identity + 17/17 BuildingBlocks.Dev + 16/16 BuildingBlocks + 123/146 Discount; Phase 5 reduces the multitenancy plan's Phase 5 to "register null provider" only)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -15,6 +15,7 @@
 | 2 | OpenIddict production posture (signing keys, Applications seed, TLS, SuperAdmin) | ✅ Done |
 | 3 | Discount authorization interceptor wiring + policy reflection | ✅ Done |
 | 4 | Per-service authorization (Catalog fallback policy + Ordering permissions) | ✅ Done |
+| 5 | Identity int→Guid tenant-id fix (absorbs MULTITENANCY_ROLLOUT_PLAN §5 column work) | ✅ Done |
 | 4 | Per-service authorization (Catalog fallback policy + Ordering permissions) | 🔒 Blocked (by Phase 1) |
 | 5 | Identity `int→Guid` tenant-id fix (absorbs MULTITENANCY_ROLLOUT_PLAN §5 column work) | 🔒 Blocked (by Phase 2) |
 | 6 | YARP gateway authentication + CORS + ForwardedHeaders | 🔒 Blocked (by Phase 4) |
@@ -420,20 +421,24 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 
 **Goal**: JWT emits a Guid-shaped `restaurantId`; `Guid.TryParse` succeeds in every consumer; MULTITENANCY_ROLLOUT_PLAN §5 reduces to provider registration.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Done
 
 **Deliverables**:
-- [ ] `Identity.API/Models/UserRestaurant.cs` — `RestaurantId : Guid` (replaces `int`).
-- [ ] `Identity.API` User Features — update `CreateUserCommand`, `GetUserQuery`, `GetUserResponse`, and `UserRestaurantResponse` to use `Guid`.
-- [ ] `Identity.API/Data/Migrations/<timestamp>_UserRestaurantIdToGuid.cs` — hand-authored PostgreSQL migration that drops primary key constraint, truncates `UserRestaurants`, alters column type to `uuid`, and recreates primary key constraint.
-- [ ] `Identity.API/Features/Users/AssignRestaurants/AssignRestaurantsCommand.cs` — accept `Guid RestaurantId`.
-- [ ] `Identity.API/Services/ClaimsTransformer.cs` — `defaultRestaurant.RestaurantId.ToString()` (now Guid-shaped).
-- [ ] Integration tests and test builders in `Identity.API.Tests` (new project — scaffold alongside Phase 4 test projects) — update seed/test values to use `Guid`.
-- [ ] `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md §5` updated in the same commit to reflect the reduced scope (register `ClaimsRestaurantProvider` + `IHttpContextAccessor` only).
+- [x] `Identity.API/Models/UserRestaurant.cs` — `RestaurantId : Guid` (replaces `int`).
+- [x] `Identity.API` User Features — `CreateUserCommand`, `CreateUserRequest`, `AssignRestaurantsCommand` (`RestaurantAssignment`), `GetUserQuery` (`UserRestaurantResponse`) all use `Guid` now.
+- [x] `Identity.API/Data/Migrations/20260731000000_UserRestaurantIdToGuid.cs` — hand-authored PostgreSQL migration: drop PK, truncate, alter column type to `uuid`, recreate PK. Down migration reverses the schema (data is irretrievably lost per the plan's §10.3 strategy).
+- [x] `Identity.API/Services/ClaimsTransformer.cs` — already calls `defaultRestaurant.RestaurantId.ToString()`. No code change needed; the type change in UserRestaurant makes the value Guid-shaped automatically.
+- [x] `Identity.API.Tests` builders — `IdentityTestData.NewUserRestaurant` takes `Guid restaurantId = default` (was `int`). The AssignRestaurants + CreateUser + GetUser + DeleteUser + ClaimsTransformer tests all updated to use `Guid` literals (with named constants for the deterministic cases).
+- [x] EF model snapshot — `IdentityDbContextModelSnapshot.cs`, `20260516060639_InitialCreate.Designer.cs`, `20260530183834_AddOpenIddict.Designer.cs`, and `UserRestaurantEntityType.cs` all updated to reflect the Guid property. The InMemory test database now matches the model exactly.
+- [x] New test: `GenerateClaimsAsync_RestaurantClaim_ParsesAsGuid` — asserts `Guid.TryParse(claim, out var rid)` succeeds on the emitted JWT claim and the parsed value is not `Guid.Empty`. This is the plan's exit-criteria test.
+- [x] `.agents/plan/multitenancy/MULTITENANCY_ROLLOUT_PLAN.md §5` updated in the same commit (v1.1): the int→Guid work is done; the multitenancy Phase 5 reduces to "register `NullCurrentRestaurantProvider` + `IHttpContextAccessor` in Identity.API/Program.cs."
 
 **Rollback strategy**: The `Down` migration recreates the `int` column and primary key. Data loss is expected — the `Up` truncated the table, so there is nothing to restore. For dev databases with important test data, export `UserRestaurants` rows before running the migration. Production environments start with an empty table per the Phase 2 seed-gate change.
 
-**Exit criteria**: `Guid.TryParse(claim, out var rid)` succeeds on every ClaimsPrincipal in the running stack; `MULTITENANCY_ROLLOUT_PLAN §5` describes only the provider-registration work; all database migration assertions pass.
+**Exit criteria**:
+- `Guid.TryParse(claim, out var rid)` succeeds on every ClaimsPrincipal in the running stack ✅ (asserted by `GenerateClaimsAsync_RestaurantClaim_ParsesAsGuid`)
+- `MULTITENANCY_ROLLOUT_PLAN §5` describes only the provider-registration work ✅ (v1.1 cross-link; Changelog entry recorded)
+- `Identity.API.Tests` all green: 102/102 existing + 1 new = 103/103 ✅
 
 ---
 
@@ -519,6 +524,17 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 ---
 
 ## Changelog
+
+### v2.6 (2026-07-31) — Phase 5 shipped
+- **MINOR bump**: Phase 5 is implemented. Status table shows ✅; deliverables ticked.
+- **`Identity.API/Models/UserRestaurant.cs`** — `int RestaurantId` → `Guid RestaurantId`. The wire shape is now Guid-shaped end-to-end; pre-change, Identity emitted `"restaurantId": "42"` and every consumer's `Guid.TryParse("42")` returned false → `Guid.Empty` → no rows in the tenant filter. The tenant-scope failure mode is closed.
+- **`Identity.API/Data/Migrations/20260731000000_UserRestaurantIdToGuid.cs`** (new) — hand-authored PostgreSQL migration per the plan's §6.5 spec. Up: `DROP PK → TRUNCATE → ALTER COLUMN ... TYPE uuid USING "RestaurantId"::text::uuid → ADD PK`. Down: reverses the schema. The data is irretrievably lost (production starts on an empty `UserRestaurants` per Phase 2's seed-gate change).
+- **`Identity.API` User Features** — `CreateUserCommand`, `CreateUserRequest`, `AssignRestaurantsCommand` (`RestaurantAssignment`), `GetUserQuery` (`UserRestaurantResponse`) all updated to use `Guid`. The model change cascades through the whole CreateUser → AssignRestaurants → GetUser → DeleteUser → ClaimsTransformer pipeline.
+- **`Identity.API.Tests`** — `IdentityTestData.NewUserRestaurant` takes `Guid restaurantId = default` (was `int`). All handler tests (`AssignRestaurantsCommandHandlerTests`, `CreateUserCommandHandlerTests`, `GetUserQueryHandlerTests`, `DeleteUserCommandHandlerTests`) updated to use `Guid` literals. New test `GenerateClaimsAsync_RestaurantClaim_ParsesAsGuid` asserts the JWT-claim round-trip is correct.
+- **EF model snapshot** — `IdentityDbContextModelSnapshot.cs`, both `*.Designer.cs` files, and `UserRestaurantEntityType.cs` (the runtime entity type definition) all updated to reflect the Guid property. Without the `UserRestaurantEntityType.cs` update, the InMemory test database threw `No coercion operator is defined between types 'System.Guid' and 'System.Int32'` — the EF runtime validates that the entity type's `typeof(...)` matches the model, even when the snapshot is correct.
+- **Cross-plan update** — `MULTITENANCY_ROLLOUT_PLAN.md` v1.1 cross-links here; its Phase 5 reduces to "register `NullCurrentRestaurantProvider` + `IHttpContextAccessor`" only (the int→Guid work was absorbed here).
+- **Test counts**: 103/103 `Identity.API.Tests` pass (102 existing + 1 new `ParsesAsGuid` test). 17/17 `BuildingBlocks.Dev.Tests` regression-clean. 16/16 `BuildingBlocks.Tests` regression-clean. 123/146 `Discount.Grpc.Tests` (same 20 pre-existing schema-drift failures; no new failures from Phase 5).
+- **Production deploy concern** — the migration is intentionally destructive. The plan's §10.3 documents the dev-data export + prod mapping script as one-time operations. A migration runbook entry is recommended in the deployment playbook.
 
 ### v2.5 (2026-07-31) — Phase 4 shipped
 - **MINOR bump**: Phase 4 is implemented. Status table shows ✅; deliverables ticked.

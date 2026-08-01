@@ -37,11 +37,11 @@ namespace Identity.API.Data.Migrations
 
             var restaurantId = runtimeEntityType.AddProperty(
                 "RestaurantId",
-                typeof(int),
+                typeof(Guid),
                 propertyInfo: typeof(UserRestaurant).GetProperty("RestaurantId", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 fieldInfo: typeof(UserRestaurant).GetField("<RestaurantId>k__BackingField", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly),
                 afterSaveBehavior: PropertySaveBehavior.Throw,
-                sentinel: 0);
+                sentinel: new Guid("00000000-0000-0000-0000-000000000000"));
             restaurantId.AddAnnotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.None);
 
             var isDefault = runtimeEntityType.AddProperty(

@@ -38,10 +38,10 @@ public record CreateUserRequest(
     string LastName,
     string? PhoneNumber = null,
     List<string>? Roles = null,
-    List<int>? RestaurantIds = null,
-    int? DefaultRestaurantId = null)
+    List<Guid>? RestaurantIds = null,
+    Guid? DefaultRestaurantId = null)
 {
     public List<string> Roles { get; init; } = Roles ?? [];
-    public List<int> RestaurantIds { get; init; } = RestaurantIds ?? [];
+    public List<Guid> RestaurantIds { get; init; } = RestaurantIds ?? [];
 }
 

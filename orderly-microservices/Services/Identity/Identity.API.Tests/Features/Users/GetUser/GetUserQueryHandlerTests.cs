@@ -42,9 +42,11 @@ public sealed class GetUserQueryHandlerTests
         await _roleManager.CreateAsync(IdentityTestData.NewRole("Manager"));
         await _roleManager.CreateAsync(IdentityTestData.NewRole("Waiter"));
         await _userManager.AddToRolesAsync(user, ["Manager", "Waiter"]);
+        var rid1 = Guid.NewGuid();
+        var rid2 = Guid.NewGuid();
         _dbContext.UserRestaurants.AddRange(
-            IdentityTestData.NewUserRestaurant(user, 1, isDefault: true),
-            IdentityTestData.NewUserRestaurant(user, 2, isDefault: false));
+            IdentityTestData.NewUserRestaurant(user, rid1, isDefault: true),
+            IdentityTestData.NewUserRestaurant(user, rid2, isDefault: false));
         await _dbContext.SaveChangesAsync();
 
         var response = await _sut.Handle(new GetUserQuery(user.Id), CancellationToken.None);
@@ -54,8 +56,8 @@ public sealed class GetUserQueryHandlerTests
         response.Roles.Should().BeEquivalentTo(new[] { "Manager", "Waiter" });
         response.Restaurants.Should().BeEquivalentTo(new[]
         {
-            new UserRestaurantResponse(1, true),
-            new UserRestaurantResponse(2, false),
+            new UserRestaurantResponse(rid1, true),
+            new UserRestaurantResponse(rid2, false),
         });
     }
 

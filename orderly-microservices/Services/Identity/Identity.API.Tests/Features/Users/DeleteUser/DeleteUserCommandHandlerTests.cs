@@ -23,7 +23,7 @@ public sealed class DeleteUserCommandHandlerTests
         _sut = new DeleteUserCommandHandler(_userManager, _dbContext);
     }
 
-    private async Task<ApplicationUser> SeedUserWithRestaurantsAsync(params int[] restaurantIds)
+    private async Task<ApplicationUser> SeedUserWithRestaurantsAsync(params Guid[] restaurantIds)
     {
         var user = IdentityTestData.NewUser();
         var result = await _userManager.CreateAsync(user, "P@ssword1!");
@@ -48,7 +48,10 @@ public sealed class DeleteUserCommandHandlerTests
     [Fact]
     public async Task Handle_WithExistingUserAndRestaurants_RemovesBoth()
     {
-        var user = await SeedUserWithRestaurantsAsync(1, 2, 3);
+        var r1 = Guid.NewGuid();
+        var r2 = Guid.NewGuid();
+        var r3 = Guid.NewGuid();
+        var user = await SeedUserWithRestaurantsAsync(r1, r2, r3);
 
         await _sut.Handle(new DeleteUserCommand(user.Id), CancellationToken.None);
 
@@ -92,10 +95,13 @@ public sealed class DeleteUserCommandHandlerTests
     [Fact]
     public async Task Handle_DoesNotAffectOtherUsersRestaurants()
     {
-        var victim = await SeedUserWithRestaurantsAsync(10, 20);
+        var victimRid1 = Guid.NewGuid();
+        var victimRid2 = Guid.NewGuid();
+        var bystanderRid = Guid.NewGuid();
+        var victim = await SeedUserWithRestaurantsAsync(victimRid1, victimRid2);
         var bystander = IdentityTestData.NewUser("other@test.com");
         await _userManager.CreateAsync(bystander, "P@ssword1!");
-        _dbContext.UserRestaurants.Add(IdentityTestData.NewUserRestaurant(bystander, 99));
+        _dbContext.UserRestaurants.Add(IdentityTestData.NewUserRestaurant(bystander, bystanderRid));
         await _dbContext.SaveChangesAsync();
 
         await _sut.Handle(new DeleteUserCommand(victim.Id), CancellationToken.None);

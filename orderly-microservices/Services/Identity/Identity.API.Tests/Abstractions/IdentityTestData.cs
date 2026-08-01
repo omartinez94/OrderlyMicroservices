@@ -78,14 +78,19 @@ internal static class IdentityTestData
     /// <summary>Builds a <see cref="UserRestaurant"/> assignment.</summary>
     public static UserRestaurant NewUserRestaurant(
         ApplicationUser user,
-        int restaurantId = 1,
+        Guid restaurantId = default,
         bool isDefault = false)
     {
+        // The default tenantId changed from int to Guid. The test factories use
+        // this builder as the only int→Guid transition point; callers
+        // (handler tests, ClaimsTransformer tests) pass
+        // <c>restaurantId: Guid.Parse("...")</c> or
+        // <c>new Guid("...")</c> for deterministic values.
         return new UserRestaurant
         {
             UserId = user.Id,
             User = user,
-            RestaurantId = restaurantId,
+            RestaurantId = restaurantId == default ? Guid.NewGuid() : restaurantId,
             IsDefault = isDefault,
         };
     }

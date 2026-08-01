@@ -23,7 +23,7 @@ public sealed class AssignRestaurantsCommandHandlerTests
         _sut = new AssignRestaurantsCommandHandler(_userManager, _dbContext);
     }
 
-    private async Task<ApplicationUser> SeedUserWithRestaurantsAsync(params (int id, bool isDefault)[] assignments)
+    private async Task<ApplicationUser> SeedUserWithRestaurantsAsync(params (Guid id, bool isDefault)[] assignments)
     {
         var user = IdentityTestData.NewUser();
         await _userManager.CreateAsync(user, "P@ssword1!");
@@ -44,20 +44,25 @@ public sealed class AssignRestaurantsCommandHandlerTests
     [Fact]
     public async Task Handle_ReplacesExistingAssignments()
     {
-        var user = await SeedUserWithRestaurantsAsync((1, true), (2, false));
+        var seedRid1 = Guid.NewGuid();
+        var seedRid2 = Guid.NewGuid();
+        var newRid1 = Guid.NewGuid();
+        var newRid2 = Guid.NewGuid();
+        var newRid3 = Guid.NewGuid();
+        var user = await SeedUserWithRestaurantsAsync((seedRid1, true), (seedRid2, false));
 
         var newAssignments = new List<RestaurantAssignment>
         {
-            new(10, true),
-            new(20, false),
-            new(30, false),
+            new(newRid1, true),
+            new(newRid2, false),
+            new(newRid3, false),
         };
 
         await _sut.Handle(new AssignRestaurantsCommand(user.Id, newAssignments), CancellationToken.None);
 
         var stored = _dbContext.UserRestaurants.Where(ur => ur.UserId == user.Id).ToList();
-        stored.Select(ur => ur.RestaurantId).Should().BeEquivalentTo(new[] { 10, 20, 30 });
-        stored.Single(ur => ur.RestaurantId == 10).IsDefault.Should().BeTrue();
+        stored.Select(ur => ur.RestaurantId).Should().BeEquivalentTo(new[] { newRid1, newRid2, newRid3 });
+        stored.Single(ur => ur.RestaurantId == newRid1).IsDefault.Should().BeTrue();
     }
 
     /// <summary>
@@ -79,7 +84,9 @@ public sealed class AssignRestaurantsCommandHandlerTests
     [Fact]
     public async Task Handle_WithEmptyList_RemovesAllAssignments()
     {
-        var user = await SeedUserWithRestaurantsAsync((1, true), (2, false));
+        var seedRid1 = Guid.NewGuid();
+        var seedRid2 = Guid.NewGuid();
+        var user = await SeedUserWithRestaurantsAsync((seedRid1, true), (seedRid2, false));
 
         await _sut.Handle(new AssignRestaurantsCommand(user.Id, []), CancellationToken.None);
 
@@ -98,11 +105,14 @@ public sealed class AssignRestaurantsCommandHandlerTests
     {
         var user = await SeedUserWithRestaurantsAsync();
 
+        var rid1 = Guid.NewGuid();
+        var rid2 = Guid.NewGuid();
+        var rid3 = Guid.NewGuid();
         await _sut.Handle(new AssignRestaurantsCommand(user.Id, new List<RestaurantAssignment>
         {
-            new(1, true),
-            new(2, true),
-            new(3, false),
+            new(rid1, true),
+            new(rid2, true),
+            new(rid3, false),
         }), CancellationToken.None);
 
         var stored = _dbContext.UserRestaurants.Where(ur => ur.UserId == user.Id).ToList();

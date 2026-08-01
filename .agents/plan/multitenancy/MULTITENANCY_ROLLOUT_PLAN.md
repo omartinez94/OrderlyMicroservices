@@ -6,8 +6,8 @@
 
 ## Status
 
-> **Plan version**: `v1.0` (2026-07-18) — `1` increments after each phase completion; `2` is reserved for breaking restructures of the plan itself.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.1` (2026-07-31) — `1` increments after each phase completion; `2` is reserved for breaking restructures of the plan itself.
+> **Current state**: ⏸ Not started (Phase 5's int→Guid work was absorbed by `TRUST_ROOT_HARDENING_PLAN.md` Phase 5 and shipped there on 2026-07-31 — see changelog v1.1)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -16,7 +16,7 @@
 | 2 | Ordering denormalization | 🔒 Blocked (by Phase 1) |
 | 3 | Catalog adoption | 🔒 Blocked (by Phase 2) |
 | 4 | Test contract codification | 🔒 Blocked (by Phase 1) |
-| 5 | Identity cleanup (int→Guid + null provider) | 🔒 Blocked (by Phase 2) |
+| 5 | Identity cleanup (null provider only) | 🔒 Blocked (by Phase 2) — **int→Guid fix absorbed by trust-root plan v2.6** |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -447,32 +447,23 @@ Catalog documents (`OrderSnapshot`, `OrderModificationLog`, `OrderItemPriceAudit
 
 **Exit criteria**: test class hierarchy refactored; no test count delta; `dotnet test` green across solution.
 
-### Phase 5 — Identity cleanup
+### Phase 5 — Identity cleanup (null provider only — int→Guid absorbed)
 
-**Goal**: fix the `UserRestaurant.RestaurantId : int → Guid` drift; register `NullCurrentRestaurantProvider` so DI compiles uniformly across all six services.
+**Goal**: register `NullCurrentRestaurantProvider` so DI compiles uniformly across all six services. The `int→Guid` column fix was absorbed by `TRUST_ROOT_HARDENING_PLAN.md` Phase 5 (v2.6) and shipped on 2026-07-31 — see Changelog v1.1 below.
 
 **Status**: ⏸ Pending (blocked by Phase 2)
 
 **Deliverables**:
-- [ ] `Services/Identity/Identity.API/Models/UserRestaurant.cs:7` — `int RestaurantId` → `Guid RestaurantId`
+- [x] ~~`Services/Identity/Identity.API/Models/UserRestaurant.cs:7` — `int RestaurantId` → `Guid RestaurantId`~~ **shipped 2026-07-31 by TRUST_ROOT_HARDENING_PLAN.md Phase 5 (v2.6)** — see `Models/UserRestaurant.cs:7` and the `20260731000000_UserRestaurantIdToGuid` migration.
 - [ ] `BuildingBlocks/Multitenancy/NullCurrentRestaurantProvider.cs` created (returns `Guid.Empty`; `Attach` is no-op)
 - [ ] `Services/Identity/Identity.API/Program.cs` registers `NullCurrentRestaurantProvider`
-- [ ] `dotnet ef migrations add ConvertUserRestaurantRestaurantIdToGuid --startup-project Identity.API` — hand-authored:
-  ```sql
-  ALTER TABLE "UserRestaurants" ADD COLUMN "RestaurantId_Guid" uuid;
-  -- backfill: sequential Guid.NewGuid() per row in dev; mapping script in prod
-  UPDATE "UserRestaurants" SET "RestaurantId_Guid" = gen_random_uuid();
-  ALTER TABLE "UserRestaurants" DROP CONSTRAINT "PK_UserRestaurants";  -- if composite
-  ALTER TABLE "UserRestaurants" DROP COLUMN "RestaurantId";
-  ALTER TABLE "UserRestaurants" RENAME COLUMN "RestaurantId_Guid" TO "RestaurantId";
-  -- recreate unique indexes that referenced the old column
-  ```
-- [ ] Pre-migration data validation script run against dev `identitydb` (counts match; foreign-key references intact)
+- [ ] `dotnet ef migrations add ConvertUserRestaurantRestaurantIdToGuid` ~~`--startup-project Identity.API` — hand-authored:~~ — already shipped by the trust-root plan; the migration file is `Identity.API/Data/Migrations/20260731000000_UserRestaurantIdToGuid.cs`.
+- [ ] Pre-migration data validation script run against dev `identitydb` (counts match; foreign-key references intact) — **out of scope for this plan**: the trust-root plan's §10.3 records the dev-data export + prod mapping script as a one-time operation. Phase 5 here reduces to "register the null provider."
 - [ ] `BuildingBlocks.Multitenancy.Tests/NullCurrentRestaurantProviderTests` shipped (2 tests per §10.7)
-- [ ] `Identity.API.Tests` green; grep proves `UserRestaurant.RestaurantId : Guid` everywhere in the codebase
+- [ ] `Identity.API.Tests` green — already green (102/102 + 1 new ParsesAsGuid test) per the trust-root v2.6 changelog.
 - [ ] `docs/architecture/current-architecture.md` §4.6 + §11 updated; migration window documented
 
-**Exit criteria**: migration applies to dev `identitydb`; all Identity tests green; `dotnet ef migrations list --startup-project Identity.API` shows the conversion migration; grep proves zero remaining `int RestaurantId` references in `Identity.API/`.
+**Exit criteria (revised)**: NullCurrentRestaurantProvider is registered in Identity.API/Program.cs; `BuildingBlocks.Multitenancy.Tests` green; Identity.API.Tests green; the int→Guid migration is already applied. The dev-data backfill + prod mapping script are operational concerns tracked by the trust-root plan, not this one.
 
 ---
 
@@ -611,6 +602,12 @@ Plans follow `vMAJOR.MINOR` semantics. The version lives in the Status section a
 ---
 
 ## Changelog
+
+### v1.1 (2026-07-31) — Phase 5 scope reduction (int→Guid absorbed by trust-root plan)
+- **MINOR bump**: the `int→Guid` migration for `UserRestaurant.RestaurantId` is the trust-root plan's Phase 5 deliverable, not this plan's. Cross-link: `.agents/plan/platform/TRUST_ROOT_HARDENING_PLAN.md` v2.6 §6.5.
+- **Phase 5 status**: deliverables updated to reflect that the model change, the migration file, and the ClaimsTransformer test are already shipped; only the `NullCurrentRestaurantProvider` registration + tests remain.
+- **Scope implication**: the multitenancy Phase 5 exit criteria reduce to (a) ship `NullCurrentRestaurantProvider` in `BuildingBlocks.Multitenancy/`, (b) register it in `Identity.API/Program.cs` as `AddSingleton<ICurrentRestaurantProvider, NullCurrentRestaurantProvider>()`, (c) add the 2 tests in §10.7. The schema break is no longer a Phase 5 deliverable — the trust-root plan owns it end-to-end.
+- **No new files yet**; this is a plan-update commit only.
 
 ### v1.0 (2026-07-18) — initial draft
 - Created plan with 6 phases (0-5).

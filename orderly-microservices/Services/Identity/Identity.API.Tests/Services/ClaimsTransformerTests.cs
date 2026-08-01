@@ -183,16 +183,17 @@ public sealed class ClaimsTransformerTests
     public async Task GenerateClaimsAsync_WithMultipleRestaurants_PicksIsDefault()
     {
         var user = await SeedUserAsync();
+        var pickMe = new Guid("11111111-2222-3333-4444-555555555555");
         _dbContext.UserRestaurants.AddRange(
-            IdentityTestData.NewUserRestaurant(user, restaurantId: 100, isDefault: false),
-            IdentityTestData.NewUserRestaurant(user, restaurantId: 200, isDefault: true),
-            IdentityTestData.NewUserRestaurant(user, restaurantId: 300, isDefault: false));
+            IdentityTestData.NewUserRestaurant(user, restaurantId: Guid.NewGuid(), isDefault: false),
+            IdentityTestData.NewUserRestaurant(user, restaurantId: pickMe, isDefault: true),
+            IdentityTestData.NewUserRestaurant(user, restaurantId: Guid.NewGuid(), isDefault: false));
         await _dbContext.SaveChangesAsync();
 
         var claims = await _sut.GenerateClaimsAsync(
             PrincipalWithUserId(user.Id), CancellationToken.None);
 
-        claims.Single(c => c.Type == "restaurantId").Value.Should().Be("200");
+        claims.Single(c => c.Type == "restaurantId").Value.Should().Be(pickMe.ToString());
     }
 
     /// <summary>
@@ -205,9 +206,11 @@ public sealed class ClaimsTransformerTests
     public async Task GenerateClaimsAsync_WithNoIsDefault_FallsBackToFirst()
     {
         var user = await SeedUserAsync();
+        var r1 = Guid.NewGuid();
+        var r2 = Guid.NewGuid();
         _dbContext.UserRestaurants.AddRange(
-            IdentityTestData.NewUserRestaurant(user, restaurantId: 500, isDefault: false),
-            IdentityTestData.NewUserRestaurant(user, restaurantId: 600, isDefault: false));
+            IdentityTestData.NewUserRestaurant(user, restaurantId: r1, isDefault: false),
+            IdentityTestData.NewUserRestaurant(user, restaurantId: r2, isDefault: false));
         await _dbContext.SaveChangesAsync();
 
         var claims = await _sut.GenerateClaimsAsync(
@@ -215,7 +218,36 @@ public sealed class ClaimsTransformerTests
 
         var values = claims.Where(c => c.Type == "restaurantId").Select(c => c.Value).ToList();
         values.Should().HaveCount(1);
-        values[0].Should().BeOneOf("500", "600");
+        values[0].Should().BeOneOf(r1.ToString(), r2.ToString());
+    }
+
+    /// <summary>
+    /// Phase 5 exit criteria: the <c>restaurantId</c> claim value MUST
+    /// parse as a <see cref="Guid"/>. Pre-Phase 5 the column was
+    /// <c>int</c> and the claim was emitted as <c>"42"</c> —
+    /// <c>Guid.TryParse("42", out _)</c> returns <c>false</c>, so
+    /// every consumer's tenant filter silently fell through to
+    /// <c>Guid.Empty</c> and matched no rows. With the int→Guid
+    /// migration, the claim value is now a Guid-shaped string and
+    /// every downstream <c>Guid.TryParse</c> succeeds. This test
+    /// pins that contract.
+    /// </summary>
+    [Fact]
+    public async Task GenerateClaimsAsync_RestaurantClaim_ParsesAsGuid()
+    {
+        var user = await SeedUserAsync();
+        _dbContext.UserRestaurants.Add(
+            IdentityTestData.NewUserRestaurant(user, restaurantId: Guid.NewGuid(), isDefault: true));
+        await _dbContext.SaveChangesAsync();
+
+        var claims = await _sut.GenerateClaimsAsync(
+            PrincipalWithUserId(user.Id), CancellationToken.None);
+
+        var claim = claims.Single(c => c.Type == "restaurantId").Value;
+        Guid.TryParse(claim, out var rid).Should().BeTrue(
+            "the restaurantId claim must be a Guid-shaped string so every consumer's Guid.TryParse succeeds");
+        rid.Should().NotBe(Guid.Empty,
+            "the claim should never be the empty Guid — that would be the silent-fail default that triggered Phase 5");
     }
 
     /// <summary>

@@ -2,7 +2,10 @@ namespace Identity.API.Features.Users.AssignRestaurants;
 
 public record AssignRestaurantsCommand(Guid UserId, List<RestaurantAssignment> Restaurants) : ICommand<AssignRestaurantsResponse>;
 
-public record RestaurantAssignment(int RestaurantId, bool IsDefault);
+// RestaurantId switched from int to Guid to match the wire
+// shape of the restaurantId JWT claim (Identity emits a Guid-shaped
+// string after the migration; consumers' Guid.TryParse must succeed).
+public record RestaurantAssignment(Guid RestaurantId, bool IsDefault);
 
 public record AssignRestaurantsResponse(Guid UserId, List<RestaurantAssignment> Restaurants);
 

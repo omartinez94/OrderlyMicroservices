@@ -153,7 +153,14 @@ public class StoreBasketHandler(
                 {
                     global::Discount.Grpc.DiscountType.CouponPercentage => BuildingBlocks.Discounts.DiscountType.Percentage,
                     global::Discount.Grpc.DiscountType.CouponFixedAmount => BuildingBlocks.Discounts.DiscountType.FixedAmount,
-                    _ => BuildingBlocks.Discounts.DiscountType.Percentage, // UNSPECIFIED = treat as percentage; helper produces zero
+                    _ => BuildingBlocks.Discounts.DiscountType.FixedAmount, // UNSPECIFIED = treat as fixed amount 0
+                };
+                
+                var helperAmount = snapshot.DiscountType switch
+                {
+                    global::Discount.Grpc.DiscountType.CouponPercentage => snapshot.Amount,
+                    global::Discount.Grpc.DiscountType.CouponFixedAmount => snapshot.Amount,
+                    _ => 0m,
                 };
 
                 // The IDiscountLookup snapshot doesn't carry CouponId
@@ -166,7 +173,7 @@ public class StoreBasketHandler(
                 // RestaurantId.
                 applied.Add(new AppliedDiscount(
                     Type: helperType,
-                    Amount: snapshot.Amount,
+                    Amount: helperAmount,
                     CouponId: 0,
                     Code: couponCode,
                     IsActive: true));
@@ -177,7 +184,9 @@ public class StoreBasketHandler(
         // gets persisted as `BasketAppliedDiscount` rows.
         var result = ApplyDiscountsHelper.Apply(subtotal, [.. applied]);
 
-        basket.AppliedCoupons = snapshots.ToList();
+        basket.AppliedCoupons = snapshots
+            .Select(s => s with { DiscountAmount = result.Breakdown.FirstOrDefault(b => b.Code == s.Code)?.RequestedAmount ?? 0m })
+            .ToList();
         // Legacy fields — preserved for the audit window so pre-Phase-8
         // code paths still see the same numbers. `DiscountAmount` is
         // the total reduction (clamped to subtotal); `EffectiveSubtotal`

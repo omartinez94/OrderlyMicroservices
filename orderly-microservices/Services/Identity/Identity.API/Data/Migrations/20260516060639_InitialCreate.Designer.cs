@@ -230,8 +230,8 @@ namespace Identity.API.Data.Migrations
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("RestaurantId")
-                        .HasColumnType("integer");
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uuid");
 
                     b.Property<bool>("IsDefault")
                         .ValueGeneratedOnAdd()

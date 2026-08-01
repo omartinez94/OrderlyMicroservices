@@ -109,6 +109,12 @@ public class KitchenWebApplicationFactory : WebApplicationFactory<Program>, IAsy
     /// </summary>
     public Task StopRabbitMqContainerAsync() => _rabbit.StopAsync();
 
+    /// <summary>
+    /// Restarts the RabbitMQ container so other tests in the collection
+    /// don't fail due to test pollution.
+    /// </summary>
+    public Task StartRabbitMqContainerAsync() => _rabbit.StartAsync();
+
     private static string ExtractAmqpHost(string amqpConnectionString)
     {
         // Helper kept for backwards-compat — the host config now passes the

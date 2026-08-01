@@ -40,29 +40,11 @@ builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 // flags like prep-time tracking land here).
 builder.Services.AddFeatureManagement();
 
-// Health: EF Core + Postgres reachability + the RabbitMQ broker. The
-// broker check (Phase E, Path E.1) uses AspNetCore.HealthChecks.Rabbitmq
-// 8.0.2, whose RabbitMQ.Client dependency is `>= 6.8.1` — NuGet resolves
-// it to the 7.2.1 transitive dep that MassTransit 8.5.10 pulls in. Tagged
-// `broker, ready` so the ?tags=ready filter exposes it to readiness
-// probes. Connection string reuses MessageBroker:Host (the AMQP URI the
-// factory / production config already supply).
-var rabbitConnectionString =
-    builder.Configuration.GetValue<string>("MessageBroker:ConnectionString")
-    ?? builder.Configuration.GetValue<string>("MessageBroker:Host")
-    ?? "amqp://guest:guest@localhost:5672/";
-
+// Health: EF Core + Postgres reachability. MassTransit automatically adds
+// a health check for the broker under the name "masstransit-bus" so we
+// don't need a separate explicit RabbitMQ check.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
-
-if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
-{
-    builder.Services.AddHealthChecks()
-        .AddRabbitMQ(
-            rabbitConnectionString: rabbitConnectionString,
-            name: "messagebroker",
-            tags: new[] { "broker", "ready" });
-}
 
 var app = builder.Build();
 
@@ -88,7 +70,13 @@ app.UseExceptionHandler(options => { });
 app.UseHealthChecks("/health",
     new HealthCheckOptions
     {
-        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+        ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
+        ResultStatusCodes =
+        {
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy] = StatusCodes.Status200OK,
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded] = StatusCodes.Status503ServiceUnavailable,
+            [Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+        }
     });
 
 app.Run();

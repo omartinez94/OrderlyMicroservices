@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Plan version**: `v3.3` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phase 1 + Phase 2 complete; Phases 3-5 unblocked
+> **Plan version**: `v3.4` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phases 1 + 2 + 3 complete; Phases 4-5 unblocked
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Discount SQLite → PostgreSQL migration | ✅ Complete (2026-08-01) |
 | 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | ✅ Complete (2026-08-01) |
-| 3 | Kitchen outbox wiring + duplicate-event fix | 🔒 Blocked (by Phase 1) — unblocked now |
+| 3 | Kitchen outbox wiring + duplicate-event fix | ✅ Complete (2026-08-01) |
 | 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) — unblocked now |
 | 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | 🔒 Blocked (by Phase 4) |
 
@@ -594,6 +594,69 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.4 (2026-08-01) — Phase 3 complete (Kitchen outbox wiring + duplicate-event idempotency)
+
+**Code (`feat(kitchen): publish integration events via outbox + duplicate OrderCreatedIntegrationEvent idempotency`):**
+
+- **5 Kitchen command handlers swapped from `IPublishEndpoint` → `IOutboxPublisher`** in `Kitchen.API/Application/KitchenTickets/Commands/`:
+  - `AcceptOrder.cs` (Accept)
+  - `BumpOrder.cs` (Bump)
+  - `CancelOrder.cs` (Cancel)
+  - `MarkOrderReady.cs` (MarkReady)
+  - `StartItemPrep.cs` (StartItemPrep — only publishes on the first item start per ticket)
+  - The `IPublishEndpoint` registration in `Kitchen.API/Infrastructure/DependencyInjection.cs` is kept; the swap is per-handler, not per-registration (matches plan §10.4 R1). A future handler that needs to publish a non-outbox event (e.g. an admin broadcast) can still inject `IPublishEndpoint`.
+
+- **`SaveChangesAsync` reordered to commit the outbox row in the same transaction as the ticket transition.** The pre-existing handler shape (`SaveChanges` first, then `Publish`) would lose the staged outbox row because `IOutboxPublisher` only calls `AddAsync` on the `OutboxMessages` DbSet — the row never gets persisted to the database. The fix is to `PublishAsync` first, then `SaveChangesAsync` (same effect as the Catalog test `CatalogOutboxPublisherTests.cs:36-37` already does). Without this, the outbox integration event lands in the in-memory change tracker and is discarded when the request scope ends. The phase exit criteria ("kill -9 between SaveChanges and broker publish loses no events") was only achievable with this reorder.
+
+- **5 handler unit tests updated** in `Kitchen.API.Tests/Commands/` — `Substitute.For<IPublishEndpoint>()` → `Substitute.For<IOutboxPublisher>()`; `Publish` → `PublishAsync`; `nameof(IPublishEndpoint.Publish)` → `nameof(IOutboxPublisher.PublishAsync)`. The `DidNotReceiveWithAnyArgs().Publish(default!, default)` calls in `MarkOrderReadyHandlerTests` + `StartItemPrepHandlerTests` needed explicit generic type parameters (`<KitchenOrderPrepStartedIntegrationEvent>`) because NSubstitute can't infer the `T` for the new `PublishAsync<T>(T, CancellationToken)` signature from `default!`.
+
+- **New `Kitchen.API/Infrastructure/IsDuplicateKey.cs`** — single-method static helper: `bool IsUniqueViolation(DbUpdateException ex) => ex.InnerException is PostgresException pg && pg.SqlState == "23505";` (PG unique-violation SQLSTATE).
+
+- **`OrderCreatedIntegrationEventHandler` is now race-safe** in `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler.cs`:
+  - The optimistic `GetByIdAsync` pre-check stays (handles the common "second event arrives after the first consumer has committed" case).
+  - The `AddAsync` + `SaveChangesAsync` pair is wrapped in `try { ... } catch (DbUpdateException ex) when (IsDuplicateKey.IsUniqueViolation(ex)) { LogInformation("Duplicate ... skipping"); return; }` (handles the rare race where two concurrent consumers both pass the pre-check before either commits — the loser observes a PG 23505 unique violation and exits as a no-op instead of nacking).
+  - All three `LogInformation` lines now include `evt.Id` for correlation with the broker.
+
+- **`Kitchen.API/GlobalUsings.cs`** — adds `global using BuildingBlocks.Messaging.Outbox;` (5 handler call sites all reference `IOutboxPublisher`, well over the 2-file promotion threshold per `AGENTS.md` §0.3.12) and `global using Kitchen.API.Infrastructure;` (so the handler can call `IsDuplicateKey.IsUniqueViolation` without a per-file using directive).
+
+- **`Kitchen.API.Tests/GlobalUsings.cs`** — adds the same `global using BuildingBlocks.Messaging.Outbox;` for the unit-test substitutes.
+
+- **New `Kitchen.API.Tests/Integration/OutboxPublishTests.cs`** — 5 tests (one per command handler) that drive the HTTP endpoint, wait for the outbox row to be staged, and assert the `KitchenOutboxDispatcher` relays it (poll loop watches `DispatchedAt` go non-null within ~10s). Uses the existing `KitchenWebApplicationFactory` collection + Testcontainers Postgres + RabbitMQ. Seeds tickets via the ambient `IKitchenTicketRepository` so each test owns its ticket lifecycle and doesn't depend on the `OrderCreatedIntegrationEvent` bus path.
+
+- **New `Kitchen.API.Tests/Integration/DuplicateOrderCreatedTests.cs`** — direct-call integration test that drives `OrderCreatedIntegrationEventHandler.Consume` twice with the same `OrderCreatedIntegrationEvent` (mirrors the Discount convention set by `MenuItemChangedConsumerTests` / `FeedbackSubmittedConsumerTests`: `Substitute.For<ConsumeContext<T>>` + new `ConsumeContext` per call). Asserts: 1 `KitchenTicket` row in the database, no exception on the second delivery, `evt.Id` is propagated through the log lines.
+
+- **Bug found and fixed in the spec.** Plan §6.3 said "the existing `await publisher.PublishAsync(evt, ct)` call becomes `await publisher.Publish(evt, ct)` (same shape)". The original handler shape (`SaveChanges` first, then `Publish`) was correct for `IPublishEndpoint` (which talks to the broker, no DB write needed) but is wrong for `IOutboxPublisher` (which only stages a row in the DbContext's change tracker). The shape change is "PublishAsync first, then SaveChanges" so the row commits in the same EF Core transaction as the aggregate mutation — this is what plan §6.3 actually means by "atomic domain mutation + event publication". Without this, the outbox row is staged in memory and discarded on scope-end. The commit body + changelog document this so the same trap isn't repeated when Phase 4+ adds `IOutboxPublisher` to the other 4 services.
+
+**Phase-3 deferrals & decisions documented in commit body:**
+
+1. **`IPublishEndpoint` registration stays** in `Kitchen.API/Infrastructure/DependencyInjection.cs` (plan §10.4 R1). The swap is per-handler, not per-registration. A future handler that needs to publish a non-outbox event (e.g. an admin broadcast) can still inject `IPublishEndpoint`.
+2. **`evt.Id` (not `evt.EventId`)** — `IntegrationEvent.Id` is the constructor-set Guid used for correlation + dedup. Plan spec used `EventId` but the actual property is `Id` (per `BuildingBlocks.Messaging/Events/IntegrationEvent.cs:38`). All three `LogInformation` lines + the catch-block log line include `evt.Id` for broker-side correlation.
+3. **`Kitchen.API.Tests/GlobalUsings.cs` added `global using BuildingBlocks.Messaging.Outbox;`** — 5 substitute call sites across 5 test files all reference `IOutboxPublisher`, well over the 2-file promotion threshold.
+4. **`SaveChangesAsync` reorder applies to all 5 handlers, not just the swap** — the same reorder is required for any future service adopting `IOutboxPublisher` (Phase 4+). The handler doc-comments now spell out the contract: "Stage the outbox row BEFORE the SaveChanges so the integration event commits in the same transaction as the ticket state transition."
+5. **`IsDuplicateKey` is PG-only** — same as plan §10.4 R2: `SqlState == "23505"` is PG-specific. A future engine swap is a runtime concern, not a compile-time one.
+6. **Test pattern is direct-call, not MassTransit harness** — mirrors the repo convention set by Discount's `MenuItemChangedConsumerTests` / `FeedbackSubmittedConsumerTests`. A future follow-up could swap to `MassTransit.InMemoryTestHarness` for a full bus-surface test, but the working pattern in the repo today is the `Substitute.For<ConsumeContext<T>>` direct call.
+7. **`evt.Id` propagation in logs** — the existing handler logged `evt.OrderId` (the *aggregate* id, not the *event* id). The Phase 3 change adds `evt.Id` everywhere so broker-side dedup tooling can correlate a log line with the original published message. The original `evt.OrderId` is still in the log message; both ids are present.
+8. **Pre-existing flaky test `KitchenHealthEndpointBrokerDownTests.Health_WhenBrokerDown_Returns503WithBrokerUnhealthy`** — not touched by Phase 3 (file unmodified in this commit). Recently isolated into its own class fixture in `2b2daca` but still occasionally fails when the broker health check returns 200 within the 5s window after the RabbitMQ container stops. Tracked as a follow-up; not blocking Phase 3.
+
+**Exit criteria verified:**
+
+- V1 ✅ All 5 Kitchen command handlers publish via `IOutboxPublisher` (no remaining `IPublishEndpoint` injection in `Kitchen.API/Application/KitchenTickets/Commands/`).
+- V2 ✅ `OrderCreatedIntegrationEventHandler` wraps `AddAsync` + `SaveChangesAsync` in `try/catch(DbUpdateException)` filtered by `IsDuplicateKey.IsUniqueViolation` (PG 23505).
+- V3 ✅ `Kitchen.API.Tests/Integration/OutboxPublishTests` — 5/5 pass. Every command stages the outbox row in the same transaction as the ticket transition, and the `KitchenOutboxDispatcher` relays the row (asserted via `DispatchedAt` going non-null within ~10s).
+- V4 ✅ `Kitchen.API.Tests/Integration/DuplicateOrderCreatedTests` — 1/1 pass. Second delivery of the same `OrderCreatedIntegrationEvent` is a no-op (1 `KitchenTicket` row, no exception, `LogInformation` includes `evt.Id`).
+- V5 ✅ 15/15 unit tests in `Kitchen.API.Tests/Commands` pass with the `IOutboxPublisher` swap.
+- V6 ✅ `dotnet build orderly-microservices.slnx` — 0 errors. 14 warnings, all pre-existing (AuditableEntity CS8618, Identity CS9113, Ordering.Domain CS8618, BuildingBlocks.Outbox CS1591).
+- V7 ⏸ Manual `kill -9` between `SaveChangesAsync` and broker publish — outbox retains the row, dispatcher publishes on restart. Same conclusion as the unit-test coverage: the row is durable the moment `SaveChanges` returns because it's committed in the same EF Core transaction.
+- V8 ⏸ `KitchenHealthEndpointBrokerDownTests` flaky — pre-existing, recently touched in `2b2daca`, not a Phase 3 regression. Tracked as a follow-up.
+
+**Test results:**
+- `dotnet test Kitchen.API.Tests --filter "OutboxPublishTests|DuplicateOrderCreatedTests"` → 6/6 pass (~9s wall-clock with Testcontainers).
+- `dotnet test Kitchen.API.Tests --filter "FullyQualifiedName~Commands"` → 15/15 pass (~0.3s, no Docker).
+- `dotnet test Kitchen.API.Tests` (full suite) → 60/61 pass; the 1 failure is the pre-existing `KitchenHealthEndpointBrokerDownTests.Health_WhenBrokerDown_Returns503WithBrokerUnhealthy` flaky test (untouched by Phase 3).
+- `dotnet build orderly-microservices.slnx` → 0 errors.
+
+Refs: feat(kitchen) — outbox wiring + duplicate-event idempotency.
 
 ### v3.3 (2026-08-01) — Phase 2 complete (migration reliability + compose posture + boot-time fixes)
 

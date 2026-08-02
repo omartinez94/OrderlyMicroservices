@@ -16,14 +16,15 @@ public class CancelOrderCommandValidator : AbstractValidator<CancelOrderCommand>
 }
 
 /// <summary>
-/// Cancels the ticket from any non-terminal state. Publishes
-/// <see cref="KitchenOrderCancelledIntegrationEvent"/> so Ordering can drive
-/// <c>Order.Cancel</c>.
+/// Cancels the ticket from any non-terminal state. Stages
+/// <see cref="KitchenOrderCancelledIntegrationEvent"/> in the outbox so
+/// Ordering can drive <c>Order.Cancel</c>. The row is committed in the
+/// same transaction as the ticket transition.
 /// </summary>
 public class CancelOrderHandler(
     IKitchenTicketRepository repository,
     IUnitOfWork unitOfWork,
-    IPublishEndpoint publishEndpoint,
+    IOutboxPublisher outboxPublisher,
     ICurrentUser currentUser,
     ILogger<CancelOrderHandler> logger)
     : ICommandHandler<CancelOrderCommand, CancelOrderResult>
@@ -45,9 +46,9 @@ public class CancelOrderHandler(
         Instant now = SystemClock.Instance.GetCurrentInstant();
         ticket.Cancel(command.Reason, staffUserId, now);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        await publishEndpoint.Publish(
+        // See AcceptOrder: outbox row must commit in the same transaction
+        // as the ticket transition. Publish first, then SaveChanges.
+        await outboxPublisher.PublishAsync(
             new KitchenOrderCancelledIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
@@ -56,6 +57,8 @@ public class CancelOrderHandler(
                 CancelledAt = now,
             },
             cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Cancelled KitchenTicket {TicketId} (Order {OrderNumber}) by user {UserId}: {Reason}.",

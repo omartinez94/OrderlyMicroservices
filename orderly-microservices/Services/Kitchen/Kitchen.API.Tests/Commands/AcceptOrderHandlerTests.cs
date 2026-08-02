@@ -37,7 +37,7 @@ public sealed class AcceptOrderHandlerTests
 
     private static AcceptOrderHandler BuildHandler(
         KitchenTicket ticket,
-        out IPublishEndpoint publishEndpoint,
+        out IOutboxPublisher outboxPublisher,
         out ICurrentUser currentUser,
         Guid? userId = null)
     {
@@ -45,11 +45,11 @@ public sealed class AcceptOrderHandlerTests
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
         var uow = Substitute.For<IUnitOfWork>();
-        publishEndpoint = Substitute.For<IPublishEndpoint>();
+        outboxPublisher = Substitute.For<IOutboxPublisher>();
         currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(userId ?? Guid.NewGuid());
 
-        return new AcceptOrderHandler(repo, uow, publishEndpoint, currentUser, NullLogger<AcceptOrderHandler>.Instance);
+        return new AcceptOrderHandler(repo, uow, outboxPublisher, currentUser, NullLogger<AcceptOrderHandler>.Instance);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class AcceptOrderHandlerTests
         await freshHandler.Handle(new AcceptOrderCommand(ticket.Id.Value), CancellationToken.None);
 
         var call = publish.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
         var evt = (KitchenOrderAcceptedIntegrationEvent)call.GetArguments()[0]!;
 
         evt.OrderId.Should().Be(ticket.Id.Value);
@@ -101,7 +101,7 @@ public sealed class AcceptOrderHandlerTests
         var handler = new AcceptOrderHandler(
             repo,
             Substitute.For<IUnitOfWork>(),
-            Substitute.For<IPublishEndpoint>(),
+            Substitute.For<IOutboxPublisher>(),
             currentUser,
             NullLogger<AcceptOrderHandler>.Instance);
 

@@ -1,4 +1,5 @@
 global using BuildingBlocks.Messaging.Events;
+global using BuildingBlocks.Messaging.Outbox;
 global using FluentAssertions;
 global using Kitchen.API.Application.Abstractions;
 global using Kitchen.API.Application.EventHandlers.Domain;

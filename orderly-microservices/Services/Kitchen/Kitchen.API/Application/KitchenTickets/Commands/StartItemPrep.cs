@@ -10,16 +10,18 @@ public record StartItemPrepResult(Guid TicketId, Guid ItemId, Instant StartedAt,
 /// <see cref="KitchenTicketStatus.InProgress"/>) until every item is ready.
 /// On the first item-start action of a ticket — i.e. when the aggregate's
 /// <c>StartedAt</c> was still <c>null</c> before this call — the handler
-/// publishes <see cref="KitchenOrderPrepStartedIntegrationEvent"/> so Ordering
-/// can drive <c>Order.MarkPreparing</c>. Subsequent item-starts on the same
-/// ticket do not re-publish: Ordering's <c>MarkPreparing</c> is idempotent in
-/// effect (it throws on a second call, which surfaces as a nack + retry and
-/// is a no-op once the order is already in <c>Preparing</c>).
+/// stages <see cref="KitchenOrderPrepStartedIntegrationEvent"/> in the
+/// outbox so Ordering can drive <c>Order.MarkPreparing</c>. Subsequent
+/// item-starts on the same ticket do not re-stage: Ordering's
+/// <c>MarkPreparing</c> is idempotent in effect (it throws on a second
+/// call, which surfaces as a nack + retry and is a no-op once the order is
+/// already in <c>Preparing</c>). The outbox row is committed in the same
+/// transaction as the item-prep transition.
 /// </summary>
 public class StartItemPrepHandler(
     IKitchenTicketRepository repository,
     IUnitOfWork unitOfWork,
-    IPublishEndpoint publishEndpoint,
+    IOutboxPublisher outboxPublisher,
     ICurrentUser currentUser,
     ILogger<StartItemPrepHandler> logger)
     : ICommandHandler<StartItemPrepCommand, StartItemPrepResult>
@@ -48,11 +50,9 @@ public class StartItemPrepHandler(
         Instant now = SystemClock.Instance.GetCurrentInstant();
         ticket.StartItemPrep(KitchenItemId.Of(command.ItemId), now);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
         if (firstItemStarted)
         {
-            await publishEndpoint.Publish(
+            await outboxPublisher.PublishAsync(
                 new KitchenOrderPrepStartedIntegrationEvent
                 {
                     OrderId = ticket.Id.Value,
@@ -62,6 +62,12 @@ public class StartItemPrepHandler(
                 },
                 cancellationToken);
         }
+
+        // See AcceptOrder: outbox row must commit in the same transaction
+        // as the item-prep transition. Publish (when applicable) BEFORE the
+        // SaveChanges so the staged row is included in the same EF Core
+        // transaction as the aggregate mutation.
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Started prep on item {ItemId} of KitchenTicket {TicketId} (firstItemStarted={First}).",

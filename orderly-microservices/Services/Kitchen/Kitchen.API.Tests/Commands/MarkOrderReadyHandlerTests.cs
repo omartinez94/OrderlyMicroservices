@@ -42,14 +42,14 @@ public sealed class MarkOrderReadyHandlerTests
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var handler = new MarkOrderReadyHandler(
             repo, Substitute.For<IUnitOfWork>(), publish, NullLogger<MarkOrderReadyHandler>.Instance);
 
         await handler.Handle(new MarkOrderReadyCommand(ticket.Id.Value), CancellationToken.None);
 
         var call = publish.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
         var evt = (KitchenOrderReadyIntegrationEvent)call.GetArguments()[0]!;
 
         evt.OrderId.Should().Be(ticket.Id.Value);
@@ -68,12 +68,12 @@ public sealed class MarkOrderReadyHandlerTests
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var handler = new MarkOrderReadyHandler(
             repo, Substitute.For<IUnitOfWork>(), publish, NullLogger<MarkOrderReadyHandler>.Instance);
 
         Func<Task> act = () => handler.Handle(new MarkOrderReadyCommand(ticket.Id.Value), CancellationToken.None);
         await act.Should().ThrowAsync<KitchenDomainException>();
-        await publish.DidNotReceiveWithAnyArgs().Publish(default(object)!, default);
+        await publish.DidNotReceiveWithAnyArgs().PublishAsync(default(object)!, default);
     }
 }

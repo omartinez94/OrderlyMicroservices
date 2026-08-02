@@ -57,19 +57,19 @@ public sealed class StartItemPrepHandlerTests
     private static StartItemPrepHandler BuildHandler(
         KitchenTicket ticket,
         Guid staffUserId,
-        out IPublishEndpoint publishEndpoint)
+        out IOutboxPublisher outboxPublisher)
     {
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
         var uow = Substitute.For<IUnitOfWork>();
-        publishEndpoint = Substitute.For<IPublishEndpoint>();
+        outboxPublisher = Substitute.For<IOutboxPublisher>();
 
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(staffUserId);
 
         return new StartItemPrepHandler(
-            repo, uow, publishEndpoint, currentUser, NullLogger<StartItemPrepHandler>.Instance);
+            repo, uow, outboxPublisher, currentUser, NullLogger<StartItemPrepHandler>.Instance);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class StartItemPrepHandlerTests
         result.FirstItemStarted.Should().BeTrue();
 
         var publishes = publish.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish))
+            .Where(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync))
             .ToList();
         publishes.Should().HaveCount(1);
 
@@ -111,7 +111,7 @@ public sealed class StartItemPrepHandlerTests
             new StartItemPrepCommand(ticket.Id.Value, firstItemId),
             CancellationToken.None);
         firstPublish.ReceivedCalls()
-            .Count(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish))
+            .Count(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync))
             .Should().Be(1);
 
         var secondHandler = BuildHandler(ticket, staffId, out var secondPublish);
@@ -120,7 +120,7 @@ public sealed class StartItemPrepHandlerTests
             CancellationToken.None);
 
         secondResult.FirstItemStarted.Should().BeFalse();
-        _ = secondPublish.DidNotReceiveWithAnyArgs().Publish(default!);
+        _ = secondPublish.DidNotReceiveWithAnyArgs().PublishAsync<KitchenOrderPrepStartedIntegrationEvent>(default!, default);
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class StartItemPrepHandlerTests
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
         var uow = Substitute.For<IUnitOfWork>();
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(staffId);
 
@@ -151,7 +151,7 @@ public sealed class StartItemPrepHandlerTests
             CancellationToken.None);
 
         var publishes = publish.ReceivedCalls()
-            .Where(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish))
+            .Where(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync))
             .ToList();
         publishes.Should().HaveCount(1);
     }
@@ -169,7 +169,7 @@ public sealed class StartItemPrepHandlerTests
         var unauthHandler = new StartItemPrepHandler(
             repo,
             Substitute.For<IUnitOfWork>(),
-            Substitute.For<IPublishEndpoint>(),
+            Substitute.For<IOutboxPublisher>(),
             currentUser,
             NullLogger<StartItemPrepHandler>.Instance);
 
@@ -192,7 +192,7 @@ public sealed class StartItemPrepHandlerTests
         var handler = new StartItemPrepHandler(
             repo,
             Substitute.For<IUnitOfWork>(),
-            Substitute.For<IPublishEndpoint>(),
+            Substitute.For<IOutboxPublisher>(),
             currentUser,
             NullLogger<StartItemPrepHandler>.Instance);
 

@@ -5,14 +5,16 @@ public record BumpOrderCommand(Guid TicketId) : ICommand<BumpOrderResult>;
 public record BumpOrderResult(Guid TicketId, Instant BumpedAt);
 
 /// <summary>
-/// Marks the ticket as <c>Bumped</c> after expo acknowledgment. Publishes
-/// <see cref="KitchenOrderBumpedIntegrationEvent"/> for downstream
-/// consumers (audit / analytics).
+/// Marks the ticket as <c>Bumped</c> after expo acknowledgment. Stages
+/// <see cref="KitchenOrderBumpedIntegrationEvent"/> in the outbox for
+/// downstream consumers (audit / analytics). The row is committed in the
+/// same transaction as the ticket transition, so a process crash between
+/// commit and broker publish can no longer lose the event.
 /// </summary>
 public class BumpOrderHandler(
     IKitchenTicketRepository repository,
     IUnitOfWork unitOfWork,
-    IPublishEndpoint publishEndpoint,
+    IOutboxPublisher outboxPublisher,
     ICurrentUser currentUser,
     ILogger<BumpOrderHandler> logger)
     : ICommandHandler<BumpOrderCommand, BumpOrderResult>
@@ -34,9 +36,9 @@ public class BumpOrderHandler(
         Instant now = SystemClock.Instance.GetCurrentInstant();
         ticket.Bump(now);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        await publishEndpoint.Publish(
+        // See AcceptOrder: outbox row must commit in the same transaction
+        // as the ticket transition. Publish first, then SaveChanges.
+        await outboxPublisher.PublishAsync(
             new KitchenOrderBumpedIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
@@ -44,6 +46,8 @@ public class BumpOrderHandler(
                 BumpedAt = now,
             },
             cancellationToken);
+
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
             "Bumped KitchenTicket {TicketId} (Order {OrderNumber}) by user {UserId}.",

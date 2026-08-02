@@ -34,7 +34,7 @@ public sealed class CancelOrderHandlerTests
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var currentUser = Substitute.For<ICurrentUser>();
         var staffId = Guid.NewGuid();
         currentUser.UserId.Returns(staffId);
@@ -45,7 +45,7 @@ public sealed class CancelOrderHandlerTests
         await handler.Handle(new CancelOrderCommand(ticket.Id.Value, "customer changed mind"), CancellationToken.None);
 
         var call = publish.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
         var evt = (KitchenOrderCancelledIntegrationEvent)call.GetArguments()[0]!;
 
         evt.OrderId.Should().Be(ticket.Id.Value);

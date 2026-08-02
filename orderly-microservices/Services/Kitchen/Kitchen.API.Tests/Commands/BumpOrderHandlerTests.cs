@@ -43,7 +43,7 @@ public sealed class BumpOrderHandlerTests
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var currentUser = Substitute.For<ICurrentUser>();
         var staffId = Guid.NewGuid();
         currentUser.UserId.Returns(staffId);
@@ -54,7 +54,7 @@ public sealed class BumpOrderHandlerTests
         await handler.Handle(new BumpOrderCommand(ticket.Id.Value), CancellationToken.None);
 
         var call = publish.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
         var evt = (KitchenOrderBumpedIntegrationEvent)call.GetArguments()[0]!;
 
         evt.OrderId.Should().Be(ticket.Id.Value);
@@ -88,7 +88,7 @@ public sealed class BumpOrderHandlerTests
         var repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
 
-        var publish = Substitute.For<IPublishEndpoint>();
+        var publish = Substitute.For<IOutboxPublisher>();
         var currentUser = Substitute.For<ICurrentUser>();
         currentUser.UserId.Returns(Guid.NewGuid());
 

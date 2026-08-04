@@ -30,6 +30,8 @@
 > **All implementation work on this plan MUST {{SKILL_CONSTRAINT — one-line directive pointing at the relevant skill.}}**
 
 ### 0.2 Code-quality guard rails
+- **Quality Gate script**: The `phase-guard.ps1` script MUST be executed at the end of every phase with the `-Quick` parameter to verify the build, tests, nullability, Dockerfiles, and dependencies:
+  `pwsh ./scripts/phase-guard.ps1 -PhaseName "<Phase Name>" -Quick`
 - {{GUARDRAIL_1 — e.g. "TypeScript mandatory: all source files `.ts`, compiled before running."}}
 - **{{CONFIG_NAME}}**: the following compiler/format options are required:
   ```json
@@ -184,6 +186,11 @@
 6. **Drift between the plan and the code is the bug class plans exist to prevent.** When implementation reveals the plan was wrong (schema different than expected, API behaves differently), update the plan *and* the code in the same commit.
 
 ### The phase-completion workflow
+
+> [!IMPORTANT]
+> **Quality Gate Constraint:** Before finalizing any phase or committing code, the agent MUST run the quality gate script from the repository root:
+> `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase Name" -Quick`
+> The agent MUST wait for this execution to finish and verify that the script successfully exits with code `0`. The phase is NOT complete unless the script passes.
 
 > **Every phase completion is two commits, not one.**
 

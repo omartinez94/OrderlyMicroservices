@@ -41,6 +41,9 @@ The coding standards are **not** a substitute for the plan; the plan wins where 
 
 This plan **inherits the project-wide guard rails from the catalog / ordering / discount plans verbatim** (the per-service plans are authoritative). Persistence/reliability-specific overrides layered on top:
 
+- **Quality Gate script**: The `phase-guard.ps1` script MUST be executed at the end of every phase with the `-Quick` parameter to verify the build, tests, nullability, Dockerfiles, and dependencies:
+  `pwsh ./scripts/phase-guard.ps1 -PhaseName "<Phase Name>" -Quick`
+  The agent MUST wait for this execution to finish and verify that the script successfully exits with code `0`. The phase is NOT complete unless the script passes.
 - **All `MigrateAsync` calls are awaited and run before `app.Run()`** OR live in an `IHostedService` that retries with exponential backoff. No fire-and-forget migrations (today's `Discount.Grpc/Data/Extensions.cs:11` is the offending line).
 - **All relational DbContexts enable `EnableRetryOnFailure`** with `maxRetryCount: 5, maxRetryDelay: 10s, errorCodesToAdd: null`. Applies to Catalog (Npgsql), Ordering (MSSQL), Discount (Postgres after Phase 1), and Identity (Npgsql).
 - **Outbox dispatcher is the only path that publishes integration events from command handlers.** No handler may inject `IPublishEndpoint` directly. Phase 3 enforces this in Kitchen; Basket + Ordering already comply per `BASKET_SERVICE_PLAN.md` / `ORDER_ACTIVITY_PLAN.md`.

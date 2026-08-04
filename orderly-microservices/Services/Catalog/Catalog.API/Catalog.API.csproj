@@ -21,6 +21,17 @@
     <PackageReference Include="Marten" Version="8.37.0" />
     <PackageReference Include="MassTransit" Version="8.5.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.10" />
+    <!-- Phase 5: built-in .NET 10 OpenAPI generator. Replaces Swashbuckle
+         for services that did not have a pre-existing OpenAPI emitter. Emits
+         the document at /openapi/v1.json; tags + summaries are picked up from
+         the existing .WithTags(...) / .WithDescription(...) metadata on each
+         Carter module's route group. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- Phase 5: pin `Microsoft.OpenApi` to the patched 2.7.5+ line so the
+         transitive dependency pulled in by `Microsoft.AspNetCore.OpenApi`
+         does not carry GHSA-v5pm-xwqc-g5wc (CVE-2026-49451). The explicit
+         PackageReference overrides the transitive version selection. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

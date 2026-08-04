@@ -31,6 +31,13 @@ builder.Services.AddAuthorizationServices();
 
 builder.Services.AddCarter();
 
+// OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built on
+// the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10 SDK —
+// no Swashbuckle dependency added). Every Carter module already carries
+// `.WithTags("Kitchen")` on its route definition, so the generated spec is
+// grouped without any per-endpoint edit. Plan §6.5.
+builder.Services.AddOpenApi();
+
 // SignalR — single typed hub at /hubs/kitchen. JWT bearer is hoisted off
 // the ?access_token= query string by the SignalR client; YARP forwards the
 // WebSocket upgrade transparently (verified by route config in
@@ -74,6 +81,14 @@ app.UseAuthorization();
 
 app.MapCarter();
 app.MapHub<KitchenHub>("/hubs/kitchen");
+
+// OpenAPI document endpoint. The in-box generator scans every endpoint
+// registered via MapCarter() and emits an OpenAPI 3.0 document at the
+// canonical `/openapi/v1.json` path. Tags come from the `.WithTags(...)`
+// already wired on each module's route definition; summaries + descriptions
+// from any `.WithDescription(...)` calls. SignalR hub routes do not appear
+// in the spec (MapHub is not a request-response endpoint).
+app.MapOpenApi();
 
 app.UseExceptionHandler(options => { });
 

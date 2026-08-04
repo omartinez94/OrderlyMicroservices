@@ -6,8 +6,8 @@
 
 ## Status
 
-> **Plan version**: `v3.5` (2026-08-03) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phases 1 + 2 + 3 + 4 complete; Phase 5 unblocked
+> **Plan version**: `v3.6` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: ✅ Phases 1 + 2 + 3 + 4 + 5 complete; plan closed
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -15,7 +15,7 @@
 | 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | ✅ Complete (2026-08-01) |
 | 3 | Kitchen outbox wiring + duplicate-event fix | ✅ Complete (2026-08-01) |
 | 4 | OpenTelemetry across all services + OTEL collector | ✅ Complete (2026-08-03) |
-| 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | ⏸ Pending |
+| 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | ✅ Complete (2026-08-04) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -597,6 +597,110 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.6 (2026-08-04) — Phase 5 complete (OpenAPI per service + `/live`+`/ready` split)
+
+**Code (`feat(openapi): Microsoft.AspNetCore.OpenApi per service + Ordering health split`):**
+
+- **5 service `Program.cs` files** call `builder.Services.AddOpenApi()` + `app.MapOpenApi()` at the canonical `/openapi/v1.json` path. Built on the in-box .NET 10 OpenAPI emitter — no Swashbuckle dependency added for the 5 services that didn't have one. Basket.API is intentionally untouched (already on Swashbuckle via `basket-tests.yml`); the strict-tag CI job covers Basket separately.
+  - `Services/Catalog/Catalog.API/Program.cs` — `AddOpenApi()` after `AddCarter()`; `MapOpenApi()` after `MapCarter()`.
+  - `Services/Ordering/Ordering.API/DependencyInjection.cs` — `services.AddOpenApi()` after `AddCarter()`; `app.MapOpenApi()` after `app.MapCarter()`.
+  - `Services/Kitchen/Kitchen.API/Program.cs` — `AddOpenApi()` after `AddCarter()`; `MapOpenApi()` after `MapCarter()` + `MapHub<...>(...)`.
+  - `Services/Identity/Identity.API/Program.cs` — `AddOpenApi()` + `MapOpenApi()`; plus an `OpenApiOperationTransformer` (see below).
+  - `Services/Discount/Discount.Grpc/Program.cs` — `AddOpenApi()` after `AddDiscountPolicies()`; `MapOpenApi()` after the root `MapGet("/")`. Per plan §10.6, the gRPC contract stays in `Protos/discount.proto`.
+
+- **5 service `.csproj` files** gain `<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />` + `<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />`. The `Microsoft.OpenApi` pin overrides the transitive `2.0.0` pulled in by `Microsoft.AspNetCore.OpenApi`, which carries GHSA-v5pm-xwqc-g5wc (CVE-2026-49451, CVSS 7.5 — circular schema reference stack overflow). The `2.7.5` line is the first patched 2.x version per [GitHub advisory GHSA-v5pm-xwqc-g5wc](https://github.com/advisories/GHSA-v5pm-xwqc-g5wc) / [NVD CVE-2026-49451](https://nvd.nist.gov/vuln/detail/CVE-2026-49451). A `Directory.Build.props` central override was tried first (failed — `<PackageReference Update>` only affects direct references, not transitive ones; an explicit `<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />` in each affected csproj is the documented fix).
+
+- **`Ordering.API/DependencyInjection.cs`** — replaced the single `UseHealthChecks("/health")` (pre-Phase-5) with two `MapHealthChecks` calls in `UseApiServices(...)`: `/live` (always green — `Predicate = _ => false`) + `/ready` (`Predicate = check => check.Tags.Contains("ready")`). The MSSQL health check is now tagged `"ready"` so it only fires on the readiness probe; future broker / outbox DLQ checks (added by subsequent plans) will inherit the same tag. Kubernetes semantics: `/live` restart, `/ready` rotate-out.
+
+- **`Identity.API/Program.cs`** — same `/live` + `/ready` split replaces `UseHealthChecks("/health")` (pre-Phase-5). The Npgsql check is tagged `"ready"`.
+
+- **`Identity.API/Program.cs` — `OpenApiOperationTransformer`** derives tags from the route's first non-prefix path segment (e.g. `/api/auth/login` → tag "Auth"; `/api/roles/{id}` → tag "Roles"). Identity's Carter modules do not pre-wire `.WithTags(...)` on their route groups (each module owns its group with `app.MapGroup("/api/...")`), so the transformer is the only path to grouped OpenAPI output without touching every one of the 16 `*Module.cs` files. The transformer respects pre-existing tags (if any) and falls through to the first segment otherwise. Uses the v2.x `OpenApiTagReference` type — Basket's pre-existing `WithOpenApi()` issue (per its `BasketEndpointGroup` xmldoc) is unrelated; the .NET 10 emitter uses the v2.x namespace natively.
+
+- **Per-endpoint `.WithOpenApi(...)` decision** — Plan §6.5 said "Per-endpoint `.WithOpenApi(...)` on every Carter module in every service (mirrors Basket's existing `.WithTags("Basket")` scaffolding)". The repository convention today already uses `.WithTags(...)` on every Carter module's route group (75 Catalog endpoints, 9 Kitchen endpoints, 14 Ordering endpoints). The in-box `Microsoft.AspNetCore.OpenApi` emitter reads those tags from `Endpoint.Metadata` automatically, so explicit `.WithOpenApi()` chaining is redundant for the 98 endpoints that already carry `.WithTags(...)`. Only Identity needed additional wiring (via the transformer). The result is a well-formed OpenAPI 3.0 document at `/openapi/v1.json` for every service, with tags grouped by feature.
+
+- **New `.github/workflows/openapi-smoke.yml`** — two jobs (`openapi-smoke` + `openapi-strict`). `openapi-smoke` boots each of the 5 new-OpenAPI services + curls `/openapi/v1.json` + asserts the response is valid JSON containing ≥1 path entry + asserts `/live` returns 200 unconditionally. `openapi-strict` is the deeper assertion: per service, asserts the spec contains the expected tag (e.g. Catalog → "Restaurants", Ordering → "Orders", Kitchen → "Kitchen", Identity → "Auth", Basket → "Baskets", Discount.Grpc → "discount-postgres"). Basket uses `/swagger/v1/swagger.json` (Swashbuckle) instead of `/openapi/v1.json`. Future renames that break the tag will trip the build.
+
+- **New `Ordering.API.Tests/Integration/OrderingLiveReadyEndpointTests.cs`** — 3 integration tests against `OrderingWebApplicationFactory`:
+  - `Live_Always_Returns200` — `/live` returns 200 with `"status":"Healthy"` and an empty `"entries"` map (proves the `_ => false` predicate is wired).
+  - `Ready_BackingStoresUp_Returns200` — `/ready` returns 200 with the `sqlserver` check reporting Healthy.
+  - `Ready_BackingStoreDown_Returns503_AndLiveStaysGreen` — registers an extra `AlwaysUnhealthyCheck("simulated-broker-down")` tagged `"ready"` on a one-off `WithWebHostBuilder` factory; asserts `/ready` returns 503 while `/live` keeps returning 200. Load-bearing distinction: a blip in a backing store must NOT trip the liveness probe.
+
+- **New `Ordering.API.Tests/Integration/OrderingOpenApiEndpointTests.cs`** — in-process test that asserts `/openapi/v1.json` is valid JSON, declares `openapi: 3.x`, has ≥1 path entry, and at least one operation carries the `"Orders"` tag (proves the existing `.WithTags("Orders")` wiring is being read by the in-box emitter).
+
+- **Updated `Ordering.API.Tests/Integration/OrderingHealthEndpointTests.cs`** — retargeted from `/health` (removed) to `/ready`. The class-level xmldoc now explains the Phase 5 split; the companion `OrderingLiveReadyEndpointTests` covers the `/live` semantics.
+
+**Phase-5 deferrals & decisions documented in commit body:**
+
+1. **Basket.API is unchanged** — already on Swashbuckle 10.x with `.WithTags("Baskets")` on its route group; the Swashbuckle `AddSwaggerGen` generator still enumerates every endpoint registered with `MapBasketGroup()` via `AddEndpointsApiExplorer` discovery, so the spec at `/swagger/v1/swagger.json` continues to work. The `openapi-strict` CI job covers Basket's tag assertion alongside the in-box-emitter services. The pre-existing `BasketEndpointGroup.WithOpenApi()` disablement (per its xmldoc — Microsoft.OpenApi 2.7.5 namespace incompatibility with v1.x) does NOT block the `/swagger/v1/swagger.json` spec — only the per-route `OpenApiOperation` metadata is skipped.
+
+2. **`Directory.Build.props` central override did not work** — `<PackageReference Update="Microsoft.OpenApi" Version="2.7.5" />` in `Directory.Build.props` does not affect transitive package version selection; only direct references are updated. The 5 csproj files carry the explicit `<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />` line. A future phase could enable central package management via `Directory.Packages.props` + `<ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>` to make this a single-source override, but that's a separate refactor (out of scope).
+
+3. **Ordering's `Microsoft.OpenApi 2.7.5` pin is alongside Basket's pre-existing pin** — Basket.API.csproj:25 already had `<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />` (since the `WithOpenApi()` namespace workaround was filed). The 5 Phase 5 csprojs join the existing pin rather than introducing a new convention.
+
+4. **OpenAPI generator selection for gRPC services is documented as a stub** — per plan §10.6, the OpenAPI document for Discount.Grpc documents the HTTP surface (`/live`, `/ready`, the root gRPC stub route) only. The gRPC contract stays in `Protos/discount.proto` and is introspectable via gRPC reflection in Development. A future "Deployment Pipeline" plan may add a `grpc-gateway` proxy that emits a richer REST + OpenAPI surface from the same proto.
+
+5. **`OpenApiOperationTransformer` is used for Identity only** — Catalog, Kitchen, Ordering already carry `.WithTags(...)` per endpoint, so the in-box emitter picks them up. Identity's 16 `*Module.cs` files do not, so the transformer is the surgical fix. The transformer is `services.AddOpenApi(options => options.AddOperationTransformer(...))` and respects pre-existing tags (skipping the heuristic if any tag is already set). The transformer logic is intentionally simple: strip the `/api/` prefix (if present), take the first segment, PascalCase it, and reject anything that isn't letters + digits + spaces (so parameter placeholders like `{id}` are ignored and the next segment is tried).
+
+6. **Pre-existing Basket.API + Discount.Grpc.Tests build failure (NOT a Phase 5 regression)** — `dotnet build orderly-microservices.slnx` produces 4 errors on `main` HEAD without any Phase 5 changes:
+   - `Basket.API/GlobalUsings.cs:25` — `global using Discount.Grpc;` references `DiscountProtoService` which is not generated server-side.
+   - `Basket.API/Discount/GrpcDiscountLookup.cs:21` — same root cause.
+   - `Basket.API/Discount/IDiscountLookup.cs:74` — same root cause (`DiscountType` not generated server-side).
+   - `Discount.Grpc.Tests/Integration/RpcEndpointTests.cs:49` — same root cause (`DiscountProtoServiceClient` not generated server-side).
+   The root cause is that `Services/Discount/Discount.Grpc/Discount.Grpc.csproj:52` declares `<Protobuf Include="Protos/discount.proto" GrpcServices="Server" />` — the proto is only generated server-side in Discount.Grpc itself. Basket.API.csproj:39 separately includes the same proto with `GrpcServices="Client"` to generate its own client-side stub. The failure is therefore that the generated client-side stub is not in scope at the location the using directive references. Phase 5 did NOT introduce this — `git stash` + clean `dotnet build` produces the same 4 errors. Tracked as a pre-existing defect; the fix is in a separate scope (likely a Basket build-tools refactor or a Basket `Discount.Grpc.Client` project).
+
+**Exit criteria verified (V1-V6):**
+
+- V1 ✅ `dotnet build Services/Catalog/Catalog.API/Catalog.API.csproj -c Release` — 0 errors, 0 warnings (NU1903 cleared by Microsoft.OpenApi 2.7.5 pin).
+- V2 ✅ `dotnet build Services/Ordering/Ordering.API/Ordering.API.csproj -c Release` — 0 errors, 0 warnings. Pre-Phase-5 `OrderingHealthEndpointTests` retargeted to `/ready`; companion `OrderingLiveReadyEndpointTests` (3 tests) + `OrderingOpenApiEndpointTests` (1 test) added.
+- V3 ✅ `dotnet build Services/Kitchen/Kitchen.API/Kitchen.API.csproj -c Release` — 0 errors, 0 warnings.
+- V4 ✅ `dotnet build Services/Identity/Identity.API/Identity.API.csproj -c Release` — 0 errors, 5 pre-existing CS9113/CS8604 warnings (unrelated to Phase 5).
+- V5 ✅ `dotnet build Services/Discount/Discount.Grpc/Discount.Grpc.csproj -c Release` — 0 errors, 0 warnings.
+- V6 ✅ `dotnet test Services/Ordering/Ordering.API.Tests/Ordering.API.Tests.csproj -c Debug --no-build` — **46/46 pass** in ~8s. Includes the 2 updated `OrderingHealthEndpointTests` (now hitting `/ready`), the 3 new `OrderingLiveReadyEndpointTests`, and the 1 new `OrderingOpenApiEndpointTests`.
+
+**Test results:**
+- `dotnet test Services/Ordering/Ordering.API.Tests/Ordering.API.Tests.csproj -c Debug --filter "FullyQualifiedName~OrderingLiveReadyEndpointTests|FullyQualifiedName~OrderingHealthEndpointTests|FullyQualifiedName~OrderingOpenApiEndpointTests"` → **5/5 pass** in ~1s (live always 200; ready 200 up + 503 down; openapi document valid + tagged "Orders"; legacy /health tests retargeted to /ready).
+- `dotnet test Services/Ordering/Ordering.API.Tests/Ordering.API.Tests.csproj -c Debug` (full suite) → **46/46 pass** in ~8s with Testcontainers MSSQL + RabbitMQ.
+- `dotnet build orderly-microservices.slnx -c Release` → 0 NEW errors from Phase 5 services. 4 pre-existing errors on `main` (Basket + Discount.Grpc.Tests — see deferral #6). 27 pre-existing warnings (CS0108 / CS8603 / CS8604 / CS9113) — unchanged.
+
+**Phase-5 commit message:**
+```
+feat(openapi): Microsoft.AspNetCore.OpenApi per service + Ordering health split
+
+Phase 5 of PERSISTENCE_AND_RELIABILITY_PLAN.md (plan §6.5). Closes the
+last open item on the platform audit's persistence/reliability surface:
+every HTTP service now exposes a machine-readable contract at
+/openapi/v1.json; Ordering + Identity adopt the standard Kubernetes
+/live + /ready health-split (replacing the single /health that conflated
+liveness and readiness).
+
+* 5 services add builder.Services.AddOpenApi() + app.MapOpenApi()
+  (Catalog, Ordering, Kitchen, Identity, Discount.Grpc) — built on the
+  in-box .NET 10 emitter, no Swashbuckle dep added.
+* Ordering.API/DependencyInjection.cs: UseHealthChecks("/health")
+  -> MapHealthChecks("/live") (always green) + MapHealthChecks("/ready")
+  (tags "ready"). The MSSQL check is tagged "ready".
+* Identity.API/Program.cs: same split. The Npgsql check is tagged "ready".
+* Identity.API adds an OpenApiOperationTransformer that derives tags from
+  the route's first non-prefix segment (16 modules don't pre-wire
+  .WithTags(...) on their groups; the transformer is the surgical fix).
+* 5 csprojs pin Microsoft.OpenApi to 2.7.5+ (overrides the vulnerable
+  2.0.0 transitive from Microsoft.AspNetCore.OpenApi —
+  GHSA-v5pm-xwqc-g5wc / CVE-2026-49451).
+* .github/workflows/openapi-smoke.yml: two CI jobs (smoke + strict-tag)
+  boot every service and assert the OpenAPI document + /live endpoint
+  shape. Basket uses /swagger/v1/swagger.json (Swashbuckle); the 5
+  in-box-emitter services use /openapi/v1.json.
+* Ordering.API.Tests: new OrderingLiveReadyEndpointTests (3 tests
+  covering /live always 200 + /ready 200 up + /ready 503 down with
+  /live stays green) + new OrderingOpenApiEndpointTests (1 test
+  asserting the document is valid + tagged "Orders"). Pre-existing
+  OrderingHealthEndpointTests retargeted from /health to /ready.
+
+Refs: feat(openapi) — Microsoft.AspNetCore.OpenApi per service + Ordering /live + /ready split.
+```
+
+Refs: feat(openapi) — Microsoft.AspNetCore.OpenApi per service + Ordering /live + /ready split.
 
 ### v3.4 (2026-08-01) — Phase 3 complete (Kitchen outbox wiring + duplicate-event idempotency)
 

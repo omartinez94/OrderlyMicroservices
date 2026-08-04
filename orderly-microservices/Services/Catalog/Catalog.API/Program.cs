@@ -95,6 +95,16 @@ builder.Services.AddInfrastructureServices(builder.Configuration);
 
 builder.Services.AddCarter();
 
+// OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built on
+// the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10 SDK —
+// no Swashbuckle dependency added). Every Carter module already carries
+// `.WithTags("Restaurants" / "MenuItems" / ...)` on its route group, so the
+// generated spec is grouped by feature without any per-endpoint edit.
+// `.WithOpenApi()` chaining is NOT added per-route because every module
+// already exposes its tag via `.WithTags(...)` — the built-in generator
+// reads `Endpoint.Metadata` for the same effect. Plan §6.5.
+builder.Services.AddOpenApi();
+
 // Internal helper that appends PriceHistory rows from each
 // price-mutating handler. Scoped — shares the request's DbContext so the
 // audit row commits in the same transaction as the mutation.
@@ -213,6 +223,15 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapCarter();
+
+// OpenAPI document endpoint. The in-box generator scans every endpoint
+// registered via MapCarter() and emits an OpenAPI 3.0 document at the
+// canonical `/openapi/v1.json` path. Tags come from the `.WithTags(...)`
+// already wired on each module's route group; summaries + descriptions
+// from the existing `.WithDescription(...)` calls. No Swashbuckle UI
+// middleware is added — the JSON is the contract; consumers can render
+// it via Swagger UI, Stoplight Elements, or Redoc independently.
+app.MapOpenApi();
 
 // Hangfire recurring-job registration. Each job class is resolved
 // from the DI scope on every tick. Fixes the boot-time crash, the static

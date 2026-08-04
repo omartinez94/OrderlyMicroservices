@@ -14,6 +14,17 @@
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     <PackageReference Include="Carter" Version="10.0.0" />
+    <!-- Phase 5: built-in .NET 10 OpenAPI generator. Emits the document at
+         /openapi/v1.json. Identity's Carter modules do NOT pre-wire
+         `.WithTags(...)` (each module owns its route group), so we pair
+         the emitter with a single OpenApiOperationTransformer that derives
+         tags from the route's first non-prefix path segment (see Program.cs). -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- Phase 5: pin `Microsoft.OpenApi` to the patched 2.7.5+ line so the
+         transitive dependency pulled in by `Microsoft.AspNetCore.OpenApi`
+         does not carry GHSA-v5pm-xwqc-g5wc (CVE-2026-49451). The explicit
+         PackageReference overrides the transitive version selection. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <PrivateAssets>all</PrivateAssets>

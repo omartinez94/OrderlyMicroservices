@@ -19,6 +19,17 @@
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
     <PackageReference Include="Grpc.AspNetCore.Server.Reflection" Version="2.80.0" />
+    <!-- Phase 5: built-in .NET 10 OpenAPI generator. Per plan §10.6, the
+         OpenAPI document for Discount.Grpc documents the HTTP surface
+         only (currently just `/live` + `/ready` + the root gRPC stub).
+         The gRPC contract lives in `Protos/discount.proto` and is
+         separately introspectable via gRPC reflection in Development. -->
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <!-- Phase 5: pin `Microsoft.OpenApi` to the patched 2.7.5+ line so the
+         transitive dependency pulled in by `Microsoft.AspNetCore.OpenApi`
+         does not carry GHSA-v5pm-xwqc-g5wc (CVE-2026-49451). The explicit
+         PackageReference overrides the transitive version selection. -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>

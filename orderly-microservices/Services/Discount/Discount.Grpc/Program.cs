@@ -37,6 +37,14 @@ builder.Services.AddJwtAuthenticationWithDevFallback(
     audience: builder.Configuration["Jwt:Audience"] ?? "OrderlyMicroservices");
 builder.Services.AddDiscountPolicies();
 
+// OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built on
+// the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10 SDK —
+// no Swashbuckle dependency added). Per plan §10.6, this stub document
+// surfaces only the HTTP surface (the health endpoints + the gRPC stub
+// route). The actual gRPC contract lives in `Protos/discount.proto` and
+// is introspectable via gRPC reflection in Development.
+builder.Services.AddOpenApi();
+
 // gRPC + dev-only reflection service. MapGrpcReflectionService is registered
 // only in Development so production doesn't leak the schema to anyone who
 // can reach the port.
@@ -221,6 +229,11 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
 });
 
 app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+
+// OpenAPI document endpoint (HTTP surface only — see Program.cs comment
+// on `AddOpenApi()` above). Per plan §10.6, the gRPC contract is documented
+// via `Protos/discount.proto` rather than the OpenAPI document.
+app.MapOpenApi();
 
 app.Run();
 

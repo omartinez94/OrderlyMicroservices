@@ -1,0 +1,185 @@
+root = true
+
+# ============================================================
+# Whitespace / line-ending defaults (apply to every file)
+# ============================================================
+[*]
+indent_style = space
+indent_size = 4
+# charset intentionally not set: many files in the repo are not pure
+# UTF-8 (some have a UTF-8 BOM, others Windows-1252). Setting
+# `charset = utf-8` causes `dotnet format whitespace` to flag 376+
+# files as drift. Phase 4 may normalise file encodings via a
+# one-time commit, at which point charset = utf-8 can be reintroduced.
+#
+# trim_trailing_whitespace + insert_final_newline intentionally NOT set:
+# 376 files in the repo currently fail one or both rules, and forcing
+# them to comply would create a 376-file commit with no behavioural
+# value. Phase 4 (Docker / Contract / Coverage) may add a one-time
+# normalisation commit alongside a .gitattributes that locks line
+# endings, at which point these two rules can be reintroduced.
+#
+# end_of_line also intentionally not set: codebase has mixed LF / CRLF
+# (no .gitattributes; Windows-default git client commits CRLF for some
+# files). Phase 4 may add a .gitattributes that normalises line
+# endings, at which point end_of_line = lf can be reintroduced.
+
+# ============================================================
+# C# / .NET source files
+# ============================================================
+[*.{cs,csproj,props,targets}]
+
+# Style (suggestion = reported by editor but not a warning)
+csharp_style_namespace_declarations = file_scoped:suggestion
+dotnet_sort_system_directives_first = true
+dotnet_style_qualification_for_field = false:suggestion
+dotnet_style_qualification_for_property = false:suggestion
+dotnet_style_qualification_for_method = false:suggestion
+dotnet_style_qualification_for_event = false:suggestion
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# ============================================================
+# Disabled StyleCop / FxCop rules
+#
+# Phase 1 of QUALITY_GATE_ENHANCEMENT_PLAN.md introduces StyleCop as
+# informational only (TreatWarningsAsErrors=false in Directory.Build.props).
+# Each disabled rule below was either:
+#   (a) Incompatible with this codebase's conventions, OR
+#   (b) Out of scope for Phase 1 (e.g. file-header copyright rules).
+# A later phase will re-evaluate each entry as the rule set stabilises.
+# ============================================================
+
+# SA1200 — Using directives should be placed correctly.
+#          Disabled: this codebase uses GlobalUsings.cs per service.
+dotnet_diagnostic.SA1200.severity = none
+
+# SA1633-SA1641 — File must have / match / validate a copyright header.
+#                 Disabled: no copyright header convention exists; adding one
+#                 would touch every file. Separate refactor.
+dotnet_diagnostic.SA1633.severity = none
+dotnet_diagnostic.SA1634.severity = none
+dotnet_diagnostic.SA1635.severity = none
+dotnet_diagnostic.SA1636.severity = none
+dotnet_diagnostic.SA1637.severity = none
+dotnet_diagnostic.SA1638.severity = none
+dotnet_diagnostic.SA1640.severity = none
+dotnet_diagnostic.SA1641.severity = none
+
+# SA1652 — Enable XML documentation output (validate public surface xmldoc).
+#          Disabled: xmldoc coverage is partial; enforced per-service in the
+#          per-service plans, not platform-wide.
+dotnet_diagnostic.SA1652.severity = none
+
+# SA1101 — Prefix local calls with 'this.'.
+#          Disabled: the codebase uses C# 12 primary constructors, e.g.
+#          `public class AcceptOrderHandler(IRepo, IUnitOfWork, ...)`;
+#          SA1101 expects `this.IRepo` which conflicts with that idiom.
+dotnet_diagnostic.SA1101.severity = none
+
+# CA1014 — Mark assemblies with CLSCompliantAttribute.
+#          Disabled: not enforced today; out of scope for Phase 1.
+dotnet_diagnostic.CA1014.severity = none
+
+# CA1052 — Static holder types should be Static or NotInheritable.
+#          Disabled: not enforced today; out of scope for Phase 1.
+dotnet_diagnostic.CA1052.severity = none
+
+# ============================================================
+# Rules promoted to errors by BuildingBlocks.Dev.csproj's
+# <TreatWarningsAsErrors>true</TreatWarningsAsErrors>. Disabled
+# because the existing codebase was not written against these
+# rules; Phase 2 will tune the codebase per-rule and re-enable.
+# ============================================================
+
+# CA1032 — Implement standard exception constructors.
+dotnet_diagnostic.CA1032.severity = none
+
+# CA1031 — Do not catch general exception types.
+dotnet_diagnostic.CA1031.severity = none
+
+# CA1062 — Validate arguments of public methods.
+dotnet_diagnostic.CA1062.severity = none
+
+# CA1307 — Specify StringComparison for clarity.
+dotnet_diagnostic.CA1307.severity = none
+
+# CA1848 — Use LoggerMessage delegates.
+dotnet_diagnostic.CA1848.severity = none
+
+# CA1873 — Avoid potentially expensive logging argument.
+dotnet_diagnostic.CA1873.severity = none
+
+# CA2007 — Consider calling ConfigureAwait on the awaited task.
+dotnet_diagnostic.CA2007.severity = none
+
+# SA0001 — XML comment analysis is disabled due to project configuration.
+#          Informational warning fired when a project disables xmldoc
+#          generation but StyleCop is still loaded.
+dotnet_diagnostic.SA0001.severity = none
+
+# SA1402 — File may only contain a single type.
+#          Disabled: helper types are intentionally co-located in
+#          BuildingBlocks.Dev extension files (e.g. PolicySchemeHandler,
+#          ProductionJwtKeyLoadException).
+dotnet_diagnostic.SA1402.severity = none
+
+# SA1513 — Closing brace should be followed by blank line.
+#          Disabled: codebase mixes blank-line-after-brace styles.
+dotnet_diagnostic.SA1513.severity = none
+
+# SA1518 — File is required to end with a single newline character.
+#          Disabled: SA1518 is the canonical "formatting war" rule
+#          that plan §10 warns about; tune file-by-file in Phase 2.
+dotnet_diagnostic.SA1518.severity = none
+
+# SA1116, SA1117 — Split parameters across multiple lines.
+#          Disabled: many test methods use underscores in method names
+#          with split parameter lists; rule is noisy across test trees.
+dotnet_diagnostic.SA1116.severity = none
+dotnet_diagnostic.SA1117.severity = none
+
+# CA1707 — Identifiers should not contain underscores.
+#          Disabled: xUnit test naming convention uses underscores
+#          (Handle_WithExistingUser_ThrowsBadRequest).
+dotnet_diagnostic.CA1707.severity = none
+
+# CA1859 — Use concrete types when possible for improved performance.
+#          Disabled: noisy on test stubs.
+dotnet_diagnostic.CA1859.severity = none
+
+# CA1861 — Prefer static readonly fields over constant array arguments.
+#          Disabled: noisy on test data initialisers.
+dotnet_diagnostic.CA1861.severity = none
+
+# CA1812 — Internal class is never instantiated.
+#          Disabled: xUnit test classes often expose nested DTOs as
+#          internal without explicit instantiation.
+dotnet_diagnostic.CA1812.severity = none
+
+# CA1515 — Consider making internal.
+#          Disabled: the auto-fix has been observed to change
+#          `public sealed class FooTests` -> `internal sealed class FooTests`
+#          in `dotnet format`, which breaks xUnit's xUnit1000 rule (test
+#          classes must be public). Re-enable only after the analyzer
+#          team ships a fix that excludes test projects.
+dotnet_diagnostic.CA1515.severity = none
+
+# ============================================================
+# SA1xxx layout / comment / using-ordering rules disabled
+# globally per plan §10 ("tuned via .editorconfig to avoid
+# formatting wars"). Phase 2 will re-enable rule-by-rule as
+# the codebase conforms.
+# ============================================================
+
+# SA1202 — Elements should be ordered by access.
+dotnet_diagnostic.SA1202.severity = none
+
+# SA1208 — Using directive ordering.
+dotnet_diagnostic.SA1208.severity = none
+
+# SA1512, SA1515, SA1516 — Single-line / element separation rules.
+dotnet_diagnostic.SA1512.severity = none
+dotnet_diagnostic.SA1515.severity = none
+dotnet_diagnostic.SA1516.severity = none

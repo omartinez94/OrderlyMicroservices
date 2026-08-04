@@ -301,7 +301,8 @@ public class RewardCodeService(
         {
             throw new RpcException(new Status(
                 StatusCode.PermissionDenied,
-                "tenant-mismatch=true") { });
+                "tenant-mismatch=true")
+            { });
         }
 
         // Pre-fetch for kind-aware validation + post-update response shape.

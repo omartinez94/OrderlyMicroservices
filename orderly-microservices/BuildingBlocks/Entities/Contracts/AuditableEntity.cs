@@ -7,9 +7,9 @@ namespace BuildingBlocks.Entities.Contracts;
 public abstract class AuditableEntity<TId> : IAuditableEntity<TId>
 {
     public TId Id { get; set; } = default!;
-    public string CreatedBy { get; protected set; }
+    public string CreatedBy { get; protected set; } = default!;
     public Instant CreatedAt { get; protected set; }
-    public string LastModifiedBy { get; protected set; }
+    public string LastModifiedBy { get; protected set; } = default!;
     public Instant? LastModifiedAt { get; protected set; } = null!;
     public bool IsActive { get; protected set; }
 

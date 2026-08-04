@@ -45,7 +45,7 @@ public static class BasketEndpointGroup
         app.MapGroup("/api/v1")
             .RequireAuthorization("Default")
             .WithTags("Baskets");
-        // WithOpenApi() DISABLED — see xmldoc above for the
-        // Microsoft.OpenApi 2.7.5 namespace incompatibility. Re-enable
-        // when the v2.x type mapping is fixed.
+    // WithOpenApi() DISABLED — see xmldoc above for the
+    // Microsoft.OpenApi 2.7.5 namespace incompatibility. Re-enable
+    // when the v2.x type mapping is fixed.
 }

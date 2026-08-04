@@ -1,8 +1,8 @@
-﻿namespace Ordering.Domain.Abstractions;
+namespace Ordering.Domain.Abstractions;
 
 public class Entity<T> : IEntity<T>
 {
-    public T Id { get; set; }
+    public T Id { get; set; } = default!;
     public Instant? CreatedAt { get; set; }
     public Guid? CreatedBy { get; set; }
     public Instant? LastModified { get; set; }

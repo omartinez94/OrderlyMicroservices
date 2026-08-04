@@ -49,7 +49,7 @@ public sealed class MenuItemChangedConsumerTests(DiscountWebApplicationFactory f
     public async Task DeletedEvent_DeactivatesCouponsPointedAtTheMenuItem()
     {
         await factory.CleanAllAsync();
-        
+
         var menuItemId = Guid.NewGuid();
         var coupon = await factory.SeedCouponAsync(TenantGuid, "TEST-MENU");
 
@@ -74,9 +74,9 @@ public sealed class MenuItemChangedConsumerTests(DiscountWebApplicationFactory f
             MenuItemId = menuItemId,
             ChangeType = MenuItemChangeType.Deleted
         };
-            
+
         await ConsumeAsync(evt);
-        
+
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
@@ -96,17 +96,17 @@ public sealed class MenuItemChangedConsumerTests(DiscountWebApplicationFactory f
             MenuItemId = Guid.NewGuid(),
             ChangeType = MenuItemChangeType.Deleted
         };
-            
+
         await ConsumeAsync(evt);
         await ConsumeAsync(evt);
-        
+
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
             var rows = await db.ProcessedInboundevents
                 .Where(p => p.EventId == evt.Id && p.ConsumerType == nameof(MenuItemChangedConsumer))
                 .ToListAsync();
-                
+
             rows.Should().HaveCount(1);
         }
     }
@@ -115,7 +115,7 @@ public sealed class MenuItemChangedConsumerTests(DiscountWebApplicationFactory f
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var sp = scope.ServiceProvider;
-        
+
         var consumer = new MenuItemChangedConsumer(
             new SingleScopeFactory(sp),
             NullLogger<MenuItemChangedConsumer>.Instance);

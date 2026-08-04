@@ -13,8 +13,8 @@ internal class GetRestaurantByIdQueryHandler(CatalogDbContext dbContext) : IQuer
         var restaurant = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             dbContext.Restaurants
                 .AsNoTracking(),
-            r => r.Id == query.Id, 
-            cancellationToken) 
+            r => r.Id == query.Id,
+            cancellationToken)
             ?? throw new RestaurantNotFoundException(query.Id);
 
         return new GetRestaurantByIdResult(restaurant);

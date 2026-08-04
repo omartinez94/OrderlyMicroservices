@@ -29,15 +29,15 @@ public class GetPriceHistoryEndpoint : ICarterModule
         var group = app.MapGroup("/api/v1").WithTags("PriceHistories");
 
         group.MapGet("/restaurants/{restaurantId}/price-history", async (
-            Guid restaurantId, 
-            [AsParameters] GetPriceHistoryRequest request, 
+            Guid restaurantId,
+            [AsParameters] GetPriceHistoryRequest request,
             ISender sender) =>
         {
             var query = new GetPriceHistoryQuery(
-                restaurantId, 
-                request.MenuItemId, 
-                request.PriceType, 
-                request.From, 
+                restaurantId,
+                request.MenuItemId,
+                request.PriceType,
+                request.From,
                 request.To);
 
             var result = await sender.Send(query);

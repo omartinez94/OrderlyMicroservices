@@ -23,23 +23,23 @@ public class DiscountService(
     public override async Task<GetDiscountResponse> GetDiscount(GetDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("GetDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
-        
+
         var coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
         if (coupon is null)
         {
             // Empty coupon response to indicate no discount found for the given restaurant and code
-            return new GetDiscountResponse 
-            { 
-                Coupon = new CouponModel 
-                { 
+            return new GetDiscountResponse
+            {
+                Coupon = new CouponModel
+                {
                     RestaurantId = request.RestaurantId,
                     Code = String.Empty,
                     Description = String.Empty,
                     Amount = 0,
                     IsActive = false
-                } 
+                }
             };
         }
 
@@ -51,10 +51,10 @@ public class DiscountService(
     {
         logger.LogInformation("CreateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
 
-        if(string.IsNullOrEmpty(request.Coupon.RestaurantId) || string.IsNullOrEmpty(request.Coupon.Code))
+        if (string.IsNullOrEmpty(request.Coupon.RestaurantId) || string.IsNullOrEmpty(request.Coupon.Code))
         {
-            return new CreateDiscountResponse 
-            { 
+            return new CreateDiscountResponse
+            {
                 Coupon = request.Coupon,
                 Success = false
             };
@@ -88,7 +88,7 @@ public class DiscountService(
     public override async Task<UpdateDiscountResponse> UpdateDiscount(UpdateDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("UpdateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
-        
+
         var coupon = await dbContext.Coupons.FindAsync(request.Coupon.Id);
         if (coupon is null)
         {
@@ -140,7 +140,7 @@ public class DiscountService(
     public override async Task<DeleteDiscountResponse> DeleteDiscount(DeleteDiscountRequest request, ServerCallContext context)
     {
         logger.LogInformation("DeleteDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
-        
+
         var coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
@@ -347,7 +347,7 @@ public class DiscountService(
             // returns a defined value today.
             DiscountType = coupon.DiscountType switch
             {
-                BuildingBlocks.Discounts.DiscountType.Percentage  => DiscountType.CouponPercentage,
+                BuildingBlocks.Discounts.DiscountType.Percentage => DiscountType.CouponPercentage,
                 BuildingBlocks.Discounts.DiscountType.FixedAmount => DiscountType.CouponFixedAmount,
                 _ => DiscountType.CouponDiscountTypeUnspecified,
             },

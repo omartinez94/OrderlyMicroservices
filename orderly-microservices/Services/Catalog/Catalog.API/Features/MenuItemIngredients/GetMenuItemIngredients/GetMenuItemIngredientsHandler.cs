@@ -24,7 +24,7 @@ internal class GetMenuItemIngredientsQueryHandler(CatalogDbContext dbContext) : 
             .ToListAsync(cancellationToken);
 
         var dtos = ingredients.Adapt<IEnumerable<MenuItemIngredientDto>>();
-        
+
         return new GetMenuItemIngredientsResult(dtos);
     }
 }

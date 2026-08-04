@@ -184,7 +184,7 @@ builder.Services.Configure<MigratorHostedServiceOptions>(
     builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
 builder.Services.AddHostedService<CatalogMigratorHostedService>();
 
-if(builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment())
 {
     builder.Services.InitializeMartenWith<CatalogInitialData>();
 }

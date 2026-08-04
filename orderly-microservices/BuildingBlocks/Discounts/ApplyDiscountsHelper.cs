@@ -64,7 +64,7 @@ public static class ApplyDiscountsHelper
                 // Per-line rounding (banker's rounding) applies to the
                 // Percentage computation — the resulting reduction may be
                 // a non-unit fraction (10% of $1.99 = $0.199 → $0.20).
-                DiscountType.Percentage  => Math.Round(running * (requested / 100m), MidpointRounding.ToEven),
+                DiscountType.Percentage => Math.Round(running * (requested / 100m), MidpointRounding.ToEven),
                 // FixedAmount is verbatim: the caller already supplied a
                 // whole-unit currency value; rounding here would silently
                 // change $33.34 to $33.00 (banker's rounds .34 down at zero

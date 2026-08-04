@@ -16,10 +16,10 @@ public class PermissionPolicyProvider : DefaultAuthorizationPolicyProvider
         if (policy is null && policyName.StartsWith("Permission:", StringComparison.OrdinalIgnoreCase))
         {
             var permission = policyName.Substring("Permission:".Length);
-            
+
             var policyBuilder = new AuthorizationPolicyBuilder();
             policyBuilder.AddRequirements(new PermissionRequirement(permission));
-            
+
             return policyBuilder.Build();
         }
 

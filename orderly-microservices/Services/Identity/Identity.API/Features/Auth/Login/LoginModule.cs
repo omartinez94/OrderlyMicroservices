@@ -40,7 +40,7 @@ public class LoginModule : ICarterModule
                         await auditLogger.LogAsync(user.Id, "AccountLocked", ipAddress, userAgent, "Account locked due to multiple failed attempts", ct);
                         return Results.Problem("Account is temporarily locked.", statusCode: 403);
                     }
-                    
+
                     await auditLogger.LogAsync(user.Id, "LoginFailure", ipAddress, userAgent, "Invalid credentials", ct);
                     return Results.Unauthorized();
                 }

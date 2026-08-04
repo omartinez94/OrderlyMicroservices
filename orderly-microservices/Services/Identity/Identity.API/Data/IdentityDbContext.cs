@@ -1,6 +1,6 @@
 namespace Identity.API.Data;
 
-public class IdentityDbContext(DbContextOptions<IdentityDbContext> options) 
+public class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
     : Microsoft.AspNetCore.Identity.EntityFrameworkCore.IdentityDbContext<ApplicationUser, ApplicationRole, Guid>(options)
 {
     public DbSet<UserRestaurant> UserRestaurants => Set<UserRestaurant>();

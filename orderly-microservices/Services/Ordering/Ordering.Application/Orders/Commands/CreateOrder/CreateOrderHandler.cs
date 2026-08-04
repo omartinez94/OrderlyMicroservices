@@ -40,14 +40,14 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
             payment);
 
         // Scalar fields not covered by Order.Create
-        order.Currency              = dto.Currency;
-        order.OrderType             = dto.OrderType;
-        order.Notes                 = dto.Notes;
-        order.DeliveryNotes         = dto.DeliveryNotes;
+        order.Currency = dto.Currency;
+        order.OrderType = dto.OrderType;
+        order.Notes = dto.Notes;
+        order.DeliveryNotes = dto.DeliveryNotes;
         order.EstimatedPrepTimeMinutes = dto.EstimatedPrepTimeMinutes;
         order.RequiresAdminApproval = dto.RequiresAdminApproval;
-        order.TableId               = dto.TableId;
-        order.CreatedByUserId       = dto.CreatedByUserId;
+        order.TableId = dto.TableId;
+        order.CreatedByUserId = dto.CreatedByUserId;
 
         // Add order items
         foreach (var item in dto.OrderItems)

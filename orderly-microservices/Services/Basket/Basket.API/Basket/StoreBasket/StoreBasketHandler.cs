@@ -155,7 +155,7 @@ public class StoreBasketHandler(
                     global::Discount.Grpc.DiscountType.CouponFixedAmount => BuildingBlocks.Discounts.DiscountType.FixedAmount,
                     _ => BuildingBlocks.Discounts.DiscountType.FixedAmount, // UNSPECIFIED = treat as fixed amount 0
                 };
-                
+
                 var helperAmount = snapshot.DiscountType switch
                 {
                     global::Discount.Grpc.DiscountType.CouponPercentage => snapshot.Amount,

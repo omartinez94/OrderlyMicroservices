@@ -16,7 +16,7 @@ internal class GetRestaurantsQueryHandler(CatalogDbContext dbContext) : IQueryHa
         {
             pageSize = 50;
         }
-        
+
         var restaurants = await EntityFrameworkQueryableExtensions.ToListAsync(
             dbContext.Restaurants
                 .AsNoTracking()

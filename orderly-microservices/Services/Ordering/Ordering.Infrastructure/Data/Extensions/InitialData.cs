@@ -34,9 +34,9 @@ public class InitialData
             )
         ];
 
-    public static IEnumerable<Order> Orders 
+    public static IEnumerable<Order> Orders
     {
-        get 
+        get
         {
             var order1 = Order.Create(
                 OrderId.Of(new Guid("44444444-4444-4444-4444-444444444444")),

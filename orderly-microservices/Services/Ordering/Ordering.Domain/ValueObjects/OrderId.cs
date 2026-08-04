@@ -6,7 +6,7 @@ public record OrderId
     private OrderId(Guid value) => Value = value;
     public static OrderId Of(Guid value)
     {
-        if(value == Guid.Empty)
+        if (value == Guid.Empty)
             throw new DomainException("OrderId cannot be empty.", nameof(value));
 
         return new(value);

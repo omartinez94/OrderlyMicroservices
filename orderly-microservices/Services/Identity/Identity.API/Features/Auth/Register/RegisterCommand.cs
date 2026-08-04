@@ -4,7 +4,7 @@ public record RegisterCommand(RegisterRequest Request) : ICommand<RegisterRespon
 
 public class RegisterCommandHandler(
     UserManager<ApplicationUser> userManager,
-    AuditLogger auditLogger) 
+    AuditLogger auditLogger)
     : ICommandHandler<RegisterCommand, RegisterResponse>
 {
     public async Task<RegisterResponse> Handle(RegisterCommand command, CancellationToken cancellationToken)

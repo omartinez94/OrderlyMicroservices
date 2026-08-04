@@ -53,7 +53,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     // Setting this to null makes it use the exact C# property names (PascalCase)
     options.SerializerOptions.PropertyNamingPolicy = null;
-    
+
     // Configure System.Text.Json to properly understand NodaTime types!
     options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 });

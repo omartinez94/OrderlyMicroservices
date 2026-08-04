@@ -6,7 +6,7 @@ public record CustomerId
     private CustomerId(Guid value) => Value = value;
     public static CustomerId Of(Guid value)
     {
-        if(value == Guid.Empty)
+        if (value == Guid.Empty)
             throw new DomainException("CustomerId cannot be empty.", nameof(value));
 
         return new(value);

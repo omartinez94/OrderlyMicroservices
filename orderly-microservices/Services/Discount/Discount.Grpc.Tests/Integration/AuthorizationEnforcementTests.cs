@@ -77,7 +77,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.GetDiscountAsync(new GetDiscountRequest
             {
-                RestaurantId = TestRestaurantId, Code = "ANY",
+                RestaurantId = TestRestaurantId,
+                Code = "ANY",
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -122,7 +123,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.DeleteDiscountAsync(new DeleteDiscountRequest
             {
-                RestaurantId = TestRestaurantId, Code = "ANY",
+                RestaurantId = TestRestaurantId,
+                Code = "ANY",
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -137,7 +139,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.RedeemDiscountAsync(new RedeemDiscountRequest
             {
-                RestaurantId = TestRestaurantId, Code = "ANY",
+                RestaurantId = TestRestaurantId,
+                Code = "ANY",
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -152,7 +155,9 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.ListDiscountsAsync(new ListDiscountsRequest
             {
-                RestaurantId = TestRestaurantId, Page = 1, PageSize = 10,
+                RestaurantId = TestRestaurantId,
+                Page = 1,
+                PageSize = 10,
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -188,7 +193,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.GetDiscountRuleAsync(new GetDiscountRuleRequest
             {
-                RestaurantId = TestRestaurantId, RuleId = 1,
+                RestaurantId = TestRestaurantId,
+                RuleId = 1,
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -220,7 +226,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.GetRewardCodeAsync(new GetRewardCodeRequest
             {
-                RestaurantId = TestRestaurantId, RewardCodeId = 1,
+                RestaurantId = TestRestaurantId,
+                RewardCodeId = 1,
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -235,7 +242,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         Func<Task> act = async () =>
             await client.RedeemRewardCodeAsync(new RedeemRewardCodeRequest
             {
-                RestaurantId = TestRestaurantId, RewardCodeId = 1,
+                RestaurantId = TestRestaurantId,
+                RewardCodeId = 1,
             }, MetadataWithNoUser());
 
         var ex = await act.Should().ThrowAsync<RpcException>();
@@ -256,7 +264,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         var client = BuildClient(factory, c => new DiscountProtoService.DiscountProtoServiceClient(c));
         var response = await client.GetDiscountAsync(new GetDiscountRequest
         {
-            RestaurantId = TestRestaurantId, Code = "DOES-NOT-EXIST",
+            RestaurantId = TestRestaurantId,
+            Code = "DOES-NOT-EXIST",
         }, MetadataWithUserAnd(DiscountPermissions.CouponRead));
 
         // Does not throw — empty coupon for a code with no match, but
@@ -272,7 +281,9 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         var client = BuildClient(factory, c => new DiscountRuleProtoService.DiscountRuleProtoServiceClient(c));
         var response = await client.ListDiscountRulesAsync(new ListDiscountRulesRequest
         {
-            RestaurantId = TestRestaurantId, Page = 1, PageSize = 10,
+            RestaurantId = TestRestaurantId,
+            Page = 1,
+            PageSize = 10,
         }, MetadataWithUserAnd(DiscountPermissions.DiscountRuleRead));
 
         response.Should().NotBeNull();
@@ -285,7 +296,8 @@ public sealed class AuthorizationEnforcementTests(DiscountWebApplicationFactory 
         var client = BuildClient(factory, c => new RewardCodeProtoService.RewardCodeProtoServiceClient(c));
         var response = await client.GetRewardCodeAsync(new GetRewardCodeRequest
         {
-            RestaurantId = TestRestaurantId, RewardCodeId = 1,
+            RestaurantId = TestRestaurantId,
+            RewardCodeId = 1,
         }, MetadataWithUserAnd(DiscountPermissions.RewardCodeRead));
 
         response.Should().NotBeNull();

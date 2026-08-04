@@ -19,7 +19,7 @@ namespace BuildingBlocks.Behaviors;
 /// skipped by MediatR's open-generic activation. Empty validator lists remain
 /// a no-op, so the relaxation is transparent for queries without validators.
 /// </remarks>
-public class ValidationBehavior<TRequest, TResponse> (IEnumerable<IValidator<TRequest>> validators)
+public class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidator<TRequest>> validators)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
 {

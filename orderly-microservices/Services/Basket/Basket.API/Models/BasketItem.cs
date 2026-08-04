@@ -7,7 +7,7 @@ public class BasketItem
     public decimal UnitPrice { get; set; }
     public List<BasketItemVariation> Variations { get; set; } = [];
     public List<BasketItemCustomization> Customizations { get; set; } = [];
-    
+
     public decimal TotalPrice => (UnitPrice + Variations.Sum(v => v.Price)) * Quantity;
 }
 

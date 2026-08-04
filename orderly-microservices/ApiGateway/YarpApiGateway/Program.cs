@@ -1,8 +1,18 @@
 using System.Threading.RateLimiting;
 using BuildingBlocks.Dev;
+using BuildingBlocks.Observability;
 using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: traces + metrics + logs. The YARP gateway is the
+// trace parent for every downstream call; this is the entry point
+// of every distributed trace. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension
+// so the OTel pipeline shape is consistent across every Orderly
+// service.
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.YarpGateway");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
 
 // =====================================================================
 // Phase 6 of the Trust Root Hardening plan (§6.6 + §10.4): the YARP

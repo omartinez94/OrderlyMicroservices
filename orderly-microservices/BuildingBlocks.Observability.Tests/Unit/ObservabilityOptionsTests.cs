@@ -1,28 +1,29 @@
-using System.ComponentModel.DataAnnotations;
+using BuildingBlocks.Observability;
 
-namespace Basket.API.Tests.Unit;
+namespace BuildingBlocks.Observability.Tests.Unit;
 
 /// <summary>
 /// Phase 4: OpenTelemetry options + the
-/// <see cref="CorrelationIdActivityMiddleware"/>-flavoured
-/// <see cref="OtelOptions"/> defaults. The actual OTLP export
-/// pipeline is integration-tested in Phase 5 (Testcontainers +
-/// otel-collector).
+/// <see cref="LoggingBuilderExtensions.AddOrderlyOpenTelemetry"/>-flavoured
+/// <see cref="ObservabilityOptions"/> defaults. The actual OTLP export
+/// pipeline is integration-tested in <c>OrderlyOpenTelemetryTests</c> via
+/// a fake OTLP receiver.
 /// </summary>
-public sealed class OtelOptionsTests
+public sealed class ObservabilityOptionsTests
 {
     [Fact]
     public void Defaults_DocumentOperationalContract()
     {
         // Lock the documented defaults so a future refactor cannot
         // silently change the OTLP endpoint shape, service name,
-        // or version.
-        var defaults = new OtelOptions();
+        // version, or logs flag.
+        var defaults = new ObservabilityOptions();
 
         defaults.Enabled.Should().BeTrue();
         defaults.Endpoint.Should().Be("http://localhost:4317");
-        defaults.ServiceName.Should().Be("basket.api");
-        defaults.ServiceVersion.Should().Be("1.0.0");
+        defaults.LogsEnabled.Should().BeTrue();
+        defaults.ServiceName.Should().BeNull();
+        defaults.ServiceVersion.Should().BeNull();
     }
 
     [Fact]
@@ -31,20 +32,20 @@ public sealed class OtelOptionsTests
         // The [Required] data annotation on Endpoint ensures the
         // host refuses to boot with a malformed config. Lock the
         // contract here.
-        var opts = new OtelOptions { Endpoint = "" };
+        var opts = new ObservabilityOptions { Endpoint = "" };
         var ctx = new ValidationContext(opts);
         var results = new List<ValidationResult>();
         var isValid = Validator.TryValidateObject(opts, ctx, results, validateAllProperties: true);
 
         isValid.Should().BeFalse();
         results.Should().NotBeEmpty();
-        results.Should().Contain(r => r.MemberNames.Contains(nameof(OtelOptions.Endpoint)));
+        results.Should().Contain(r => r.MemberNames.Contains(nameof(ObservabilityOptions.Endpoint)));
     }
 
     [Fact]
     public void Validation_PopulatedEndpoint_Passes()
     {
-        var opts = new OtelOptions { Endpoint = "http://otel-collector:4317" };
+        var opts = new ObservabilityOptions { Endpoint = "http://otel-collector:4317" };
         var ctx = new ValidationContext(opts);
         var results = new List<ValidationResult>();
         var isValid = Validator.TryValidateObject(opts, ctx, results, validateAllProperties: true);

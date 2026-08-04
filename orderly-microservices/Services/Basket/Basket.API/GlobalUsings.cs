@@ -20,6 +20,7 @@ global using BuildingBlocks.Exceptions;
 global using BuildingBlocks.Exceptions.Handler;
 global using BuildingBlocks.Messaging.Outbox;
 global using BuildingBlocks.Multitenancy;
+global using BuildingBlocks.Observability;
 global using Carter;
 global using Discount.Grpc;
 global using FluentValidation;

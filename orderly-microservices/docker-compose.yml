@@ -185,6 +185,30 @@ services:
       identity.api:
         condition: service_started
 
+  # Phase 4: OpenTelemetry collector. Every service exports traces,
+  # metrics, and logs to the collector via the OTLP exporter pointed
+  # at http://otel-collector:4317 by the `OpenTelemetry__Endpoint`
+  # env var (set in docker-compose.override.dev.yml). The collector's
+  # debug exporter prints every payload to stdout (visible via
+  # `docker logs otel-collector`) so a single end-to-end request is
+  # observable without a real backend. Set
+  # `OTEL_EXPORTER_OTLP_ENDPOINT` in the host env to forward to
+  # Tempo / Jaeger / Honeycomb / Datadog / etc.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_catalog:
 

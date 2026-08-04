@@ -1,0 +1,36 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.1.0">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>orderly-apphost-2026</UserSecretsId>
+    <IsPackable>false</IsPackable>
+    <!--
+      The Aspire.AppHost.Sdk (13.1.0+) is the in-box SDK for Aspire
+      AppHost projects. It sets IsAspireHost=true and AspireHostingSDKVersion
+      so the .NET SDK's NETSDK1228 Aspire-workload deprecation check
+      is skipped. Without the SDK, the .NET SDK cannot tell the
+      difference between an old workload-based project and a current
+      NuGet-based one, so it fails the build.
+    -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Project references are required so the AppHost SDK can generate the
+      `Projects.<Service>` metadata classes at build time. Each reference
+      is suppressed-from-build because the AppHost SDK builds the project
+      graph as a single process.
+    -->
+    <ProjectReference Include="..\Services\Catalog\Catalog.API\Catalog.API.csproj" />
+    <ProjectReference Include="..\Services\Basket\Basket.API\Basket.API.csproj" />
+    <ProjectReference Include="..\Services\Ordering\Ordering.API\Ordering.API.csproj" />
+    <ProjectReference Include="..\Services\Kitchen\Kitchen.API\Kitchen.API.csproj" />
+    <ProjectReference Include="..\Services\Identity\Identity.API\Identity.API.csproj" />
+    <ProjectReference Include="..\Services\Discount\Discount.Grpc\Discount.Grpc.csproj" />
+    <ProjectReference Include="..\ApiGateway\YarpApiGateway\YarpApiGateway.csproj" />
+  </ItemGroup>
+
+</Project>

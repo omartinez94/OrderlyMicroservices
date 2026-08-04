@@ -7,6 +7,7 @@ global using BuildingBlocks.Exceptions.Handler;
 global using BuildingBlocks.Messaging.Events;
 global using BuildingBlocks.Messaging.MassTransit;
 global using BuildingBlocks.Messaging.Outbox;
+global using BuildingBlocks.Observability;
 global using BuildingBlocks.Pagination;
 global using Carter;
 global using FluentValidation;

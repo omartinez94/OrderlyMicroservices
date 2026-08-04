@@ -109,6 +109,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
       - ConnectionStrings__BasketDB=Server=basketdb;Port=5432;Database=Basketdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
       - ConnectionStrings__Redis=distributedcache:6379,password=${REDIS_PASSWORD:-redisdev}
       - GrpcSettings__DiscountUrl=https://discount.grpc:8081
@@ -160,6 +164,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
       - ConnectionStrings__Database=Server=discountdb;Port=5432;Database=Discountdb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
     ports:
       - "6002:8080"
@@ -192,6 +200,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
       - ConnectionStrings__IdentityDB=Server=identitydb;Port=5432;Database=Identitydb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
       # Default OpenIddict cert paths point at the mounted /root/.aspnet/https
       # volume. The volume is mounted writable (no :ro) so the dev signing
@@ -224,6 +236,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
       - ConnectionStrings__Database=Server=orderdb;Database=OrderDb;User ID=sa;Password=${SA_PASSWORD:-YrPsswrd123456789};Encrypt=False;TrustServerCertificate=True
       - MessageBroker__Host=amqp://messagebroker:5672
       - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
@@ -252,6 +268,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
       - ConnectionStrings__KitchenDB=Server=kitchendb;Port=5432;Database=Kitchendb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres};IncludeErrorDetail=true
       - IdentityServiceUrl=http://identity.api:8080
       # Phase 2: kitchen.api was missing MessageBroker__Host / UserName /
@@ -285,6 +305,10 @@ services:
       - ASPNETCORE_HTTPS_PORTS=8081
       - ASPNETCORE_Kestrel__Certificates__Default__Password=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - ASPNETCORE_Kestrel__Certificates__Default__Path=/home/app/.aspnet/https/aspnetapp.pfx
+      # Phase 4: point the OTLP exporter at the in-compose
+      # otel-collector container.
+      - OpenTelemetry__Endpoint=http://otel-collector:4317
+      - OpenTelemetry__OtlpProtocol=Grpc
     ports:
       - "6004:8080"
       - "6064:8081"

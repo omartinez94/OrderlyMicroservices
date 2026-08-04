@@ -9,6 +9,12 @@ using Microsoft.FeatureManagement;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// OpenTelemetry: traces + metrics + logs. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
+// the OTel pipeline shape is consistent across every Orderly service.
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Kitchen");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
+
 // JSON: keep PascalCase (mirrors Catalog).
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

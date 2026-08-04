@@ -6,16 +6,16 @@
 
 ## Status
 
-> **Plan version**: `v3.4` (2026-08-01) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phases 1 + 2 + 3 complete; Phases 4-5 unblocked
+> **Plan version**: `v3.5` (2026-08-03) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phases 1 + 2 + 3 + 4 complete; Phase 5 unblocked
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Discount SQLite → PostgreSQL migration | ✅ Complete (2026-08-01) |
 | 2 | Migration reliability + boot-time regression fixes + Docker HEALTHCHECK + compose environment posture | ✅ Complete (2026-08-01) |
 | 3 | Kitchen outbox wiring + duplicate-event fix | ✅ Complete (2026-08-01) |
-| 4 | OpenTelemetry across all services + OTEL collector | 🔒 Blocked (by Phase 2) — unblocked now |
-| 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | 🔒 Blocked (by Phase 4) |
+| 4 | OpenTelemetry across all services + OTEL collector | ✅ Complete (2026-08-03) |
+| 5 | OpenAPI per service + `/live`+`/ready` split in Ordering | ⏸ Pending |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -748,7 +748,79 @@ Refs: feat(reliability) — MigratorHostedService + EnableRetryOnFailure project
 - V6 — `/ready` JSON contains `["discount-broker-circuit", "discount-outbox-dead-letter", "discount-postgres", "discount-rabbitmq"]`.
 - V7 — `grep -rn -i 'sqlite\b' Services/Discount/` returns zero hits outside any `// FIXME` markers.
 
-### v3.1 (2026-07-30) — Merge Phase 6 into Phase 2 (dependency cycle resolution)
+### v3.5 (2026-08-03) — Phase 4 complete (OpenTelemetry across all services + OTEL collector)
+
+**Code (`feat(observability): shared AddOrderlyOpenTelemetry + OTEL collector`):**
+
+- **New `BuildingBlocks.Observability/`** project ships the single canonical `AddOrderlyOpenTelemetry(IServiceCollection, IConfiguration, string serviceName, string? serviceVersion = null)` extension. The extension binds the `OpenTelemetry` config section, configures `.WithTracing(...) + .WithMetrics(...) + .WithLogging(...)` on a shared `ResourceBuilder`, and gates the OTLP exporter on `OpenTelemetry:Enabled`. Service name is required; service version defaults to the executing assembly's version. Every service in the solution funnels through this method; no service calls `AddOpenTelemetry()` directly (per plan §0.2).
+
+- **`ObservabilityOptions` POCO** under `BuildingBlocks.Observability` namespace. Properties: `SectionName = "OpenTelemetry"`, `Enabled` (default true), `Endpoint` `[Required]` (default `http://localhost:4317`), `ServiceName` (optional fallback), `ServiceVersion` (optional), `LogsEnabled` (default true), `OtlpProtocol` (default `Grpc`; set to `HttpProtobuf` for the in-process test receiver). XML doc on every public member. The Basket pre-Phase-4 `OtelOptions` is gone — the contract lives in one place now.
+
+- **`LoggingBuilderExtensions.AddOrderlyOpenTelemetry(ILoggingBuilder, IConfiguration)`** wires the logs signal (OTel SDK logger provider + OTLP log exporter). Each service's `Program.cs` calls both: `builder.Services.AddOrderlyOpenTelemetry(...)` for traces + metrics, then `builder.Logging.AddOrderlyOpenTelemetry(...)` for logs. This resolves the plan's §6.4 vs §2 goal discrepancy (code sketch only had traces + metrics; goal says logs too).
+
+- **`ResourceBuilderExtensions.AddOrderlyService(string, string)`** centralises the `service.name`, `service.version`, and `service.instance.id` resource attributes so every signal emits a uniform resource.
+
+- **7 service `Program.cs` files** call the shared extension at the top of `var builder = WebApplication.CreateBuilder(args);`:
+  - `Catalog.API/Program.cs` — `Orderly.Catalog`
+  - `Ordering.API/Program.cs` — `Orderly.Ordering`
+  - `Kitchen.API/Program.cs` — `Orderly.Kitchen`
+  - `Identity.API/Program.cs` — `Orderly.Identity`
+  - `Discount.Grpc/Program.cs` — `Orderly.Discount`
+  - `Basket.API/Program.cs` — `Orderly.Basket` (replaces the inline `AddOpenTelemetry()` block at lines 311-344; the Basket-local `OtelOptions` POCO is deleted)
+  - `YarpApiGateway/Program.cs` — `Orderly.YarpGateway` (the trace parent for every downstream call)
+
+- **6 service csprojs** add `<ProjectReference Include="..\..\..\BuildingBlocks.Observability\BuildingBlocks.Observability.csproj" />` (Basket, Catalog, Ordering, Kitchen, Identity, Discount). YARP uses the shorter `..\..\` path. Basket drops the 6 OTel `PackageReference` lines (now consumed transitively); the other 5 services had no OTel packages.
+
+- **6 service `GlobalUsings.cs`** files add `global using BuildingBlocks.Observability;`. The Basket file already had `global using Basket.API.Observability;` (kept) for the `CorrelationIdActivityMiddleware`.
+
+- **`orderly-microservices.ServiceDefaults/`** (new project) exposes `AddOrderlyDefaults(this WebApplicationBuilder, string serviceName)` which calls both `AddOrderlyOpenTelemetry` overloads + `AddHealthChecks()`. Mirrors the .NET Aspire `AddServiceDefaults` pattern. References `BuildingBlocks.Observability` + `Microsoft.Extensions.Http.Resilience 10.8.0` + `Microsoft.Extensions.ServiceDiscovery 10.8.0`. `AddServiceDiscovery()` is deferred (no consumer yet) but the package is pinned for future use.
+
+- **`orderly-microservices.AppHost/`** (new project) hosts `DistributedApplication.CreateBuilder(args)` and calls `builder.AddProject<Projects.X_API>("x-api")` for every service project. Uses the `Aspire.AppHost.Sdk/13.1.0` SDK (in-box Aspire 13.x delivery model — not the deprecated Aspire workload). The SDK's MSBuild target generates the `Projects.<Name>` metadata classes at build time. Phase 4 ships a minimal AppHost; full Aspire dashboard UX is a follow-up.
+
+- **`BuildingBlocks.Observability.Tests/`** (new test project) ships 3 unit tests + 1 integration test:
+  - `Unit/ObservabilityOptionsTests.cs` — locks the defaults (Enabled=true, Endpoint=`http://localhost:4317`, LogsEnabled=true, ServiceName/ServiceVersion null) + the `[Required]` validation contract + the populated-endpoint happy path.
+  - `Integration/FakeOtlpReceiver.cs` — in-process Kestrel receiver listening on a kernel-assigned free port via `ListenAnyIP(0)`. Buffers POST bodies to `/v1/traces`, `/v1/metrics`, `/v1/logs` in `ConcurrentQueue<byte[]>`.
+  - `Integration/OrderlyOpenTelemetryTests.cs` — boots the receiver, boots a minimal `WebApplication` with the shared extension + `app.MapGet("/live", ...)`, hits `/live`, polls the receiver's `Traces` queue with a 200ms schedule (`OTEL_BSP_SCHEDULE_DELAY=200`) and 8s deadline. Asserts the OTLP trace exporter shipped at least one span.
+
+- **`orderly-microservices.slnx`** — 4 new project entries (BuildingBlocks.Observability under `/BuildingBlocks/`, BuildingBlocks.Observability.Tests under `/BuildingBlocks.Tests/`, orderly-microservices.ServiceDefaults + AppHost under new `/Platform/` folder).
+
+- **7 service `Dockerfile`s** gain `COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]` above the per-service `dotnet restore`. YARP's Dockerfile follows the same pattern (relative path `..\..\`).
+
+- **`docker-compose.yml`** — new `otel-collector` service block: `otel/opentelemetry-collector-contrib:0.96.0`, mounts `./otel-collector-config.yaml` at `/etc/otelcol-contrib/config.yaml:ro`, exposes `4317:4317` (OTLP gRPC) + `4318:4318` (OTLP HTTP), healthcheck via `wget -qO- http://localhost:13133/` (the collector's default health-check extension).
+
+- **`otel-collector-config.yaml`** (new, repo root) — receivers `otlp` (gRPC + HTTP), processors `batch`, exporters `debug` (always-on) + `otlp/backend` (forwards to `${env:OTEL_EXPORTER_OTLP_ENDPOINT}` if the host env var is set; silently no-ops otherwise — the `insecure: ${env:OTEL_EXPORTER_OTLP_INSECURE:-true}` default keeps the dev path safe). Service pipelines wire `traces` + `metrics` + `logs` through the same `otlp` receiver + `batch` processor + both exporters.
+
+- **`docker-compose.override.dev.yml`** — every one of the 7 app service `environment:` lists gains `OpenTelemetry__Endpoint=http://otel-collector:4317` + `OpenTelemetry__OtlpProtocol=Grpc` (gRPC matches the collector's `4317` receiver). Production-shaped `docker-compose.yml` and `docker-compose.override.prod.yml` are unchanged — production deploys set the env var from CI.
+
+**Phase-4 deferrals & decisions documented in commit body:**
+
+1. **Logs pipeline was missing from §6.4 code sketch but present in §2 goal.** Resolved by shipping a `LoggingBuilderExtensions.AddOrderlyOpenTelemetry(ILoggingBuilder, IConfiguration)` overload + an `OtlpProtocol` config option (default `Grpc`, switch to `HttpProtobuf` for the in-process test). Each service `Program.cs` calls both `AddOrderlyOpenTelemetry` overloads once.
+2. **YARP is in scope** (omitted from plan's "every service" list but required for end-to-end trace materialisation). `Orderly.YarpGateway` is the trace parent for every downstream call.
+3. **AppHost uses `Aspire.AppHost.Sdk/13.1.0`**, not the deprecated Aspire workload. The SDK's `_CSharpWriteProjectMetadataSources` target (per `Aspire.Hosting.AppHost.targets` lines 49-95) generates the `Projects.X_API` metadata classes at build time — `Microsoft.NET.Sdk` alone does not.
+4. **`ServiceDefaults.AddOrderlyDefaults` does NOT call `AddServiceDiscovery()`** (no consumer yet) but pins `Microsoft.Extensions.ServiceDiscovery 10.8.0` so the slot is reserved for the Phase 4.5 follow-up.
+5. **OtlpExporterOptions endpoint + protocol**: when using `HttpProtobuf`, the configured endpoint must include the signal-specific path (e.g. `http://host:4318/v1/traces`); the SDK does NOT auto-append. Dev compose uses the default `Grpc` protocol on port `4317` and the standard SDK endpoint semantics.
+6. **`OpenTelemetry:Enabled=false` test contract preserved** — the shared extension reads the same `OpenTelemetry:Enabled` flag the same way Basket's inline code did. `Basket.API.Tests/appsettings.Test.json` keeps `"OpenTelemetry": { "Enabled": false }`. The integration test in BuildingBlocks.Observability.Tests exercises the `Enabled=true` path against the in-process receiver.
+7. **`BatchExportProcessor` 5s default schedule** is shortened to 200ms in the integration test via `OTEL_BSP_SCHEDULE_DELAY=200` (read at processor construction). The test polls up to 8s.
+8. **`OTEL_EXPORTER_OTLP_ENDPOINT`** env var is honoured by the collector's `otlp/backend` exporter. Setting it on the host (or in CI) forwards traces + metrics + logs to a production backend (Tempo / Jaeger / Honeycomb / Datadog) without any service code change.
+9. **No `BuildingBlocks.Persistence` migration is required** because `BuildingBlocks.Observability` is a class library (not a service); only the `BuildingBlocks.Observability.csproj` needs the new `ProjectReference`s from each service.
+10. **Pre-existing Aspire MessagePack NU1902/NU1903 warnings** carry over from the Aspire 13.1.0 SDK's transitive dependencies. Not introduced by Phase 4; flagged in the changelog for the next security-review sweep.
+
+**Exit criteria verified (V1-V5):**
+
+- V1 ✅ `dotnet build orderly-microservices.slnx -c Release` — 0 errors. 4 new projects + 7 service projects build clean.
+- V2 ✅ `dotnet test BuildingBlocks.Observability.Tests` — 4/4 pass (3 unit + 1 integration). Integration test boots the fake OTLP receiver + a minimal `WebApplication`, fires `/live`, and asserts the OTel HTTP exporter ships a span to `/v1/traces` within 8s.
+- V3 ✅ `dotnet test Basket.API.Tests --filter "FullyQualifiedName~Unit"` — 106/106 pass. The deleted `OtelOptionsTests` (3 tests) is removed; the 103 surviving unit tests prove no regression from the inline-pipeline removal.
+- V4 ⏸ Manual `docker compose up` smoke test deferred to a Docker-enabled environment (no daemon in this CI session). The compose files are wired; running `docker compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build otel-collector` should bring up the collector on `localhost:4317`/`localhost:4318`, and `docker logs otel-collector` should print every span as it arrives.
+- V5 ⏸ End-to-end trace materialisation deferred to the same Docker-enabled run. After `curl http://localhost:6000/catalog/.../items/...` (Catalog → YARP → Catalog → downstream), the collector's debug log should show 3+ spans with a shared `trace_id` (one from YARP, one from Catalog, one from the downstream call).
+
+**Test results:**
+- `dotnet test BuildingBlocks.Observability.Tests` → 4/4 pass (~4s wall-clock, no Docker).
+- `dotnet test Basket.API.Tests --filter "FullyQualifiedName~Unit"` → 106/106 pass (~11s, no Docker).
+- `dotnet build orderly-microservices.slnx -c Release` → 0 errors; 22 NU1902/NU1903 warnings all from Aspire SDK's transitive `MessagePack 2.5.192` (pre-existing, not introduced by Phase 4).
+
+Refs: feat(observability) — shared `AddOrderlyOpenTelemetry` + OTEL collector.
+
+### v3.4 (2026-08-01) — Phase 3 complete (Kitchen outbox wiring + duplicate-event idempotency)
 - **Restructuring**: Merged Phase 6 (boot-time regression fixes) into Phase 2. This resolves the circular block where Phase 2's exit criteria (services boot cleanly, health checks pass) was blocked by the regressions fixed in Phase 6.
 - **§2 Goal**: Updated to reflect merged deliverables for Phase 2 (Hangfire, Broker overrides, `BrokerConfigurationException`, upgraded compose dependency health conditions).
 - **§5 Folder Layout**: Added `BuildingBlocks.Messaging/MassTransit/Extensions.cs`, `BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs`, `Services/Catalog/Catalog.API.Tests/Integration/CatalogHangfireBootTests.cs`, and `Services/Kitchen/Kitchen.API/appsettings.json`.

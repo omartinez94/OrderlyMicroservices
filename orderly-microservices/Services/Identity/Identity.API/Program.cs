@@ -4,6 +4,12 @@ using Identity.API.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// OpenTelemetry: traces + metrics + logs. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
+// the OTel pipeline shape is consistent across every Orderly service.
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Identity");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
+
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;

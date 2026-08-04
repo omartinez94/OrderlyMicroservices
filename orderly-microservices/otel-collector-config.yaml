@@ -1,0 +1,49 @@
+# OTEL collector configuration for Phase 4.
+#
+# Receivers: OTLP gRPC (port 4317) + OTLP HTTP/protobuf (port 4318)
+# Exporters: debug (always-on for dev visibility) + otlp/backend
+#            (forwarded to OTEL_EXPORTER_OTLP_ENDPOINT if the host
+#            env var is set; silently no-ops otherwise).
+#
+# The collector never rejects a connection; the OTLP exporter
+# tolerates unreachable endpoints with exponential backoff, so the
+# stack remains bootable even when the collector is offline.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 8192
+
+exporters:
+  debug:
+    verbosity: normal
+  otlp/backend:
+    endpoint: ${env:OTEL_EXPORTER_OTLP_ENDPOINT}
+    tls:
+      insecure: ${env:OTEL_EXPORTER_OTLP_INSECURE:-true}
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp/backend]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp/backend]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp/backend]

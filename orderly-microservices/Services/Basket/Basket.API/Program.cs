@@ -7,11 +7,17 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 using NodaTime.Serialization.SystemTextJson;
 using Npgsql;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: traces + metrics + logs. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
+// the OTel pipeline shape is consistent across every Orderly service.
+// Replaces the pre-Phase-4 inline `AddOpenTelemetry()` block (which
+// used a Basket-local `OtelOptions` POCO). The OTLP exporter is
+// gated on the `OpenTelemetry:Enabled` config (default true).
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Basket");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
 
 builder.Services.AddJwtAuthenticationWithDevFallback(
     builder.Environment,
@@ -304,44 +310,14 @@ builder.Services
 //   - Npgsql spans (raw Postgres queries — important for the
 //     CachedBasketRepository + outbox dispatcher)
 //
-// The OTLP exporter is configured with the bound OtelOptions
-// (Endpoint / ServiceName / ServiceVersion). When
-// OpenTelemetry:Enabled = false the pipeline still builds (so the
-// host can boot in tests) but emits no spans.
-builder.Services
-    .AddOptions<OtelOptions>()
-    .Bind(builder.Configuration.GetSection(OtelOptions.SectionName))
-    .ValidateDataAnnotations()
-    .ValidateOnStart();
-var otelOptions = builder.Configuration
-    .GetSection(OtelOptions.SectionName)
-    .Get<OtelOptions>() ?? new OtelOptions();
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(r => r
-        .AddService(serviceName: otelOptions.ServiceName, serviceVersion: otelOptions.ServiceVersion))
-    .WithTracing(tracing =>
-    {
-        tracing
-            .AddAspNetCoreInstrumentation()
-            .AddHttpClientInstrumentation()
-            .AddSource("Marten")
-            .AddSource("MassTransit")
-            .AddNpgsql();
-        if (otelOptions.Enabled)
-        {
-            tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otelOptions.Endpoint));
-        }
-    })
-    .WithMetrics(metrics =>
-    {
-        metrics
-            .AddAspNetCoreInstrumentation()
-            .AddRuntimeInstrumentation();
-        if (otelOptions.Enabled)
-        {
-            metrics.AddOtlpExporter(o => o.Endpoint = new Uri(otelOptions.Endpoint));
-        }
-    });
+// Phase 4: the inline `AddOpenTelemetry()` block was replaced by
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry(...)` (called
+// once at the top of the file) so every Orderly service has the
+// same trace + metric + log shape. The OTLP exporter is configured
+// from the `OpenTelemetry` config section via the shared
+// `ObservabilityOptions` POCO. When `OpenTelemetry:Enabled = false`
+// the pipeline still builds (so the host can boot in tests) but
+// emits no spans.
 
 var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {

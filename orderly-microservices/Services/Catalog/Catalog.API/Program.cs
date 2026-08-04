@@ -15,6 +15,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// OpenTelemetry: traces + metrics + logs. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
+// the OTel pipeline shape is consistent across every Orderly service.
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Catalog");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
+
 // Add services to the container.
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

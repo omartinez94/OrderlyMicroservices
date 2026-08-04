@@ -14,6 +14,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Services/Kitchen/Kitchen.API/Kitchen.API.csproj", "Services/Kitchen/Kitchen.API/"]
 COPY ["BuildingBlocks/BuildingBlocks.csproj", "BuildingBlocks/"]
+COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
 RUN dotnet restore "./Services/Kitchen/Kitchen.API/Kitchen.API.csproj"
 COPY . .
 WORKDIR "/src/Services/Kitchen/Kitchen.API"

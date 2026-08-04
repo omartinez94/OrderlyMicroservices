@@ -9,6 +9,7 @@ global using BuildingBlocks.Messaging.Events;
 global using BuildingBlocks.Messaging.Events.Catalog;
 global using BuildingBlocks.Messaging.MassTransit;
 global using BuildingBlocks.Messaging.Outbox;
+global using BuildingBlocks.Observability;
 global using Carter;
 global using Catalog.API.Application.Abstractions;
 global using Catalog.API.Availability;

@@ -2,6 +2,7 @@ using BuildingBlocks.Dev;
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Multitenancy;
+using BuildingBlocks.Observability;
 using BuildingBlocks.Persistence;
 using Discount.Grpc.Authorization;
 using Discount.Grpc.Data;
@@ -18,6 +19,12 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry: traces + metrics + logs. Wired through the shared
+// `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
+// the OTel pipeline shape is consistent across every Orderly service.
+builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Discount");
+builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
 
 // Add services to the container.
 

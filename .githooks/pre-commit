@@ -1,0 +1,30 @@
+#!/bin/sh
+#
+# Orderly pre-commit hook — Phase 2 of
+# .agents/plan/platform/QUALITY_GATE_ENHANCEMENT_PLAN.md (plan §7).
+#
+# Runs the FAST half of the quality gate (format drift, secret scan, spell
+# check, NodaTime rules, CQRS layout). Build, tests, Dockerfile lint and the
+# vulnerability scan are deliberately NOT run here — they take minutes, and a
+# pre-commit hook that developers routinely bypass with --no-verify enforces
+# nothing. Those run in the full gate:
+#
+#     pwsh ./scripts/phase-guard.ps1 -PhaseName "..." -Quick
+#
+# Installed by pointing git at the tracked hooks directory:
+#
+#     git config core.hooksPath .githooks
+#
+# To bypass in a genuine emergency: git commit --no-verify
+#
+set -e
+
+repo_root=$(git rev-parse --show-toplevel)
+
+if ! command -v pwsh >/dev/null 2>&1; then
+    echo "[pre-commit] pwsh (PowerShell Core) not found on PATH — skipping quality checks." >&2
+    echo "[pre-commit] Install PowerShell Core so the gate can run: https://aka.ms/powershell" >&2
+    exit 0
+fi
+
+exec pwsh -NoProfile -File "$repo_root/scripts/phase-guard.ps1" -PreCommit

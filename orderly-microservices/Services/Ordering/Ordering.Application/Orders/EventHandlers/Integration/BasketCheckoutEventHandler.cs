@@ -34,7 +34,7 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                 Customizations: [],
                 SelectedVariations: [],
                 PrepStatus: PrepStatus.Pending,
-                CreatedAt: Instant.FromDateTimeOffset(DateTimeOffset.UtcNow),
+                CreatedAt: SystemClock.Instance.GetCurrentInstant(),
                 PrepStartedAt: null,
                 PrepCompletedAt: null
             )).ToList();

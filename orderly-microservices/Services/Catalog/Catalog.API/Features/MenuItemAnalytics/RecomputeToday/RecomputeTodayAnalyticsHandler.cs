@@ -25,11 +25,12 @@ public class RecomputeTodayAnalyticsCommandValidator : AbstractValidator<Recompu
 
 internal class RecomputeTodayAnalyticsCommandHandler(
     CatalogDbContext dbContext,
+    TimeProvider clock,
     ILogger<RecomputeTodayAnalyticsCommandHandler> logger) : ICommandHandler<RecomputeTodayAnalyticsCommand, RecomputeTodayAnalyticsResult>
 {
     public async Task<RecomputeTodayAnalyticsResult> Handle(RecomputeTodayAnalyticsCommand command, CancellationToken cancellationToken)
     {
-        var today = LocalDate.FromDateTime(DateTime.UtcNow);
+        var today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
 
         var todayRows = await dbContext.MenuItemAnalytics
             .Where(x => x.RestaurantId == command.RestaurantId && x.AnalysisDate == today)

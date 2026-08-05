@@ -74,7 +74,7 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
-        var today = LocalDate.FromDateTime(DateTime.UtcNow);
+        var today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
 
         // For the nightly pass, the simplest drift repair is to ensure every
         // (RestaurantId, MenuItemId) pair that has any analytics row for today

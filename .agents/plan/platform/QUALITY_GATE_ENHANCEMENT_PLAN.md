@@ -6,13 +6,13 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phase 1 complete; Phases 2-4 pending
+> **Plan version**: `v1.2` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phases 1-2 complete; Phases 3-4 pending
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Formatting, Style & Secret Scanning | ✅ Complete (2026-08-04) |
-| 2 | Architecture, NodaTime & MediatR Conventions | ⏸ Pending |
+| 2 | Architecture, NodaTime & MediatR Conventions | ✅ Complete (2026-08-04) |
 | 3 | Static Analysis, Sonar & Security Checks | ⏸ Pending |
 | 4 | Docker, Contract & Test Coverage validation | ⏸ Pending |
 
@@ -75,14 +75,21 @@ Expand `phase-guard.ps1` to orchestrate 18 quality checks:
 ## 5. Folder layout
 
 ```
+.githooks/
+└── pre-commit                 # Phase 2 — delegates to phase-guard.ps1 -PreCommit
+
 scripts/
 ├── phase-guard.ps1            # Main entry point (orchestrator)
 └── quality-helpers/           # Helper scripts for specialized scans
-    ├── check-nodatime.ps1     # NodaTime restriction validator
-    ├── check-mediatr.ps1      # CQRS/MediatR layout validator
-    ├── check-licensing.ps1    # NuGet license checker
-    └── check-complexity.ps1   # Complexity analyzer
+    ├── find-secrets.ps1       # Phase 1 — secret-leak scanner
+    ├── check-spelling.ps1     # Phase 1 — cspell wrapper
+    ├── check-nodatime.ps1     # Phase 2 — NodaTime restriction validator
+    ├── check-mediatr.ps1      # Phase 2 — CQRS/MediatR layout validator
+    ├── check-licensing.ps1    # Phase 2 — NuGet license checker
+    └── check-complexity.ps1   # Phase 3 — complexity analyzer (not yet built)
 ```
+
+> Each helper is deliberately **self-contained** — no shared module — so it can be run standalone during debugging and so a failure in one cannot break the others. The cost is a small amount of duplication (the pruning file-walker appears in three scripts); that trade was taken knowingly.
 
 ---
 
@@ -149,11 +156,12 @@ scripts/
 
 ### Phase 2 — Architecture, NodaTime & MediatR Conventions
 **Goal**: Enforce domain layout constraints and NodaTime types.
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-04)
 **Deliverables**:
-- [ ] Add regex/AST scanner for `DateTime.Now`, `DateTimeOffset`, and `TimeZoneInfo` to enforce NodaTime usage.
-- [ ] Write directory-to-namespace mapper for MediatR queries/commands to prevent CQRS code layout drift.
-- [ ] Implement `check-licensing.ps1` to ensure all NuGet dependencies have permissible licenses (e.g. MIT, Apache-2.0).
+- [x] Add regex/AST scanner for `DateTime.Now`, `DateTimeOffset`, and `TimeZoneInfo` to enforce NodaTime usage.
+- [x] Write directory-to-namespace mapper for MediatR queries/commands to prevent CQRS code layout drift.
+- [x] Implement `check-licensing.ps1` to ensure all NuGet dependencies have permissible licenses (e.g. MIT, Apache-2.0).
+- [x] Ship `.githooks/pre-commit` + git-hook sanity reporting in `phase-guard.ps1` (plan §7).
 
 ### Phase 3 — Static Analysis, Sonar & Security Checks
 **Goal**: Run deep code audits using SonarQube and OWASP checkers.
@@ -242,6 +250,111 @@ The version's purpose is to make "is this plan current?" answerable at a glance.
 ---
 
 ## Changelog
+
+### v1.2 (2026-08-04) — Phase 2 complete (Architecture, NodaTime & MediatR Conventions)
+
+**Code (`feat(quality-gate): NodaTime + CQRS layout + license gates`):**
+
+- **`scripts/quality-helpers/check-nodatime.ps1`** (new) — two-tier date/time ban, line-based (no Roslyn/MSBuild) per plan §0.2.
+  - **Tier 1 — always banned, including tests**: `DateTime.Now`, `DateTime.Today`, `DateTimeOffset.Now`, `TimeZoneInfo`. These make behaviour depend on the machine's regional settings.
+  - **Tier 2 — banned in production code only**: `DateTime.UtcNow`, `DateTimeOffset.UtcNow`. Correct but untestable (bypasses the injected `TimeProvider`). Test projects (`*.Tests`) are exempt: a test asserting "roughly now" is legitimate.
+  - Prunes `Migrations/`, `obj/`, `bin/`, `Generated Files/` at the *directory* level, and skips `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, `*ModelSnapshot.cs`.
+  - `Remove-CommentedCode` blanks block- and line-comment bodies while preserving line numbering, so prose mentions of the banned APIs (including this script's own header) are not violations.
+  - `$AllowedWallClockFiles` — 8 production files exempt from Tier 2, each with a written rationale. `-ListAllowed` prints them for review.
+
+- **`scripts/quality-helpers/check-mediatr.ps1`** (new) — CQRS layout validator with two rules: handlers must sit under their project's declared root, and the declared namespace must mirror the folder path.
+
+- **`scripts/quality-helpers/check-licensing.ps1`** (new) — offline NuGet license compliance. Resolves each `PackageReference` against the local cache nuspec (`type="expression"` → SPDX verbatim; `type="file"` → text-sniff for MIT/Apache/BSD/MS-PL preambles; legacy `licenseUrl` → mapped). Never contacts nuget.org. `-ListAll` prints the full inventory for building a NOTICE file.
+
+- **`.githooks/pre-commit`** (new) — `#!/bin/sh` hook delegating to `phase-guard.ps1 -PreCommit`. Degrades gracefully (exit 0 with a warning) when `pwsh` is absent.
+
+- **`scripts/phase-guard.ps1`** (modified) — new sections 6 (NodaTime), 7 (CQRS/MediatR), 8 (licensing), 9 (git-hook sanity); old sections 6-10 renumbered to 10-14. New **`-PreCommit`** switch runs only the fast checks (format, secrets, spellcheck, NodaTime, CQRS, licensing) and skips build/test/nullable/Docker/vuln. All child `pwsh` invocations gained `-NoProfile` (the user profile was emitting `Set-PSReadLineOption` errors into gate output on every helper call).
+
+**Production code fixed (3 sites) rather than allow-listed:**
+
+- `Catalog.API/Availability/MenuItemAnalyticsNightlyRecomputeService.cs:77` — `LocalDate.FromDateTime(DateTime.UtcNow)` → `clock.GetUtcNow().UtcDateTime`. The class already injected `TimeProvider` and used it 34 lines earlier; this was a straightforward inconsistency.
+- `Catalog.API/Features/MenuItemAnalytics/RecomputeToday/RecomputeTodayAnalyticsHandler.cs:32` — same call; `TimeProvider clock` added to the primary constructor.
+- `Ordering.Application/Orders/EventHandlers/Integration/BasketCheckoutEventHandler.cs:37` — `Instant.FromDateTimeOffset(DateTimeOffset.UtcNow)` → `SystemClock.Instance.GetCurrentInstant()`, matching the NodaTime idiom already used in `BuildingBlocks`.
+
+**Phase-2 decisions & findings:**
+
+1. **The literally-banned APIs were already at zero.** `DateTime.Now`, `DateTimeOffset.Now` and `TimeZoneInfo` have **0 occurrences** repo-wide. Tier 1 is therefore pure regression prevention — it costs nothing today and stops the drift permanently. The real population was 41 `*.UtcNow` calls (18 `DateTime.UtcNow`, 23 `DateTimeOffset.UtcNow`), split ~13 production / ~28 test.
+
+2. **`Migrations/` is 74% of all BCL date/time usage.** ~294 of the repo's ~400 `DateTime`/`DateTimeOffset` hits are EF Core and OpenIddict scaffolding (219 in `Ordering.Infrastructure/Data/Migrations` alone). Any gate that does not prune `Migrations/` is unpassable without an EF convention rewrite. Pruning happens at directory level, before the files are ever read.
+
+3. **A repo-wide "handlers under `Features/`" rule would have been wrong.** It fails **33 of 123** handlers — but that is not drift. `AGENTS.md` documents a deliberate split: Catalog/Basket are Vertical Slice, **Ordering is Clean Architecture** (`Ordering.Application/Orders/Commands/…`). Forcing `Features/` would mean restructuring Ordering away from its documented architecture. The checker instead validates each service against **its own declared root** (`$HandlerRoots`), so it still catches a handler dumped in `Infrastructure/` while leaving the architecture alone. An unconfigured project containing handlers is reported, so a new service cannot silently invent a layout.
+
+4. **`Messaging/` is a genuine cross-service root, discovered by the gate.** The first run flagged `Catalog.API/Messaging/EventHandlers/OrderCompletedIntegrationEventHandler.cs`. Investigation showed Basket, Catalog and Discount all use `Messaging/` for MassTransit integration-event consumers — so the config was wrong, not the code. `Messaging` was added to Catalog's and Basket's roots. Clean-Architecture services nest consumers under their application root instead (`Orders/EventHandlers/Integration`, `Application/EventHandlers/Integration`) and need no extra entry.
+
+5. **The namespace rule has exactly 1 exemption.** `Basket.API/Endpoints/AdminCartEndpoints.cs` declares `Basket.API.Basket.AdminCarts` while living in `Endpoints/`. Intentional — the admin cart handlers belong to the Basket feature family and consume types from `Basket.API.Basket.StoreBasket`. Recorded in `$AllowedNamespaceMismatch` with that rationale rather than renamed.
+
+6. **Two load-bearing dependencies are not permissive.** `MediatR 14.1.0` is **RPL-1.5 or commercial** (Lucky Penny Software — the `<license type="file">` hides this behind a `LICENSE.md`), and `Hangfire.AspNetCore` / `Hangfire.PostgreSql` are **LGPL-3.0 or commercial**. `Microsoft.VisualStudio.Azure.Containers.Tools.Targets` is a proprietary Microsoft EULA. All four are recorded in `$AcknowledgedNonPermissive` **with a written rationale each**, so the legal position is auditable in-tree; any *new* non-permissive dependency fails the gate. The remaining 78 packages resolve to MIT (35), Apache-2.0 (32), PostgreSQL (5), BSD-3-Clause (1) and file-licensed MIT (5 × Testcontainers).
+   > The MediatR position is worth a periodic re-read: it is fine while Orderly is *operated as a service*, but RPL-1.5 is reciprocal and would bite if Orderly were ever distributed as a binary product.
+
+7. **The git-hook check is advisory, never fatal.** `core.hooksPath` lives in `.git/config`, which is not tracked — so failing the gate on it would break fresh clones and CI over a workstation setting, not a code-quality problem. The hook ships and is reported; each developer opts in with `git config core.hooksPath .githooks`. **No git config change was made by this phase.**
+
+8. **Directory-level pruning cut `check-licensing` from 72.4s to 1.8s (40×).** `Get-ChildItem -Recurse -Include` walks `bin/`, `obj/` and `node_modules/` and *post*-filters — on a 29,000-file repo that dominates every helper's runtime. All three new helpers use a `System.IO.Directory.Enumerate*` walker that prunes excluded subtrees instead. `check-nodatime` 8.0s → 5.3s, `check-mediatr` 14.4s → 8.4s (also gained a project-lookup cache, since `Get-OwningProject` walks up to the nearest `.csproj` for every one of 820 files).
+
+9. **`TimeProvider` is NOT auto-registered by the ASP.NET Core host** — verified with a scratch `WebApplication`, which returns `null` for `GetService<TimeProvider>()`. This *looked* like a P0: six Catalog production classes inject `TimeProvider`, including a `BackgroundService` registered at `Program.cs:85`, and nothing in the solution calls `AddSingleton(TimeProvider.System)`. **Booting `Catalog.API` disproved it** — the app starts cleanly, so `TimeProvider` is registered transitively (MassTransit is the likely source). Recorded because the inference was persuasive and wrong: the empirical check is what settled it. A DI-resolution smoke test would be a strong Phase 3/4 addition.
+
+10. **Two PowerShell traps hit repeatedly, both worth knowing for Phases 3-4:**
+    - **`Set-StrictMode -Version Latest` + returned collections.** PowerShell *unrolls* a `List[T]` returned from a function, so a zero-match result arrives as `$null` and `.Count` throws `The property 'Count' cannot be found on this object`. Every such call site now wraps in `@(...)`. The same bug bit `-split` when the expression yields a single term.
+    - **`\$` is not an escape in PowerShell.** `"…add it to \$AllowedWallClockFiles"` interpolated the *variable* and printed `\System.Collections.Hashtable`. The escape character is a backtick: `` `$ ``.
+
+**Exit criteria verified (Phase 2 scope):**
+
+- ✅ `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 2: Architecture, NodaTime & MediatR Conventions" -Quick` → **exit 0**. End-to-end: build → test (**0 TRX failures**) → format-drift → secret-scan → spell-check → **NodaTime** → **CQRS layout** → **licensing** → **git-hook sanity** → nullable-warnings → dockerfile-lint → vuln-scan → suggested-commit.
+- ✅ `check-nodatime.ps1` → exit 0; 820 `.cs` scanned, 8 files exempt. Negative test (fabricated `DateTime.Now` / `DateTimeOffset.UtcNow` / `TimeZoneInfo.Local` / `DateTime.Today`) → exit 1 with all 4 flagged, while a commented-out mention and a NodaTime-only file correctly pass.
+- ✅ `check-mediatr.ps1` → exit 0; 135 handler files across 6 configured projects. Negative test → exit 1 flagging all three rule classes (wrong folder, namespace mismatch, unconfigured project) and ignoring a commented-out handler.
+- ✅ `check-licensing.ps1` → exit 0; 82 unique package references, 4 acknowledged with rationale, 0 unapproved.
+- ✅ `phase-guard.ps1 -PreCommit` → exit 0, skipping build/test/nullable/Docker/vuln.
+- ✅ All 6 PowerShell scripts parse clean (`[System.Management.Automation.Language.Parser]::ParseFile` → 0 errors).
+- ✅ `dotnet build` of the two touched projects → 0 warnings, 0 errors.
+
+**Phase-2 commit message:**
+```
+feat(quality-gate): NodaTime + CQRS layout + license gates
+
+Phase 2 of .agents/plan/platform/QUALITY_GATE_ENHANCEMENT_PLAN.md
+(plan §6.3, §7 + Phase 2 deliverables). Adds the architecture tier
+to the quality gate: a two-tier NodaTime ban, a per-service CQRS
+layout validator, and an offline NuGet license check.
+
+* scripts/quality-helpers/check-nodatime.ps1 — bans DateTime.Now /
+  .Today / DateTimeOffset.Now / TimeZoneInfo everywhere, and
+  *.UtcNow in production code (tests exempt). Prunes Migrations/
+  and generated code; 8 reviewed exemptions carry rationales.
+* scripts/quality-helpers/check-mediatr.ps1 — handlers must sit
+  under their project's declared root and mirror the folder path
+  in their namespace. Roots are per-service because AGENTS.md
+  documents Vertical Slice (Catalog/Basket) vs Clean Architecture
+  (Ordering); a repo-wide Features/ rule would flag 33 handlers
+  that are exactly where the architecture wants them.
+* scripts/quality-helpers/check-licensing.ps1 — resolves all 82
+  PackageReferences from the local NuGet cache, offline. MediatR
+  (RPL-1.5) and Hangfire (LGPL-3.0) are acknowledged in-tree with
+  written rationales; new non-permissive deps fail.
+* .githooks/pre-commit — runs phase-guard.ps1 -PreCommit (fast
+  checks only). Advisory: no git config is changed by this phase.
+* scripts/phase-guard.ps1 — new sections 6-9, old 6-10 renumbered
+  to 10-14, new -PreCommit switch, -NoProfile on child pwsh calls.
+
+Fixes 3 production wall-clock reads rather than allow-listing them
+(Catalog x2, Ordering x1).
+
+Refs: feat(quality-gate) — Architecture, NodaTime & MediatR
+Conventions per QUALITY_GATE_ENHANCEMENT_PLAN.md §9 Phase 2.
+```
+
+**Phase-2 deferrals captured for follow-up phases:**
+
+- The ~150 StyleCop/FxCop rules disabled in Phase 1's `.editorconfig` are **still disabled**; Phase 2 did not re-enable any, and `TreatWarningsAsErrors` remains `false` in `Directory.Build.props`. Promoting them is still open.
+- `check-spelling.ps1 -IncludeCs` is still off by default (Phase 1 deferral #6 carries forward).
+- Identity.API's `DateTimeOffset` temporal surface (`CreatedAt`, `LastLoginAt`, `Timestamp`, `ExpiresAt`) is exempted rather than converted — it is inherited from the ASP.NET Identity entity shape and needs its own migration plan.
+- `Discount.Grpc/Models/ProcessedInboundevent.cs` has a `DateTime ConsumedAt` **column**; converting it to `Instant` needs an EF migration and belongs in a persistence phase.
+- A **DI-resolution smoke test** (build each service's container and assert every registration resolves) would have settled finding #9 in seconds and is a strong candidate for Phase 3 or 4.
+- Phase 3 (Static Analysis / Sonar / Security) adds `DevSkim` / `dotnet-security-audit` for CWE-class scanning and the complexity gate.
+- Phase 4 (Docker / Contract / Coverage) adds the compose healthcheck parser, OpenAPI lint, Cobertura threshold and `actionlint`.
 
 ### v1.1 (2026-08-04) — Phase 1 complete (Formatting, Style & Secret Scanning)
 

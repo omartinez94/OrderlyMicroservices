@@ -6,7 +6,7 @@
 
 ## Status
 
-> **Plan version**: `v1.0` (2026-08-04) — `MINOR` increments after each phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Plan version**: `v1.1` (2026-08-04) — `MINOR` increments after each phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
 > **Current state**: ⏸ Not started
 
 | Phase | Name | Status |
@@ -447,6 +447,16 @@ orderly-microservices/
 
 - **[Pending]** StatefulSets for databases are a starting point but production should use managed database services (RDS, Cloud SQL, Azure Database). The Helm chart should support both modes via values toggles (`infrastructure.postgresql.enabled: true/false` + `externalDatabase.host`).
 - **[Pending]** RabbitMQ should use the `rabbitmq/cluster-operator` for production K8s deployments. Initial chart uses a simple StatefulSet.
+### 10.6 Suggested improvements
+- Consider using `KeyPerFileConfigurationProvider` instead of a custom `SecretsConfigurationSource` for initial secret handling.
+- Introduce an `ISecretsProvider` abstraction to swap Docker/K8s secrets with external vaults later.
+- Document Docker‑in‑Docker requirements in the CI workflow (`ubuntu-latest` with `services: docker`).
+- Ensure GitHub Actions runners install .NET 10 SDK to handle `.slnx`.
+- Add ServiceAccount & RBAC to Helm chart templates and enforce `runAsNonRoot`.
+- Ensure gRPC TLS termination via Ingress (cert‑manager) and update `tls‑strategy.md`.
+- Plan to raise coverage threshold to 70 % after Phase 5.
+- Configure Helm migration Job with `backoffLimit: 5` and `restartPolicy: OnFailure`.
+- Add links to new files (`SecretsConfigurationSource.cs`, `run-migrations.ps1`) for quick reference.
 
 ---
 
@@ -498,3 +508,7 @@ Plans follow `vMAJOR.MINOR` semantics. The version lives in the Status section a
 - Sections 0–10 drafted.
 - Scope explicitly excludes work covered by TRUST_ROOT_HARDENING (auth), PERSISTENCE_AND_RELIABILITY (messaging/outbox), and QUALITY_GATE_ENHANCEMENT (phase-guard script).
 - Cross-plan coordination documented in §7.
+### v1.1 (2026-08-04) — improvements added
+- Added suggested improvements to the plan.
+- Updated version to v1.1.
+

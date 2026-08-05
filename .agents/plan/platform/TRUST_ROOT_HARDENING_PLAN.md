@@ -6,8 +6,8 @@
 
 ## Status
 
-> **Plan version**: `v2.8` (2026-07-31) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phase 7 in progress (code committed locally; test_e2e_auth.ps1 extended with --posture development (default) and --posture production flags; docker-compose.override.prod.yml ships for the production posture; all 6 prior phases green: 103/103 Identity + 17/17 BuildingBlocks.Dev + 16/16 BuildingBlocks + 123/146 Discount)
+> **Plan version**: `v2.9` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: ✅ Phases 1 + 2 + 3 + 4 + 5 + 6 + 7 complete; plan maintained
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -18,10 +18,6 @@
 | 5 | Identity int→Guid tenant-id fix (absorbs MULTITENANCY_ROLLOUT_PLAN §5 column work) | ✅ Done |
 | 6 | YARP gateway hardening (authentication, CORS, ForwardedHeaders, health-check) | ✅ Done |
 | 7 | End-to-end trust-chain validation (test_e2e_auth.ps1 --posture flag) | ✅ Done |
-| 4 | Per-service authorization (Catalog fallback policy + Ordering permissions) | 🔒 Blocked (by Phase 1) |
-| 5 | Identity `int→Guid` tenant-id fix (absorbs MULTITENANCY_ROLLOUT_PLAN §5 column work) | 🔒 Blocked (by Phase 2) |
-| 6 | YARP gateway authentication + CORS + ForwardedHeaders | 🔒 Blocked (by Phase 4) |
-| 7 | End-to-end trust-chain validation | 🔒 Blocked (by Phase 6) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -338,7 +334,7 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 
 **Goal**: dev HS256 fallback + dev OpenIddict signing certs are inert outside `IsDevelopment()`. Production-shaped compose overrides that leave `JWT_SECRET` set fail-fast at startup.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Done (2026-07-30)
 
 **Deliverables**:
 - [x] `BuildingBlocks.Dev/DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback` accepts an `IWebHostEnvironment` (via `IServiceProvider`); `IsDevelopment()` guard around the HS256 scheme.
@@ -492,7 +488,7 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 
 ### 10.1 Cross-cutting
 
-> **Phase {{N}} adoption ({{DATE}}):** items marked `[P{{N}} ✅]` were implemented in the corresponding phase. Items without that marker remain pending for the phase that introduces the corresponding code.
+> **Phase adoption markers:** items marked `[PN ✅]` (e.g. `[P1 ✅]`) were implemented in the corresponding phase. Items without that marker either remain pending for the phase that introduces the corresponding code, or are documented `Mitigated`/`Deferred` cross-references where a later phase absorbs the work.
 
 - **No new project / no new global-using promotion** — all changes land in existing trees. `[P1 ✅]` confirmed.
 - **`JWT_SECRET` is forbidden in Production** — fail-closed semantics survive container restarts; the dev scheme's env-var check runs every startup, not once. `[P1 ✅]` enforced by Phase 1 integration test.
@@ -538,6 +534,29 @@ No protocol changes; no new events. The integration is purely in-process DI grap
 ---
 
 ## Changelog
+
+### v2.9 (2026-08-04) — Post-close docs cleanup (header state + duplicate Blocked rows + Phase 1 status)
+
+**Code (`docs(plan): flip stale 🚧 In progress header + duplicate Blocked rows + Phase 1 status marker`):**
+
+The changelog v2.8 (2026-07-31) declared the plan complete and recommended it move to "maintained" status, but the per-document header still said "🚧 Phase 7 in progress" — three months of staleness the next reader would have to mentally reconcile. This v2.9 commit is documentation-only; no code touched.
+
+**Specifically flipped:**
+
+- **Header `Current state` line** — `🚧 Phase 7 in progress (code committed locally; test_e2e_auth.ps1 extended with --posture development (default) and --posture production flags; docker-compose.override.prod.yml ships for the production posture; all 6 prior phases green: 103/103 Identity + 17/17 BuildingBlocks.Dev + 16/16 BuildingBlocks + 123/146 Discount)` → `✅ Phases 1 + 2 + 3 + 4 + 5 + 6 + 7 complete; plan maintained`. The 103/103 Identity + 17/17 BuildingBlocks.Dev + 16/16 BuildingBlocks + 123/146 Discount counts are preserved in the changelog (v2.8 entry) for readers tracing the regression-clean assertion back to the Phase 7 commit.
+- **Status table duplicate rows** — the table had two parallel sets of rows: rows 1–7 marked `✅ Done` (the live state) plus rows 8–11 marked `🔒 Blocked (by Phase N)` for Phases 4–7 (pre-completion placeholders that were never removed when the corresponding phases shipped). The duplicate `🔒 Blocked` rows are deleted; only the 7 `✅ Done` rows remain.
+- **Phase 1 per-section status line** — `**Status**: ⏸ Pending` → `**Status**: ✅ Done (2026-07-30)`. Phases 2–7 already had correct `✅ Done` status lines; Phase 1 was the only outlier (the v2.2 changelog entry for Phase 1 shipped 2026-07-30 but the per-section status was missed).
+- **§10.1 template placeholder text** — `**Phase {{N}} adoption ({{DATE}}):** items marked \`[P{{N}} ✅]\`...` → prose describing the actual `[PN ✅]` / `[Mitigated]` / `[Deferred]` marker semantics. The original text was template boilerplate that escaped resolution when the per-phase detail sections were expanded.
+
+**Decisions preserved (NOT changed by this commit):**
+
+- The "maintained" status is preserved — per v2.8 changelog "future trust-root changes can be added as v2.x MINOR bumps". v2.9 is a MINOR bump consistent with that commitment; no MAJOR bump is warranted by doc-only cleanup.
+- Documented follow-ups (Phase 3 pre-existing `DiscountType` schema drift; Phase 4 ~12 ungated Catalog write feature areas — MenuItems, MenuSubCategories, MenuItemVariations, MenuItemIngredients, IngredientAlternatives, Ingredients, Tables, MergedTables, Reservations, WalkInQueues; Phase 7 PKCE round-trip `SpaAuthorizationCodeFlowTests`) are unchanged. These are tracked in the changelog history; v2.9 is not the right vehicle to close them.
+- The "Plan versioning" convention from `_template.md` says "**No bump for typos** — Fixing a typo or wording error doesn't need a version bump". v2.9 is *not* a typo fix — it's a status-accuracy pass (the header contradicted the changelog + status table). The MINOR bump is correct.
+
+**Why v2.9 and not a fresh plan:** a plan-bump is the documented way to capture documentation drift fixes (per §0 Update rule). The plan's source-of-truth promise ("the plan is the source of truth for what was decided and what shipped") only holds when the header, table, and per-section statuses agree.
+
+Refs: docs(plan) — flip stale 🚧 In progress header + duplicate Blocked rows + Phase 1 status marker.
 
 ### v2.8 (2026-07-31) — Phase 7 shipped (plan complete)
 - **MINOR bump**: Phase 7 is implemented. Status table shows ✅; deliverables ticked. **All 7 phases of the trust root hardening plan are now complete.**

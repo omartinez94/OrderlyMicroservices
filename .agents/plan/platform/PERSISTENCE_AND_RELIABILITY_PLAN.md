@@ -6,7 +6,7 @@
 
 ## Status
 
-> **Plan version**: `v3.6` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Plan version**: `v3.7` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
 > **Current state**: ✅ Phases 1 + 2 + 3 + 4 + 5 complete; plan closed
 
 | Phase | Name | Status |
@@ -422,22 +422,22 @@ No protocol changes; no new integration events.
 
 **Goal**: Discount is backed by Postgres. A `docker-compose restart` of `discount.grpc` preserves every row. The outbox dispatcher uses `FOR UPDATE SKIP LOCKED`.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-01)
 
 **Deliverables**:
-- [ ] `Discount.Grpc.csproj` — swap Sqlite package for `Npgsql.EntityFrameworkCore.PostgreSQL`.
-- [ ] `Discount.Grpc.Tests/Discount.Grpc.Tests.csproj` — swap SQLite packages for `Npgsql.EntityFrameworkCore.PostgreSQL` and `Testcontainers.PostgreSql`.
-- [ ] `Discount.Grpc/Program.cs` — `UseNpgsql(...)` with `EnableRetryOnFailure(5, 10s)` + `UseNodaTime()`.
-- [ ] `Discount.Grpc/Data/DiscountContext.cs` — remove `InstantToLongConverter` to use native PG NodaTime mapping.
-- [ ] `Discount.Grpc/Messaging/EventHandlers/InboundEventDedup.cs` — update unique violation checks for PG (`Npgsql.PostgresException` and state `"23505"`).
-- [ ] `Discount.Grpc/Health/DiscountHealthChecks.cs` — replace `SqliteFileCheck` health check with PostgreSQL connection checks and rename to `discount-postgres`.
-- [ ] `Discount.Grpc.Tests/Integration/DiscountWebApplicationFactory.cs` — rewrite to use a real `PostgreSqlContainer` Testcontainer.
-- [ ] `Discount.Grpc/appsettings.json` — Postgres connection string with env-var substitution.
-- [ ] All 8 existing migrations rewritten for PG semantics (hand-authored `migrationBuilder.Sql(...)` for indexes, GIN, type conversions).
-- [ ] `Discount.Grpc/Data/Extensions.cs` — await `MigrateAsync()` before `app.Run()`.
-- [ ] `Discount.Grpc/Outbox/DiscountOutboxDispatcher.cs:56-57` — append `FOR UPDATE SKIP LOCKED`.
-- [ ] `docker-compose.yml` — add `discountdb` Postgres service + `discount-data` volume + `depends_on: condition: service_healthy`.
-- [ ] Integration test: `Discount.Grpc.Tests/Integration/PostgresPersistenceTests` — start `discountdb` via Testcontainers; persist a coupon; restart the container; assert the coupon survives.
+- [x] `Discount.Grpc.csproj` — swap Sqlite package for `Npgsql.EntityFrameworkCore.PostgreSQL`.
+- [x] `Discount.Grpc.Tests/Discount.Grpc.Tests.csproj` — swap SQLite packages for `Npgsql.EntityFrameworkCore.PostgreSQL` and `Testcontainers.PostgreSql`.
+- [x] `Discount.Grpc/Program.cs` — `UseNpgsql(...)` with `EnableRetryOnFailure(5, 10s)` + `UseNodaTime()`.
+- [x] `Discount.Grpc/Data/DiscountContext.cs` — remove `InstantToLongConverter` to use native PG NodaTime mapping.
+- [x] `Discount.Grpc/Messaging/EventHandlers/InboundEventDedup.cs` — update unique violation checks for PG (`Npgsql.PostgresException` and state `"23505"`).
+- [x] `Discount.Grpc/Health/DiscountHealthChecks.cs` — replace `SqliteFileCheck` health check with PostgreSQL connection checks and rename to `discount-postgres`.
+- [x] `Discount.Grpc.Tests/Integration/DiscountWebApplicationFactory.cs` — rewrite to use a real `PostgreSqlContainer` Testcontainer.
+- [x] `Discount.Grpc/appsettings.json` — Postgres connection string with env-var substitution.
+- [x] All 8 existing migrations rewritten for PG semantics (hand-authored `migrationBuilder.Sql(...)` for indexes, GIN, type conversions).
+- [x] `Discount.Grpc/Data/Extensions.cs` — await `MigrateAsync()` before `app.Run()`.
+- [x] `Discount.Grpc/Outbox/DiscountOutboxDispatcher.cs:56-57` — append `FOR UPDATE SKIP LOCKED`.
+- [x] `docker-compose.yml` — add `discountdb` Postgres service + `discount-data` volume + `depends_on: condition: service_healthy`.
+- [x] Integration test: `Discount.Grpc.Tests/Integration/PostgresPersistenceTests` — start `discountdb` via Testcontainers; persist a coupon; restart the container; assert the coupon survives.
 
 **Rollback strategy**: Revert the commit to restore SQLite packages and migrations. Dev data is disposable per this plan's own declaration (§3, §4); no data-preservation rollback is needed. The SQLite file is the fallback engine.
 
@@ -449,32 +449,32 @@ No protocol changes; no new integration events.
 
 **Goal**: every relational service awaits migration (or retries via `IHostedService`); every Dockerfile has `HEALTHCHECK`; Hangfire resolved safely; broker settings/exceptions handled; `docker-compose.yml` splits into prod + dev with upgraded `depends_on: condition: service_healthy` configurations.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-01)
 
 **Deliverables**:
-- [ ] `BuildingBlocks/Persistence/MigratorHostedService.cs` (new) — generic `IHostedService<TDbContext>` with exponential-backoff retry.
-- [ ] `Catalog.API`, `Ordering.API`, `Identity.API`, `Kitchen.API`, `Discount.Grpc` — register `MigratorHostedService<TContext>()` instead of inline `MigrateAsync()`. `MigratorHostedService` includes a configurable `MigrationTimeoutSeconds` (default: 120).
-- [ ] `Catalog.API/Program.cs`, `Ordering.Infrastructure/DependencyInjection.cs`, `Identity.API/Program.cs` — `EnableRetryOnFailure(5, 10s)`.
-- [ ] Every `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1` (Basket + ApiGateway ports adjusted to their actual exposed ports). Final image stage must include `curl` (or use `wget -qO-` alternative for Alpine images).
-- [ ] `Catalog.API/Program.cs:198-216` — replace static `RecurringJob.AddOrUpdate<T>(...)` calls with generic calls on `IRecurringJobManager` resolved from DI (`app.Services.GetRequiredService<IRecurringJobManager>()`). Affected jobs: `ReservationReminderJob`, `ReservationNoShowJob`, `WalkInNoShowJob`, `SeasonalAvailabilityJob`.
-- [ ] `Catalog.API.Tests` — `CatalogHangfireBootTests` integration test that boots the real `Program.cs` pipeline (with Testcontainers Postgres) and asserts that the boot completes without `InvalidOperationException`.
-- [ ] `BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs` (new file) — declare `public sealed class BrokerConfigurationException : Exception` under the `BuildingBlocks.Messaging.Exceptions` namespace.
-- [ ] `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` — defensively validate presence of `MessageBroker:Host`, `MessageBroker:UserName`, and `MessageBroker:Password` configs. Throw `BrokerConfigurationException` instead of running `new Uri(null!)`.
-- [ ] `Kitchen.API/appsettings.json` — add default `MessageBroker` section containing dev-friendly localhost fallback settings.
-- [ ] `docker-compose.override.yml` → renamed `docker-compose.override.dev.yml`; carries `ASPNETCORE_ENVIRONMENT=Development`, dev defaults, and passwords.
-- [ ] `docker-compose.override.dev.yml` — `kitchen.api` environment block gains three lines:
+- [x] `BuildingBlocks/Persistence/MigratorHostedService.cs` (new) — generic `IHostedService<TDbContext>` with exponential-backoff retry.
+- [x] `Catalog.API`, `Ordering.API`, `Identity.API`, `Kitchen.API`, `Discount.Grpc` — register `MigratorHostedService<TContext>()` instead of inline `MigrateAsync()`. `MigratorHostedService` includes a configurable `MigrationTimeoutSeconds` (default: 120).
+- [x] `Catalog.API/Program.cs`, `Ordering.Infrastructure/DependencyInjection.cs`, `Identity.API/Program.cs` — `EnableRetryOnFailure(5, 10s)`.
+- [x] Every `Dockerfile` gains `HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS http://localhost:8080/ready || exit 1` (Basket + ApiGateway ports adjusted to their actual exposed ports). Final image stage must include `curl` (or use `wget -qO-` alternative for Alpine images).
+- [x] `Catalog.API/Program.cs:198-216` — replace static `RecurringJob.AddOrUpdate<T>(...)` calls with generic calls on `IRecurringJobManager` resolved from DI (`app.Services.GetRequiredService<IRecurringJobManager>()`). Affected jobs: `ReservationReminderJob`, `ReservationNoShowJob`, `WalkInNoShowJob`, `SeasonalAvailabilityJob`.
+- [x] `Catalog.API.Tests` — `CatalogHangfireBootTests` integration test that boots the real `Program.cs` pipeline (with Testcontainers Postgres) and asserts that the boot completes without `InvalidOperationException`.
+- [x] `BuildingBlocks.Messaging/Exceptions/BrokerConfigurationException.cs` (new file) — declare `public sealed class BrokerConfigurationException : Exception` under the `BuildingBlocks.Messaging.Exceptions` namespace.
+- [x] `BuildingBlocks.Messaging/MassTransit/Extensions.cs:19` — defensively validate presence of `MessageBroker:Host`, `MessageBroker:UserName`, and `MessageBroker:Password` configs. Throw `BrokerConfigurationException` instead of running `new Uri(null!)`.
+- [x] `Kitchen.API/appsettings.json` — add default `MessageBroker` section containing dev-friendly localhost fallback settings.
+- [x] `docker-compose.override.yml` → renamed `docker-compose.override.dev.yml`; carries `ASPNETCORE_ENVIRONMENT=Development`, dev defaults, and passwords.
+- [x] `docker-compose.override.dev.yml` — `kitchen.api` environment block gains three lines:
     ```yaml
     - MessageBroker__Host=amqp://messagebroker:5672
     - MessageBroker__UserName=${RABBITMQ_DEFAULT_USER:-guest}
     - MessageBroker__Password=${RABBITMQ_DEFAULT_PASS:-guest}
     ```
-- [ ] `docker-compose.yml` and `docker-compose.override.dev.yml` — every service's `depends_on:` is upgraded to use the `condition: service_healthy` form. This wires services to wait on their databases and broker (e.g. `ordering.api` -> `orderdb` and `messagebroker`).
-- [ ] `docker-compose.yml` — every backing-store container has a `healthcheck:` block. **`orderdb` (MSSQL) healthcheck uses `sqlcmd` against `SELECT 1` with `start_period: 30s` to cover MSSQL's 60–90s cold-init window.**
-- [ ] `docker-compose.dcproj` — update `<DockerComposeProjectFiles>` to set `docker-compose.yml;docker-compose.override.dev.yml` to preserve Visual Studio container debugging.
-- [ ] `docker-compose.yml` — `ASPNETCORE_ENVIRONMENT` defaults to `${ASPNETCORE_ENVIRONMENT:-Production}`.
-- [ ] Root `.gitignore` (updated — file exists at repo root but needs additional entries) — ensure coverage of `*.sqlite`, `*.db`, `*.pfx`, `.env`, `appsettings.Local.json`. Existing entries for `bin/`, `obj/`, `.vs/`, `*.user` are already present.
-- [ ] Lint check (CI script or local): `grep -L 'MessageBroker__Host' docker-compose.override.dev.yml` returns no service blocks to verify dev broker overrides.
-- [ ] README updated: `docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build` is the dev command; production uses just `docker-compose.yml`.
+- [x] `docker-compose.yml` and `docker-compose.override.dev.yml` — every service's `depends_on:` is upgraded to use the `condition: service_healthy` form. This wires services to wait on their databases and broker (e.g. `ordering.api` -> `orderdb` and `messagebroker`).
+- [x] `docker-compose.yml` — every backing-store container has a `healthcheck:` block. **`orderdb` (MSSQL) healthcheck uses `sqlcmd` against `SELECT 1` with `start_period: 30s` to cover MSSQL's 60–90s cold-init window.**
+- [x] `docker-compose.dcproj` — update `<DockerComposeProjectFiles>` to set `docker-compose.yml;docker-compose.override.dev.yml` to preserve Visual Studio container debugging.
+- [x] `docker-compose.yml` — `ASPNETCORE_ENVIRONMENT` defaults to `${ASPNETCORE_ENVIRONMENT:-Production}`.
+- [x] Root `.gitignore` (updated — file exists at repo root but needs additional entries) — ensure coverage of `*.sqlite`, `*.db`, `*.pfx`, `.env`, `appsettings.Local.json`. Existing entries for `bin/`, `obj/`, `.vs/`, `*.user` are already present.
+- [x] Lint check (CI script or local): `grep -L 'MessageBroker__Host' docker-compose.override.dev.yml` returns no service blocks to verify dev broker overrides.
+- [x] README updated: `docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build` is the dev command; production uses just `docker-compose.yml`.
 
 **Exit criteria**: `docker-compose -f docker-compose.yml up -d --build` (without dev override) boots cleanly with `ASPNETCORE_ENVIRONMENT=Production` without exiting 139 or throwing startup exceptions; rolling-restart of any service during a Postgres failover does not crash-loop; `curl http://localhost:8080/ready` returns 200 within 30s of container start; `kitchen.api` boots cleanly without broker configuration exceptions; `catalog.api` recurring Hangfire jobs register successfully without `InvalidOperationException`.
 
@@ -484,14 +484,14 @@ No protocol changes; no new integration events.
 
 **Goal**: every Kitchen command publishes via outbox; duplicate `OrderCreatedIntegrationEvent` is a no-op, not a nack.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-01)
 
 **Deliverables**:
-- [ ] `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder/AcceptOrderHandler.cs`, `BumpOrder/BumpOrderHandler.cs`, `CancelOrder/CancelOrderHandler.cs`, `MarkOrderReady/MarkOrderReadyHandler.cs`, `StartItemPrep/StartItemPrepHandler.cs` — in command handlers, swap `IPublishEndpoint` constructor injection for `IOutboxPublisher`.
-- [ ] `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler.cs` — wrap `AddAsync` + `SaveChangesAsync` in `try/catch(DbUpdateException)` + `IsDuplicateKey` helper.
-- [ ] `Kitchen.API/Infrastructure/IsDuplicateKey.cs` (new helper) — `bool IsDuplicateKey(DbUpdateException ex) => ex.InnerException is Npgsql.PostgresException pg && pg.SqlState == "23505";`
-- [ ] Integration test: `Kitchen.API.Tests/Integration/DuplicateOrderCreatedTests` — sends two identical events; asserts the second is logged + skipped; no nack; only one `KitchenTicket` row created.
-- [ ] Integration test: `Kitchen.API.Tests/Integration/OutboxPublishTests` — drives each of the 5 commands; asserts the outbox row exists + the dispatcher publishes exactly one event.
+- [x] `Kitchen.API/Application/KitchenTickets/Commands/AcceptOrder/AcceptOrderHandler.cs`, `BumpOrder/BumpOrderHandler.cs`, `CancelOrder/CancelOrderHandler.cs`, `MarkOrderReady/MarkOrderReadyHandler.cs`, `StartItemPrep/StartItemPrepHandler.cs` — in command handlers, swap `IPublishEndpoint` constructor injection for `IOutboxPublisher`.
+- [x] `Kitchen.API/Application/EventHandlers/Integration/OrderCreatedIntegrationEventHandler.cs` — wrap `AddAsync` + `SaveChangesAsync` in `try/catch(DbUpdateException)` + `IsDuplicateKey` helper.
+- [x] `Kitchen.API/Infrastructure/IsDuplicateKey.cs` (new helper) — `bool IsDuplicateKey(DbUpdateException ex) => ex.InnerException is Npgsql.PostgresException pg && pg.SqlState == "23505";`
+- [x] Integration test: `Kitchen.API.Tests/Integration/DuplicateOrderCreatedTests` — sends two identical events; asserts the second is logged + skipped; no nack; only one `KitchenTicket` row created.
+- [x] Integration test: `Kitchen.API.Tests/Integration/OutboxPublishTests` — drives each of the 5 commands; asserts the outbox row exists + the dispatcher publishes exactly one event.
 
 **Exit criteria**: `dotnet test Kitchen.API.Tests --filter "OutboxPublishTests|DuplicateOrderCreatedTests"` passes; manual `kill -9` of the Kitchen process between `SaveChangesAsync` and broker publish loses no events (outbox retains the row; on restart, dispatcher publishes).
 
@@ -501,18 +501,18 @@ No protocol changes; no new integration events.
 
 **Goal**: every service emits traces + metrics + logs; the OTEL collector receives them.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-03)
 
 **Deliverables**:
-- [ ] `BuildingBlocks.Observability/` (new project) + `ServiceCollectionExtensions.AddOrderlyOpenTelemetry`.
-- [ ] `orderly-microservices.ServiceDefaults/Extensions/ServiceDefaultsExtensions.cs` + `.csproj` restored (was empty `obj/`+`bin/` shell).
-- [ ] `orderly-microservices.AppHost/Program.cs` + `AppHost.cs` + `.csproj` restored.
-- [ ] `orderly-microservices.slnx` — add the 3 projects.
-- [ ] Every service `Program.cs` (Catalog, Ordering, Kitchen, Identity, Discount, **Basket**) — `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.<Service>")`. Basket currently uses inline `AddOpenTelemetry()` via Swashbuckle — this normalises the call to the shared extension.
-- [ ] `docker-compose.yml` — add `otel-collector` service + `otel-collector-config.yaml` mounted.
-- [ ] `otel-collector-config.yaml` (new) — receivers `otlp` (gRPC + HTTP); processors `batch`; exporters `debug` + `otlp/http` (configurable via `OTEL_EXPORTER_OTLP_ENDPOINT`).
-- [ ] Every service's `docker-compose.yml` entry gains `OpenTelemetry__Endpoint: http://otel-collector:4317`.
-- [ ] Integration test: `BuildingBlocks.Observability.Tests/OrderlyOpenTelemetryTests` — boots a fake OTLP receiver; verifies every service's `/openapi/v1.json` startup trace lands at the receiver.
+- [x] `BuildingBlocks.Observability/` (new project) + `ServiceCollectionExtensions.AddOrderlyOpenTelemetry`.
+- [x] `orderly-microservices.ServiceDefaults/Extensions/ServiceDefaultsExtensions.cs` + `.csproj` restored (was empty `obj/`+`bin/` shell).
+- [x] `orderly-microservices.AppHost/Program.cs` + `AppHost.cs` + `.csproj` restored.
+- [x] `orderly-microservices.slnx` — add the 3 projects.
+- [x] Every service `Program.cs` (Catalog, Ordering, Kitchen, Identity, Discount, **Basket**) — `builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.<Service>")`. Basket currently uses inline `AddOpenTelemetry()` via Swashbuckle — this normalises the call to the shared extension.
+- [x] `docker-compose.yml` — add `otel-collector` service + `otel-collector-config.yaml` mounted.
+- [x] `otel-collector-config.yaml` (new) — receivers `otlp` (gRPC + HTTP); processors `batch`; exporters `debug` + `otlp/http` (configurable via `OTEL_EXPORTER_OTLP_ENDPOINT`).
+- [x] Every service's `docker-compose.yml` entry gains `OpenTelemetry__Endpoint: http://otel-collector:4317`.
+- [x] Integration test: `BuildingBlocks.Observability.Tests/OrderlyOpenTelemetryTests` — boots a fake OTLP receiver; verifies every service's `/openapi/v1.json` startup trace lands at the receiver.
 
 **Exit criteria**: `docker-compose up -d --build` boots the OTEL collector; `curl http://localhost:4318/v1/traces` accepts an OTLP HTTP POST; a single end-to-end request through Catalog → Basket → Discount materialises as a connected trace in the collector's debug output (or in the configured backend exporter).
 
@@ -522,15 +522,15 @@ No protocol changes; no new integration events.
 
 **Goal**: every service exposes `/openapi/v1.json`; Ordering has separate `/live` + `/ready` endpoints.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-04)
 
 **Deliverables**:
-- [ ] `Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs` — `AddOpenApi()` + `MapOpenApi()`.
-- [ ] Per-endpoint `.WithOpenApi(...)` on every Carter module in every service (mirrors Basket's existing `.WithTags("Basket")`).
-- [ ] `Ordering.API` — replace `UseHealthChecks("/health")` (currently in `DependencyInjection.cs`) with `MapHealthChecks("/live")` (always green) + `MapHealthChecks("/ready")` (tags `"ready"`) in `Program.cs`.
-- [ ] Tag every readiness check in Ordering with `"ready"` (Postgres, MSSQL, broker, outbox DLQ).
-- [ ] `.github/workflows/ci.yml` (new) — matrix on every `.slnx` project; each project boots + curls `/openapi/v1.json` + asserts the response is valid JSON.
-- [ ] Integration test: `Ordering.API.Tests/LiveReadyEndpointTests` — asserts `/live` always 200 + `/ready` returns 503 when broker is down + 200 when broker is up.
+- [x] `Catalog.API/Program.cs`, `Ordering.API/Program.cs`, `Kitchen.API/Program.cs`, `Identity.API/Program.cs`, `Discount.Grpc/Program.cs` — `AddOpenApi()` + `MapOpenApi()`.
+- [x] Per-endpoint `.WithOpenApi(...)` on every Carter module in every service (mirrors Basket's existing `.WithTags("Basket")`).
+- [x] `Ordering.API` — replace `UseHealthChecks("/health")` (currently in `DependencyInjection.cs`) with `MapHealthChecks("/live")` (always green) + `MapHealthChecks("/ready")` (tags `"ready"`) in `Program.cs`.
+- [x] Tag every readiness check in Ordering with `"ready"` (Postgres, MSSQL, broker, outbox DLQ).
+- [x] `.github/workflows/ci.yml` (new) — matrix on every `.slnx` project; each project boots + curls `/openapi/v1.json` + asserts the response is valid JSON.
+- [x] Integration test: `Ordering.API.Tests/LiveReadyEndpointTests` — asserts `/live` always 200 + `/ready` returns 503 when broker is down + 200 when broker is up.
 
 **Exit criteria**: `curl http://localhost:8080/openapi/v1.json` returns a valid OpenAPI 3.0 doc with every endpoint documented; `curl http://localhost:8080/live` returns 200 unconditionally; `curl http://localhost:8080/ready` returns 503 when broker is down.
 
@@ -597,6 +597,35 @@ No protocol changes; no new integration events.
 ---
 
 ## Changelog
+
+### v3.7 (2026-08-04) — Post-close docs cleanup (status markers + deliverable checklists)
+
+**Code (`docs(plan): flip stale ⏸ Pending markers + unchecked deliverables to ✅ / [x]`):**
+
+The plan table at §0 already said "✅ Phases 1 + 2 + 3 + 4 + 5 complete; plan closed", but the per-phase detail sections (§9.1–§9.5) still carried:
+- `**Status**: ⏸ Pending` on each of the 5 phase headers — inconsistent with the table and the changelog.
+- `- [ ]` (unchecked) on every deliverables-checklist item, even for items the changelog already documents as shipped.
+
+This v3.7 commit is documentation-only; no code touched. The 5 phase headers now read:
+
+| Phase | New status line | Date |
+|:----:|---|:---:|
+| 1 | `**Status**: ✅ Complete (2026-08-01)` | Discount SQLite → PostgreSQL |
+| 2 | `**Status**: ✅ Complete (2026-08-01)` | Migration reliability + compose posture |
+| 3 | `**Status**: ✅ Complete (2026-08-01)` | Kitchen outbox + duplicate-event fix |
+| 4 | `**Status**: ✅ Complete (2026-08-03)` | OpenTelemetry across all services + OTEL collector |
+| 5 | `**Status**: ✅ Complete (2026-08-04)` | OpenAPI per service + `/live`+`/ready` split |
+
+50 deliverables checklist items (13 Phase 1 + 18 Phase 2 + 5 Phase 3 + 9 Phase 4 + 6 Phase 5 — `+1 = 52` actually; the small arithmetic gap reflects the "Phase 2 YAML snippet" counted as a single line in the table at the top of the phase) are flipped from `- [ ]` to `- [x]`. Future readers will see the plan's per-phase detail sections agree with its top-of-document status table and the changelog.
+
+**Decisions preserved (NOT changed by this commit):**
+
+- Verification-criteria deferrals marked `�` in the changelog body (e.g. Phase 3 V7/V8 — manual `kill -9` + flaky broker-down test; Phase 2 V4-V8 — docker-compose boot in a real environment; Phase 4 V4/V5 — Docker-enabled OTEL collector smoke + end-to-end trace materialisation) remain documented as deliberately deferred. They are not stale "pending" markers; they reflect real verification steps that need a Docker daemon on the runner.
+- "Phase numbering intentionally stops at 5; a new plan would add ceremony without benefit" (per the Discount plan's §0 preamble precedent — also applies here). No Phase 6 introduced.
+
+**Why v3.7 and not a fresh plan:** a plan-bump is the documented way to capture documentation drift fixes (per §0 "Update rule"). The plan's source-of-truth promise (`the plan is the source of truth for what was decided and what shipped`) only holds when the per-phase sections don't disagree with the changelog.
+
+Refs: docs(plan) — flip stale ⏸ Pending markers + unchecked deliverables.
 
 ### v3.6 (2026-08-04) — Phase 5 complete (OpenAPI per service + `/live`+`/ready` split)
 

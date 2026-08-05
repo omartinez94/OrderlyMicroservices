@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Plan version**: `v1.2` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: 🚧 Phases 1-2 complete; Phases 3-4 pending
+> **Plan version**: `v1.3` (2026-08-04) — `MINOR` increments per phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
+> **Current state**: 🚧 Phases 1-3 complete; Phase 4 pending
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Formatting, Style & Secret Scanning | ✅ Complete (2026-08-04) |
 | 2 | Architecture, NodaTime & MediatR Conventions | ✅ Complete (2026-08-04) |
-| 3 | Static Analysis, Sonar & Security Checks | ⏸ Pending |
+| 3 | Static Analysis, Sonar & Security Checks | ✅ Complete (2026-08-04) |
 | 4 | Docker, Contract & Test Coverage validation | ⏸ Pending |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
@@ -86,10 +86,14 @@ scripts/
     ├── check-nodatime.ps1     # Phase 2 — NodaTime restriction validator
     ├── check-mediatr.ps1      # Phase 2 — CQRS/MediatR layout validator
     ├── check-licensing.ps1    # Phase 2 — NuGet license checker
-    └── check-complexity.ps1   # Phase 3 — complexity analyzer (not yet built)
+    ├── check-complexity.ps1   # Phase 3 — cyclomatic complexity analyzer
+    ├── check-sonar.ps1        # Phase 3 — conditional dotnet-sonarscanner runner
+    └── check-owasp-dependency.ps1  # Phase 3 — conditional OWASP Dependency-Check
 ```
 
-> Each helper is deliberately **self-contained** — no shared module — so it can be run standalone during debugging and so a failure in one cannot break the others. The cost is a small amount of duplication (the pruning file-walker appears in three scripts); that trade was taken knowingly.
+> Each helper is deliberately **self-contained** — no shared module — so it can be run standalone during debugging and so a failure in one cannot break the others. The cost is a small amount of duplication (the pruning file-walker appears in four scripts); that trade was taken knowingly.
+>
+> Note there is **no `check-security.ps1`**: Phase 3's static security scan is implemented in `orderly-microservices/.editorconfig` by promoting the built-in .NET security analyzers to `error`, so it runs inside the ordinary build rather than as a separate helper. See the v1.3 changelog entry for why that beat adding DevSkim.
 
 ---
 
@@ -165,12 +169,12 @@ scripts/
 
 ### Phase 3 — Static Analysis, Sonar & Security Checks
 **Goal**: Run deep code audits using SonarQube and OWASP checkers.
-**Status**: ⏸ Pending
+**Status**: ✅ Complete (2026-08-04)
 **Deliverables**:
-- [ ] Add `SonarScanner` local analysis trigger (if scanner is installed) using `dotnet-sonarscanner`.
-- [ ] Integrate local static security scanners (`DevSkim` or `dotnet-security-audit`).
-- [ ] Integrate OWASP Dependency-Check CLI runner for deeper third-party package checks.
-- [ ] Add a step to calculate Cyclomatic Complexity and reject code exceeding a complexity threshold (e.g. index < 70 or complexity > 15 per method).
+- [x] Add `SonarScanner` local analysis trigger (if scanner is installed) using `dotnet-sonarscanner`.
+- [x] Integrate local static security scanners (~~`DevSkim` or `dotnet-security-audit`~~ → built-in .NET security analyzers promoted to `error`; see v1.3 changelog #2).
+- [x] Integrate OWASP Dependency-Check CLI runner for deeper third-party package checks.
+- [x] Add a step to calculate Cyclomatic Complexity and reject code exceeding a complexity threshold (e.g. index < 70 or complexity > 15 per method).
 
 ### Phase 4 — Docker, Contract & Test Coverage validation
 **Goal**: Ensure system configurations, OpenAPI schema files, and test coverage thresholds are met.
@@ -250,6 +254,90 @@ The version's purpose is to make "is this plan current?" answerable at a glance.
 ---
 
 ## Changelog
+
+### v1.3 (2026-08-04) — Phase 3 complete (Static Analysis, Sonar & Security Checks)
+
+**Code (`feat(quality-gate): complexity gate + CA security rules as errors`):**
+
+- **`scripts/quality-helpers/check-complexity.ps1`** (new) — McCabe cyclomatic complexity per method, text-based (no Roslyn) per plan §0.2. Locates methods by brace-matching from a signature match so the count is scoped to the body. `Remove-NonCode` blanks string literals *before* comments (a `//` inside a string would otherwise truncate the line) so a SQL string containing `AND` or an interpolated string containing `?.` cannot inflate the score. `-Report` prints a leaderboard plus the count over 10/15/20/25 for threshold calibration.
+
+- **`orderly-microservices/.editorconfig`** (modified) — ~90 built-in .NET **security** analyzer rules promoted from warning to **error**: CA2100 (SQL injection), CA21xx/CA23xx (insecure deserialization), CA30xx (XXE/XSLT/antiforgery), CA53xx–CA54xx (weak crypto, TLS, certificates, randomness, cookies, P/Invoke).
+
+- **`scripts/quality-helpers/check-sonar.ps1`** (new) — client-side `dotnet-sonarscanner` runner. Skips with a printed reason unless `SONAR_HOST_URL` + `SONAR_TOKEN` + the scanner are all present, and always under `-Quick` (it requires `begin` → full rebuild → `end`).
+
+- **`scripts/quality-helpers/check-owasp-dependency.ps1`** (new) — OWASP Dependency-Check via its Docker image, NVD database cached in a named volume. Skips under `-Quick`, without Docker, or without `NVD_API_KEY`.
+
+- **`scripts/phase-guard.ps1`** (modified) — new section 9 (complexity), 15 (Sonar), 16 (OWASP); old 9-14 renumbered to 10-14 and 17. `-Quick` is forwarded to the two heavy runners.
+
+- **2 inline security suppressions, each with a written justification** — `FeedbackSubmittedConsumer.GuidFromInt` (`[SuppressMessage]` for CA5351) and `MigratorHostedService` (`#pragma` for CA5394).
+
+**Phase-3 decisions & findings:**
+
+1. **`dotnet_analyzer_diagnostic.category-Security.severity = error` silently does nothing at build time.** This was the phase's most important discovery, and it was found only because the gate was probe-tested rather than assumed. With the category line set, a probe file using `MD5.HashData` and `Random.Shared` compiled with **exit 0** and CA5351/CA5394 at *warning*. Adding `dotnet_diagnostic.CA5351.severity = error` made the identical probe fail immediately, while CA5394 — still covered only by the category line — remained a warning. **The security rules are therefore enumerated individually** (~90 lines). Verbose, but it is the form that actually gates the build.
+   > Lesson for Phase 4: a config-only gate proves nothing until a deliberate violation has been shown to fail it. Every gate in Phases 1-3 now has a negative test.
+
+2. **The built-in analyzers beat DevSkim for the "static security scan" deliverable.** Neither DevSkim nor sonarscanner is installed on this workstation, so the plan's named tools would have shipped as no-ops. The in-box analyzers cover the same CWE classes (SQL injection, weak crypto, insecure deserialization, TLS), need no new dependency, and run inside the existing build — so they were already available and merely under-configured. The deliverable is marked complete with the substitution recorded rather than silently reinterpreted.
+
+3. **Only 2 sites in the whole codebase trip the security rules, and both are false positives** — which is a good result, not a disappointing one:
+   - `FeedbackSubmittedConsumer.GuidFromInt` uses **MD5 as a deterministic int→Guid mapping**, not as a cryptographic hash. The input is a non-secret database id; nothing about the output is used for authentication or secrecy. Critically it **cannot** be swapped for SHA-256: the Guid is embedded in `RewardCode.Code`, so changing the algorithm would change every already-issued reward code and break redelivery idempotency. Suppressed via `[SuppressMessage]` with that reasoning in the `Justification`.
+   - `MigratorHostedService` uses `Random.Shared` for **retry jitter** across replicas — not a token, key, nonce or identifier. Suppressed via a tightly-scoped `#pragma`.
+
+4. **The complexity analyzer's first implementation was wrong, and the data said so.** The initial version counted every `=>` as a branch, which made EF Core fluent configuration explode: `CatalogDbContext.OnModelCreating` scored **183** and four `IEntityTypeConfiguration.Configure` methods filled the top of the table, because `.Property(e => e.Foo)` looked like a switch arm. **Lambdas are not branch points.** Counting `=>` only inside `switch { … }` blocks dropped the mean from 4.02 to **2.52** and the max from 183 to **21**, and EF configuration left the leaderboard entirely (`OrderItemConfiguration.Configure` 34 → 11). The implausible number was the tell: a declarative mapping method cannot have 183 execution paths.
+
+5. **Threshold 15 with 5 reviewed exemptions.** Over the line today: `BasketIdempotencyFilter.InvokeAsync` (21), `CustomExceptionHandler.TryHandleAsync` (21), `IngredientAvailabilityEngine.AvailabilityProfileFor` (20), `RewardCodeValidator.ValidateAndBuild` (18), `TokenModule.AddRoutes` (17). Every one is **flat** branching — a linear run of guard clauses or a single exhaustive switch — rather than nested control flow, and it is nesting depth rather than raw path count that predicts defects. Each carries a rationale in `$AllowedComplexMethods`; anything new over 15 fails.
+
+6. **Sonar and OWASP ship inert here, deliberately and visibly.** Plan §3 rules out hosting a Sonar server, and OWASP's first NVD sync takes tens of minutes and is rate-limited into uselessness without an API key. Both runners therefore print an explicit `SKIPPED — <reason>` line rather than passing silently, so the gate output never implies a check ran when it did not. They activate the moment CI supplies `SONAR_HOST_URL`/`SONAR_TOKEN` or `NVD_API_KEY`.
+
+7. **OWASP Dependency-Check does not duplicate section 14.** `dotnet list package --vulnerable` only knows advisories published to the NuGet feed; Dependency-Check matches file evidence against the whole NVD, so it additionally covers vendored binaries and transitive native libraries. Keeping both is intentional.
+
+**Exit criteria verified (Phase 3 scope):**
+
+- ✅ `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 3: Static Analysis, Sonar & Security Checks" -Quick` → **exit 0** across all 17 sections, **0 TRX test failures**.
+- ✅ **Security gate proven to bite**: a probe file with `MD5.HashData` + `Random.Shared` fails the build with `error CA5351` **and** `error CA5394` (exit 1); the probe was removed and the clean solution rebuilds with `--no-incremental` at **0 errors**.
+- ✅ `check-complexity.ps1` → exit 0; 726 methods across 649 files, mean 2.52, max 21, 5 exemptions listed in the output.
+- ✅ `check-sonar.ps1` and `check-owasp-dependency.ps1` → exit 0 with an explicit skip reason on this workstation.
+- ✅ All 9 PowerShell scripts parse clean.
+
+**Phase-3 commit message:**
+```
+feat(quality-gate): complexity gate + CA security rules as errors
+
+Phase 3 of .agents/plan/platform/QUALITY_GATE_ENHANCEMENT_PLAN.md
+(plan §6.2, §9 Phase 3). Adds the static-analysis tier: a
+cyclomatic-complexity gate, the built-in .NET security analyzers
+promoted to build errors, and conditional Sonar / OWASP runners.
+
+* scripts/quality-helpers/check-complexity.ps1 — McCabe complexity
+  per method, threshold 15. Counts `=>` only inside switch blocks:
+  treating lambdas as branch points scored EF Core's OnModelCreating
+  at 183. 5 reviewed exemptions carry rationales.
+* orderly-microservices/.editorconfig — ~90 security analyzer rules
+  promoted to error (CA2100 SQL injection, CA23xx deserialization,
+  CA30xx XXE, CA53xx-54xx crypto/TLS/randomness). Enumerated per
+  rule because dotnet_analyzer_diagnostic.category-Security has no
+  effect at build time — verified with a probe.
+* scripts/quality-helpers/check-sonar.ps1 — client-side scanner;
+  skips unless SONAR_HOST_URL + SONAR_TOKEN + tool are present.
+* scripts/quality-helpers/check-owasp-dependency.ps1 — OWASP DC via
+  docker; skips without NVD_API_KEY or under -Quick (plan §10).
+* scripts/phase-guard.ps1 — new sections 9, 15, 16; old 9-14
+  renumbered; -Quick forwarded to the heavy runners.
+
+Suppresses 2 security findings inline with written justifications:
+MD5 as a deterministic int->Guid map whose output is embedded in
+already-issued reward codes, and Random for retry jitter.
+
+Refs: feat(quality-gate) — Static Analysis, Sonar & Security Checks
+per QUALITY_GATE_ENHANCEMENT_PLAN.md §9 Phase 3.
+```
+
+**Phase-3 deferrals captured for follow-up phases:**
+
+- **`TokenModule.AddRoutes`** is the one exemption that is a genuine refactor candidate rather than irreducible: its `/connect/token` handler branches over OpenIddict grant types inline and would read better as per-grant handlers. Deliberately not done inside a quality-gate phase.
+- The non-security CA warnings remain untouched — the build still emits ~700 (CA2234 ×144, CA1002 ×102, CA2000 ×52, CA1724 ×50…). Phase 1's `TreatWarningsAsErrors=false` and the 36 `severity = none` entries stand.
+- Sonar needs a CI job supplying `SONAR_HOST_URL`/`SONAR_TOKEN`; OWASP needs `NVD_API_KEY` and realistically belongs on a nightly schedule, not per-commit.
+- A **DI-resolution smoke test** (carried over from Phase 2 finding #9) is still unbuilt and would fit naturally beside Phase 4's contract checks.
+- Phase 4 (Docker / Contract / Coverage) adds the compose healthcheck parser, OpenAPI lint, Cobertura threshold and `actionlint`.
 
 ### v1.2 (2026-08-04) — Phase 2 complete (Architecture, NodaTime & MediatR Conventions)
 

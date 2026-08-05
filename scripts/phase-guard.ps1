@@ -154,7 +154,18 @@ pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-licensing.ps1"
 if ($LASTEXITCODE) { throw "❌ Dependency with an unapproved license" }
 
 # ----------------------------------------------------------------
-# 9️⃣ Git-hook sanity (Phase 2 — plan §7)
+# 9️⃣ Cyclomatic complexity (Phase 3 — plan §9 Phase 3)
+#
+#    Fails when a method exceeds complexity 15. Reviewed exceptions live in
+#    $AllowedComplexMethods inside the helper, each with a rationale.
+# ----------------------------------------------------------------
+Write-Section "🔢 Cyclomatic complexity"
+
+pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-complexity.ps1"
+if ($LASTEXITCODE) { throw "❌ Method(s) exceed the cyclomatic-complexity threshold" }
+
+# ----------------------------------------------------------------
+# 🔟 Git-hook sanity (Phase 2 — plan §7)
 #
 #    Reports whether the tracked .githooks/pre-commit hook is wired up.
 #
@@ -191,13 +202,13 @@ else {
 }
 
 # ----------------------------------------------------------------
-# 🔟 Consolidate duplicated usings (Skipped/Disabled)
+# 1️⃣1️⃣ Consolidate duplicated usings (Skipped/Disabled)
 # ----------------------------------------------------------------
 Write-Section "🔧 Consolidate duplicated usings (Skipped)"
 # Disabled: Root-level GlobalUsings.cs breaks project-specific boundaries and collapses source files.
 
 # ----------------------------------------------------------------
-# 1️⃣1️⃣ Nullable-reference-type warnings (CS8618, CS8625)
+# 1️⃣2️⃣ Nullable-reference-type warnings (CS8618, CS8625)
 # ----------------------------------------------------------------
 if ($PreCommit) {
     Write-Skipped "⚠️ Nullable warnings"
@@ -214,7 +225,7 @@ else {
 }
 
 # ----------------------------------------------------------------
-# 1️⃣2️⃣ Dockerfile HEALTHCHECK lint (hadolint)
+# 1️⃣3️⃣ Dockerfile HEALTHCHECK lint (hadolint)
 # ----------------------------------------------------------------
 if ($PreCommit) {
     Write-Skipped "🐳 Dockerfile lint"
@@ -231,7 +242,7 @@ else {
 }
 
 # ----------------------------------------------------------------
-# 1️⃣3️⃣ Dependency-vulnerability scan
+# 1️⃣4️⃣ Dependency-vulnerability scan
 # ----------------------------------------------------------------
 if ($PreCommit) {
     Write-Skipped "🔐 Vulnerable package scan"
@@ -252,7 +263,51 @@ else {
 }
 
 # ----------------------------------------------------------------
-# 1️⃣4️⃣ Suggested Git commit message
+# 1️⃣5️⃣ SonarQube analysis (Phase 3 — plan §9 Phase 3)
+#
+#    Client-side only; plan §3 puts server hosting out of scope. Skips itself
+#    unless SONAR_HOST_URL + SONAR_TOKEN + the scanner tool are all present,
+#    and always skips under -Quick (it needs a full rebuild — plan §10).
+# ----------------------------------------------------------------
+if ($PreCommit) {
+    Write-Skipped "📊 SonarQube analysis"
+}
+else {
+    Write-Section "📊 SonarQube analysis"
+
+    if ($Quick) {
+        pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-sonar.ps1" -Quick
+    }
+    else {
+        pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-sonar.ps1"
+    }
+    if ($LASTEXITCODE) { throw "❌ SonarQube analysis failed" }
+}
+
+# ----------------------------------------------------------------
+# 1️⃣6️⃣ OWASP Dependency-Check (Phase 3 — plan §9 Phase 3)
+#
+#    Deep CVE scan against the full NVD, complementing the NuGet-feed-only
+#    check in section 14. Heavy: skips under -Quick per plan §10, and skips
+#    when docker or NVD_API_KEY is unavailable.
+# ----------------------------------------------------------------
+if ($PreCommit) {
+    Write-Skipped "🛡️ OWASP Dependency-Check"
+}
+else {
+    Write-Section "🛡️ OWASP Dependency-Check"
+
+    if ($Quick) {
+        pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-owasp-dependency.ps1" -Quick
+    }
+    else {
+        pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-owasp-dependency.ps1"
+    }
+    if ($LASTEXITCODE) { throw "❌ OWASP Dependency-Check found vulnerable dependencies" }
+}
+
+# ----------------------------------------------------------------
+# 1️⃣7️⃣ Suggested Git commit message
 # ----------------------------------------------------------------
 if ($PreCommit) {
     Write-Host "`n✅ Pre-commit checks passed.`n" -ForegroundColor Green
@@ -269,13 +324,15 @@ $commitMsg = @"
 🕰️ NodaTime conventions upheld
 🧭 CQRS handler layout valid
 ⚖️ Dependency licenses approved
+🔢 Cyclomatic complexity within threshold
 🪝 Pre-commit hook available (.githooks/pre-commit)
-✅ Build succeeded
+✅ Build succeeded (CA security rules enforced as errors)
 ✅ Tests passed
 🔎 No unused/duplicate usings (informational)
 ⚠️ No nullable-reference-type warnings
 🐳 Dockerfiles linted
 🔐 No vulnerable packages found
+📊 Sonar / 🛡️ OWASP: run when configured
 "@.TrimEnd()
 
 Write-Host $commitMsg -ForegroundColor Green

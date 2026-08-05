@@ -109,7 +109,14 @@ public abstract class MigratorHostedService<TContext> : IHostedService
 
                 // Randomised jitter (0..1s) to avoid thundering-herd retries
                 // when multiple replicas boot at the same time.
+                //
+                // CA5394 (insecure randomness) is suppressed rather than
+                // switched to RandomNumberGenerator: this value only spreads
+                // retry timing across replicas. It is not a token, key, nonce
+                // or identifier, and predicting it grants an attacker nothing.
+#pragma warning disable CA5394 // Do not use insecure randomness
                 var jitter = TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * 1000);
+#pragma warning restore CA5394
                 var delay = currentBackoff + jitter;
 
                 _logger.LogWarning(ex,

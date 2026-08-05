@@ -243,6 +243,18 @@ public sealed class FeedbackSubmittedConsumer(
     /// Guid, so the deterministic <see cref="RewardCode.Code"/> builder
     /// (which embeds the Guid) yields the same Code on redelivery.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Security",
+        "CA5351:Do Not Use Broken Cryptographic Algorithms",
+        Justification =
+            "MD5 is used here as a deterministic 128-bit mapping from int to Guid, " +
+            "not as a cryptographic hash: the input is a non-secret database id and " +
+            "the output is never used for authentication, integrity or secrecy. " +
+            "The property that matters is stability — the same feedbackId must always " +
+            "produce the same Guid so that redelivered messages rebuild the identical " +
+            "RewardCode.Code and idempotency holds. Switching algorithms would change " +
+            "every already-issued reward code, so this cannot be swapped for SHA-256 " +
+            "without a data migration.")]
     internal static Guid GuidFromInt(int feedbackId)
     {
         var hash = MD5.HashData(BitConverter.GetBytes(feedbackId));

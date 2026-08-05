@@ -4,10 +4,11 @@
 # .agents/plan/platform/QUALITY_GATE_ENHANCEMENT_PLAN.md (plan §7).
 #
 # Runs the FAST half of the quality gate (format drift, secret scan, spell
-# check, NodaTime rules, CQRS layout). Build, tests, Dockerfile lint and the
-# vulnerability scan are deliberately NOT run here — they take minutes, and a
-# pre-commit hook that developers routinely bypass with --no-verify enforces
-# nothing. Those run in the full gate:
+# check, NodaTime rules, CQRS layout, licenses, complexity). Build, tests,
+# Dockerfile lint, Sonar, OWASP and the vulnerability scan are deliberately
+# NOT run here — they take minutes, and a pre-commit hook that developers
+# routinely bypass with --no-verify enforces nothing. Those run in the full
+# gate:
 #
 #     pwsh ./scripts/phase-guard.ps1 -PhaseName "..." -Quick
 #

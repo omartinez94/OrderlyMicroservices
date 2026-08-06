@@ -11,8 +11,8 @@
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Catalog CRUD happy-path integration tests | ⏸ Pending |
-| 2 | Identity integration tests & auth flow coverage | 🔒 Blocked (shared infra) |
+| 1 | Catalog CRUD happy-path integration tests | ✅ Done |
+| 2 | Identity integration tests & auth flow coverage | ⏸ Pending |
 | 3 | Ordering CRUD + query handler tests | 🔒 Blocked |
 | 4 | Kitchen lifecycle & missing handler tests | 🔒 Blocked |
 | 5 | Basket admin endpoints + Discount RPC gaps | 🔒 Blocked |
@@ -559,27 +559,27 @@ New `E2E.Tests` project at the solution root. Uses `docker-compose up -d --build
 
 **Goal**: every one of the ~60 Catalog CRUD endpoints has at least one integration test verifying the HTTP pipeline, auth, persistence, and response shape.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Done
 
 **Deliverables**:
 
-- [ ] `BrandEndpointTests.cs` — 5 tests (Create, GetAll, GetById, Update, Delete)
-- [ ] `RestaurantEndpointTests.cs` — 5 tests
-- [ ] `MenuItemEndpointTests.cs` — 7 tests (CRUD + validation + FK guard)
-- [ ] `MenuCategoryEndpointTests.cs` — 5 tests
-- [ ] `MenuSubCategoryEndpointTests.cs` — 5 tests
-- [ ] `IngredientEndpointTests.cs` — 5 tests
-- [ ] `IngredientAlternativeEndpointTests.cs` — 4 tests
-- [ ] `MenuItemIngredientEndpointTests.cs` — 3 tests
-- [ ] `MenuItemVariationEndpointTests.cs` — 4 tests
-- [ ] `ComboItemEndpointTests.cs` — 4 tests
-- [ ] `TableEndpointTests.cs` — 5 tests
-- [ ] `MergedTableEndpointTests.cs` — 3 tests
-- [ ] `ReservationEndpointTests.cs` — 6 tests
-- [ ] `WalkInQueueEndpointTests.cs` — 5 tests
-- [ ] `CustomerFeedbackEndpointTests.cs` — 3 tests
-- [ ] `MenuItemAnalyticsEndpointTests.cs` — 3 tests
-- [ ] `PriceHistoryEndpointTests.cs` — 1 test
+- [x] `BrandEndpointTests.cs` — 5 tests (Create, GetAll, GetById, Update, Delete)
+- [x] `RestaurantEndpointTests.cs` — 5 tests
+- [x] `MenuItemEndpointTests.cs` — 7 tests (CRUD + validation + FK guard)
+- [x] `MenuCategoryEndpointTests.cs` — 5 tests
+- [x] `MenuSubCategoryEndpointTests.cs` — 5 tests
+- [x] `IngredientEndpointTests.cs` — 5 tests
+- [x] `IngredientAlternativeEndpointTests.cs` — 4 tests
+- [x] `MenuItemIngredientEndpointTests.cs` — 3 tests
+- [x] `MenuItemVariationEndpointTests.cs` — 4 tests
+- [x] `ComboItemEndpointTests.cs` — 4 tests
+- [x] `TableEndpointTests.cs` — 5 tests
+- [x] `MergedTableEndpointTests.cs` — 3 tests
+- [x] `ReservationEndpointTests.cs` — 6 tests
+- [x] `WalkInQueueEndpointTests.cs` — 5 tests
+- [x] `CustomerFeedbackEndpointTests.cs` — 3 tests
+- [x] `MenuItemAnalyticsEndpointTests.cs` — 3 tests
+- [x] `PriceHistoryEndpointTests.cs` — 1 test
 
 **Exit criteria**: `dotnet test --project orderly-microservices/Services/Catalog/Catalog.API.Tests/ --filter "FullyQualifiedName~Integration.Endpoints"` runs all ~73 new tests green.
 
@@ -589,7 +589,7 @@ New `E2E.Tests` project at the solution root. Uses `docker-compose up -d --build
 
 **Goal**: Identity.API has real HTTP pipeline tests with Testcontainers Postgres; login/register/token OAuth2 flows are covered end-to-end within the service.
 
-**Status**: 🔒 Blocked (by Phase 1)
+**Status**: ⏸ Pending
 
 **Deliverables**:
 

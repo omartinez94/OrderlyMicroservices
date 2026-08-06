@@ -56,7 +56,7 @@ jobs:
 
       - name: Test (unit)
         working-directory: orderly-microservices
-        run: dotnet test Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName!~Integration"
+        run: dotnet test Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName!~Integration" --collect:"XPlat Code Coverage"
 
       - name: Test (integration / Testcontainers)
         working-directory: orderly-microservices
@@ -67,7 +67,14 @@ jobs:
         # contract via WebApplicationFactory<Program>. The suite
         # takes ~3-5 minutes wall-clock on a fresh runner; the
         # 30-minute job timeout is conservative.
-        run: dotnet test Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName~Integration"
+        run: dotnet test Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj -p:TreatWarningsAsErrors=true --no-build --filter "FullyQualifiedName~Integration" --collect:"XPlat Code Coverage"
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: true
           DOCKER_BUILDKIT: 1
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-basket
+          path: orderly-microservices/**/TestResults/**/coverage.cobertura.xml

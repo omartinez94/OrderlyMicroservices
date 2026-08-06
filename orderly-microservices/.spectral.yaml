@@ -1,0 +1,24 @@
+# Spectral ruleset for the Orderly .NET 10 microservices solution.
+#
+# Phase 4 of .agents/plan/platform/QUALITY_GATE_ENHANCEMENT_PLAN.md —
+# Docker, Contract & Test Coverage validation (plan §9 Phase 4).
+#
+# Used by scripts/quality-helpers/check-openapi.ps1 to lint every committed
+# spec under orderly-microservices/docs/api/. Extends the upstream
+# `spectral:oas` ruleset (the OpenAPI 3 + Swagger 2 base ruleset shipped
+# by Stoplight) with one Orderly-specific override:
+#
+#   oas3-api-servers: off
+#
+# Rationale: committed docs/api/*.json specs deliberately omit a `servers:`
+# block — the runtime deployment targets are added by the deployment
+# playbook (per environment), not at code-emit time. Re-enable the rule
+# when the deployment playbook lands a real server list per environment.
+#
+# Override rules go HERE rather than in check-openapi.ps1's
+# $AllowedOpenApiFindings so that the suppression lives next to the ruleset
+# it suppresses — same convention as spectral:oas itself.
+extends: spectral:oas
+
+rules:
+  oas3-api-servers: off

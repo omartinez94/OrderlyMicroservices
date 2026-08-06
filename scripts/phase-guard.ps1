@@ -307,7 +307,68 @@ else {
 }
 
 # ----------------------------------------------------------------
-# 1️⃣7️⃣ Suggested Git commit message
+# 1️⃣7️⃣ Docker Compose healthchecks (Phase 4 — plan §9 Phase 4)
+#
+#    Every service in docker-compose.yml must carry a healthcheck
+#    block so `depends_on: condition: service_healthy` can wait for
+#    readiness. Phase 4 also patches the 7 services that were missing
+#    healthchecks in the same commit (Hard-fail AND fix policy —
+#    mirrors Phase 2's "fix 3 UtcNow sites rather than allow-list"
+#    decision). Sub-100ms parse; runs under -PreCommit.
+# ----------------------------------------------------------------
+Write-Section "🐳 Compose healthchecks"
+
+pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-docker-compose.ps1"
+if ($LASTEXITCODE) { throw "❌ Docker Compose healthcheck gate failed" }
+
+# ----------------------------------------------------------------
+# 1️⃣8️⃣ OpenAPI contract lint (Phase 4 — plan §9 Phase 4)
+#
+#    Spectral with the shipped .spectral.yaml ruleset over every
+#    committed spec in orderly-microservices/docs/api/*.json. Five
+#    services emit /openapi/v1.json (or /swagger/v1/swagger.json for
+#    Basket) — the contract gate keeps them honest. ~3s cached;
+#    runs under -PreCommit.
+# ----------------------------------------------------------------
+Write-Section "📡 OpenAPI contract lint"
+
+pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-openapi.ps1"
+if ($LASTEXITCODE) { throw "❌ OpenAPI spec lint failed" }
+
+# ----------------------------------------------------------------
+# 1️⃣9️⃣ Test coverage gate (Phase 4 — plan §9 Phase 4)
+#
+#    Parses TestResults/**/coverage.cobertura.xml and fails when the
+#    aggregate line-rate is below 80% (plan §6.4). Requires tests
+#    to have produced Cobertura first, so it skips under -PreCommit
+#    (section 2 is also skipped there). Aggregate is sum(covered) /
+#    sum(valid), NOT mean of per-project rates — see plan §9 Phase 4
+#    decisions.
+# ----------------------------------------------------------------
+if ($PreCommit) {
+    Write-Skipped "🧪 Coverage gate"
+}
+else {
+    Write-Section "🧪 Coverage gate"
+
+    pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-coverage.ps1"
+    if ($LASTEXITCODE) { throw "❌ Coverage below 80% threshold" }
+}
+
+# ----------------------------------------------------------------
+# 2️⃣0️⃣ GitHub Actions workflow lint (Phase 4 — plan §9 Phase 4)
+#
+#    actionlint over every workflow in .github/workflows/*.yml.
+#    Catches typos in runs-on, missing on: filters, and breaks on
+#    action version bumps. ~1s cached; runs under -PreCommit.
+# ----------------------------------------------------------------
+Write-Section "🦾 GitHub Actions lint"
+
+pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-github-actions.ps1"
+if ($LASTEXITCODE) { throw "❌ GitHub Actions workflow lint failed" }
+
+# ----------------------------------------------------------------
+# 2️⃣1️⃣ Suggested Git commit message
 # ----------------------------------------------------------------
 if ($PreCommit) {
     Write-Host "`n✅ Pre-commit checks passed.`n" -ForegroundColor Green
@@ -331,6 +392,10 @@ $commitMsg = @"
 🔎 No unused/duplicate usings (informational)
 ⚠️ No nullable-reference-type warnings
 🐳 Dockerfiles linted
+🐳 Compose healthchecks enforced
+📡 OpenAPI specs lint clean (Spectral)
+🧪 Test coverage ≥ 80% (Cobertura)
+🦾 GitHub Actions workflows lint clean (actionlint)
 🔐 No vulnerable packages found
 📊 Sonar / 🛡️ OWASP: run when configured
 "@.TrimEnd()

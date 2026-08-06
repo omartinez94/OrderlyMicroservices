@@ -100,6 +100,15 @@ services:
         condition: service_healthy
       identitydb:
         condition: service_healthy
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   basket.api:
     image: ${DOCKER_REGISTRY-}basketapi
@@ -119,6 +128,15 @@ services:
         condition: service_healthy
       catalog.api:
         condition: service_started
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   discount.grpc:
     image: ${DOCKER_REGISTRY-}discountgrpc
@@ -130,6 +148,15 @@ services:
         condition: service_healthy
       identity.api:
         condition: service_started
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   identity.api:
     image: ${DOCKER_REGISTRY-}identityapi
@@ -139,6 +166,15 @@ services:
     depends_on:
       identitydb:
         condition: service_healthy
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   ordering.api:
     image: ${DOCKER_REGISTRY-}orderingapi
@@ -152,6 +188,15 @@ services:
         condition: service_healthy
       messagebroker:
         condition: service_healthy
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   kitchen.api:
     image: ${DOCKER_REGISTRY-}kitchenapi
@@ -165,6 +210,15 @@ services:
         condition: service_started
       messagebroker:
         condition: service_healthy
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   yarpapigateway:
     image: ${DOCKER_REGISTRY-}yarpapigateway
@@ -184,6 +238,15 @@ services:
         condition: service_started
       identity.api:
         condition: service_started
+    healthcheck:
+      # /live (not /ready) — always 200 when the process is up; /ready
+      # bounces during cold backing-store restarts and would re-create
+      # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   # Phase 4: OpenTelemetry collector. Every service exports traces,
   # metrics, and logs to the collector via the OTLP exporter pointed

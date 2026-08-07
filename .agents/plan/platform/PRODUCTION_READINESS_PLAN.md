@@ -6,10 +6,20 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-08-04) — `MINOR` increments after each phase completion; `MAJOR` is reserved for breaking restructures of the plan itself.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.2` (2026-08-06) — closed.
+> **Current state**: ✅ CLOSED 2026-08-06 — no phase work shipped; scope absorbed by three earlier-closed platform plans.
 
-| Phase | Name | Status |
+This plan was closed without any phase work being shipped. The audit-driven gaps it set out to address were absorbed by three platform plans that closed earlier:
+
+- **Authentication / authorization posture** (Phase 1 cross-cutting, Phase 6 `RequireHttpsMetadata`) → [`TRUST_ROOT_HARDENING_PLAN.md`](./TRUST_ROOT_HARDENING_PLAN.md) (v2.9, 2026-08-04, ✅ closed).
+- **Persistence + messaging reliability + Docker healthchecks + OTel + OpenAPI + `/live`+`/ready` split** (Phase 3 partial) → [`PERSISTENCE_AND_RELIABILITY_PLAN.md`](./PERSISTENCE_AND_RELIABILITY_PLAN.md) (v3.7, 2026-08-04, ✅ closed).
+- **Quality gate script hardening (multi-tier checks, OpenAPI lint, coverage gate, actionlint)** (Phase 4 partial) → [`QUALITY_GATE_ENHANCEMENT_PLAN.md`](./QUALITY_GATE_ENHANCEMENT_PLAN.md) (v1.4, 2026-08-05, ✅ closed).
+
+The remaining uncovered phases — CI/CD pipeline (Phase 2), Kubernetes/Helm manifests (Phase 5), secrets provider (Phase 1), TLS/CORS/pod-level hardening (Phase 6), and the migration runner (Phase 3) — are **deployment-infrastructure** decisions that depend on a chosen deployment target (cloud provider, on-prem K8s, etc.). They are deferred to a future plan once the deployment target is set. The audit findings in §1 + §10 stay relevant as input for that future plan.
+
+> **Original phase table** (preserved for historical reference — no phase work was executed):
+
+| Phase | Name | Status at closure |
 |:-----:|---|:-----:|
 | 1 | Secrets & Environment Posture | ⏸ Pending |
 | 2 | CI/CD Pipeline & Image Registry | 🔒 Blocked |
@@ -19,10 +29,6 @@
 | 6 | TLS, CORS & Operational Hardening | 🔒 Blocked |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
-
-> **Commit messages**: Conventional Commits (`feat:`, `docs:`, `chore:`, `test:`, `fix:`). Short subject, ≤50 chars, imperative mood, no trailing period.
-
-> **Update rule**: **on every phase completion, the plan MUST be updated in the same commit as the phase work.** The plan is the source of truth for what was decided and what shipped; a phase that ships without a plan update is a phase that drifted. See [How to use this template](#how-to-use-this-template) for the workflow.
 
 ---
 
@@ -511,4 +517,9 @@ Plans follow `vMAJOR.MINOR` semantics. The version lives in the Status section a
 ### v1.1 (2026-08-04) — improvements added
 - Added suggested improvements to the plan.
 - Updated version to v1.1.
+
+### v1.2 (2026-08-06) — closed without phase work
+- Plan closed; no phase work shipped.
+- Scope absorbed by `TRUST_ROOT_HARDENING_PLAN.md`, `PERSISTENCE_AND_RELIABILITY_PLAN.md`, and `QUALITY_GATE_ENHANCEMENT_PLAN.md` (all ✅ closed).
+- Remaining work (CI/CD, K8s/Helm, secrets provider, TLS/CORS hardening, migration runner) deferred to a future deployment-target plan — audit findings in §1 + §10 stay relevant as input for that plan.
 

@@ -26,6 +26,11 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
             ),
+            BadRequestException => (
+                exception.Message ?? "Bad request.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status400BadRequest
+            ),
             NotFoundException => (
                 exception.Message ?? "The requested resource was not found.",
                 exception.GetType().Name,

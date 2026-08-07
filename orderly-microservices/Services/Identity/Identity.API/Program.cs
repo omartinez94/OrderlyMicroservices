@@ -83,6 +83,20 @@ builder.Services.AddIdentityDbContext(builder.Configuration);
 builder.Services.AddOpenIddictServer(builder.Configuration, builder.Environment);
 builder.Services.AddAuthorizationServices();
 
+// MediatR ISender / IPublisher must be registered in DI for the
+// minimal-API parameter binding in every Carter module to resolve
+// `ISender sender`. Identity.API ships Carter modules that all take
+// `ISender sender` as a parameter (see Features/*Module.cs) — without
+// this registration the minimal API falls back to "Body (Inferred)"
+// for `sender`, leaving the request-body parameter `UNKNOWN`, and the
+// endpoint matcher throws on first request. Mirrors Catalog / Basket
+// / Kitchen / Ordering which all call AddMediatR here.
+builder.Services.AddMediatR(cfg =>
+{
+    cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    cfg.AddOpenBehavior(typeof(BuildingBlocks.Behaviors.ValidationBehavior<,>));
+});
+
 // Phase 2: register the migration hosted service. Replaces the
 // inline MigrateAsync call that previously sat inside DataSeeder.SeedDataAsync
 // (DataSeeder.cs:18). The migrator runs at host startup with

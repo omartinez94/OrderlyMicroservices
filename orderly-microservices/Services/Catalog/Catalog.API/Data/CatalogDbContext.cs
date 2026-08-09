@@ -164,6 +164,18 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             // Indexes
             entity.HasIndex(r => r.BrandId);
             entity.HasIndex(r => r.IsActive);
+            
+            // Seed
+            entity.HasData(new Restaurant
+            {
+                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                BrandId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Name = "Acme",
+                Address = "123 Acme St",
+                TaxRate = 0.16m,
+                Currency = "MXN",
+                TimeZone = "America/Monterrey"
+            });
         });
 
         // ═══════════════════════════════════════════════════
@@ -208,6 +220,14 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
             entity.HasIndex(b => b.Name);
             entity.HasIndex(b => b.IsActive);
+
+            // Seed
+            entity.HasData(new Brand
+            {
+                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                Name = "Acme",
+                LogoUrl = "https://placehold.co/100x100/png?text=Acme"
+            });
         });
 
         // ═══════════════════════════════════════════════════

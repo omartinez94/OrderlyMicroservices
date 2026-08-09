@@ -2,7 +2,7 @@
   "$comment": "Canonical test menu for the dev MCP server's seed_test_menu tool. ≥3 categories, ≥10 items, with variations and ingredient customizations. The tool inserts into Catalogdb EF Core tables; restaurantId is provided by the caller (a stub Brand+Restaurant is created if absent). All IDs are deterministic GUIDs so the seed is idempotent.",
   "brand": {
     "id": "11111111-1111-1111-1111-111111111111",
-    "name": "Orderly Test Brand",
+    "name": "Acme",
     "cuisineType": 0,
     "description": "Brand used by the dev MCP server for seeded test menus.",
     "contactEmail": "devmcp@test.orderly.local",

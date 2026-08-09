@@ -25,6 +25,7 @@ public static class DataSeeder
         await SeedPermissionsAsync(dbContext, ct);
         await SeedRolePermissionsAsync(dbContext, roleManager, ct);
         await SeedSuperAdminAsync(userManager, roleManager, environment, ct);
+        await SeedAcmeUsersAsync(userManager, roleManager, dbContext, environment, ct);
         await EnsureSuperAdminOrFailFastAsync(userManager, environment, ct);
         await SeedOpenIddictScopesAsync(scopeManager, ct);
         await SeedOpenIddictClientsAsync(applicationManager, configuration, ct);
@@ -243,6 +244,59 @@ public static class DataSeeder
                 await userManager.AddToRoleAsync(admin, "SuperAdmin");
             }
         }
+    }
+
+    private static async Task SeedAcmeUsersAsync(
+        UserManager<ApplicationUser> userManager,
+        RoleManager<ApplicationRole> roleManager,
+        IdentityDbContext dbContext,
+        IWebHostEnvironment environment,
+        CancellationToken ct)
+    {
+        if (!environment.IsDevelopment())
+            return;
+
+        var users = new[]
+        {
+            new { Email = "admin@acme.com", FirstName = "Acme", LastName = "Admin", Role = "RestaurantAdmin" },
+            new { Email = "manager@acme.com", FirstName = "Acme", LastName = "Manager", Role = "Manager" },
+            new { Email = "kitchen@acme.com", FirstName = "Acme", LastName = "Kitchen", Role = "KitchenManager" }
+        };
+
+        var restaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        foreach (var u in users)
+        {
+            if (await userManager.FindByEmailAsync(u.Email) is null)
+            {
+                var user = new ApplicationUser
+                {
+                    UserName = u.Email,
+                    Email = u.Email,
+                    FirstName = u.FirstName,
+                    LastName = u.LastName,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    IsActive = true,
+                    EmailConfirmed = true
+                };
+
+                var result = await userManager.CreateAsync(user, "Password123!");
+                if (result.Succeeded && await roleManager.RoleExistsAsync(u.Role))
+                {
+                    await userManager.AddToRoleAsync(user, u.Role);
+                    
+                    dbContext.UserRestaurants.Add(new Models.UserRestaurant
+                    {
+                        UserId = user.Id,
+                        User = user,
+                        RestaurantId = restaurantId,
+                        IsDefault = true
+                    });
+                }
+            }
+        }
+        
+        await dbContext.SaveChangesAsync(ct);
     }
 
     /// <summary>

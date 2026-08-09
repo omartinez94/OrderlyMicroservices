@@ -44,7 +44,10 @@ services:
       # /opt/mssql-tools18/bin.
       test:
         - "CMD-SHELL"
-        - '/opt/mssql-tools*/bin/sqlcmd -S localhost -U sa -P "$$SA_PASSWORD" -Q "SELECT 1" || exit 1'
+        # -C trusts the dev image's self-signed TLS cert (ODBC Driver 18+
+        # rejects untrusted certs by default; the cert is replaced in
+        # production deploys that have a real CA-signed cert).
+        - '/opt/mssql-tools*/bin/sqlcmd -S localhost -U sa -P "$$SA_PASSWORD" -C -Q "SELECT 1" || exit 1'
       interval: 10s
       timeout: 5s
       retries: 20
@@ -266,11 +269,13 @@ services:
     ports:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:13133/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # No healthcheck: the contrib image is stripped of shell utilities
+    # (no wget/curl/nc), so any HTTP probe fails with "executable file
+    # not found". The collector's own runtime logs every export failure
+    # at info level — `docker logs otel-collector` is the probe. No
+    # service depends on otel-collector (condition: service_healthy is
+    # not used), so a failed healthcheck only adds noise to
+    # `docker ps --format`.
 
 volumes:
   postgres_catalog:

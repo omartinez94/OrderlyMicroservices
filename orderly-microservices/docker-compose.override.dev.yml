@@ -214,6 +214,12 @@ services:
       - OpenIddict__SigningCertificatePassword=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
       - OpenIddict__EncryptionCertificatePath=/root/.aspnet/https/aspnetapp.pfx
       - OpenIddict__EncryptionCertificatePassword=${ASPNETCORE_Kestrel__Certificates__Default__Password:-password123}
+      # M2M OpenIddict client seed: appsettings.json ships an empty
+      # ClientSecret, but OpenIddict's CreateAsync rejects empty secrets
+      # for confidential clients. Provide a dev-only secret here so the
+      # identity.api DataSeeder succeeds; the prod override must set a
+      # strong value via env or .env.
+      - M2M__ClientSecret=${M2M__ClientSecret:-dev-only-m2m-secret-rotate-in-prod}
     ports:
       - "6007:8080"
       - "6067:8081"
@@ -309,6 +315,10 @@ services:
       # otel-collector container.
       - OpenTelemetry__Endpoint=http://otel-collector:4317
       - OpenTelemetry__OtlpProtocol=Grpc
+      # Phase 5 split: gateway validates inbound JWTs against the
+      # Identity API's JWKS. Missing this throws InvalidOperationException
+      # at Program.cs line 38 ("IdentityServiceUrl config key is required").
+      - IdentityServiceUrl=http://identity.api:8080
     ports:
       - "6004:8080"
       - "6064:8081"
@@ -328,3 +338,15 @@ services:
     volumes:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/home/app/.aspnet/https:ro
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
+
+  # otel-collector: Phase 4 ships an OTLP "backend" exporter in the
+  # config that forwards to OTEL_EXPORTER_OTLP_ENDPOINT. The collector
+  # parser rejects an empty endpoint at startup, so without this env
+  # var the container exits 1. Default to a self-loop on the
+  # collector's own OTLP receiver — harmless traffic the receiver
+  # drops (no peer exporter pipes it back out) and the exporter's
+  # exponential backoff turns it into a no-op. Production deploys
+  # override with a real Tempo / Jaeger / Honeycomb URL.
+  otel-collector:
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4317}

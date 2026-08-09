@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -115,6 +116,17 @@ public class IdentityWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
                     RateLimitPartition.GetNoLimiter("test"));
             });
+
+            // The host's AddIdentityDbContext calls
+            // `options.UseModel(IdentityDbContextModel.Instance)` which
+            // can race against the WAF's own migration DbContext when
+            // the unit-test fixtures run first in the same test
+            // session. Drop the pre-compiled model so the host builds
+            // its own model on-demand via OnModelCreating — same
+            // schema, different static-init code path, no shared
+            // mutable state with the InMemory unit-test fixtures.
+            services.PostConfigure<DbContextOptions<IdentityDbContext>>(options =>
+                options.UseModel((IModel?)null));
         });
     }
 
@@ -130,6 +142,23 @@ public class IdentityWebApplicationFactory : WebApplicationFactory<Program>, IAs
         // picks up the Testcontainer connection string on the first
         // CreateClient() call.
         Environment.SetEnvironmentVariable("ConnectionStrings__IdentityDB", _postgres.GetConnectionString());
+
+        // Eagerly touch IdentityDbContextModel.Instance so the static
+        // constructor runs once, here, before any other test code
+        // (unit-test fixture, parallel collection) can race against it.
+        // The static ctor uses a worker Thread with a 10 MB stack to
+        // run the model initialiser — concurrent first-access from
+        // multiple fixtures occasionally races past thread.Join()
+        // before FinalizeModel() has set `_instance`, which surfaces
+        // as `The model must be finalized and its runtime dependencies
+        // must be initialized before 'GetRelationalModel' can be used`
+        // on the next GetPendingMigrationsAsync() call. Forcing the
+        // touch from one thread (this one) before the host boots
+        // serialises the initialisation with the rest of the test
+        // pipeline.
+        Console.WriteLine("[WAF] Touching IdentityDbContextModel.Instance");
+        _ = Identity.API.Data.Migrations.IdentityDbContextModel.Instance;
+        Console.WriteLine("[WAF] Model touched; thread id " + System.Threading.Thread.CurrentThread.ManagedThreadId);
 
         // Pre-apply migrations BEFORE the WAF boots Program.cs. Identity.API
         // calls `await DataSeeder.SeedDataAsync(...)` between builder.Build

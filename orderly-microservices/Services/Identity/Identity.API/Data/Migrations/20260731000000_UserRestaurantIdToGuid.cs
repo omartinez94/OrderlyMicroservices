@@ -45,20 +45,26 @@ namespace Identity.API.Data.Migrations
             // cannot be cast to a valid uuid. The plan's §6.5 spec
             // acknowledges the data loss; production deploys start
             // on an empty table per the Phase 2 seed-gate change.
-            migrationBuilder.Sql("TRUNCATE TABLE \"UserRestaurants\";");
+            // CASCADE is required because the AspNetUser FK references
+            // these rows in dev DBs that pre-date the truncation
+            // contract — without it, TRUNCATE fails with
+            // "cannot truncate a table referenced in a foreign key
+            // constraint" and the migration rolls back, leaving the
+            // column as integer.
+            migrationBuilder.Sql("TRUNCATE TABLE \"UserRestaurants\" CASCADE;");
 
-            // Alter the column type to uuid. The USING clause
-            // provides the empty string → all-zeros cast since the
-            // table is empty post-truncate; the cast succeeds
-            // because every remaining row is a freshly-inserted
-            // empty value.
-            migrationBuilder.AlterColumn<Guid>(
-                name: "RestaurantId",
-                table: "UserRestaurants",
-                type: "uuid",
-                nullable: false,
-                oldClrType: typeof(int),
-                oldType: "integer");
+            // Alter the column type to uuid. PostgreSQL has no implicit
+            // cast from int → uuid, so an EF-generated ALTER COLUMN
+            // without USING fails with 42804 ("column ... cannot be cast
+            // automatically to type uuid") even when the table is empty.
+            // Hand-authored raw SQL provides the USING clause (zero UUID
+            // literal; safe because TRUNCATE emptied the table above).
+            // EF's snapshot/Designer already reflects Guid, so we only
+            // need to bypass the AlterColumn codegen for this one step.
+            migrationBuilder.Sql(
+                "ALTER TABLE \"UserRestaurants\" " +
+                "ALTER COLUMN \"RestaurantId\" TYPE uuid " +
+                "USING '00000000-0000-0000-0000-000000000000'::uuid;");
 
             // Recreate the composite primary key on the new
             // (UserId, RestaurantId) pair.

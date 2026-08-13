@@ -44,7 +44,7 @@ public static class DataSeeder
             new { Name = "Waiter", Description = "Create/modify orders (limited by status)" },
             new { Name = "KitchenStaff", Description = "View orders, update prep status" },
             new { Name = "Host", Description = "Manage reservations, assign tables, walk-in queue" },
-            new { Name = "Cashier", Description = "Process payments, split bills" }
+            new { Name = "Cashier", Description = "Process payments, split bills" },
         };
 
         foreach (var roleData in roles)
@@ -55,7 +55,7 @@ public static class DataSeeder
                 {
                     Name = roleData.Name,
                     NormalizedName = roleData.Name.ToUpperInvariant(),
-                    Description = roleData.Description
+                    Description = roleData.Description,
                 };
                 await roleManager.CreateAsync(role);
             }
@@ -123,7 +123,9 @@ public static class DataSeeder
     private static async Task SeedRolePermissionsAsync(IdentityDbContext dbContext, RoleManager<ApplicationRole> roleManager, CancellationToken ct)
     {
         if (await dbContext.RolePermissions.AnyAsync(ct))
+        {
             return;
+        }
 
         var rolePermissionMap = new Dictionary<string, List<string>>
         {
@@ -138,7 +140,7 @@ public static class DataSeeder
                 "kitchen:view_orders",
                 "reservations:view", "reservations:create", "reservations:edit",
                 "payments:view_reports",
-                "audit:view"
+                "audit:view",
             },
             ["Manager"] = new()
             {
@@ -150,40 +152,43 @@ public static class DataSeeder
                 "kitchen:view_orders",
                 "reservations:view", "reservations:edit",
                 "payments:view_reports",
-                "audit:view"
+                "audit:view",
             },
             ["KitchenManager"] = new()
             {
                 "orders:view_all", "orders:modify_ordering", "orders:modify_confirmed",
-                "kitchen:view_orders", "kitchen:update_prep_status"
+                "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Waiter"] = new()
             {
                 "orders:create", "orders:view_own", "orders:modify_ordering",
                 "menu:view",
-                "reservations:view", "reservations:create"
+                "reservations:view", "reservations:create",
             },
             ["KitchenStaff"] = new()
             {
                 "orders:view_all",
-                "kitchen:view_orders", "kitchen:update_prep_status"
+                "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Host"] = new()
             {
                 "reservations:view", "reservations:create", "reservations:edit",
-                "orders:view_all"
+                "orders:view_all",
             },
             ["Cashier"] = new()
             {
                 "orders:view_all",
-                "payments:process", "payments:split_bill"
-            }
+                "payments:process", "payments:split_bill",
+            },
         };
 
         foreach (var (roleName, permissionNames) in rolePermissionMap)
         {
             var role = await roleManager.FindByNameAsync(roleName);
-            if (role is null) continue;
+            if (role is null)
+            {
+                continue;
+            }
 
             var permissions = await dbContext.Permissions
                 .Where(p => permissionNames.Contains(p.Name))
@@ -194,7 +199,7 @@ public static class DataSeeder
                 RoleId = role.Id,
                 Role = role,
                 PermissionId = p.Id,
-                Permission = p
+                Permission = p,
             });
 
             dbContext.RolePermissions.AddRange(rolePermissions);
@@ -222,7 +227,9 @@ public static class DataSeeder
         var adminEmail = "admin@orderly.com";
         var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
         if (existingAdmin is not null)
+        {
             return;
+        }
 
         var admin = new ApplicationUser
         {
@@ -232,7 +239,7 @@ public static class DataSeeder
             LastName = "Administrator",
             CreatedAt = DateTimeOffset.UtcNow,
             IsActive = true,
-            EmailConfirmed = true
+            EmailConfirmed = true,
         };
 
         var result = await userManager.CreateAsync(admin, "Admin@123456");
@@ -254,13 +261,15 @@ public static class DataSeeder
         CancellationToken ct)
     {
         if (!environment.IsDevelopment())
+        {
             return;
+        }
 
         var users = new[]
         {
             new { Email = "admin@acme.com", FirstName = "Acme", LastName = "Admin", Role = "RestaurantAdmin" },
             new { Email = "manager@acme.com", FirstName = "Acme", LastName = "Manager", Role = "Manager" },
-            new { Email = "kitchen@acme.com", FirstName = "Acme", LastName = "Kitchen", Role = "KitchenManager" }
+            new { Email = "kitchen@acme.com", FirstName = "Acme", LastName = "Kitchen", Role = "KitchenManager" },
         };
 
         var restaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
@@ -277,25 +286,25 @@ public static class DataSeeder
                     LastName = u.LastName,
                     CreatedAt = DateTimeOffset.UtcNow,
                     IsActive = true,
-                    EmailConfirmed = true
+                    EmailConfirmed = true,
                 };
 
                 var result = await userManager.CreateAsync(user, "Password123!");
                 if (result.Succeeded && await roleManager.RoleExistsAsync(u.Role))
                 {
                     await userManager.AddToRoleAsync(user, u.Role);
-                    
+
                     dbContext.UserRestaurants.Add(new Models.UserRestaurant
                     {
                         UserId = user.Id,
                         User = user,
                         RestaurantId = restaurantId,
-                        IsDefault = true
+                        IsDefault = true,
                     });
                 }
             }
         }
-        
+
         await dbContext.SaveChangesAsync(ct);
     }
 

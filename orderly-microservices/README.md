@@ -108,9 +108,13 @@ Or ensure you have local instances of the backing services running on the mapped
 #### Using Visual Studio
 
 1. Open the solution file `orderly-microservices.slnx` in Visual Studio.
-2. Ensure Docker Desktop is running if you are using the `.dcproj` as your startup project.
-3. Configure your Startup Projects. You can configure it to start multiple API services simultaneously (e.g., `Catalog.API` & `Basket.API`).
-4. Press `F5` or click **Start**.
+2. Configure your **Startup Projects**:
+   - Right-click the solution in Solution Explorer and choose **Configure Startup Projects...**.
+   - Select **Multiple Startup Projects**.
+   - Set the action for the services you need to debug (e.g., `Catalog.API`, `Basket.API`, and `YarpApiGateway`) to **Start**.
+   - Ensure the launch profile is set to the native project profile (e.g., **Kestrel**) rather than Docker, so that the .NET processes run directly on your host machine.
+3. Place breakpoints in your code.
+4. Press `F5` or click **Start** to run with debugging active.
 
 #### Using .NET CLI
 
@@ -146,6 +150,65 @@ dotnet run
 cd ../../../ApiGateway/YarpApiGateway
 dotnet run
 ```
+
+### Option 3: Running the DevMCP Server (AI/Developer Assistance)
+
+The project includes a Model Context Protocol (MCP) server (`Orderly.DevMCP.Server`) that exposes the backend services, databases, and message broker to AI assistants (such as Cursor or Claude Desktop) for local testing and orchestration.
+
+#### 1. Setup Environment Configuration
+
+Ensure both the root repository and the MCP server have local environment variables configured:
+
+1. **Root Backend Configuration:**
+   - Copy `docker-compose.override.yml` defaults by copying `.env.example` to `.env` in the root `orderly-microservices` directory.
+2. **MCP Server Configuration:**
+   - Navigate to `Orderly.DevMCP.Server/`.
+   - Copy `.env.example` to `.env`.
+   - Generate a secure `JWT_SECRET` (minimum 16 characters) and place it in the file. You can generate one with:
+     ```bash
+     node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+     ```
+   - Set a secure `DEV_TRIGGER_SECRET` matching the trigger secret for dev endpoints.
+
+#### 2. Run the MCP Server
+
+- Node.js 22.6+ is required.
+- Install dependencies and start the server in watch mode:
+
+```bash
+cd Orderly.DevMCP.Server
+npm install
+npm run dev
+```
+
+The server will run on `http://localhost:8080/mcp`.
+
+#### 3. Connect an AI Client (Cursor / Claude Desktop)
+
+Add the following config snippet to your AI client's configuration file (e.g., Cursor's MCP settings or `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "orderly-backend": {
+      "type": "streamable-http",
+      "url": "http://localhost:8080/mcp"
+    }
+  }
+}
+```
+
+#### 4. Debugging and Testing with MCP Inspector
+
+You can test and inspect the registered tools in an interactive web UI using the official MCP Inspector. This runs by default on `http://localhost:6274/`.
+
+1. Ensure the MCP server is running (`npm run dev` in the `Orderly.DevMCP.Server` directory).
+2. Open a separate terminal and launch the inspector targeting the local SSE endpoint:
+   ```bash
+   npx @modelcontextprotocol/inspector http://localhost:8080/mcp
+   ```
+3. Use the browser UI to inspect tools, manually trigger operations, and examine JSON-RPC payloads.
+
 
 ## Useful Docker CLI Commands
 

@@ -1,4 +1,6 @@
+using BuildingBlocks.Entities.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using NodaTime;
 
 namespace Catalog.API.Data;
 
@@ -16,6 +18,12 @@ namespace Catalog.API.Data;
 public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     : DbContext(options), IOutboxDbContext
 {
+    /// <summary>
+    /// Static timestamp applied to <c>HasData</c> audit fields. Required because
+    /// <c>HasData</c> entries must be deterministic — EF throws
+    /// <c>PendingModelChangesWarning</c> if the value differs across model builds.
+    /// </summary>
+    private static readonly Instant SeedTimestamp = Instant.FromUtc(2026, 1, 1, 0, 0, 0);
     public DbSet<User> Users => Set<User>();
 
     // ═══════════════════════════════════════════════════
@@ -166,7 +174,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.HasIndex(r => r.IsActive);
             
             // Seed
-            entity.HasData(new Restaurant
+            var acmeRestaurant = new Restaurant
             {
                 Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 BrandId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -175,7 +183,9 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
                 TaxRate = 0.16m,
                 Currency = "MXN",
                 TimeZone = "America/Monterrey"
-            });
+            };
+            ((IAuditableEntity)acmeRestaurant).CreatedFrom("system", SeedTimestamp);
+            entity.HasData(acmeRestaurant);
         });
 
         // ═══════════════════════════════════════════════════
@@ -222,12 +232,14 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.HasIndex(b => b.IsActive);
 
             // Seed
-            entity.HasData(new Brand
+            var acmeBrand = new Brand
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Name = "Acme",
                 LogoUrl = "https://placehold.co/100x100/png?text=Acme"
-            });
+            };
+            ((IAuditableEntity)acmeBrand).CreatedFrom("system", SeedTimestamp);
+            entity.HasData(acmeBrand);
         });
 
         // ═══════════════════════════════════════════════════

@@ -162,6 +162,24 @@ namespace Catalog.API.Migrations
                     b.HasIndex("Name");
 
                     b.ToTable("Brands", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
+                            ContactEmail = "",
+                            ContactPhone = "",
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            CreatedBy = "system",
+                            CuisineType = 16,
+                            Description = "",
+                            IsActive = false,
+                            LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            LastModifiedBy = "system",
+                            LogoUrl = "https://placehold.co/100x100/png?text=Acme",
+                            Name = "Acme",
+                            WebsiteUrl = ""
+                        });
                 });
 
             modelBuilder.Entity("Catalog.API.Models.BulkOrderUpload", b =>
@@ -1177,6 +1195,29 @@ namespace Catalog.API.Migrations
                     b.HasIndex("IsActive");
 
                     b.ToTable("Restaurants", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
+                            Address = "123 Acme St",
+                            AllowAutoSubstitute = false,
+                            AutoConfirmOrders = false,
+                            AutoConfirmReservations = false,
+                            BrandId = new Guid("11111111-1111-1111-1111-111111111111"),
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            CreatedBy = "system",
+                            Currency = "MXN",
+                            Email = "",
+                            EstimatedTurnoverMinutes = 30,
+                            IsActive = false,
+                            LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            LastModifiedBy = "system",
+                            Name = "Acme",
+                            PhoneNumber = "",
+                            TaxRate = 0.16m,
+                            TimeZone = "America/Monterrey"
+                        });
                 });
 
             modelBuilder.Entity("Catalog.API.Models.Table", b =>

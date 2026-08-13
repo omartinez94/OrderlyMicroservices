@@ -24,11 +24,10 @@ builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
 //      its allowed origins from `Cors:AllowedOrigins` config.
 //   3. Trusts `ForwardedHeaders` from the docker network range
 //      (configurable via `ForwardedHeaders:KnownNetworks`).
-//   4. Exposes an anonymous `/health` endpoint for container
-//      orchestrators (Docker HEALTHCHECK, K8s liveness/readiness).
-// Per-route / per-cluster authorization policies are referenced
-// from `appsettings.json` via the `AuthorizationPolicy` metadata
-// key — the same metadata is read by YARP's `MapReverseProxy`.
+//   4. Exposes anonymous `/health`, `/live`, and `/ready` endpoints for
+//      container orchestrators and backwards compatibility.
+// Per-route authorization uses YARP's reserved `Default` policy from
+// `appsettings.json`, requiring an authenticated user.
 // =====================================================================
 
 // JWT bearer against the Identity authority. The dev fallback
@@ -43,10 +42,9 @@ builder.Services.AddJwtAuthenticationWithDevFallback(
             "IdentityServiceUrl config key is required so the gateway can validate inbound JWTs."),
     audience: builder.Configuration.GetValue<string>("Jwt:Audience") ?? "OrderlyMicroservices");
 
-// Empty AddAuthorization — YARP applies the per-route / per-cluster
-// policies from the appsettings metadata; no named policies are
-// registered here. AddAuthorization() is still required so the
-// [Authorize] metadata on a route is honored.
+// YARP's reserved "Default" authorization policy resolves to ASP.NET
+// Core's default policy, which requires an authenticated user. Every
+// proxied route references that policy in appsettings.json.
 builder.Services.AddAuthorization();
 
 // CORS. The default policy reads its allowed origins from
@@ -108,8 +106,8 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// YARP itself. The AuthorizationPolicy + CorsPolicy metadata on
-// each route / cluster is what wires the per-endpoint gating.
+// YARP itself. The AuthorizationPolicy, CorsPolicy, and rate-limit
+// metadata on each route wire the per-endpoint gating.
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -136,10 +134,12 @@ app.UseForwardedHeaders();
 
 app.UseCors();
 
-// /health MUST be mapped BEFORE UseAuthentication so orchestrators
-// can probe without a token. Anonymous access is explicit via
-// .AllowAnonymous().
+// The compatibility and orchestrator probes are explicitly anonymous.
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
+    .AllowAnonymous();
+app.MapGet("/live", () => Results.Ok(new { status = "healthy" }))
+    .AllowAnonymous();
+app.MapGet("/ready", () => Results.Ok(new { status = "ready" }))
     .AllowAnonymous();
 
 app.UseAuthentication();

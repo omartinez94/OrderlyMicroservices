@@ -1,19 +1,9 @@
 namespace Catalog.API.Features.MenuItemAnalytics.GetMenuItemAnalytics;
 
-/// <remarks>
-/// <c>From</c>/<c>To</c> are <see cref="DateOnly"/> rather than NodaTime
-/// <c>LocalDate</c> because Minimal API can only bind an <c>[AsParameters]</c>
-/// property from the query string when its type is parsable. <c>LocalDate</c>
-/// is not, so the binder infers it as a body parameter and throws on GET while
-/// building the endpoint graph — which fails every route in the service. Same
-/// ISO-8601 wire format; converted to <c>LocalDate</c> at the handler boundary.
-/// Note this applies only to *query binding*: the <c>LocalDate</c> on the
-/// response DTO below is fine, being serialised by NodaTime's JSON converters.
-/// </remarks>
 public record GetMenuItemAnalyticsRequest(
     Guid? MenuItemId,
-    DateOnly? From,
-    DateOnly? To,
+    LocalDate? From,
+    LocalDate? To,
     int PageIndex = 0,
     int PageSize = 20);
 
@@ -52,8 +42,8 @@ public class GetMenuItemAnalyticsEndpoint : ICarterModule
             var query = new GetMenuItemAnalyticsQuery(
                 restaurantId,
                 request.MenuItemId,
-                request.From is { } from ? LocalDate.FromDateOnly(from) : null,
-                request.To is { } to ? LocalDate.FromDateOnly(to) : null,
+                request.From,
+                request.To,
                 request.PageIndex,
                 request.PageSize);
 

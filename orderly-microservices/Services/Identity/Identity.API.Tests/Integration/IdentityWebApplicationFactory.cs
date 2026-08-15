@@ -3,11 +3,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using System.Threading.RateLimiting;
 using Testcontainers.PostgreSql;
 
@@ -116,18 +113,21 @@ public class IdentityWebApplicationFactory : WebApplicationFactory<Program>, IAs
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(_ =>
                     RateLimitPartition.GetNoLimiter("test"));
             });
-
-            // The host's AddIdentityDbContext calls
-            // `options.UseModel(IdentityDbContextModel.Instance)` which
-            // can race against the WAF's own migration DbContext when
-            // the unit-test fixtures run first in the same test
-            // session. Drop the pre-compiled model so the host builds
-            // its own model on-demand via OnModelCreating — same
-            // schema, different static-init code path, no shared
-            // mutable state with the InMemory unit-test fixtures.
-            services.PostConfigure<DbContextOptions<IdentityDbContext>>(options =>
-                options.UseModel((IModel?)null));
         });
+
+        // The host's AddIdentityDbContext calls
+        // `options.UseModel(IdentityDbContextModel.Instance)` which
+        // can race against the WAF's own migration DbContext when
+        // the unit-test fixtures run first in the same test session.
+        // The safe workaround is to force the static ctor to run on
+        // a single thread inside `InitializeAsync` (see the explicit
+        // `IdentityDbContextModel.Instance` touch there) and to
+        // disable xunit parallelization in xunit.runner.json. Attempting
+        // to drop the pre-compiled model via
+        // `PostConfigure<DbContextOptions<IdentityDbContext>>` won't
+        // compile — `UseModel` is an extension on
+        // `DbContextOptionsBuilder<T>`, not on the already-built
+        // `DbContextOptions<T>`.
     }
 
     /// <summary>Starts the container, pre-applies migrations, then triggers host build.</summary>

@@ -10,6 +10,7 @@ global using Identity.API.Data;
 global using Identity.API.Dtos;
 global using Identity.API.Extensions;
 global using Identity.API.Models;
+global using Identity.API.RateLimiting;
 global using Identity.API.Services;
 global using MediatR;
 global using Microsoft.AspNetCore;

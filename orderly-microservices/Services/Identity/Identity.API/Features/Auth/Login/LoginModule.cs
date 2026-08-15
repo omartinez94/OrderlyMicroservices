@@ -77,7 +77,8 @@ public class LoginModule : ICarterModule
             })
             .Accepts<LoginRequest>("application/json")
             .Produces<TokenResponse>()
-            .ProducesProblem(401);
+            .ProducesProblem(401)
+            .RequireRateLimiting(RateLimitPolicies.Auth);
     }
 
     private static IEnumerable<string> GetDestinations(Claim claim)

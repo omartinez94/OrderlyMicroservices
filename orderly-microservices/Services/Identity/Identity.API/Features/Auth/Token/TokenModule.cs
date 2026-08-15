@@ -97,6 +97,16 @@ public class TokenModule : ICarterModule
             })
             .Produces<TokenResponse>()
             .ProducesProblem(400);
+        // Deliberately left on the global limiter rather than the strict
+        // RateLimitPolicies.Auth budget. This one route serves two grant
+        // types: `password` (brute-forceable, wants a tight budget) and
+        // `refresh_token` (routine, high-frequency client traffic that a
+        // 5-per-15-minute cap would break). Distinguishing them inside the
+        // partitioner would mean reading the un-buffered form body. The
+        // password path is instead covered by ASP.NET Identity's per-account
+        // lockout — CheckPasswordSignInAsync is called with
+        // lockoutOnFailure: true above — which is the per-account control the
+        // per-IP limiter cannot be.
     }
 
     private static IEnumerable<string> GetDestinations(Claim claim)

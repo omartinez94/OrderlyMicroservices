@@ -19,7 +19,8 @@ public class RegisterModule : ICarterModule
             .Accepts<RegisterRequest>("application/json")
             .Produces<RegisterResponse>(201)
             .ProducesProblem(400)
-            .ProducesProblem(409);
+            .ProducesProblem(409)
+            .RequireRateLimiting(RateLimitPolicies.Auth);
     }
 }
 

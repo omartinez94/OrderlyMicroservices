@@ -11,7 +11,7 @@
     requires StyleCop rules to be tuned via .editorconfig before promoting
     warnings to errors. See the plan for the promotion path.
   -->
-  <PropertyGroup>
+  <PropertyGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">
     <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
@@ -21,7 +21,7 @@
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">
     <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

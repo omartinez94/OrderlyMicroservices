@@ -13,6 +13,14 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(oi => oi.Id)
             .HasConversion(id => id.Value, value => OrderItemId.Of(value));
 
+        // Parent is a CLR-only back-reference the read-side handlers wire
+        // up after EF loads the items via Include. The Order-OrderItems
+        // parent/child relationship is mapped via the OrderId FK on the
+        // dependent side (see OrderConfiguration.HasMany); declaring
+        // Parent as a navigation here would force EF to treat it as the
+        // inverse and pull the model snapshot out of sync. Ignore it.
+        builder.Ignore(oi => oi.Parent);
+
         builder.HasOne<MenuItem>()
             .WithMany()
             .HasForeignKey(oi => oi.MenuItemId)

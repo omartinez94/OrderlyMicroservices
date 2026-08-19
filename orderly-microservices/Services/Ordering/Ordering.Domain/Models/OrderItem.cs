@@ -53,7 +53,16 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
     /// <c>Order.Add</c> after construction so this item can call back
     /// into <c>Order.RecordActivity</c> on every prep transition.
     /// </summary>
-    internal Order Parent { get; set; } = default!;
+    /// <remarks>
+    /// Public visibility is required because the read-side handlers
+    /// (<c>StartItemPrepHandler</c> / <c>MarkItemReadyHandler</c>) wire
+    /// the back-reference on the items that EF Core loads via
+    /// <c>Include</c> — <c>Order.Add</c> sets it on the write path, but
+    /// the in-memory tree loaded from the database doesn't have it.
+    /// Without this wiring <c>OrderItem.MarkItemPreparing</c> /
+    /// <c>MarkItemReady</c> NRE on <c>Parent.RecordActivity(...)</c>.
+    /// </remarks>
+    public Order Parent { get; set; } = default!;
 
     /// <summary>
     /// <c>Pending -&gt; Preparing</c>. Mutates the per-item prep state.

@@ -4,6 +4,7 @@ using Ordering.Application.Orders.Commands.MarkOrderDelivered;
 using Ordering.Application.Orders.Commands.MarkOrderReady;
 using Ordering.Application.Orders.Commands.StartItemPrep;
 using Ordering.Application.Orders.Commands.StartOrderPrep;
+using Ordering.Application.Tests.Abstractions;
 
 namespace Ordering.Application.Tests.Commands;
 
@@ -46,6 +47,22 @@ public sealed class TransitionHandlerTests
         var dbContext = Substitute.For<IApplicationDbContext>();
         dbContext.Orders.FindAsync(Arg.Any<object[]>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Order?>(order));
+        return dbContext;
+    }
+
+    /// <summary>
+    /// Builds a context whose <c>Orders</c> set is a <see cref="MockDbSet{TEntity}"/>
+    /// backed by the supplied <paramref name="orders"/> — required by the
+    /// handlers that <c>Include(o =&gt; o.OrderItems).SingleOrDefaultAsync(...)</c>
+    /// (see <c>StartItemPrepHandler</c> / <c>MarkItemReadyHandler</c>).
+    /// The <c>Include</c> call is a no-op on the in-memory provider, so the
+    /// <c>OrderItems</c> collection is whatever the seeded aggregate already
+    /// carries — <see cref="SeedOrder"/> adds one item.
+    /// </summary>
+    private static IApplicationDbContext NewDbContextWithItems(params Order[] orders)
+    {
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(orders));
         return dbContext;
     }
 
@@ -113,7 +130,7 @@ public sealed class TransitionHandlerTests
     public async Task StartItemPrepHandler_FromPending_TransitionsItemToPreparing()
     {
         var order = SeedOrder(OrderStatus.Confirmed, PrepStatus.Pending);
-        var dbContext = NewDbContextWith(order);
+        var dbContext = NewDbContextWithItems(order);
         var handler = new StartItemPrepHandler(dbContext);
         var itemId = order.OrderItems.Single().Id.Value;
 
@@ -131,7 +148,7 @@ public sealed class TransitionHandlerTests
     public async Task StartItemPrepHandler_UnknownItem_ThrowsOrderItemNotFound()
     {
         var order = SeedOrder(OrderStatus.Confirmed, PrepStatus.Pending);
-        var dbContext = NewDbContextWith(order);
+        var dbContext = NewDbContextWithItems(order);
         var handler = new StartItemPrepHandler(dbContext);
 
         Func<Task> act = () => handler.Handle(
@@ -145,7 +162,7 @@ public sealed class TransitionHandlerTests
     public async Task MarkItemReadyHandler_FromPreparing_TransitionsItemToReady()
     {
         var order = SeedOrder(OrderStatus.Preparing, PrepStatus.Preparing);
-        var dbContext = NewDbContextWith(order);
+        var dbContext = NewDbContextWithItems(order);
         var handler = new MarkItemReadyHandler(dbContext);
         var itemId = order.OrderItems.Single().Id.Value;
 

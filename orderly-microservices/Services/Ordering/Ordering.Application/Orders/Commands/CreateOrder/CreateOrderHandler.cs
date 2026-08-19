@@ -49,6 +49,22 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
         order.TableId = dto.TableId;
         order.CreatedByUserId = dto.CreatedByUserId;
 
+        // Bill fields — the Order aggregate owns Subtotal / TaxAmount /
+        // TaxRate / DiscountAmount / DiscountCode / TotalAmount as plain
+        // decimal + string columns. Order.Create leaves them at their
+        // default values (0 / 0 / 0 / 0 / "" / 0); the wire-side values
+        // (computed by the Basket / Discount helpers upstream) must be
+        // stamped here so the persisted row reflects what the caller
+        // saw at checkout time. Without this, GET /api/v1/orders/{id}
+        // returns 0 / 0 / 0 / 0 / "" / 0 and the customer-facing bill
+        // is wrong.
+        order.Subtotal = dto.Subtotal;
+        order.TaxAmount = dto.TaxAmount;
+        order.TaxRate = dto.TaxRate;
+        order.DiscountAmount = dto.DiscountAmount;
+        order.DiscountCode = dto.DiscountCode;
+        order.TotalAmount = dto.TotalAmount;
+
         // Add order items
         foreach (var item in dto.OrderItems)
         {

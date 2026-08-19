@@ -15,6 +15,7 @@ WORKDIR /src
 COPY ["Services/Identity/Identity.API/Identity.API.csproj", "Services/Identity/Identity.API/"]
 COPY ["BuildingBlocks/BuildingBlocks.csproj", "BuildingBlocks/"]
 COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
+COPY ["BuildingBlocks.Persistence/BuildingBlocks.Persistence.csproj", "BuildingBlocks.Persistence/"]
 RUN dotnet restore "./Services/Identity/Identity.API/Identity.API.csproj"
 COPY . .
 WORKDIR "/src/Services/Identity/Identity.API"
@@ -34,6 +35,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
+USER $APP_UID
 COPY --from=publish /app/publish .
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8080/ready || exit 1

@@ -150,11 +150,6 @@ services:
       - "5437:5432"
     volumes:
       - discount-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d Discountdb"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
   discount.grpc:
     container_name: discount.grpc

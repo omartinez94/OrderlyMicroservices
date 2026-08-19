@@ -15,6 +15,8 @@ WORKDIR /src
 COPY ["Services/Basket/Basket.API/Basket.API.csproj", "Services/Basket/Basket.API/"]
 COPY ["BuildingBlocks/BuildingBlocks.csproj", "BuildingBlocks/"]
 COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
+COPY ["BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj", "BuildingBlocks.Messaging/"]
+COPY ["BuildingBlocks.Dev/BuildingBlocks.Dev.csproj", "BuildingBlocks.Dev/"]
 RUN dotnet restore "./Services/Basket/Basket.API/Basket.API.csproj"
 COPY . .
 WORKDIR "/src/Services/Basket/Basket.API"
@@ -34,6 +36,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
+USER $APP_UID
 COPY --from=publish /app/publish .
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8080/ready || exit 1

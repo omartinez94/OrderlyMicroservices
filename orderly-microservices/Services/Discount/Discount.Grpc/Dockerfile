@@ -15,6 +15,9 @@ WORKDIR /src
 COPY ["Services/Discount/Discount.Grpc/Discount.Grpc.csproj", "Services/Discount/Discount.Grpc/"]
 COPY ["BuildingBlocks/BuildingBlocks.csproj", "BuildingBlocks/"]
 COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
+COPY ["BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj", "BuildingBlocks.Messaging/"]
+COPY ["BuildingBlocks.Persistence/BuildingBlocks.Persistence.csproj", "BuildingBlocks.Persistence/"]
+COPY ["BuildingBlocks.Dev/BuildingBlocks.Dev.csproj", "BuildingBlocks.Dev/"]
 RUN dotnet restore "./Services/Discount/Discount.Grpc/Discount.Grpc.csproj"
 COPY . .
 WORKDIR "/src/Services/Discount/Discount.Grpc"
@@ -34,6 +37,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
+USER $APP_UID
 COPY --from=publish /app/publish .
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8080/ready || exit 1

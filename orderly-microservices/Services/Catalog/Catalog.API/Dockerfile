@@ -15,6 +15,9 @@ WORKDIR /src
 COPY ["Services/Catalog/Catalog.API/Catalog.API.csproj", "Services/Catalog/Catalog.API/"]
 COPY ["BuildingBlocks/BuildingBlocks.csproj", "BuildingBlocks/"]
 COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
+COPY ["BuildingBlocks.Messaging/BuildingBlocks.Messaging.csproj", "BuildingBlocks.Messaging/"]
+COPY ["BuildingBlocks.Persistence/BuildingBlocks.Persistence.csproj", "BuildingBlocks.Persistence/"]
+COPY ["BuildingBlocks.Dev/BuildingBlocks.Dev.csproj", "BuildingBlocks.Dev/"]
 RUN dotnet restore "./Services/Catalog/Catalog.API/Catalog.API.csproj"
 COPY . .
 WORKDIR "/src/Services/Catalog/Catalog.API"
@@ -35,6 +38,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
+USER $APP_UID
 COPY --from=publish /app/publish .
 # Phase 2: /ready is the readiness probe used by docker-compose
 # `condition: service_healthy` and Kubernetes liveness. start_period:20s

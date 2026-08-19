@@ -14,6 +14,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["ApiGateway/YarpApiGateway/YarpApiGateway.csproj", "ApiGateway/YarpApiGateway/"]
 COPY ["BuildingBlocks.Observability/BuildingBlocks.Observability.csproj", "BuildingBlocks.Observability/"]
+COPY ["BuildingBlocks.Dev/BuildingBlocks.Dev.csproj", "BuildingBlocks.Dev/"]
 RUN dotnet restore "./ApiGateway/YarpApiGateway/YarpApiGateway.csproj"
 COPY . .
 WORKDIR "/src/ApiGateway/YarpApiGateway"
@@ -33,6 +34,7 @@ USER root
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
+USER $APP_UID
 COPY --from=publish /app/publish .
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fsS http://localhost:8080/ready || exit 1

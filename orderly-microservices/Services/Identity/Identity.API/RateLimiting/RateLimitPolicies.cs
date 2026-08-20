@@ -94,35 +94,35 @@ public static class RateLimitPolicies
         switch (address.AddressFamily)
         {
             case System.Net.Sockets.AddressFamily.InterNetwork:
-            {
-                Span<byte> octets = stackalloc byte[4];
-                if (!address.TryWriteBytes(octets, out _))
                 {
-                    return false;
-                }
+                    Span<byte> octets = stackalloc byte[4];
+                    if (!address.TryWriteBytes(octets, out _))
+                    {
+                        return false;
+                    }
 
-                // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 — covers the
-                // default Docker bridge and any private cluster network.
-                return octets[0] switch
-                {
-                    10 => true,
-                    172 => octets[1] >= 16 && octets[1] <= 31,
-                    192 => octets[1] == 168,
-                    _ => false,
-                };
-            }
+                    // 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16 — covers the
+                    // default Docker bridge and any private cluster network.
+                    return octets[0] switch
+                    {
+                        10 => true,
+                        172 => octets[1] >= 16 && octets[1] <= 31,
+                        192 => octets[1] == 168,
+                        _ => false,
+                    };
+                }
 
             case System.Net.Sockets.AddressFamily.InterNetworkV6:
-            {
-                Span<byte> bytes = stackalloc byte[16];
-                if (!address.TryWriteBytes(bytes, out _))
                 {
-                    return false;
-                }
+                    Span<byte> bytes = stackalloc byte[16];
+                    if (!address.TryWriteBytes(bytes, out _))
+                    {
+                        return false;
+                    }
 
-                // fc00::/7 — IPv6 unique-local.
-                return (bytes[0] & 0xFE) == 0xFC;
-            }
+                    // fc00::/7 — IPv6 unique-local.
+                    return (bytes[0] & 0xFE) == 0xFC;
+                }
 
             default:
                 return false;

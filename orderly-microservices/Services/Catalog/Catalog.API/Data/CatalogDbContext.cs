@@ -172,7 +172,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             // Indexes
             entity.HasIndex(r => r.BrandId);
             entity.HasIndex(r => r.IsActive);
-            
+
             // Seed
             var acmeRestaurant = new Restaurant
             {

@@ -55,11 +55,14 @@ else {
     )
 
     if ($Quick) {
-        # Exclude integration tests (slow) and enable parallelism
+        # Exclude integration tests (slow) and enable parallelism. --maxcpucount:4
+        # uses the colon-separated form (single argument) — the space-separated
+        # form `--maxcpucount 4` (two args) gets mis-parsed by MSBuild 10.0.400+
+        # inside a response file, surfacing as "MSB1008: Sólo puede especificarse
+        # un proyecto." with `4` mistakenly treated as a project path.
         $testArgs += "--filter"
         $testArgs += "FullyQualifiedName!~Integration"
-        $testArgs += "--maxcpucount"
-        $testArgs += "4"
+        $testArgs += "--maxcpucount:4"
     }
 
     dotnet test "orderly-microservices/orderly-microservices.slnx" @testArgs
@@ -345,7 +348,15 @@ if ($LASTEXITCODE) { throw "❌ OpenAPI spec lint failed" }
 #    sum(valid), NOT mean of per-project rates — see plan §9 Phase 4
 #    decisions.
 # ----------------------------------------------------------------
-if ($PreCommit) {
+if ($PreCommit -or $Quick) {
+    # Coverage gate is HARD-SKIPPED under -Quick per check-coverage.ps1's
+    # docstring ("Coverage parsing is meaningless when tests have not
+    # produced Cobertura files, and a stale `TestResults/` directory would
+    # give a misleading pass/fail."). -Quick does not pass
+    # `--collect:"XPlat Code Coverage"` to `dotnet test`, so the gate would
+    # either fail on stale data from a prior full run or report a meaningless
+    # aggregate. Only the full (non-Quick, non-PreCommit) run produces fresh
+    # Cobertura and enforces the 80% threshold.
     Write-Skipped "🧪 Coverage gate"
 }
 else {

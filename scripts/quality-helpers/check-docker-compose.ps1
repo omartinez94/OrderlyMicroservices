@@ -80,8 +80,13 @@ $script:DurationPattern = '^\d+(\.\d+)?(s|m)$'
 # > policy). Adding an entry here without fixing the underlying service is
 # > the exact regression the gate exists to prevent.
 $script:AllowedWithoutHealthcheck = @{
-    # Currently empty. Future entries go here with a written rationale —
-    # e.g. a job-runner service that is `restart: on-failure` and exits 0.
+    # otel-collector: the otel/opentelemetry-collector-contrib image is stripped
+    # of shell utilities (no wget/curl/nc), so any HTTP probe fails with
+    # "executable file not found". No service depends on it via condition:
+    # service_healthy, and the collector's own runtime logs every export
+    # failure at info level (docker logs otel-collector is the de facto probe).
+    # Documented at orderly-microservices/docker-compose.yml around line 263.
+    'otel-collector' = 'otel/opentelemetry-collector-contrib image has no shell utilities; no service depends_on it via service_healthy.'
 }
 
 # ----------------------------------------------------------------

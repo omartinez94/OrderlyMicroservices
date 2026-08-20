@@ -15,13 +15,13 @@ public static class TestDataSeeder
         // Using reflection to bypass compile errors if CatalogDbContext is internal
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
         if (dbType == null) return Guid.NewGuid();
-        
+
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 
         dynamic brand = Activator.CreateInstance(Type.GetType("Catalog.API.Brand, Catalog.API")!);
         brand.Name = "Integration Test Brand";
         brand.Description = "Seeded brand";
-        
+
         db.Brands.Add(brand);
         await db.SaveChangesAsync();
         return brand.Id;
@@ -32,7 +32,7 @@ public static class TestDataSeeder
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
         if (dbType == null) return Guid.NewGuid();
-        
+
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
         var id = brandId ?? await SeedBrandAsync(factory);
 
@@ -45,7 +45,7 @@ public static class TestDataSeeder
         restaurant.Currency = "MXN";
         restaurant.TimeZone = "UTC";
         restaurant.BrandId = id;
-        
+
         db.Restaurants.Add(restaurant);
         await db.SaveChangesAsync();
         return restaurant.Id;
@@ -56,7 +56,7 @@ public static class TestDataSeeder
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
         if (dbType == null) return Guid.NewGuid();
-        
+
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 
         dynamic item = Activator.CreateInstance(Type.GetType("Catalog.API.MenuItem, Catalog.API")!);
@@ -66,25 +66,25 @@ public static class TestDataSeeder
         item.BasePrice = 100m;
         item.ImageUrl = "http://example.local/img.png";
         item.IsAvailable = true;
-        
+
         db.MenuItems.Add(item);
         await db.SaveChangesAsync();
         return item.Id;
     }
-    
+
     public static async Task<Guid> SeedMenuCategoryAsync(OrderlyTestFactory<Program> factory, Guid restaurantId)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
         if (dbType == null) return Guid.NewGuid();
-        
+
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 
         dynamic category = Activator.CreateInstance(Type.GetType("Catalog.API.MenuCategory, Catalog.API")!);
         category.RestaurantId = restaurantId;
         category.Name = "Test Category";
         category.Description = "seeded";
-        
+
         db.MenuCategories.Add(category);
         await db.SaveChangesAsync();
         return category.Id;

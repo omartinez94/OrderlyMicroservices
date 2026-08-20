@@ -8,7 +8,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factory)
 {
     private const string Permission = "catalog:menu_update";
-    
+
     private HttpClient AuthenticatedClient()
     {
         var client = factory.CreateClient();
@@ -23,9 +23,9 @@ public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factor
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { customerName = "Jane Doe", partySize = 3 };
-        
+
         var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/walk-in-queue", request);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -34,9 +34,9 @@ public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factor
     {
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
-        
+
         var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/walk-in-queue");
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -45,9 +45,9 @@ public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.PutAsync($"/api/v1/walk-in-queue/{id}/notify", null);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -56,9 +56,9 @@ public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.PutAsync($"/api/v1/walk-in-queue/{id}/seat", null);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -67,9 +67,9 @@ public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.DeleteAsync($"/api/v1/walk-in-queue/{id}");
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 }

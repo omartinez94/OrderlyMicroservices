@@ -8,7 +8,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
 {
     private const string Permission = "catalog:menu_update";
-    
+
     private HttpClient AuthenticatedClient()
     {
         var client = factory.CreateClient();
@@ -23,9 +23,9 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { name = "T1", capacity = 4 };
-        
+
         var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
     }
@@ -35,9 +35,9 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
     {
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
-        
+
         var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/tables");
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -49,7 +49,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var request = new { name = "T2", capacity = 2 };
         var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
-        
+
         if (location != null)
         {
             var response = await client.GetAsync(location);
@@ -65,7 +65,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var request = new { name = "T3", capacity = 2 };
         var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
-        
+
         if (location != null)
         {
             var updateRequest = new { name = "T3-Updated", capacity = 4 };
@@ -82,12 +82,12 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var request = new { name = "T4", capacity = 2 };
         var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
-        
+
         if (location != null)
         {
             var deleteResponse = await client.DeleteAsync(location);
             deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
-            
+
             var getResponse = await client.GetAsync(location);
             getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
         }

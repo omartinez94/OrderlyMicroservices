@@ -7,7 +7,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 public sealed class PriceHistoryEndpointTests(CatalogWebApplicationFactory factory)
 {
     private const string Permission = "catalog:menu_update";
-    
+
     private HttpClient AuthenticatedClient()
     {
         var client = factory.CreateClient();
@@ -21,9 +21,9 @@ public sealed class PriceHistoryEndpointTests(CatalogWebApplicationFactory facto
     {
         var client = AuthenticatedClient();
         var menuItemId = Guid.NewGuid();
-        
+
         var response = await client.GetAsync($"/api/v1/menu-items/{menuItemId}/price-history");
-        
+
         // Return codes might be 200 or 404, but not 401.
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }

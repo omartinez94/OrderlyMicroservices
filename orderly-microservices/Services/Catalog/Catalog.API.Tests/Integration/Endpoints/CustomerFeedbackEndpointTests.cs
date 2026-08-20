@@ -8,7 +8,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory factory)
 {
     private const string Permission = "catalog:menu_update";
-    
+
     private HttpClient AuthenticatedClient()
     {
         var client = factory.CreateClient();
@@ -23,9 +23,9 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { rating = 5, comment = "Great service!" };
-        
+
         var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/feedback", request);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -34,9 +34,9 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
     {
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
-        
+
         var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/feedback");
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -45,9 +45,9 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.GetAsync($"/api/v1/feedback/{id}");
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 }

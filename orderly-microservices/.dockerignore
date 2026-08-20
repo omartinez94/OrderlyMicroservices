@@ -1,7 +1,10 @@
+**/.agents
 **/.classpath
+**/.claude
 **/.dockerignore
 **/.env
 **/.git
+**/.github
 **/.gitignore
 **/.project
 **/.settings
@@ -11,6 +14,10 @@
 **/*.*proj.user
 **/*.dbmdl
 **/*.jfm
+**/*.IntegrationTests/**
+**/*.IntegrationTests.csproj
+**/*.Tests/**
+**/*.Tests.csproj
 **/azds.yaml
 **/bin
 **/charts

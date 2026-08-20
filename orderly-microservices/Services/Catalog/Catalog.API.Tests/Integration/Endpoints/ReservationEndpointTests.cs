@@ -8,7 +8,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factory)
 {
     private const string Permission = "catalog:menu_update";
-    
+
     private HttpClient AuthenticatedClient()
     {
         var client = factory.CreateClient();
@@ -23,9 +23,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { customerName = "John Doe", partySize = 2, reservationTime = DateTime.UtcNow.AddHours(2) };
-        
+
         var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/reservations", request);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -34,9 +34,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
     {
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
-        
+
         var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/reservations");
-        
+
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -45,9 +45,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.GetAsync($"/api/v1/reservations/{id}");
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -56,9 +56,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.PutAsync($"/api/v1/reservations/{id}/confirm", null);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -67,9 +67,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.PutAsync($"/api/v1/reservations/{id}/seat", null);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 
@@ -78,9 +78,9 @@ public sealed class ReservationEndpointTests(CatalogWebApplicationFactory factor
     {
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
-        
+
         var response = await client.PutAsync($"/api/v1/reservations/{id}/cancel", null);
-        
+
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
 }

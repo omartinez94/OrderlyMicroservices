@@ -215,6 +215,7 @@ services:
       # identity.api DataSeeder succeeds; the prod override must set a
       # strong value via env or .env.
       - M2M__ClientSecret=${M2M__ClientSecret:-dev-only-m2m-secret-rotate-in-prod}
+
     ports:
       - "6007:8080"
       - "6067:8081"

@@ -60,6 +60,7 @@ services:
       - OpenIddict__SigningCertificatePassword=${PROD_IDENTITY_CERT_PASSWORD:-changeit-please}
       - OpenIddict__EncryptionCertificatePath=/etc/openiddict/identity.pfx
       - OpenIddict__EncryptionCertificatePassword=${PROD_IDENTITY_CERT_PASSWORD:-changeit-please}
+
     volumes:
       - prod-certs-data:/etc/openiddict:ro
 

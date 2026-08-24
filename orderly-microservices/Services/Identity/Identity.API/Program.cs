@@ -83,6 +83,8 @@ builder.Services.AddIdentityDbContext(builder.Configuration);
 builder.Services.AddOpenIddictServer(builder.Configuration, builder.Environment);
 builder.Services.AddAuthorizationServices();
 
+
+
 // MediatR ISender / IPublisher must be registered in DI for the
 // minimal-API parameter binding in every Carter module to resolve
 // `ISender sender`. Identity.API ships Carter modules that all take
@@ -163,15 +165,22 @@ builder.Services.AddRateLimiter(options =>
     });
 
     options.AddPolicy(RateLimitPolicies.Auth, context =>
-        rateLimitingEnabled
-            ? RateLimitPartition.GetFixedWindowLimiter(
-                partitionKey: RateLimitPolicies.ClientPartitionKey(context),
-                factory: _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = authPermitLimit,
-                    Window = TimeSpan.FromMinutes(authWindowMinutes)
-                })
-            : RateLimitPartition.GetNoLimiter<string>("unlimited"));
+    {
+        if (!rateLimitingEnabled)
+        {
+            return RateLimitPartition.GetNoLimiter<string>("unlimited");
+        }
+
+
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: RateLimitPolicies.ClientPartitionKey(context),
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = authPermitLimit,
+                Window = TimeSpan.FromMinutes(authWindowMinutes)
+            });
+    });
 });
 
 static bool IsHealthProbe(PathString path) =>

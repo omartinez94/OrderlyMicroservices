@@ -4,7 +4,7 @@ public class AssignRestaurantsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users");
+        var group = app.MapGroup("/users");
 
         group.MapPut("{id:guid}/restaurants", async (
                 Guid id,

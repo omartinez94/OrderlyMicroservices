@@ -83,15 +83,46 @@ public static class OpenIddictServerExtensions
                     RegisterProductionCertificate(options, configuration, EncryptionCertificatePathKey, EncryptionCertificatePasswordKey, isEncryption: true);
                 }
 
-                // UseAspNetCore wires Kestrel/HTTPS handling. Per Phase 2 we
-                // drop DisableTransportSecurityRequirement() so the
-                // authorization_code and refresh_token grant types cannot
-                // travel over plain HTTP outside Development. In Development
-                // the Kestrel certificate (ASPNETCORE_Kestrel__Certificates__Default__Path)
-                // makes HTTPS available so the token endpoint still works.
-                options.UseAspNetCore()
-                    .EnableAuthorizationEndpointPassthrough()
-                    .EnableTokenEndpointPassthrough();
+                // UseAspNetCore wires Kestrel/HTTPS handling.
+                //
+                // Non-Development (Production/Staging): HTTPS is enforced
+                // by OpenIddict's transport security requirement, so the
+                // authorization_code + refresh_token grant types cannot
+                // travel over plain HTTP. In Development: the docker
+                // gateway forwards /identity-api → http://identity.api:8080
+                // (plain HTTP — see yarpapigateway's `identity-cluster`
+                // in appsettings.json), and the internal /api/auth/login →
+                // /connect/token forward (LoginModule.cs) is also HTTP.
+                // Requiring HTTPS end-to-end inside the dev compose would
+                // force every developer to either trust the dev cert or
+                // stand up TLS termination in the gateway. Production
+                // posture below stays locked — see the non-Development
+                // branch.
+                if (environment.IsDevelopment())
+                {
+                    // /api/auth/login + /connect/token's password grant are
+                    // designed for end-user login (the user IS the
+                    // authenticator, not a client). Neither seeded client
+                    // (orderly-spa — public + PKCE; orderly-service-bus —
+                    // M2M + confidential) has the GrantTypes.Password
+                    // permission, and shipping client credentials through
+                    // a public login endpoint would be a regression.
+                    // AcceptAnonymousClients lets the password grant
+                    // proceed without a client_id. Production posture
+                    // below stays strict — clients must authenticate.
+                    options.AcceptAnonymousClients();
+
+                    options.UseAspNetCore()
+                        .EnableAuthorizationEndpointPassthrough()
+                        .EnableTokenEndpointPassthrough()
+                        .DisableTransportSecurityRequirement();
+                }
+                else
+                {
+                    options.UseAspNetCore()
+                        .EnableAuthorizationEndpointPassthrough()
+                        .EnableTokenEndpointPassthrough();
+                }
             })
             .AddValidation(options =>
             {

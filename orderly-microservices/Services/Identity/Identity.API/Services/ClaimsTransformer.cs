@@ -18,6 +18,17 @@ public class ClaimsTransformer(IdentityDbContext dbContext)
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString()),
+            // OpenIddict requires the `sub` claim by that exact type for
+            // its sign-in handler; ASP.NET Core's ClaimTypes.NameIdentifier
+            // alias isn't auto-mapped. Without this, Results.SignIn
+            // throws InvalidOperationException ("the mandatory subject
+            // claim was missing") at /connect/token (TokenModule.cs:62)
+            // and would have done the same at the pre-fix /api/auth/login.
+            // The canonical pattern (kevinchalet.com/2023/10/04) copies
+            // NameIdentifier → sub via an OpenIddict ProcessSignInContext
+            // handler; doing it directly here keeps the transformer as
+            // the single source of truth for the principal's claims.
+            new(OpenIddictConstants.Claims.Subject, userId.ToString()),
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(ClaimTypes.Name, $"{user.FirstName} {user.LastName}"),
             new("firstName", user.FirstName),

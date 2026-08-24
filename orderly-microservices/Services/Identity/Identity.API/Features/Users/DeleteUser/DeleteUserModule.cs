@@ -4,7 +4,7 @@ public class DeleteUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users");
+        var group = app.MapGroup("/users");
 
         group.MapDelete("{id:guid}", async (
                 Guid id,

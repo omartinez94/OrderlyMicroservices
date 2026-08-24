@@ -4,7 +4,7 @@ public class UpdateUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users");
+        var group = app.MapGroup("/users");
 
         group.MapPut("{id:guid}", async (
                 Guid id,

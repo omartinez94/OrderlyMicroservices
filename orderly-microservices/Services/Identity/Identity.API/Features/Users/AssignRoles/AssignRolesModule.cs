@@ -4,7 +4,7 @@ public class AssignRolesModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/users");
+        var group = app.MapGroup("/users");
 
         group.MapPut("{id:guid}/roles", async (
                 Guid id,

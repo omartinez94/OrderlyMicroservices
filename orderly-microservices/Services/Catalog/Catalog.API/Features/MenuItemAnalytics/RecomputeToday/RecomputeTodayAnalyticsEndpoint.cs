@@ -6,7 +6,7 @@ public class RecomputeTodayAnalyticsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemAnalytics");
+        var group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
 
         group.MapPost("/restaurants/{restaurantId}/analytics/menu-items/recompute-today", async (
             Guid restaurantId,

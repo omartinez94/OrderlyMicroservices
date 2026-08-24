@@ -46,7 +46,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task CreateOrder_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PostAsJsonAsync("/api/v1/orders", new { order = new { } }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/orders", new { order = new { } }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -55,7 +55,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     {
         // Caller has the read permission but not the write permission.
         var client = AuthenticatedClient(OrdersViewOwnPermission);
-        var resp = await client.PostAsJsonAsync("/api/v1/orders", new { order = new { } }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/orders", new { order = new { } }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -64,7 +64,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     {
         // Status may be 201, 400, or 500 — but NOT 401 / 403.
         var client = AuthenticatedClient(OrdersWritePermission);
-        var resp = await client.PostAsJsonAsync("/api/v1/orders", new { order = new { } }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/orders", new { order = new { } }, JsonOptions);
         ((int)resp.StatusCode).Should().NotBe(401, "auth must admit the call when orders:write is granted");
         ((int)resp.StatusCode).Should().NotBe(403, "auth must admit the call when orders:write is granted");
     }
@@ -73,7 +73,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task UpdateOrder_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PutAsJsonAsync("/api/v1/orders", new { order = new { } }, JsonOptions);
+        var resp = await client.PutAsJsonAsync("/v1/orders", new { order = new { } }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -81,7 +81,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task UpdateOrder_WithPermission_NotAuthError()
     {
         var client = AuthenticatedClient(OrdersWritePermission);
-        var resp = await client.PutAsJsonAsync("/api/v1/orders", new { order = new { } }, JsonOptions);
+        var resp = await client.PutAsJsonAsync("/v1/orders", new { order = new { } }, JsonOptions);
         ((int)resp.StatusCode).Should().NotBe(401);
         ((int)resp.StatusCode).Should().NotBe(403);
     }
@@ -90,7 +90,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task DeleteOrder_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.DeleteAsync($"/api/v1/orders/{Guid.NewGuid()}");
+        var resp = await client.DeleteAsync($"/v1/orders/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -100,7 +100,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrders_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/v1/orders");
+        var resp = await client.GetAsync("/v1/orders");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -108,7 +108,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrders_WithPermission_NotAuthError()
     {
         var client = AuthenticatedClient(OrdersViewOwnPermission);
-        var resp = await client.GetAsync("/api/v1/orders");
+        var resp = await client.GetAsync("/v1/orders");
         ((int)resp.StatusCode).Should().NotBe(401);
         ((int)resp.StatusCode).Should().NotBe(403);
     }
@@ -117,7 +117,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrderById_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/v1/orders/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -125,7 +125,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrdersByCustomer_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync($"/api/v1/orders/customer/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/v1/orders/customer/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -133,7 +133,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrderById_WithPermission_NotAuthError()
     {
         var client = AuthenticatedClient(OrdersViewOwnPermission);
-        var resp = await client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/v1/orders/{Guid.NewGuid()}");
         ((int)resp.StatusCode).Should().NotBe(401);
         ((int)resp.StatusCode).Should().NotBe(403);
     }
@@ -142,7 +142,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
     public async Task GetOrdersByCustomer_WithPermission_NotAuthError()
     {
         var client = AuthenticatedClient(OrdersViewOwnPermission);
-        var resp = await client.GetAsync($"/api/v1/orders/customer/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/v1/orders/customer/{Guid.NewGuid()}");
         ((int)resp.StatusCode).Should().NotBe(401);
         ((int)resp.StatusCode).Should().NotBe(403);
     }
@@ -156,7 +156,7 @@ public sealed class OrderingAuthorizationEnforcementTests(OrderingWebApplication
         // the read permission — a write-only token must NOT be able
         // to list orders. The two permissions are independent.
         var client = AuthenticatedClient(OrdersWritePermission);
-        var resp = await client.GetAsync("/api/v1/orders");
+        var resp = await client.GetAsync("/v1/orders");
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden,
             "orders:write and orders:view_own are independent permissions");
     }

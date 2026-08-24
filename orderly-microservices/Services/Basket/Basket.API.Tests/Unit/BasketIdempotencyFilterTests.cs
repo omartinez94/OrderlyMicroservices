@@ -335,7 +335,7 @@ public sealed class BasketIdempotencyFilterTests
     {
         var http = new DefaultHttpContext();
         http.Request.Method = "POST";
-        http.Request.Path = "/api/v1/cart/checkout";
+        http.Request.Path = "/v1/cart/checkout";
         http.Request.ContentType = "application/json";
         if (idempotencyKey is not null)
         {

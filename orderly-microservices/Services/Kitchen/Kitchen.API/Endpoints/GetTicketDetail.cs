@@ -1,14 +1,14 @@
 namespace Kitchen.API.Endpoints;
 
 /// <summary>
-/// <c>GET /api/v1/kitchen/tickets/{id}</c> — single ticket with items.
+/// <c>GET /v1/kitchen/tickets/{id}</c> — single ticket with items.
 /// Returns 404 via <c>KitchenTicketNotFoundException</c> when the id is unknown.
 /// </summary>
 public class GetTicketDetail : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/kitchen/tickets/{id:guid}", async (
+        app.MapGet("/v1/kitchen/tickets/{id:guid}", async (
             Guid id,
             ISender sender,
             CancellationToken cancellationToken) =>

@@ -34,7 +34,7 @@ public class AdminCartEndpoints : ICarterModule
             .RequireAuthorization("Default")
             .RequirePermission("orders:admin");
 
-        // GET /api/v1/admin/carts — paged list of baskets in the
+        // GET /v1/admin/carts — paged list of baskets in the
         // active tenant. The Marten query is tenant-filtered via
         // `MultiTenanted()` + the JWT-derived
         // `ICurrentRestaurantProvider` filter.
@@ -57,7 +57,7 @@ public class AdminCartEndpoints : ICarterModule
         .WithSummary("List carts in the active tenant (admin)")
         .WithDescription("RestaurantSupportAgent tooling. Requires `orders:admin`.");
 
-        // PUT /api/v1/admin/carts/{userId} — upsert. The body is
+        // PUT /v1/admin/carts/{userId} — upsert. The body is
         // the same `Models.Basket` shape as the user-facing PUT;
         // the URL `userId` is the target cart's owner. The
         // handler records an audit row before the upsert commits.
@@ -83,7 +83,7 @@ public class AdminCartEndpoints : ICarterModule
                 restaurantId), cancellationToken);
 
             return result.IsCreated
-                ? Results.Created($"/api/v1/cart", result)
+                ? Results.Created($"/v1/cart", result)
                 : Results.Ok(result);
         })
         .WithName("UpsertAdminCart")
@@ -96,7 +96,7 @@ public class AdminCartEndpoints : ICarterModule
         .WithDescription("RestaurantSupportAgent tooling. Requires `orders:admin`. " +
                          "Writes a `BasketAuditLogEntry` (action=`AdminUpsert`) before the upsert commits.");
 
-        // DELETE /api/v1/admin/carts/{userId} — delete. Idempotent
+        // DELETE /v1/admin/carts/{userId} — delete. Idempotent
         // (returns 204 regardless of whether the cart existed).
         // Audit row written on every invocation.
         admin.MapDelete("/carts/{userId:guid}", async (

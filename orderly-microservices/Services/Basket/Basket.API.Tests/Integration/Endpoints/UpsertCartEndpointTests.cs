@@ -1,7 +1,7 @@
 namespace Basket.API.Tests.Integration.Endpoints;
 
 /// <summary>
-/// End-to-end HTTP contract tests for <c>PUT /api/v1/cart</c>.
+/// End-to-end HTTP contract tests for <c>PUT /v1/cart</c>.
 /// Locks the §0.4.3 (201 Created on new cart + Location header / 200
 /// OK on existing cart), §0.4.10 (spoofing-footgun: body
 /// <c>UserId</c> / <c>RestaurantId</c> MUST be <see cref="Guid.Empty"/>
@@ -48,7 +48,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var basket = NewEmptyBasket();
 
         // Act — NodaTime-aware JSON content; see xmldoc above.
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };
@@ -56,9 +56,9 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created,
-            "§0.4.3: a new cart PUT returns 201 Created + Location: /api/v1/cart");
+            "§0.4.3: a new cart PUT returns 201 Created + Location: /v1/cart");
         response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().EndWith("/api/v1/cart");
+        response.Headers.Location!.ToString().Should().EndWith("/v1/cart");
 
         var body = await response.Content.ReadFromJsonAsync<StoreBasketResponse>();
         body.Should().NotBeNull();
@@ -79,7 +79,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var basket = NewEmptyBasket();
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };
@@ -117,7 +117,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         basket.UserId = Guid.NewGuid(); // spoofing attempt — endpoint overwrites
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };
@@ -148,7 +148,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         basket.RestaurantId = Guid.NewGuid(); // spoofing attempt
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };
@@ -171,7 +171,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         var basket = NewEmptyBasket();
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };
@@ -200,7 +200,7 @@ public sealed class UpsertCartEndpointTests(BasketWebApplicationFactory factory)
         });
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/v1/cart")
+        var request = new HttpRequestMessage(HttpMethod.Put, "/v1/cart")
         {
             Content = NodaTimeJson.CreateContent(basket),
         };

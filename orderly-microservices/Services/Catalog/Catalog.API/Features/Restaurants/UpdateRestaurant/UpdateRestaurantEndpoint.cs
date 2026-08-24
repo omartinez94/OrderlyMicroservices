@@ -21,7 +21,7 @@ public class UpdateRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Restaurants");
+        var group = app.MapGroup("/v1").WithTags("Restaurants");
 
         group.MapPut("/restaurants/{id}", async (Guid id, UpdateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {

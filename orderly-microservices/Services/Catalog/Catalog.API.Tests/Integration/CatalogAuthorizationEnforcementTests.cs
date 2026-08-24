@@ -63,7 +63,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task CreateRestaurant_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PostAsJsonAsync("/api/v1/restaurants", new { name = "x" }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/restaurants", new { name = "x" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -71,7 +71,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task CreateRestaurant_WrongPermission_Returns403()
     {
         var client = AuthenticatedClient("catalog:read");
-        var resp = await client.PostAsJsonAsync("/api/v1/restaurants", new { name = "x" }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/restaurants", new { name = "x" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -82,7 +82,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
         // transient) — but NOT 401 / 403. The auth gate must let
         // the call through.
         var client = AuthenticatedClient(CatalogMenuUpdatePermission);
-        var resp = await client.PostAsJsonAsync("/api/v1/restaurants",
+        var resp = await client.PostAsJsonAsync("/v1/restaurants",
             new
             {
                 brandId = Guid.NewGuid(),
@@ -106,7 +106,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task UpdateRestaurant_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PutAsJsonAsync($"/api/v1/restaurants/{Guid.NewGuid()}", new { id = Guid.NewGuid() }, JsonOptions);
+        var resp = await client.PutAsJsonAsync($"/v1/restaurants/{Guid.NewGuid()}", new { id = Guid.NewGuid() }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -114,7 +114,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task DeleteRestaurant_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.DeleteAsync($"/api/v1/restaurants/{Guid.NewGuid()}");
+        var resp = await client.DeleteAsync($"/v1/restaurants/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -124,7 +124,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task CreateBrand_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PostAsJsonAsync("/api/v1/brands", new { name = "x" }, JsonOptions);
+        var resp = await client.PostAsJsonAsync("/v1/brands", new { name = "x" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -132,7 +132,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task CreateBrand_WithPermission_NotAuthError()
     {
         var client = AuthenticatedClient(CatalogMenuUpdatePermission);
-        var resp = await client.PostAsJsonAsync("/api/v1/brands",
+        var resp = await client.PostAsJsonAsync("/v1/brands",
             new
             {
                 name = "Test",
@@ -152,7 +152,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task UpdateBrand_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PutAsJsonAsync($"/api/v1/brands/{Guid.NewGuid()}", new { name = "x" }, JsonOptions);
+        var resp = await client.PutAsJsonAsync($"/v1/brands/{Guid.NewGuid()}", new { name = "x" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -160,7 +160,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task DeleteBrand_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.DeleteAsync($"/api/v1/brands/{Guid.NewGuid()}");
+        var resp = await client.DeleteAsync($"/v1/brands/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -171,7 +171,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     {
         var client = AnonymousClient();
         var resp = await client.PostAsJsonAsync(
-            $"/api/v1/restaurants/{Guid.NewGuid()}/menu-categories",
+            $"/v1/restaurants/{Guid.NewGuid()}/menu-categories",
             new { name = "x", description = "y", displayOrder = 0 },
             JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -181,7 +181,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task UpdateMenuCategory_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PutAsJsonAsync("/api/v1/menu-categories/1", new { name = "x" }, JsonOptions);
+        var resp = await client.PutAsJsonAsync("/v1/menu-categories/1", new { name = "x" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -189,7 +189,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task DeleteMenuCategory_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.DeleteAsync("/api/v1/menu-categories/1");
+        var resp = await client.DeleteAsync("/v1/menu-categories/1");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -200,7 +200,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     {
         var client = AnonymousClient();
         var resp = await client.PostAsJsonAsync(
-            $"/api/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads",
+            $"/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads",
             new { fileName = "x.csv", rows = Array.Empty<object>() },
             JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -211,7 +211,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     {
         var client = AnonymousClient();
         var resp = await client.PostAsync(
-            $"/api/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads/1/approve",
+            $"/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads/1/approve",
             content: null);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -221,7 +221,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     {
         var client = AnonymousClient();
         var resp = await client.PostAsJsonAsync(
-            $"/api/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads/1/reject",
+            $"/v1/restaurants/{Guid.NewGuid()}/bulk-order-uploads/1/reject",
             new { reason = "x" },
             JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -233,7 +233,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task GetRestaurants_NoAuth_StaysPublic()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/v1/restaurants");
+        var resp = await client.GetAsync("/v1/restaurants");
         ((int)resp.StatusCode).Should().NotBe(401, "GET /restaurants is public per the plan");
         ((int)resp.StatusCode).Should().NotBe(403, "GET /restaurants is public per the plan");
     }
@@ -242,7 +242,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
     public async Task GetBrands_NoAuth_StaysPublic()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/v1/brands");
+        var resp = await client.GetAsync("/v1/brands");
         ((int)resp.StatusCode).Should().NotBe(401);
         ((int)resp.StatusCode).Should().NotBe(403);
     }

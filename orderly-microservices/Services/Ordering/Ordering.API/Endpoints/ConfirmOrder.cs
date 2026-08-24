@@ -3,7 +3,7 @@ using Ordering.Application.Orders.Commands.ConfirmOrder;
 namespace Ordering.API.Endpoints;
 
 /// <summary>
-/// <c>POST /api/v1/orders/{id}/confirm</c> — drive an order from
+/// <c>POST /v1/orders/{id}/confirm</c> — drive an order from
 /// <c>Pending</c> to <c>Confirmed</c>. Returns 204 on success; 404 when
 /// the order is unknown; 409 on illegal transition (e.g. already
 /// <c>Confirmed</c>).
@@ -12,7 +12,7 @@ public class ConfirmOrder : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGroup("/api/v1").WithTags("Kitchen")
+        app.MapGroup("/v1").WithTags("Kitchen")
             .MapPost("/orders/{id:guid}/confirm", async (
                 Guid id,
                 ISender sender,

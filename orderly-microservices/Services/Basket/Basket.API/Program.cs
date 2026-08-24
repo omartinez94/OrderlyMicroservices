@@ -110,7 +110,7 @@ builder.Services.AddMarten(opt =>
 
     // Audit log table for the admin endpoints. Per-tenant
     // partitioning + (RestaurantId, OccurredAt) index shape
-    // supports the paged audit query on `GET /api/v1/admin/audit`
+    // supports the paged audit query on `GET /v1/admin/audit`
     // (planned; not part of the Phase 4 admin-carts surface).
     opt.Schema.For<BasketAuditLogEntry>().MultiTenanted();
 })
@@ -254,7 +254,7 @@ builder.Services.AddSingleton<Basket.API.Services.IBasketExpirySweepRunner>(sp =
 // per write (mirrors the sweep service's scope-per-tick pattern).
 builder.Services.AddSingleton<Basket.API.Audit.IBasketAuditLog, Basket.API.Audit.MartenBasketAuditLog>();
 
-// Idempotency-Key filter on POST /api/v1/cart/checkout.
+// Idempotency-Key filter on POST /v1/cart/checkout.
 // Mirrors Discount.Grpc's IIdempotencyKeyProvider shape but reads
 // Basket:Idempotency:SecretHex (separate from Discount's secret —
 // sharing the secret would let a Discount-cache-poisoning bug bleed
@@ -269,7 +269,7 @@ builder.Services
 builder.Services.AddSingleton<IBasketIdempotencyKeyProvider, BasketIdempotencyKeyProvider>();
 builder.Services.AddScoped<BasketIdempotencyFilter>();
 
-// Rate limiter on POST /api/v1/cart/checkout (the only
+// Rate limiter on POST /v1/cart/checkout (the only
 // "spend money" surface). Fixed-window policy keyed on
 // (userId, restaurantId) so a single user can't burst-charge across
 // different restaurants, and a restaurant-wide scraper can't burst

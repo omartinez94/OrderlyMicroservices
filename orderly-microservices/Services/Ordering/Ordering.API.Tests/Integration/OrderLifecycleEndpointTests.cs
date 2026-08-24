@@ -112,22 +112,22 @@ public sealed class OrderLifecycleEndpointTests
         var orderId = await SeedPendingOrderAsync();
 
         // Pending → Confirmed
-        var confirm = await client.PostAsync($"/api/v1/orders/{orderId}/confirm", content: null);
+        var confirm = await client.PostAsync($"/v1/orders/{orderId}/confirm", content: null);
         confirm.StatusCode.Should().Be(HttpStatusCode.NoContent,
             $"confirm body: {await confirm.Content.ReadAsStringAsync()}");
 
         // Confirmed → Preparing
-        var startPrep = await client.PostAsync($"/api/v1/orders/{orderId}/start-prep", content: null);
+        var startPrep = await client.PostAsync($"/v1/orders/{orderId}/start-prep", content: null);
         startPrep.StatusCode.Should().Be(HttpStatusCode.NoContent,
             $"start-prep body: {await startPrep.Content.ReadAsStringAsync()}");
 
         // Preparing → Ready
-        var markReady = await client.PostAsync($"/api/v1/orders/{orderId}/mark-ready", content: null);
+        var markReady = await client.PostAsync($"/v1/orders/{orderId}/mark-ready", content: null);
         markReady.StatusCode.Should().Be(HttpStatusCode.NoContent,
             $"mark-ready body: {await markReady.Content.ReadAsStringAsync()}");
 
         // Ready → Delivered
-        var markDelivered = await client.PostAsync($"/api/v1/orders/{orderId}/mark-delivered", content: null);
+        var markDelivered = await client.PostAsync($"/v1/orders/{orderId}/mark-delivered", content: null);
         markDelivered.StatusCode.Should().Be(HttpStatusCode.NoContent,
             $"mark-delivered body: {await markDelivered.Content.ReadAsStringAsync()}");
     }
@@ -150,7 +150,7 @@ public sealed class OrderLifecycleEndpointTests
         }
 
         var client = NewKitchenClient();
-        var response = await client.PostAsync($"/api/v1/orders/{orderId}/mark-delivered", content: null);
+        var response = await client.PostAsync($"/v1/orders/{orderId}/mark-delivered", content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -163,7 +163,7 @@ public sealed class OrderLifecycleEndpointTests
 
         var client = NewKitchenClient();
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/orders/{orderId}/cancel",
+            $"/v1/orders/{orderId}/cancel",
             new { reason = "customer requested" },
             JsonOptions);
 

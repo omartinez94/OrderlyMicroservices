@@ -5,8 +5,8 @@ namespace Ordering.API.Tests.Integration;
 
 /// <summary>
 /// End-to-end coverage for the per-item prep-state transitions:
-/// <c>POST /api/v1/orders/{id}/items/{itemId}/start-prep</c> and
-/// <c>POST /api/v1/orders/{id}/items/{itemId}/mark-ready</c>.
+/// <c>POST /v1/orders/{id}/items/{itemId}/start-prep</c> and
+/// <c>POST /v1/orders/{id}/items/{itemId}/mark-ready</c>.
 /// </summary>
 /// <remarks>
 /// Per <c>.agents/plan/testing/E2E_TEST_COVERAGE_PLAN.md</c> §6.3:
@@ -93,7 +93,7 @@ public sealed class ItemTransitionEndpointTests
         var (orderId, itemId) = await SeedOrderWithItemAsync(PrepStatus.Pending);
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{orderId}/items/{itemId}/start-prep",
+            $"/v1/orders/{orderId}/items/{itemId}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent,
@@ -107,7 +107,7 @@ public sealed class ItemTransitionEndpointTests
         var (orderId, itemId) = await SeedOrderWithItemAsync(PrepStatus.Preparing);
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{orderId}/items/{itemId}/mark-ready",
+            $"/v1/orders/{orderId}/items/{itemId}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent,
@@ -127,7 +127,7 @@ public sealed class ItemTransitionEndpointTests
         var (orderId, itemId) = await SeedOrderWithItemAsync(PrepStatus.Preparing);
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{orderId}/items/{itemId}/start-prep",
+            $"/v1/orders/{orderId}/items/{itemId}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict,
@@ -144,7 +144,7 @@ public sealed class ItemTransitionEndpointTests
         var (orderId, itemId) = await SeedOrderWithItemAsync(PrepStatus.Pending);
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{orderId}/items/{itemId}/mark-ready",
+            $"/v1/orders/{orderId}/items/{itemId}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict,

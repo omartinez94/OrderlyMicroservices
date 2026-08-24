@@ -9,8 +9,8 @@ public class GetBasketEndpoints : ICarterModule
         var group = app.MapBasketGroup();
 
         // `[DEPRECATED]`
-        // `/api/v1/baskets/{userId}/{restaurantId}` shim is removed.
-        // The only route is the token-bound `/api/v1/cart`. The
+        // `/v1/baskets/{userId}/{restaurantId}` shim is removed.
+        // The only route is the token-bound `/v1/cart`. The
         // handler returns 200 + empty-cart body when no cart exists
         // (never 404).
         group.MapGet("/cart", async (HttpContext httpContext, ISender sender, CancellationToken cancellationToken) =>

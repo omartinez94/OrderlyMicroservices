@@ -4,7 +4,7 @@ public class ListUsersModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/users");
+        var group = app.MapGroup("/v1/users");
 
         group.MapGet("", async (
                 [AsParameters] ListUsersRequest request,

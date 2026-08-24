@@ -24,7 +24,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var client = AuthenticatedClient();
         var request = new { name = "T1", capacity = 4 };
 
-        var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
+        var response = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
@@ -36,7 +36,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
 
-        var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/tables");
+        var response = await client.GetAsync($"/v1/restaurants/{restaurantId}/tables");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -47,7 +47,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { name = "T2", capacity = 2 };
-        var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
+        var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
         if (location != null)
@@ -63,7 +63,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { name = "T3", capacity = 2 };
-        var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
+        var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
         if (location != null)
@@ -80,7 +80,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
         var request = new { name = "T4", capacity = 2 };
-        var createResponse = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/tables", request);
+        var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
         if (location != null)

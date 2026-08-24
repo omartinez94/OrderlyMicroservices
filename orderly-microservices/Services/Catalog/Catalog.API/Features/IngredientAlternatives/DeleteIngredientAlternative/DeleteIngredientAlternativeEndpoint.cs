@@ -6,7 +6,7 @@ public class DeleteIngredientAlternativeEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("IngredientAlternatives");
+        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapDelete("/restaurants/{restaurantId:guid}/ingredient-alternatives/{id:int}", async (Guid restaurantId, int id, ISender sender) =>
         {

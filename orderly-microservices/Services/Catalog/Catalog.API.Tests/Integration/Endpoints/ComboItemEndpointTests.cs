@@ -17,7 +17,7 @@ public sealed class ComboItemEndpointTests(CatalogWebApplicationFactory factory)
         var request = new { Name = "Test Combo" };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/menu-items/123/combo-items", request, CancellationToken.None);
+        var response = await _client.PostAsJsonAsync("/v1/menu-items/123/combo-items", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -29,7 +29,7 @@ public sealed class ComboItemEndpointTests(CatalogWebApplicationFactory factory)
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/menu-items/123/combo-items", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/menu-items/123/combo-items", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -42,7 +42,7 @@ public sealed class ComboItemEndpointTests(CatalogWebApplicationFactory factory)
         var request = new { Name = "Updated Combo" };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/api/v1/combo-items/123", request, CancellationToken.None);
+        var response = await _client.PutAsJsonAsync("/v1/combo-items/123", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -53,7 +53,7 @@ public sealed class ComboItemEndpointTests(CatalogWebApplicationFactory factory)
     {
         // Arrange
         // Act
-        var response = await _client.DeleteAsync("/api/v1/combo-items/123", CancellationToken.None);
+        var response = await _client.DeleteAsync("/v1/combo-items/123", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);

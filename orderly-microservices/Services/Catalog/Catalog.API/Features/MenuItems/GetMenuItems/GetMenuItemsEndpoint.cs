@@ -8,7 +8,7 @@ public class GetMenuItemsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, [AsParameters] GetMenuItemsRequest request, ISender sender) =>
+        app.MapGet("/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, [AsParameters] GetMenuItemsRequest request, ISender sender) =>
         {
             var query = new GetMenuItemsQuery
             {

@@ -17,7 +17,7 @@ public class CreateReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Reservations");
+        var group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPost("/restaurants/{restaurantId}/reservations", async (Guid restaurantId, CreateReservationRequest request, ISender sender) =>
         {
@@ -25,7 +25,7 @@ public class CreateReservationEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<CreateReservationResponse>();
 
-            return Results.Created($"/api/v1/restaurants/{restaurantId}/reservations/{response.Id}", response);
+            return Results.Created($"/v1/restaurants/{restaurantId}/reservations/{response.Id}", response);
         })
         .WithDescription("Creates a new reservation.")
         .WithName("CreateReservation")

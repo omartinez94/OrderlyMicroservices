@@ -17,7 +17,7 @@ public sealed class IngredientEndpointTests(CatalogWebApplicationFactory factory
         var request = new { Name = "Test Ingredient" };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/restaurants/123/ingredients", request, CancellationToken.None);
+        var response = await _client.PostAsJsonAsync("/v1/restaurants/123/ingredients", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -29,7 +29,7 @@ public sealed class IngredientEndpointTests(CatalogWebApplicationFactory factory
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/restaurants/123/ingredients", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/restaurants/123/ingredients", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -40,7 +40,7 @@ public sealed class IngredientEndpointTests(CatalogWebApplicationFactory factory
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/ingredients/123", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/ingredients/123", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -53,7 +53,7 @@ public sealed class IngredientEndpointTests(CatalogWebApplicationFactory factory
         var request = new { Name = "Updated Ingredient" };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/api/v1/ingredients/123", request, CancellationToken.None);
+        var response = await _client.PutAsJsonAsync("/v1/ingredients/123", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -64,7 +64,7 @@ public sealed class IngredientEndpointTests(CatalogWebApplicationFactory factory
     {
         // Arrange
         // Act
-        var response = await _client.DeleteAsync("/api/v1/ingredients/123", CancellationToken.None);
+        var response = await _client.DeleteAsync("/v1/ingredients/123", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);

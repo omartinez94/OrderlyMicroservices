@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "83ddb495-1383-41e5-9a7e-e11fb40263a9",
     "name": "Orderly",
-    "description": "Complete Orderly microservices API collection.\n\n## Global Variables\n\n| Variable | Local | Docker |\n|---|---|---|\n| `catalog_url` | `http://localhost:5050` | `http://localhost:6060` |\n| `basket_url` | `http://localhost:5051` | `http://localhost:6061` |\n| `identity_url` | `http://localhost:5057` | `http://localhost:6067` |\n| `ordering_url` | `http://localhost:5053` | `http://localhost:6063` |\n\nAll endpoints are versioned under `/api/v1` where applicable.",
+    "description": "Complete Orderly microservices API collection.\n\n## Global Variables\n\n| Variable | Local | Docker |\n|---|---|---|\n| `catalog_url` | `http://localhost:5050` | `http://localhost:6060` |\n| `basket_url` | `http://localhost:5051` | `http://localhost:6061` |\n| `identity_url` | `http://localhost:5057` | `http://localhost:6067` |\n| `ordering_url` | `http://localhost:5053` | `http://localhost:6063` |\n\nAll endpoints are versioned under `/v1` where applicable.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "2750083"
   },
@@ -47,7 +47,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/restaurants",
+                  "raw": "{{catalog_url}}/v1/restaurants",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "restaurants"]
                 }
@@ -66,7 +66,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{catalog_url}}/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -94,7 +94,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/restaurants",
+                  "raw": "{{catalog_url}}/v1/restaurants",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "restaurants"]
                 }
@@ -122,7 +122,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{catalog_url}}/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -141,7 +141,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{catalog_url}}/v1/restaurants/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "restaurants", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -174,7 +174,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{catalog_url}}/api/v1/brands",
+                  "raw": "{{catalog_url}}/v1/brands",
                   "host": ["{{catalog_url}}"],
                   "path": ["api", "v1", "brands"]
                 }
@@ -219,7 +219,7 @@
               }
             ],
             "url": {
-              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "raw": "{{basket_url}}/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
               "host": ["{{basket_url}}"],
               "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
             }
@@ -247,7 +247,7 @@
               }
             },
             "url": {
-              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "raw": "{{basket_url}}/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
               "host": ["{{basket_url}}"],
               "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
             }
@@ -266,7 +266,7 @@
               }
             ],
             "url": {
-              "raw": "{{basket_url}}/api/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
+              "raw": "{{basket_url}}/v1/baskets/9fb02bf6-3b03-4b57-8c08-acc8994b3063/c95621a8-1640-494a-bc20-849a2abf4ceb",
               "host": ["{{basket_url}}"],
               "path": ["api", "v1", "baskets", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
             }
@@ -294,7 +294,7 @@
               }
             },
             "url": {
-              "raw": "{{basket_url}}/api/v1/baskets/checkout",
+              "raw": "{{basket_url}}/v1/baskets/checkout",
               "host": ["{{basket_url}}"],
               "path": ["api", "v1", "baskets", "checkout"]
             }
@@ -349,7 +349,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/auth/register",
+                  "raw": "{{identity_url}}/v1/auth/register",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "auth", "register"]
                 }
@@ -377,7 +377,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/auth/login",
+                  "raw": "{{identity_url}}/v1/auth/login",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "auth", "login"]
                 }
@@ -396,7 +396,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/auth/logout",
+                  "raw": "{{identity_url}}/v1/auth/logout",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "auth", "logout"]
                 }
@@ -474,7 +474,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/users",
+                  "raw": "{{identity_url}}/v1/users",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users"]
                 }
@@ -493,7 +493,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{identity_url}}/v1/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -526,7 +526,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/users",
+                  "raw": "{{identity_url}}/v1/users",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users"]
                 }
@@ -559,7 +559,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{identity_url}}/v1/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -578,7 +578,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+                  "raw": "{{identity_url}}/v1/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
                 }
@@ -611,7 +611,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/roles",
+                  "raw": "{{identity_url}}/v1/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/roles",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "roles"]
                 }
@@ -644,7 +644,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/restaurants",
+                  "raw": "{{identity_url}}/v1/users/9fb02bf6-3b03-4b57-8c08-acc8994b3063/restaurants",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "users", "9fb02bf6-3b03-4b57-8c08-acc8994b3063", "restaurants"]
                 }
@@ -668,7 +668,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/roles",
+                  "raw": "{{identity_url}}/v1/roles",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "roles"]
                 }
@@ -687,7 +687,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
+                  "raw": "{{identity_url}}/v1/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
                 }
@@ -720,7 +720,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/roles",
+                  "raw": "{{identity_url}}/v1/roles",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "roles"]
                 }
@@ -753,7 +753,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
+                  "raw": "{{identity_url}}/v1/roles/c95621a8-1640-494a-bc20-849a2abf4ceb",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb"]
                 }
@@ -786,7 +786,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/roles/c95621a8-1640-494a-bc20-849a2abf4ceb/permissions",
+                  "raw": "{{identity_url}}/v1/roles/c95621a8-1640-494a-bc20-849a2abf4ceb/permissions",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "roles", "c95621a8-1640-494a-bc20-849a2abf4ceb", "permissions"]
                 }
@@ -810,7 +810,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/permissions",
+                  "raw": "{{identity_url}}/v1/permissions",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "permissions"]
                 }
@@ -818,7 +818,7 @@
               "response": []
             },
             {
-              "name": "Assign Permissions to Role (via /permissions)",
+              "name": "Assign Permissions to Role (via /v1/permissions)",
               "request": {
                 "method": "POST",
                 "header": [
@@ -843,7 +843,7 @@
                   }
                 },
                 "url": {
-                  "raw": "{{identity_url}}/api/permissions/assign-to-role",
+                  "raw": "{{identity_url}}/v1/permissions/assign-to-role",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "permissions", "assign-to-role"]
                 }
@@ -867,7 +867,7 @@
                   }
                 ],
                 "url": {
-                  "raw": "{{identity_url}}/api/audit-log?Page=1&PageSize=50",
+                  "raw": "{{identity_url}}/v1/audit-log?Page=1&PageSize=50",
                   "host": ["{{identity_url}}"],
                   "path": ["api", "audit-log"],
                   "query": [
@@ -912,7 +912,7 @@
               }
             ],
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders?PageIndex=0&PageSize=10",
+              "raw": "{{ordering_url}}/v1/orders?PageIndex=0&PageSize=10",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders"],
               "query": [
@@ -935,7 +935,7 @@
               }
             ],
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "raw": "{{ordering_url}}/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
             }
@@ -954,7 +954,7 @@
               }
             ],
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders/customer/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "raw": "{{ordering_url}}/v1/orders/customer/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders", "customer", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
             }
@@ -987,7 +987,7 @@
               }
             },
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders",
+              "raw": "{{ordering_url}}/v1/orders",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders"]
             }
@@ -1020,7 +1020,7 @@
               }
             },
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders",
+              "raw": "{{ordering_url}}/v1/orders",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders"]
             }
@@ -1039,7 +1039,7 @@
               }
             ],
             "url": {
-              "raw": "{{ordering_url}}/api/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
+              "raw": "{{ordering_url}}/v1/orders/9fb02bf6-3b03-4b57-8c08-acc8994b3063",
               "host": ["{{ordering_url}}"],
               "path": ["api", "v1", "orders", "9fb02bf6-3b03-4b57-8c08-acc8994b3063"]
             }

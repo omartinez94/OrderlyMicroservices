@@ -336,20 +336,20 @@ The following components will be added to `BuildingBlocks`:
 
 | Endpoint                          | Method | Permission                 | Description                                  |
 | --------------------------------- | ------ | -------------------------- | -------------------------------------------- |
-| `/api/auth/register`              | POST   | Public                     | Register new user                            |
-| `/api/auth/login`                 | POST   | Public                     | Login (for non-OIDC clients)                 |
-| `/api/users`                      | GET    | `users:view_all`           | List users (filtered by restaurant)          |
-| `/api/users/{id}`                 | GET    | `users:view_all`           | Get user by ID                               |
-| `/api/users`                      | POST   | `users:create`             | Create new user                              |
-| `/api/users/{id}`                 | PUT    | `users:edit`               | Update user                                  |
-| `/api/users/{id}`                 | DELETE | `users:delete`             | Delete user                                  |
-| `/api/users/{id}/roles`           | PUT    | `users:assign_roles`       | Assign roles to user                         |
-| `/api/users/{id}/restaurants`     | PUT    | `users:assign_restaurants` | Assign restaurants to user                   |
-| `/api/roles`                      | GET    | `roles:view`               | List roles                                   |
-| `/api/roles`                      | POST   | `roles:create`             | Create role                                  |
-| `/api/roles/{id}/permissions`     | PUT    | `roles:edit_permissions`   | Assign permissions to role                   |
-| `/api/permissions`                | GET    | `permissions:view`         | List all permissions                         |
-| `/api/audit-log`                  | GET    | `audit:view`               | View authentication audit log                |
+| `/v1/auth/register`               | POST   | Public                     | Register new user                            |
+| `/v1/auth/login`                  | POST   | Public                     | Login (for non-OIDC clients)                 |
+| `/v1/users`                       | GET    | `users:view_all`           | List users (filtered by restaurant)          |
+| `/v1/users/{id}`                  | GET    | `users:view_all`           | Get user by ID                               |
+| `/v1/users`                       | POST   | `users:create`             | Create new user                              |
+| `/v1/users/{id}`                  | PUT    | `users:edit`               | Update user                                  |
+| `/v1/users/{id}`                  | DELETE | `users:delete`             | Delete user                                  |
+| `/v1/users/{id}/roles`            | PUT    | `users:assign_roles`       | Assign roles to user                         |
+| `/v1/users/{id}/restaurants`      | PUT    | `users:assign_restaurants` | Assign restaurants to user                   |
+| `/v1/roles`                       | GET    | `roles:view`               | List roles                                   |
+| `/v1/roles`                       | POST   | `roles:create`             | Create role                                  |
+| `/v1/roles/{id}/permissions`      | PUT    | `roles:edit_permissions`   | Assign permissions to role                   |
+| `/v1/permissions`                 | GET    | `permissions:view`         | List all permissions                         |
+| `/v1/audit-log`                   | GET    | `audit:view`               | View authentication audit log                |
 
 ---
 

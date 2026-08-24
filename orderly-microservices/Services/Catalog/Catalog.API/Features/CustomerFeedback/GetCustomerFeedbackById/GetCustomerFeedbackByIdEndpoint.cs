@@ -11,7 +11,7 @@ public class GetCustomerFeedbackByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("CustomerFeedback");
+        var group = app.MapGroup("/v1").WithTags("CustomerFeedback");
 
         group.MapGet("/restaurants/{restaurantId}/feedback/{id:int}", async (
             Guid restaurantId,

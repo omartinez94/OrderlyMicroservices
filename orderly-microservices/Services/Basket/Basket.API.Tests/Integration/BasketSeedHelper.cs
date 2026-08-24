@@ -161,7 +161,7 @@ internal static class BasketSeedHelper
     /// <summary>
     /// Convenience for tests that need a fully-valid
     /// <see cref="BasketCheckoutDto"/> body. The DTO is what the
-    /// <c>POST /api/v1/cart/checkout</c> route binds to; the
+    /// <c>POST /v1/cart/checkout</c> route binds to; the
     /// <c>UserId</c> / <c>RestaurantId</c> properties are set to
     /// <see cref="Guid.Empty"/> because the endpoint overwrites them
     /// with the JWT-derived values before constructing the command

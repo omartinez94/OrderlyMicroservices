@@ -64,13 +64,13 @@ public sealed class OpenApiGenerationTests(BasketWebApplicationFactory factory)
         // Assert — every MapBasketGroup endpoint is present.
         var expectedRoutes = new[]
         {
-            "GET /api/v1/cart",
-            "PUT /api/v1/cart",
-            "DELETE /api/v1/cart",
-            "POST /api/v1/cart/checkout",
-            "GET /api/v1/admin/carts",
-            "PUT /api/v1/admin/carts/{userId}",
-            "DELETE /api/v1/admin/carts/{userId}",
+            "GET /v1/cart",
+            "PUT /v1/cart",
+            "DELETE /v1/cart",
+            "POST /v1/cart/checkout",
+            "GET /v1/admin/carts",
+            "PUT /v1/admin/carts/{userId}",
+            "DELETE /v1/admin/carts/{userId}",
         };
 
         var missing = expectedRoutes.Except(actualRoutes).ToList();

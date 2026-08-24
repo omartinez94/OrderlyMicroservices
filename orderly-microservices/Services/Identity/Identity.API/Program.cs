@@ -22,8 +22,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 // the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10 SDK).
 // Identity's Carter modules own their own route group without
 // `.WithTags(...)`; the operation transformer below derives tags from the
-// route's first non-prefix segment (e.g. `/api/auth/login` → "Auth",
-// `/api/roles` → "Roles"). Same transformation pattern would apply to any
+// route's first non-prefix segment (e.g. `/v1/auth/login` → "Auth",
+// `/v1/roles` → "Roles"). Same transformation pattern would apply to any
 // future service that adds Carter modules without per-endpoint tags.
 builder.Services.AddOpenApi(options =>
 {
@@ -34,8 +34,8 @@ builder.Services.AddOpenApi(options =>
             return Task.CompletedTask;
         }
 
-        // RelativePath strips the scheme + host; shape is "/api/auth/login".
-        // Strip the "/api/" prefix (if present) and take the first segment.
+        // RelativePath strips the scheme + host; shape is "/v1/auth/login".
+        // Strip the "/v1/" prefix (if present) and take the first segment.
         // Title-case + singularise-by-stripping-trailing-s so the tag
         // reads naturally in the Swagger UI (e.g. "Permissions" not
         // "Permissions").
@@ -206,7 +206,7 @@ app.MapCarter();
 // registered via MapCarter() and emits an OpenAPI 3.0 document at the
 // canonical `/openapi/v1.json` path. Tags are derived from the route's
 // first non-prefix path segment by the operation transformer registered
-// above (e.g. `/api/auth/login` → tag "Auth").
+// above (e.g. `/v1/auth/login` → tag "Auth").
 app.MapOpenApi();
 
 app.UseExceptionHandler(options => { });

@@ -4,7 +4,7 @@ public class CreateUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/users");
+        var group = app.MapGroup("/v1/users");
 
         group.MapPost("", async (
                 ISender sender,
@@ -23,7 +23,7 @@ public class CreateUserModule : ICarterModule
 
                 var response = await sender.Send(command, ct);
 
-                return Results.Created($"/users/{response.UserId}", response);
+                return Results.Created($"/v1/users/{response.UserId}", response);
             }).RequirePermission("users:create").Accepts<CreateUserRequest>("application/json")
             .Produces<CreateUserResponse>(201)
             .ProducesProblem(400)

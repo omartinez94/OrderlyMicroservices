@@ -23,7 +23,7 @@ public class ClaimsTransformer(IdentityDbContext dbContext)
             // alias isn't auto-mapped. Without this, Results.SignIn
             // throws InvalidOperationException ("the mandatory subject
             // claim was missing") at /connect/token (TokenModule.cs:62)
-            // and would have done the same at the pre-fix /api/auth/login.
+            // and would have done the same at the pre-fix /v1/auth/login.
             // The canonical pattern (kevinchalet.com/2023/10/04) copies
             // NameIdentifier → sub via an OpenIddict ProcessSignInContext
             // handler; doing it directly here keeps the transformer as

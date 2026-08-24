@@ -6,7 +6,7 @@ public class GetBrandByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Brands");
+        var group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapGet("/brands/{id}", async (Guid id, ISender sender) =>
         {

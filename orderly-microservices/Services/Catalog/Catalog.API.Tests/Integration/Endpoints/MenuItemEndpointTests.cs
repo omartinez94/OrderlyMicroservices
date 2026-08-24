@@ -31,7 +31,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var request = new { Name = "Item", BasePrice = 10m, IsAvailable = true, ItemType = 0 };
-        var response = await _client.PostAsJsonAsync($"/api/v1/restaurants/{rId}/menu-items", request);
+        var response = await _client.PostAsJsonAsync($"/v1/restaurants/{rId}/menu-items", request);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
     }
@@ -42,7 +42,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         await TestDataSeeder.SeedMenuItemAsync(_factory, rId);
-        var response = await _client.GetAsync($"/api/v1/restaurants/{rId}/menu-items");
+        var response = await _client.GetAsync($"/v1/restaurants/{rId}/menu-items");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -52,7 +52,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuItemAsync(_factory, rId);
-        var response = await _client.GetAsync($"/api/v1/menu-items/{id}");
+        var response = await _client.GetAsync($"/v1/menu-items/{id}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -63,7 +63,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuItemAsync(_factory, rId);
         var request = new { Name = "Updated Item", BasePrice = 15m, IsAvailable = false, ItemType = 0 };
-        var response = await _client.PutAsJsonAsync($"/api/v1/menu-items/{id}", request);
+        var response = await _client.PutAsJsonAsync($"/v1/menu-items/{id}", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -73,8 +73,8 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuItemAsync(_factory, rId);
-        var deleteResponse = await _client.DeleteAsync($"/api/v1/menu-items/{id}");
-        var getResponse = await _client.GetAsync($"/api/v1/menu-items/{id}");
+        var deleteResponse = await _client.DeleteAsync($"/v1/menu-items/{id}");
+        var getResponse = await _client.GetAsync($"/v1/menu-items/{id}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -84,7 +84,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
     {
         await AuthenticateAsync();
         var request = new { Name = "Item", BasePrice = 10m, IsAvailable = true, ItemType = 0 };
-        var response = await _client.PostAsJsonAsync($"/api/v1/restaurants/{Guid.NewGuid()}/menu-items", request);
+        var response = await _client.PostAsJsonAsync($"/v1/restaurants/{Guid.NewGuid()}/menu-items", request);
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -94,7 +94,7 @@ public class MenuItemEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var request = new { BasePrice = -10m };
-        var response = await _client.PostAsJsonAsync($"/api/v1/restaurants/{rId}/menu-items", request);
+        var response = await _client.PostAsJsonAsync($"/v1/restaurants/{rId}/menu-items", request);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

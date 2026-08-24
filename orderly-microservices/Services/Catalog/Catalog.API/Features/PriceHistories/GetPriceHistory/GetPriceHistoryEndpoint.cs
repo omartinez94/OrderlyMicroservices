@@ -26,7 +26,7 @@ public class GetPriceHistoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("PriceHistories");
+        var group = app.MapGroup("/v1").WithTags("PriceHistories");
 
         group.MapGet("/restaurants/{restaurantId}/price-history", async (
             Guid restaurantId,

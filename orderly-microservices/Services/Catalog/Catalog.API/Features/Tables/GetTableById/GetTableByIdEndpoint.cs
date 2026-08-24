@@ -6,7 +6,7 @@ public class GetTableByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Tables");
+        var group = app.MapGroup("/v1").WithTags("Tables");
 
         group.MapGet("/restaurants/{restaurantId}/tables/{id}", async (Guid id, ISender sender) =>
         {

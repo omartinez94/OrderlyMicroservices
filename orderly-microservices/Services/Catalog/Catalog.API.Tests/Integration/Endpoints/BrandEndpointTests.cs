@@ -33,7 +33,7 @@ public class BrandEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         var request = new { Name = "New Brand", Description = "Test" };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/brands", request);
+        var response = await _client.PostAsJsonAsync("/v1/brands", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -48,7 +48,7 @@ public class BrandEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         await TestDataSeeder.SeedBrandAsync(_factory);
 
         // Act
-        var response = await _client.GetAsync("/api/v1/brands");
+        var response = await _client.GetAsync("/v1/brands");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -62,7 +62,7 @@ public class BrandEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         var id = await TestDataSeeder.SeedBrandAsync(_factory);
 
         // Act
-        var response = await _client.GetAsync($"/api/v1/brands/{id}");
+        var response = await _client.GetAsync($"/v1/brands/{id}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -77,7 +77,7 @@ public class BrandEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         var request = new { Name = "Updated Brand", Description = "Updated" };
 
         // Act
-        var response = await _client.PutAsJsonAsync($"/api/v1/brands/{id}", request);
+        var response = await _client.PutAsJsonAsync($"/v1/brands/{id}", request);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -91,8 +91,8 @@ public class BrandEndpointTests : IClassFixture<OrderlyTestFactory<Program>>
         var id = await TestDataSeeder.SeedBrandAsync(_factory);
 
         // Act
-        var deleteResponse = await _client.DeleteAsync($"/api/v1/brands/{id}");
-        var getResponse = await _client.GetAsync($"/api/v1/brands/{id}");
+        var deleteResponse = await _client.DeleteAsync($"/v1/brands/{id}");
+        var getResponse = await _client.GetAsync($"/v1/brands/{id}");
 
         // Assert
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);

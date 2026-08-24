@@ -2,7 +2,7 @@ namespace Kitchen.API.Application.Dtos;
 
 /// <summary>
 /// Read-side projection of a <c>KitchenTicket</c> + its items. Returned by
-/// <c>GET /api/v1/kitchen/queue</c> and <c>GET /api/v1/kitchen/tickets/{id}</c>.
+/// <c>GET /v1/kitchen/queue</c> and <c>GET /v1/kitchen/tickets/{id}</c>.
 /// </summary>
 public record KitchenTicketDto(
     Guid Id,

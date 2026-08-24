@@ -138,14 +138,14 @@ if (-not $BaseBasketUrl) {
 # unless the operator pre-provisioned an admin row. For local
 # validation, the production posture relies on a manually-provisioned
 # admin (see the deployment playbook).
-Write-Host "`n[STEP 1] Requesting OIDC Token via /api/auth/login..." -ForegroundColor Cyan
+Write-Host "`n[STEP 1] Requesting OIDC Token via /v1/auth/login..." -ForegroundColor Cyan
 $LoginBody = @{
     Email = "admin@orderly.com"
     Password = "Admin@123456"
 } | ConvertTo-Json
 
 try {
-    $LoginResponse = Invoke-RestMethod -Uri "$BaseIdentityUrl/api/auth/login" -Method Post -Body $LoginBody -ContentType "application/json"
+    $LoginResponse = Invoke-RestMethod -Uri "$BaseIdentityUrl/v1/auth/login" -Method Post -Body $LoginBody -ContentType "application/json"
     $AccessToken = $LoginResponse.access_token
     $RefreshToken = $LoginResponse.refresh_token
 
@@ -175,7 +175,7 @@ try {
 
 if ($BaseBasketUrl) {
     Write-Host "`n[STEP 2] Testing Downstream JWT validation on Basket.API (Secured Endpoint)..." -ForegroundColor Cyan
-    $BasketEndpoint = "$BaseBasketUrl/api/v1/cart"
+    $BasketEndpoint = "$BaseBasketUrl/v1/cart"
 
     Write-Host "Sending unauthorized request (No Bearer Token)..." -ForegroundColor Gray
     try {
@@ -231,10 +231,10 @@ try {
 # 5. Audit logs retrieval
 # =====================================================================
 
-Write-Host "`n[STEP 4] Retrieving Security Audit logs via /api/audit-log..." -ForegroundColor Cyan
+Write-Host "`n[STEP 4] Retrieving Security Audit logs via /v1/audit-log..." -ForegroundColor Cyan
 try {
     $Headers = @{ Authorization = "Bearer $AccessToken" }
-    $AuditResponse = Invoke-RestMethod -Uri "$BaseIdentityUrl/api/audit-log" -Method Get -Headers $Headers
+    $AuditResponse = Invoke-RestMethod -Uri "$BaseIdentityUrl/v1/audit-log" -Method Get -Headers $Headers
 
     if ($AuditResponse) {
         Write-Host "[SUCCESS] Successfully retrieved audit logs from database!" -ForegroundColor Green
@@ -284,7 +284,7 @@ if (-not $GatewayBaseUrl) {
 
     Write-Host "`n[STEP 5.2] Testing gateway auth on proxied route without Bearer token..." -ForegroundColor Cyan
     try {
-        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/api/v1/restaurants" -Method Get -UseBasicParsing
+        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/v1/restaurants" -Method Get -UseBasicParsing
         Write-Host "[FAIL] Gateway allowed anonymous call to protected route! Status: $($response.StatusCode)" -ForegroundColor Red
     } catch {
         if ($_.Exception.Response.StatusCode -eq 401) {
@@ -297,7 +297,7 @@ if (-not $GatewayBaseUrl) {
     Write-Host "`n[STEP 5.3] Testing gateway auth on proxied route WITH Bearer token..." -ForegroundColor Cyan
     try {
         $Headers = @{ Authorization = "Bearer $AccessToken" }
-        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/api/v1/restaurants" -Method Get -Headers $Headers -UseBasicParsing -ErrorAction Ignore
+        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/v1/restaurants" -Method Get -Headers $Headers -UseBasicParsing -ErrorAction Ignore
         if ($response.StatusCode -ne 401) {
             Write-Host "[SUCCESS] Gateway validated JWT + forwarded to downstream (status: $($response.StatusCode))" -ForegroundColor Green
         } else {
@@ -319,7 +319,7 @@ if (-not $GatewayBaseUrl) {
             "Access-Control-Request-Method" = "GET"
             "Access-Control-Request-Headers" = "authorization,content-type"
         }
-        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/api/v1/restaurants" -Method Options -Headers $corsHeaders -UseBasicParsing
+        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/v1/restaurants" -Method Options -Headers $corsHeaders -UseBasicParsing
         if ($response.StatusCode -eq 200 -or $response.StatusCode -eq 204) {
             $allowOrigin = $response.Headers["Access-Control-Allow-Origin"]
             if ($allowOrigin -eq "http://localhost:3000") {
@@ -340,7 +340,7 @@ if (-not $GatewayBaseUrl) {
             "Origin" = "http://evil.example.com"
             "Access-Control-Request-Method" = "GET"
         }
-        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/api/v1/restaurants" -Method Options -Headers $corsHeaders -UseBasicParsing
+        $response = Invoke-WebRequest -Uri "$GatewayBaseUrl/catalog-api/v1/restaurants" -Method Options -Headers $corsHeaders -UseBasicParsing
         $allowOrigin = $response.Headers["Access-Control-Allow-Origin"]
         if (-not $allowOrigin) {
             Write-Host "[SUCCESS] CORS preflight from disallowed origin did NOT echo Access-Control-Allow-Origin" -ForegroundColor Green
@@ -457,8 +457,8 @@ if ($Posture -eq "production") {
     Write-Host "`n[STEP 6.4] Verifying anonymous traffic is rejected at gateway + service level..." -ForegroundColor Cyan
 
     $protectedRoutes = @(
-        @{ Gateway = "$GatewayBaseUrl/basket-api/api/v1/cart"; Service = "$BaseBasketUrl/api/v1/cart" },
-        @{ Gateway = "$GatewayBaseUrl/identity-api/api/v1/users"; Service = "$BaseIdentityUrl/api/v1/users" }
+        @{ Gateway = "$GatewayBaseUrl/basket-api/v1/cart"; Service = "$BaseBasketUrl/v1/cart" },
+        @{ Gateway = "$GatewayBaseUrl/identity-api/v1/users"; Service = "$BaseIdentityUrl/v1/users" }
     )
 
     if ($GatewayBaseUrl) {

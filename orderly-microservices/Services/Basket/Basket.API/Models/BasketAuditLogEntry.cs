@@ -4,8 +4,8 @@ namespace Basket.API.Models;
 
 /// <summary>
 /// Cross-account basket mutation audit row. Written by the Phase 4
-/// admin endpoints (<c>PUT /api/v1/admin/carts/{userId}</c>,
-/// <c>DELETE /api/v1/admin/carts/{userId}</c>) — the
+/// admin endpoints (<c>PUT /v1/admin/carts/{userId}</c>,
+/// <c>DELETE /v1/admin/carts/{userId}</c>) — the
 /// <c>RestaurantSupportAgent</c> tool's actions leave a trace for
 /// compliance review.
 /// </summary>

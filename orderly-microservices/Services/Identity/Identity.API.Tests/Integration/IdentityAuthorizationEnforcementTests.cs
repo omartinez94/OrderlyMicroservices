@@ -21,7 +21,7 @@ namespace Identity.API.Tests.Integration;
 /// resource — Users, Roles, Permissions, AuditLog — so a regression
 /// in <see cref="BuildingBlocks.Authorization.EndpointRouteBuilderExtensions.RequirePermission"/>
 /// surfaces here, not in a single suite.</para>
-/// <para>Read endpoints (<c>GET /api/auth/login</c>, <c>POST /api/auth/register</c>)
+/// <para>Read endpoints (<c>GET /auth/login</c>, <c>POST /auth/register</c>)
 /// intentionally remain anonymous and are covered by
 /// <see cref="AuthFlowIntegrationTests"/>.</para>
 /// </remarks>
@@ -50,7 +50,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task CreateUser_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.PostAsJsonAsync("/api/users",
+        var resp = await client.PostAsJsonAsync("/v1/users",
             new { Email = "x@y.com", Password = "P@ssword1!", FirstName = "x", LastName = "y" },
             JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -60,7 +60,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task GetUser_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync($"/api/users/{Guid.NewGuid()}");
+        var resp = await client.GetAsync($"/v1/users/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -68,7 +68,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task DeleteUser_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.DeleteAsync($"/api/users/{Guid.NewGuid()}");
+        var resp = await client.DeleteAsync($"/v1/users/{Guid.NewGuid()}");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -78,7 +78,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
         // Have a user identity but only an unrelated permission; the
         // RequirePermission policy should refuse with 403, not 401.
         var client = AuthenticatedClient("audit:view");
-        var resp = await client.PostAsJsonAsync("/api/users",
+        var resp = await client.PostAsJsonAsync("/v1/users",
             new { Email = "wrong@y.com", Password = "P@ssword1!", FirstName = "x", LastName = "y" },
             JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -90,7 +90,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task CreateRole_WrongPermission_Returns403()
     {
         var client = AuthenticatedClient("users:view_all");
-        var resp = await client.PostAsJsonAsync("/api/roles",
+        var resp = await client.PostAsJsonAsync("/v1/roles",
             new { Name = "wrong-perm-role" }, JsonOptions);
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -99,7 +99,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task GetRoles_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/roles");
+        var resp = await client.GetAsync("/v1/roles");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -109,7 +109,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task ListPermissions_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/permissions");
+        var resp = await client.GetAsync("/v1/permissions");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -119,7 +119,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task GetAuditLog_NoAuth_Returns401()
     {
         var client = AnonymousClient();
-        var resp = await client.GetAsync("/api/audit-log");
+        var resp = await client.GetAsync("/v1/audit-log");
         resp.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
@@ -127,7 +127,7 @@ public sealed class IdentityAuthorizationEnforcementTests(IdentityWebApplication
     public async Task GetAuditLog_WrongPermission_Returns403()
     {
         var client = AuthenticatedClient("users:view_all");
-        var resp = await client.GetAsync("/api/audit-log");
+        var resp = await client.GetAsync("/v1/audit-log");
         resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

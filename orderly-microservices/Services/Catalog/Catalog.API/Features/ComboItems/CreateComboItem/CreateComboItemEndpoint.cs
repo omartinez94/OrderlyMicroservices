@@ -11,7 +11,7 @@ public class CreateComboItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("ComboItems");
+        var group = app.MapGroup("/v1").WithTags("ComboItems");
 
         group.MapPost("/menu-items/{comboMenuItemId}/combo-items", async (Guid comboMenuItemId, CreateComboItemRequest request, ISender sender) =>
         {
@@ -20,7 +20,7 @@ public class CreateComboItemEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<CreateComboItemResponse>();
 
-            return Results.Created($"/api/v1/menu-items/{comboMenuItemId}/combo-items/{response.Id}", response);
+            return Results.Created($"/v1/menu-items/{comboMenuItemId}/combo-items/{response.Id}", response);
         })
         .WithDescription("Creates a new combo item.")
         .WithName("CreateComboItem")

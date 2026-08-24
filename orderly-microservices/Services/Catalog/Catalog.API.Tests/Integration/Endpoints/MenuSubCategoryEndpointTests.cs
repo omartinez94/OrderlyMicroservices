@@ -17,7 +17,7 @@ public sealed class MenuSubCategoryEndpointTests(CatalogWebApplicationFactory fa
         var request = new { Name = "Test SubCategory" };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/menu-categories/123/sub-categories", request, CancellationToken.None);
+        var response = await _client.PostAsJsonAsync("/v1/menu-categories/123/sub-categories", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -29,7 +29,7 @@ public sealed class MenuSubCategoryEndpointTests(CatalogWebApplicationFactory fa
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/menu-categories/123/sub-categories", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/menu-categories/123/sub-categories", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -40,7 +40,7 @@ public sealed class MenuSubCategoryEndpointTests(CatalogWebApplicationFactory fa
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/menu-sub-categories/123", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/menu-sub-categories/123", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -53,7 +53,7 @@ public sealed class MenuSubCategoryEndpointTests(CatalogWebApplicationFactory fa
         var request = new { Name = "Updated SubCategory" };
 
         // Act
-        var response = await _client.PutAsJsonAsync("/api/v1/menu-sub-categories/123", request, CancellationToken.None);
+        var response = await _client.PutAsJsonAsync("/v1/menu-sub-categories/123", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -64,7 +64,7 @@ public sealed class MenuSubCategoryEndpointTests(CatalogWebApplicationFactory fa
     {
         // Arrange
         // Act
-        var response = await _client.DeleteAsync("/api/v1/menu-sub-categories/123", CancellationToken.None);
+        var response = await _client.DeleteAsync("/v1/menu-sub-categories/123", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);

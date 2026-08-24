@@ -15,7 +15,7 @@ public class GetMenuItemVariationsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemVariations");
+        var group = app.MapGroup("/v1").WithTags("MenuItemVariations");
 
         group.MapGet("/menu-items/{menuItemId:guid}/variations", async (Guid menuItemId, ISender sender) =>
         {

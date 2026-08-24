@@ -10,7 +10,7 @@ public class UploadBulkOrderEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("BulkOrderUploads");
+        var group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
 
         group.MapPost("/restaurants/{restaurantId}/bulk-order-uploads", async (
             Guid restaurantId,
@@ -19,7 +19,7 @@ public class UploadBulkOrderEndpoint : ICarterModule
         {
             var command = new UploadBulkOrderCommand(restaurantId, request.FileName, request.Rows);
             var result = await sender.Send(command);
-            return Results.Created($"/api/v1/restaurants/{restaurantId}/bulk-order-uploads/{result.Id}", result.Adapt<UploadBulkOrderResponse>());
+            return Results.Created($"/v1/restaurants/{restaurantId}/bulk-order-uploads/{result.Id}", result.Adapt<UploadBulkOrderResponse>());
         })
         .RequirePermission("catalog:menu_update")
         .WithDescription("Accepts a batch of parsed order rows and persists a BulkOrderUpload envelope for approval.")

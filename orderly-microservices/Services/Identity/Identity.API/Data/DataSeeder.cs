@@ -93,7 +93,7 @@ public static class DataSeeder
             new() { Id = Guid.NewGuid(), Name = "orders:modify_ordering", Description = "Modify orders in ordering status", Resource = "orders", Action = "modify_ordering" },
             new() { Id = Guid.NewGuid(), Name = "orders:modify_confirmed", Description = "Modify orders in confirmed status", Resource = "orders", Action = "modify_confirmed" },
             new() { Id = Guid.NewGuid(), Name = "orders:modify_ready", Description = "Modify orders in ready status", Resource = "orders", Action = "modify_ready" },
-            new() { Id = Guid.NewGuid(), Name = "orders:admin", Description = "Cross-account basket administration (CS / support tooling). Required for /api/v1/admin/carts/* endpoints (Basket Phase 4).", Resource = "orders", Action = "admin" },
+            new() { Id = Guid.NewGuid(), Name = "orders:admin", Description = "Cross-account basket administration (CS / support tooling). Required for /v1/admin/carts/* endpoints (Basket Phase 4).", Resource = "orders", Action = "admin" },
 
             // Menu
             new() { Id = Guid.NewGuid(), Name = "menu:view", Description = "View menu", Resource = "menu", Action = "view" },

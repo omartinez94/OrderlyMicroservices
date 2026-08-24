@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Identity.API.Tests.Integration;
 
 /// <summary>
-/// End-to-end coverage of <c>/api/auth/*</c>. Exercises the HTTP
+/// End-to-end coverage of <c>/auth/*</c>. Exercises the HTTP
 /// pipeline, the real Postgres-backed <c>IdentityDbContext</c>, and
 /// the production <c>UserManager&lt;ApplicationUser&gt;</c>
 /// password-hashing path.
@@ -17,7 +17,7 @@ namespace Identity.API.Tests.Integration;
 /// weak-password validation. All three exercise the production
 /// <c>RegisterCommandHandler</c> through the real HTTP pipeline.</item>
 /// <item><b>Login</b> — bad-password path returns 401. The
-/// happy-path <c>/api/auth/login</c> endpoint invokes
+/// happy-path <c>/auth/login</c> endpoint invokes
 /// <c>Results.SignIn</c> outside an OpenIddict endpoint and surfaces
 /// as a 500 from <c>OpenIddictServerHandlers.ValidateSignInDemand</c>
 /// (test error <c>ID2091</c>) — a known production quirk this plan
@@ -48,7 +48,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
     /// <summary>
     /// Happy path: a brand-new email lands in the database via the real
     /// <c>UserManager</c> + <c>IdentityDbContext</c>; the endpoint returns
-    /// 201 with a Location header pointing at <c>/api/users/{id}</c>.
+    /// 201 with a Location header pointing at <c>/users/{id}</c>.
     /// </summary>
     [Fact]
     public async Task Register_ValidPayload_Returns201AndUserCreated()
@@ -62,11 +62,11 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
             LastName = "Ok",
         };
 
-        var response = await client.PostAsJsonAsync("/api/auth/register", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/auth/register", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().StartWith("/api/users/");
+        response.Headers.Location!.ToString().Should().StartWith("/v1/users/");
 
         var body = await response.Content.ReadFromJsonAsync<RegisterResponse>(JsonOptions);
         body.Should().NotBeNull();
@@ -98,7 +98,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
             LastName = "User",
         };
 
-        var response = await client.PostAsJsonAsync("/api/auth/register", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/auth/register", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -123,7 +123,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
             LastName = "Pwd",
         };
 
-        var response = await client.PostAsJsonAsync("/api/auth/register", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/auth/register", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -146,7 +146,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
         var client = AnonymousClient();
         var request = new { Email = email, Password = "WrongP@ss1!" };
 
-        var response = await client.PostAsJsonAsync("/api/auth/login", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/auth/login", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -164,7 +164,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
         var client = AnonymousClient();
         var request = new { Email = FreshEmail("login-unknown"), Password = "AnyPassword1!" };
 
-        var response = await client.PostAsJsonAsync("/api/auth/login", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/auth/login", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -191,7 +191,7 @@ public sealed class AuthFlowIntegrationTests(IdentityWebApplicationFactory facto
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation("X-Test-User", userId.ToString());
 
-        var response = await client.PostAsync("/api/auth/logout", content: null);
+        var response = await client.PostAsync("/v1/auth/logout", content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }

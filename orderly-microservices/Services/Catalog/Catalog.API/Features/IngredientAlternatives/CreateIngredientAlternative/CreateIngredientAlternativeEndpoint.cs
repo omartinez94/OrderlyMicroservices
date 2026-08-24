@@ -12,7 +12,7 @@ public class CreateIngredientAlternativeEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("IngredientAlternatives");
+        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapPost("/restaurants/{restaurantId:guid}/ingredient-alternatives", async (Guid restaurantId, CreateIngredientAlternativeRequest request, ISender sender) =>
         {
@@ -26,7 +26,7 @@ public class CreateIngredientAlternativeEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<CreateIngredientAlternativeResponse>();
 
-            return Results.Created($"/api/v1/restaurants/{restaurantId}/ingredient-alternatives/{response.Id}", response);
+            return Results.Created($"/v1/restaurants/{restaurantId}/ingredient-alternatives/{response.Id}", response);
         })
         .WithDescription("Creates a new ingredient alternative.")
         .WithName("CreateIngredientAlternative")

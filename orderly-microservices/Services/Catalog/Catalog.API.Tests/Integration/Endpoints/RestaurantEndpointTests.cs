@@ -30,7 +30,7 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
     {
         await AuthenticateAsync();
         var request = new { Name = "New Res", Address = "1", Email = "a@a.com", PhoneNumber = "1", TaxRate = 0.1m, Currency = "MXN", TimeZone = "UTC" };
-        var response = await _client.PostAsJsonAsync("/api/v1/restaurants", request);
+        var response = await _client.PostAsJsonAsync("/v1/restaurants", request);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
     }
@@ -40,7 +40,7 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
     {
         await AuthenticateAsync();
         await TestDataSeeder.SeedRestaurantAsync(_factory);
-        var response = await _client.GetAsync("/api/v1/restaurants");
+        var response = await _client.GetAsync("/v1/restaurants");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -49,7 +49,7 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
     {
         await AuthenticateAsync();
         var id = await TestDataSeeder.SeedRestaurantAsync(_factory);
-        var response = await _client.GetAsync($"/api/v1/restaurants/{id}");
+        var response = await _client.GetAsync($"/v1/restaurants/{id}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -59,7 +59,7 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
         await AuthenticateAsync();
         var id = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var request = new { Name = "Updated", Address = "2", Email = "b@b.com", PhoneNumber = "2", TaxRate = 0.2m, Currency = "USD", TimeZone = "EST" };
-        var response = await _client.PutAsJsonAsync($"/api/v1/restaurants/{id}", request);
+        var response = await _client.PutAsJsonAsync($"/v1/restaurants/{id}", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -68,8 +68,8 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
     {
         await AuthenticateAsync();
         var id = await TestDataSeeder.SeedRestaurantAsync(_factory);
-        var deleteResponse = await _client.DeleteAsync($"/api/v1/restaurants/{id}");
-        var getResponse = await _client.GetAsync($"/api/v1/restaurants/{id}");
+        var deleteResponse = await _client.DeleteAsync($"/v1/restaurants/{id}");
+        var getResponse = await _client.GetAsync($"/v1/restaurants/{id}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

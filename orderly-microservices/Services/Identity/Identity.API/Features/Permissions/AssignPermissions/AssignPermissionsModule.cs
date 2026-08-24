@@ -4,7 +4,7 @@ public class AssignPermissionsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/permissions");
+        var group = app.MapGroup("/v1/permissions");
 
         group.MapPost("assign-to-role", async (
                 ISender sender,

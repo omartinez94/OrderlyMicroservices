@@ -10,7 +10,7 @@ public class UpdateOrder : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Orders");
+        var group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapPut("/orders", async (UpdateOrderRequest request, ISender sender) =>
         {

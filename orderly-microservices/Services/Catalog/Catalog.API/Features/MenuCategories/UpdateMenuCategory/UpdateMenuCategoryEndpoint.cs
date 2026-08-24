@@ -11,7 +11,7 @@ public class UpdateMenuCategoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuCategories");
+        var group = app.MapGroup("/v1").WithTags("MenuCategories");
 
         group.MapPut("/menu-categories/{id:int}", async (int id, UpdateMenuCategoryRequest request, ISender sender) =>
         {

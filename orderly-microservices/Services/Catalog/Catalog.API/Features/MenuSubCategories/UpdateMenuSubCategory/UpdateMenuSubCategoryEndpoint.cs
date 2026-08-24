@@ -13,7 +13,7 @@ public class UpdateMenuSubCategoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPut("/api/v1/menu-sub-categories/{id}", async (int id, UpdateMenuSubCategoryRequest request, ISender sender) =>
+        app.MapPut("/v1/menu-sub-categories/{id}", async (int id, UpdateMenuSubCategoryRequest request, ISender sender) =>
         {
             var command = request.Adapt<UpdateMenuSubCategoryCommand>() with { Id = id };
 

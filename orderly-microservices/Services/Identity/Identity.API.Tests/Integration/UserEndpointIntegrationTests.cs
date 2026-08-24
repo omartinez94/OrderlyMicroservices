@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Identity.API.Tests.Integration;
 
 /// <summary>
-/// HTTP pipeline coverage for <c>/api/users/*</c>. Auth is provided by
+/// HTTP pipeline coverage for <c>/users/*</c>. Auth is provided by
 /// <c>TestAuthHandler</c> via the <c>X-Test-User</c> +
 /// <c>X-Test-Permissions</c> headers so we can drive the production
 /// permission authorization paths without standing up an OAuth client.
@@ -43,7 +43,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Create --------
 
     /// <summary>
-    /// <c>POST /api/users</c> with the <c>users:create</c> permission
+    /// <c>POST /users</c> with the <c>users:create</c> permission
     /// returns 201 + Location header, persists the user via the real
     /// <c>UserManager</c>, and returns the new <see cref="Guid"/>.
     /// </summary>
@@ -59,7 +59,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
             LastName = "User",
         };
 
-        var response = await client.PostAsJsonAsync("/api/users", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/users", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
@@ -72,7 +72,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Get --------
 
     /// <summary>
-    /// <c>GET /api/users/{id}</c> with the <c>users:view_all</c>
+    /// <c>GET /users/{id}</c> with the <c>users:view_all</c>
     /// permission returns 200 with the seeded user's profile fields.
     /// </summary>
     [Fact]
@@ -81,7 +81,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
         var (userId, email) = await factory.SeedUserAsync($"get-{Guid.NewGuid():N}@test.com");
         var client = AuthenticatedClient("users:view_all");
 
-        var response = await client.GetAsync($"/api/users/{userId}");
+        var response = await client.GetAsync($"/v1/users/{userId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -96,7 +96,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- List --------
 
     /// <summary>
-    /// <c>GET /api/users</c> with <c>users:view_all</c> returns 200 with
+    /// <c>GET /users</c> with <c>users:view_all</c> returns 200 with
     /// a paginated envelope. Verifies the production query handler is
     /// wired into the HTTP pipeline (it hasn't been exercised by the
     /// in-memory EF tests).
@@ -108,7 +108,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
         await factory.SeedUserAsync($"list-{Guid.NewGuid():N}@test.com");
         var client = AuthenticatedClient("users:view_all");
 
-        var response = await client.GetAsync("/api/users?Page=1&PageSize=10");
+        var response = await client.GetAsync("/users?Page=1&PageSize=10");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -121,7 +121,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Update --------
 
     /// <summary>
-    /// <c>PUT /api/users/{id}</c> with <c>users:edit</c> updates the
+    /// <c>PUT /users/{id}</c> with <c>users:edit</c> updates the
     /// user's <c>FirstName</c> / <c>LastName</c> and returns 200 with
     /// the updated fields. The <c>UserManager.UpdateAsync</c> path is
     /// the one that owns the audit trail, so this test also locks in
@@ -140,7 +140,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
             IsActive = true,
         };
 
-        var response = await client.PutAsJsonAsync($"/api/users/{userId}", request, JsonOptions);
+        var response = await client.PutAsJsonAsync($"/v1/users/{userId}", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -153,7 +153,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Delete --------
 
     /// <summary>
-    /// <c>DELETE /api/users/{id}</c> with <c>users:delete</c> returns
+    /// <c>DELETE /users/{id}</c> with <c>users:delete</c> returns
     /// 204 and removes the user row. The endpoint uses the soft-delete
     /// pattern via <c>UserManager.DeleteAsync</c>; the row count drop
     /// is observable on a follow-up GET in the authorization
@@ -165,7 +165,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
         var (userId, _) = await factory.SeedUserAsync($"delete-{Guid.NewGuid():N}@test.com");
         var client = AuthenticatedClient("users:delete");
 
-        var response = await client.DeleteAsync($"/api/users/{userId}");
+        var response = await client.DeleteAsync($"/v1/users/{userId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
@@ -173,7 +173,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Assign roles --------
 
     /// <summary>
-    /// <c>PUT /api/users/{id}/roles</c> with
+    /// <c>PUT /users/{id}/roles</c> with
     /// <c>users:assign_roles</c> replaces the user's role set and
     /// returns 200 with the new role names. The handler uses
     /// <c>UserManager.RemoveFromRolesAsync</c> +
@@ -187,7 +187,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
         var client = AuthenticatedClient("users:assign_roles");
         var request = new { Roles = new[] { "Manager" } };
 
-        var response = await client.PutAsJsonAsync($"/api/users/{userId}/roles", request, JsonOptions);
+        var response = await client.PutAsJsonAsync($"/v1/users/{userId}/roles", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -199,7 +199,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Assign restaurants --------
 
     /// <summary>
-    /// <c>PUT /api/users/{id}/restaurants</c> with
+    /// <c>PUT /users/{id}/restaurants</c> with
     /// <c>users:assign_restaurants</c> replaces the user's restaurant
     /// assignments and returns 200 with the new shape. Uses Guid
     /// restaurant ids (post-Phase-5 schema) so the
@@ -219,7 +219,7 @@ public sealed class UserEndpointIntegrationTests(IdentityWebApplicationFactory f
         };
 
         var response = await client.PutAsJsonAsync(
-            $"/api/users/{userId}/restaurants", request, JsonOptions);
+            $"/v1/users/{userId}/restaurants", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 

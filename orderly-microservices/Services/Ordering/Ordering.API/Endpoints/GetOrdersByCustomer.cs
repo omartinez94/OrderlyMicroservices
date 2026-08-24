@@ -8,7 +8,7 @@ public class GetOrdersByCustomer : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Orders");
+        var group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapGet("/orders/customer/{customerId}", async (Guid customerId, ISender sender) =>
         {

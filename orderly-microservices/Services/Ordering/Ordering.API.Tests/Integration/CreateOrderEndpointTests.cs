@@ -9,7 +9,7 @@ namespace Ordering.API.Tests.Integration;
 
 /// <summary>
 /// End-to-end happy-path + validation coverage for the
-/// <c>POST /api/v1/orders</c> endpoint. Each test seeds the necessary
+/// <c>POST /v1/orders</c> endpoint. Each test seeds the necessary
 /// owning rows (Customer, MenuItem) via the application's
 /// <see cref="IApplicationDbContext"/> so the order's foreign keys
 /// resolve, then exercises the HTTP pipeline through the
@@ -22,7 +22,7 @@ namespace Ordering.API.Tests.Integration;
 /// (<c>DiscountAmount</c>, <c>DiscountCode</c>, <c>TotalAmount</c>) flow
 /// from the request body into the persisted <c>Order</c> — the handler
 /// applies them directly to the aggregate, so the read-back via
-/// <c>GET /api/v1/orders/{id}</c> proves the persistence path.
+/// <c>GET /v1/orders/{id}</c> proves the persistence path.
 /// </para>
 /// <para>
 /// <b>Authorization note</b>: the endpoint requires
@@ -178,7 +178,7 @@ public sealed class CreateOrderEndpointTests
         var dto = NewOrderDto(customerId, Guid.NewGuid(), ValidItems(menuItemIds));
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/orders",
+            "/v1/orders",
             new { order = dto },
             JsonOptions);
 
@@ -186,7 +186,7 @@ public sealed class CreateOrderEndpointTests
             $"body: {await response.Content.ReadAsStringAsync()}");
 
         response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().StartWith("/api/v1/orders/");
+        response.Headers.Location!.ToString().Should().StartWith("/v1/orders/");
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         body.GetProperty("id").GetGuid().Should().NotBe(Guid.Empty);
@@ -205,7 +205,7 @@ public sealed class CreateOrderEndpointTests
             ValidItems(menuItemIds));
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/orders",
+            "/v1/orders",
             new { order = dto },
             JsonOptions);
 
@@ -222,7 +222,7 @@ public sealed class CreateOrderEndpointTests
         var dto = NewOrderDto(customerId, Guid.NewGuid(), Array.Empty<OrderItemDto>());
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/orders",
+            "/v1/orders",
             new { order = dto },
             JsonOptions);
 
@@ -235,7 +235,7 @@ public sealed class CreateOrderEndpointTests
     {
         // The handler maps DiscountAmount / DiscountCode / TotalAmount
         // directly onto the Order aggregate; the read-back via
-        // GET /api/v1/orders/{id} (with read permission) confirms the
+        // GET /v1/orders/{id} (with read permission) confirms the
         // values landed in the persisted row.
         const decimal discountAmount = 5m;
         const string discountCode = "SAVE5";
@@ -257,7 +257,7 @@ public sealed class CreateOrderEndpointTests
             totalAmount: totalAmount);
 
         var response = await client.PostAsJsonAsync(
-            "/api/v1/orders",
+            "/v1/orders",
             new { order = dto },
             JsonOptions);
 
@@ -267,11 +267,11 @@ public sealed class CreateOrderEndpointTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
         var orderId = body.GetProperty("id").GetGuid();
 
-        var getResponse = await readClient.GetAsync($"/api/v1/orders/{orderId}");
+        var getResponse = await readClient.GetAsync($"/v1/orders/{orderId}");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var getBody = await getResponse.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
 
-        // GET /api/v1/orders/{id} wraps the OrderDto in a `order` property
+        // GET /v1/orders/{id} wraps the OrderDto in a `order` property
         // (see GetOrderByIdResponse record). Drill in one level before
         // asserting on the bill fields.
         var order = getBody.GetProperty("order");

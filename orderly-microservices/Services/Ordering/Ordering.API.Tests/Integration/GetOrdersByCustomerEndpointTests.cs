@@ -7,7 +7,7 @@ namespace Ordering.API.Tests.Integration;
 
 /// <summary>
 /// End-to-end coverage for the
-/// <c>GET /api/v1/orders/customer/{customerId}</c> endpoint. The handler
+/// <c>GET /v1/orders/customer/{customerId}</c> endpoint. The handler
 /// returns an empty <c>Orders</c> collection (not 404) when the seeded
 /// customer has no orders — that's the production behavior and matches
 /// the unit-test contract in <c>GetOrdersByCustomerHandlerTests</c>.
@@ -93,7 +93,7 @@ public sealed class GetOrdersByCustomerEndpointTests
         var client = NewReadClient();
         var customerId = await SeedCustomerWithOrdersAsync(orderCount: 2);
 
-        var response = await client.GetAsync($"/api/v1/orders/customer/{customerId}");
+        var response = await client.GetAsync($"/v1/orders/customer/{customerId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -115,7 +115,7 @@ public sealed class GetOrdersByCustomerEndpointTests
         var client = NewReadClient();
         var customerId = await SeedCustomerWithOrdersAsync(orderCount: 0);
 
-        var response = await client.GetAsync($"/api/v1/orders/customer/{customerId}");
+        var response = await client.GetAsync($"/v1/orders/customer/{customerId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             $"body: {await response.Content.ReadAsStringAsync()}");

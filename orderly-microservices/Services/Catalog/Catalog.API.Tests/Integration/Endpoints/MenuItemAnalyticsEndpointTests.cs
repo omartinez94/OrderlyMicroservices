@@ -23,7 +23,7 @@ public sealed class MenuItemAnalyticsEndpointTests(CatalogWebApplicationFactory 
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
 
-        var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/analytics");
+        var response = await client.GetAsync($"/v1/restaurants/{restaurantId}/analytics");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -34,7 +34,7 @@ public sealed class MenuItemAnalyticsEndpointTests(CatalogWebApplicationFactory 
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
 
-        var response = await client.GetAsync($"/api/v1/analytics/{id}");
+        var response = await client.GetAsync($"/v1/analytics/{id}");
 
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
@@ -45,7 +45,7 @@ public sealed class MenuItemAnalyticsEndpointTests(CatalogWebApplicationFactory 
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
 
-        var response = await client.PostAsync($"/api/v1/restaurants/{restaurantId}/analytics/recompute", null);
+        var response = await client.PostAsync($"/v1/restaurants/{restaurantId}/analytics/recompute", null);
 
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }

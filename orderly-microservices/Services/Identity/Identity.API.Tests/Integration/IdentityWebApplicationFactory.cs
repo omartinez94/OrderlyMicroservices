@@ -29,7 +29,7 @@ public sealed class IdentityWebApplicationFactoryCollection
 /// server handler are emitted in-memory because the host runs under
 /// the <c>Development</c> environment, and the rate-limiter is
 /// disabled so tests can issue more than 5 requests per 15 minutes
-/// against <c>/api/auth/login</c>.
+/// against <c>/auth/login</c>.
 /// </summary>
 /// <remarks>
 /// <para>Config overrides: <c>ConnectionStrings:IdentityDB</c> points

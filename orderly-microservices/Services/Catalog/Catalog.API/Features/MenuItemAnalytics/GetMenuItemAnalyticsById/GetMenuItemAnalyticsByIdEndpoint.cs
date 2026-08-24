@@ -11,7 +11,7 @@ public class GetMenuItemAnalyticsByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemAnalytics");
+        var group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
 
         group.MapGet("/restaurants/{restaurantId}/analytics/menu-items/{id:int}", async (
             Guid restaurantId,

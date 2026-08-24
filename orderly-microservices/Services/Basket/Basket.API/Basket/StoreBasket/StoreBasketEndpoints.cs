@@ -9,8 +9,8 @@ public class StoreBasketEndpoints : ICarterModule
         var group = app.MapBasketGroup();
 
         // `[DEPRECATED]`
-        // `/api/v1/baskets/{userId}/{restaurantId}` shim is removed.
-        // The only route is the token-bound `/api/v1/cart`; the
+        // `/v1/baskets/{userId}/{restaurantId}` shim is removed.
+        // The only route is the token-bound `/v1/cart`; the
         // `StoreBasketRequest(Basket)` wrapper record is no longer
         // needed because the body shape is now `Models.Basket`
         // directly.
@@ -31,11 +31,11 @@ public class StoreBasketEndpoints : ICarterModule
             // contains PII and must not be cached by intermediaries.
             httpContext.Response.Headers.CacheControl = "no-store";
 
-            // PUT semantics: 201 Created + Location: /api/v1/cart on
+            // PUT semantics: 201 Created + Location: /v1/cart on
             // a new cart, 200 OK on update. Idempotent — repeated PUTs
             // with the same body converge to the same final state.
             return result.IsCreated
-                ? Results.Created("/api/v1/cart", result.Adapt<StoreBasketResponse>())
+                ? Results.Created("/v1/cart", result.Adapt<StoreBasketResponse>())
                 : Results.Ok(result.Adapt<StoreBasketResponse>());
         })
         .WithName("StoreBasket")
@@ -47,7 +47,7 @@ public class StoreBasketEndpoints : ICarterModule
         .ProducesProblem(StatusCodes.Status422UnprocessableEntity)
         .WithSummary("Upsert active cart")
         .WithDescription("Creates or replaces the authenticated user's active cart for the current restaurant. " +
-                         "Returns 201 Created + Location: /api/v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). " +
+                         "Returns 201 Created + Location: /v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). " +
                          "The body's UserId / RestaurantId MUST be Guid.Empty; the JWT-derived identity is authoritative.")
         .RequirePermission("orders:create");
     }

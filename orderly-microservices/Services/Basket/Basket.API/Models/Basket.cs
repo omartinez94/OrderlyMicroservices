@@ -102,10 +102,10 @@ public class Basket : ITenantEntity
 
     /// <summary>
     /// Last write timestamp. Updated on every StoreBasket and on the
-    /// admin <c>PUT /api/v1/admin/carts/{userId}</c> path
+    /// admin <c>PUT /v1/admin/carts/{userId}</c> path
     /// (the admin mutation runs the same upsert as the user-facing
     /// one). Drives the <c>Last-Modified</c> response header on
-    /// <c>GET /api/v1/cart</c> so clients can issue
+    /// <c>GET /v1/cart</c> so clients can issue
     /// <c>If-Modified-Since</c> conditional requests — the handler
     /// returns <c>304 Not Modified</c> when the supplied header is
     /// &gt;= this value, saving the response-body round-trip.

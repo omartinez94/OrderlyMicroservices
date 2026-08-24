@@ -39,7 +39,7 @@ public sealed class KitchenApiIntegrationTests
     {
         var client = _factory.CreateClient();
 
-        var response = await client.GetAsync("/api/v1/kitchen/queue");
+        var response = await client.GetAsync("/v1/kitchen/queue");
 
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, $"body: {body}");
@@ -50,7 +50,7 @@ public sealed class KitchenApiIntegrationTests
     {
         var client = NewClient();
 
-        var response = await client.GetAsync("/api/v1/kitchen/queue");
+        var response = await client.GetAsync("/v1/kitchen/queue");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -60,7 +60,7 @@ public sealed class KitchenApiIntegrationTests
     {
         var client = NewClient();
 
-        var response = await client.GetAsync($"/api/v1/kitchen/tickets/{Guid.NewGuid()}");
+        var response = await client.GetAsync($"/v1/kitchen/tickets/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -71,7 +71,7 @@ public sealed class KitchenApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/kitchen/tickets/{Guid.NewGuid()}/accept",
+            $"/v1/kitchen/tickets/{Guid.NewGuid()}/accept",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -83,7 +83,7 @@ public sealed class KitchenApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/kitchen/tickets/{Guid.NewGuid()}/cancel",
+            $"/v1/kitchen/tickets/{Guid.NewGuid()}/cancel",
             new { reason = "out of stock" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -95,7 +95,7 @@ public sealed class KitchenApiIntegrationTests
         var client = NewClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/kitchen/tickets/{Guid.NewGuid()}/cancel",
+            $"/v1/kitchen/tickets/{Guid.NewGuid()}/cancel",
             new { reason = "" });
 
         // FluentValidation rejects empty reason before the handler runs,
@@ -109,7 +109,7 @@ public sealed class KitchenApiIntegrationTests
         var client = NewClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/kitchen/tickets/{Guid.NewGuid()}/accept",
+            $"/v1/kitchen/tickets/{Guid.NewGuid()}/accept",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);

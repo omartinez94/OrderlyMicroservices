@@ -3,7 +3,7 @@ using Ordering.Application.Orders.Commands.CancelOrder;
 namespace Ordering.API.Endpoints;
 
 /// <summary>
-/// <c>POST /api/v1/orders/{id}/cancel</c> — cancel an order. Body shape:
+/// <c>POST /v1/orders/{id}/cancel</c> — cancel an order. Body shape:
 /// <c>{ "reason": "..." }</c>. Returns 204 on success; 404 when the
 /// order is unknown; 409 when the order is already in a terminal state
 /// (Cancelled, Completed, Delivered).
@@ -12,7 +12,7 @@ public class CancelOrderEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGroup("/api/v1").WithTags("Kitchen")
+        app.MapGroup("/v1").WithTags("Kitchen")
             .MapPost("/orders/{id:guid}/cancel", async (
                 Guid id,
                 CancelOrderRequest request,

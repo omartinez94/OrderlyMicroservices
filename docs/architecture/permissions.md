@@ -33,15 +33,15 @@ verb granularity at seed time).
 
 | Permission | Domain | Service | Method / endpoint guarded | Notes |
 |---|---|---|---|---|
-| `catalog:menu_update` | Restaurant menu (write) | Catalog.API | `POST/PUT/DELETE /api/v1/restaurants/*`, `POST/PUT/DELETE /api/v1/brands/*`, `POST/PUT/DELETE /api/v1/menu-categories/*`, `POST /api/v1/restaurants/{id}/bulk-order-uploads/{id}/approve`, `POST /api/v1/restaurants/{id}/bulk-order-uploads/{id}/reject` | Coarse "menu write" permission. Read endpoints (GET /restaurants, GET /brands, GET /menu-categories) remain anonymous. |
-| `orders:write` | Order lifecycle (create / mutate) | Ordering.API | `POST /api/v1/orders`, `PUT /api/v1/orders`, `DELETE /api/v1/orders/{id}` | Mirrors the kitchen `update_prep_status` shape. Granted to Waiter + Manager + RestaurantAdmin via the `RolePermissions` table. |
-| `orders:view_own` | Order read | Ordering.API | `GET /api/v1/orders`, `GET /api/v1/orders/{id}`, `GET /api/v1/orders/customer/{customerId}` | Read endpoints. Tenant-scoped via `ICurrentRestaurantProvider` (the global query filter). |
+| `catalog:menu_update` | Restaurant menu (write) | Catalog.API | `POST/PUT/DELETE /v1/restaurants/*`, `POST/PUT/DELETE /v1/brands/*`, `POST/PUT/DELETE /v1/menu-categories/*`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/approve`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/reject` | Coarse "menu write" permission. Read endpoints (GET /restaurants, GET /brands, GET /menu-categories) remain anonymous. |
+| `orders:write` | Order lifecycle (create / mutate) | Ordering.API | `POST /v1/orders`, `PUT /v1/orders`, `DELETE /v1/orders/{id}` | Mirrors the kitchen `update_prep_status` shape. Granted to Waiter + Manager + RestaurantAdmin via the `RolePermissions` table. |
+| `orders:view_own` | Order read | Ordering.API | `GET /v1/orders`, `GET /v1/orders/{id}`, `GET /v1/orders/customer/{customerId}` | Read endpoints. Tenant-scoped via `ICurrentRestaurantProvider` (the global query filter). |
 | `orders:create` | Order create | Ordering.API | (legacy seed) | See `orders:write` — kept in seed for back-compat with the v1 role mapping. |
 | `orders:view_all` | Order admin read | Ordering.API | (legacy seed) | Manager-only. |
 | `orders:modify_ordering` | Mutate in `Ordering` status | Ordering.API | (legacy seed) | KitchenManager + Waiter. |
 | `orders:modify_confirmed` | Mutate in `Confirmed` status | Ordering.API | (legacy seed) | Manager + KitchenManager + RestaurantAdmin. |
 | `orders:modify_ready` | Mutate in `Ready` status | Ordering.API | (legacy seed) | RestaurantAdmin. |
-| `orders:admin` | Cross-account admin | Ordering.API | (legacy seed) | Basket `/api/v1/admin/carts/*` admin tooling. |
+| `orders:admin` | Cross-account admin | Ordering.API | (legacy seed) | Basket `/v1/admin/carts/*` admin tooling. |
 | `coupon:read` | Discount coupon read | Discount.Grpc | `GetDiscount`, `ListDiscounts` | Public-facing — the Basket / Order-side auto-apply path needs this. |
 | `coupon:create` | Discount coupon create | Discount.Grpc | `CreateDiscount` | |
 | `coupon:edit` | Discount coupon edit | Discount.Grpc | `UpdateDiscount` | |
@@ -55,20 +55,20 @@ verb granularity at seed time).
 | `discount-rule:read` | Discount rule read | Discount.Grpc | `GetDiscountRule`, `ListDiscountRules` | |
 | `discount-rule:edit` | Discount rule edit | Discount.Grpc | `CreateDiscountRule`, `UpdateDiscountRule`, `DeleteDiscountRule`, `EvaluateDiscountRules` | Edit + evaluate share a permission because the rule is what gets evaluated. |
 | `kitchen:view_orders` | Kitchen order read | Kitchen.API | (legacy seed) | |
-| `kitchen:update_prep_status` | Kitchen prep transition | Kitchen.API + Ordering.API (ConfirmOrder) | `POST /api/v1/orders/{id}/confirm` + the kitchen prep endpoints | The single permission shared between Kitchen and Ordering. |
+| `kitchen:update_prep_status` | Kitchen prep transition | Kitchen.API + Ordering.API (ConfirmOrder) | `POST /v1/orders/{id}/confirm` + the kitchen prep endpoints | The single permission shared between Kitchen and Ordering. |
 | `kitchen:view_activities` | Kitchen activity read | Kitchen.API | (legacy seed) | |
 | `kitchen:confirm_order` | Confirm order (alt name) | Kitchen.API | (legacy seed) | Kept for back-compat; see `kitchen:update_prep_status` for the canonical permission. |
-| `users:view_all` | User list read | Identity.API | `GET /api/v1/users` | |
-| `users:create` | User create | Identity.API | `POST /api/v1/users` | |
-| `users:edit` | User edit | Identity.API | `PUT /api/v1/users/{id}` | |
-| `users:delete` | User delete | Identity.API | `DELETE /api/v1/users/{id}` | |
-| `users:assign_roles` | Assign role to user | Identity.API | `POST /api/v1/users/{id}/roles` | |
-| `users:assign_restaurants` | Assign restaurant to user | Identity.API | `POST /api/v1/users/{id}/restaurants` | |
-| `roles:view` | Role list read | Identity.API | `GET /api/v1/roles` | |
-| `roles:create` | Role create | Identity.API | `POST /api/v1/roles` | |
-| `roles:edit` | Role edit | Identity.API | `PUT /api/v1/roles/{id}` | |
-| `roles:edit_permissions` | Edit role→permission map | Identity.API | `POST /api/v1/roles/{id}/permissions` | |
-| `permissions:view` | Permission list read | Identity.API | `GET /api/v1/permissions` | |
+| `users:view_all` | User list read | Identity.API | `GET /v1/users` | |
+| `users:create` | User create | Identity.API | `POST /v1/users` | |
+| `users:edit` | User edit | Identity.API | `PUT /v1/users/{id}` | |
+| `users:delete` | User delete | Identity.API | `DELETE /v1/users/{id}` | |
+| `users:assign_roles` | Assign role to user | Identity.API | `POST /v1/users/{id}/roles` | |
+| `users:assign_restaurants` | Assign restaurant to user | Identity.API | `POST /v1/users/{id}/restaurants` | |
+| `roles:view` | Role list read | Identity.API | `GET /v1/roles` | |
+| `roles:create` | Role create | Identity.API | `POST /v1/roles` | |
+| `roles:edit` | Role edit | Identity.API | `PUT /v1/roles/{id}` | |
+| `roles:edit_permissions` | Edit role→permission map | Identity.API | `POST /v1/roles/{id}/permissions` | |
+| `permissions:view` | Permission list read | Identity.API | `GET /v1/permissions` | |
 | `menu:view` | Menu read (Identity view) | Identity.API | (legacy seed) | Identity-side mirror of catalog read; not the same as `coupon:read` (different domain). |
 | `menu:edit` | Menu edit (Identity view) | Identity.API | (legacy seed) | |
 | `reservations:view` | Reservation read | Catalog.API | (legacy seed) | |

@@ -8,8 +8,8 @@ public class CheckoutBasketEndpoints : ICarterModule
     {
         var group = app.MapBasketGroup();
 
-        // `/api/v1/baskets/checkout` shim is removed. The only route is
-        // the token-bound `/api/v1/cart/checkout`; the
+        // `/v1/baskets/checkout` shim is removed. The only route is
+        // the token-bound `/v1/cart/checkout`; the
         // `CheckoutBasketRequest(BasketCheckoutDto)` wrapper record is
         // no longer needed because the body shape is the DTO directly.
         group.MapPost("/cart/checkout", async (System.Security.Claims.ClaimsPrincipal principal, BasketCheckoutDto checkoutDto, ISender sender, HttpContext httpContext, CancellationToken cancellationToken) =>

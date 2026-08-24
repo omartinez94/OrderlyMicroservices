@@ -22,7 +22,7 @@ public sealed class PriceHistoryEndpointTests(CatalogWebApplicationFactory facto
         var client = AuthenticatedClient();
         var menuItemId = Guid.NewGuid();
 
-        var response = await client.GetAsync($"/api/v1/menu-items/{menuItemId}/price-history");
+        var response = await client.GetAsync($"/v1/menu-items/{menuItemId}/price-history");
 
         // Return codes might be 200 or 404, but not 401.
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);

@@ -4,7 +4,7 @@ public class ListPermissionsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/permissions");
+        var group = app.MapGroup("/v1/permissions");
 
         group.MapGet("", async (
                 ISender sender,

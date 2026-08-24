@@ -6,7 +6,7 @@ public class RemoveFromQueueEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("WalkInQueues");
+        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapDelete("/restaurants/{restaurantId}/walk-in-queue/{id}", async (int id, ISender sender) =>
         {

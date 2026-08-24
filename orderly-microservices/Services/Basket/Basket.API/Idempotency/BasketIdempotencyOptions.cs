@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace Basket.API.Idempotency;
 
 /// <summary>
-/// Strongly-typed configuration for the <c>POST /api/v1/cart/checkout</c>
+/// Strongly-typed configuration for the <c>POST /v1/cart/checkout</c>
 /// idempotency filter. Bound from the <c>Basket:Idempotency</c>
 /// configuration section via <c>AddOptions&lt;&gt;().Bind(...).ValidateDataAnnotations().ValidateOnStart()</c>.
 /// </summary>

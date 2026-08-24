@@ -6,7 +6,7 @@
     "version": "v1"
   },
   "paths": {
-    "/api/v1/admin/carts": {
+    "/v1/admin/carts": {
       "get": {
         "tags": [
           "AdminCarts"
@@ -48,7 +48,7 @@
         }
       }
     },
-    "/api/v1/admin/carts/{userId}": {
+    "/v1/admin/carts/{userId}": {
       "put": {
         "tags": [
           "AdminCarts"
@@ -175,13 +175,13 @@
         }
       }
     },
-    "/api/v1/cart": {
+    "/v1/cart": {
       "put": {
         "tags": [
           "Baskets"
         ],
         "summary": "Upsert active cart",
-        "description": "Creates or replaces the authenticated user's active cart for the current restaurant. Returns 201 Created + Location: /api/v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). The body's UserId / RestaurantId MUST be Guid.Empty; the JWT-derived identity is authoritative.",
+        "description": "Creates or replaces the authenticated user's active cart for the current restaurant. Returns 201 Created + Location: /v1/cart on the first PUT (new cart) and 200 OK on every subsequent PUT (idempotent upsert). The body's UserId / RestaurantId MUST be Guid.Empty; the JWT-derived identity is authoritative.",
         "operationId": "StoreBasket",
         "requestBody": {
           "content": {
@@ -304,7 +304,7 @@
           "Baskets"
         ],
         "summary": "Abandon active cart",
-        "description": "Deletes the authenticated user's active cart for the current restaurant. Returns 204 No Content (idempotent — deleting a non-existent cart also returns 204).",
+        "description": "Deletes the authenticated user's active cart for the current restaurant. Returns 204 No Content (idempotent ï¿½ deleting a non-existent cart also returns 204).",
         "operationId": "DeleteBasket",
         "responses": {
           "204": {
@@ -333,7 +333,7 @@
         }
       }
     },
-    "/api/v1/cart/checkout": {
+    "/v1/cart/checkout": {
       "post": {
         "tags": [
           "Baskets"

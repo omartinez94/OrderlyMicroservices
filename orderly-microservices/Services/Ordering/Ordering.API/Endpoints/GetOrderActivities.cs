@@ -7,7 +7,7 @@ namespace Ordering.API.Endpoints;
 
 /// <summary>
 /// Standalone paged read of an order's activity feed — separate from
-/// <c>GET /api/v1/orders/{id}</c> so callers that only want the activity
+/// <c>GET /v1/orders/{id}</c> so callers that only want the activity
 /// history don't pay for the full order payload.
 /// </summary>
 public record GetOrderActivitiesResponse(PaginatedResult<OrderActivityDto> Activities);
@@ -16,7 +16,7 @@ public class GetOrderActivities : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Orders");
+        var group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapGet("/orders/{id:guid}/activities", async (
             Guid id,

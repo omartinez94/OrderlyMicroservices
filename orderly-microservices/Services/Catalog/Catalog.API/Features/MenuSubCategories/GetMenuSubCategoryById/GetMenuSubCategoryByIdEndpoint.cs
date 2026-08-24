@@ -14,7 +14,7 @@ public class GetMenuSubCategoryByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/menu-sub-categories/{id}", async (int id, ISender sender) =>
+        app.MapGet("/v1/menu-sub-categories/{id}", async (int id, ISender sender) =>
         {
             var result = await sender.Send(new GetMenuSubCategoryByIdQuery(id));
             var response = result.Adapt<GetMenuSubCategoryByIdResponse>();

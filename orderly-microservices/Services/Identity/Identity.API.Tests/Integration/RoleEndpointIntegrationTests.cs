@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Identity.API.Tests.Integration;
 
 /// <summary>
-/// HTTP pipeline coverage for <c>/api/roles/*</c>. Auth is provided by
+/// HTTP pipeline coverage for <c>/roles/*</c>. Auth is provided by
 /// <c>TestAuthHandler</c> so we can drive the production permission
 /// paths. Roles are seeded directly via <see cref="RoleManager{T}"/>
 /// because <see cref="IdentityWebApplicationFactory"/> only seeds the
@@ -60,7 +60,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Create --------
 
     /// <summary>
-    /// <c>POST /api/roles</c> with <c>roles:create</c> returns 201 and
+    /// <c>POST /roles</c> with <c>roles:create</c> returns 201 and
     /// persists the role via <c>RoleManager.CreateAsync</c>.
     /// </summary>
     [Fact]
@@ -69,7 +69,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
         var client = AuthenticatedClient("roles:create");
         var request = new { Name = $"role-{Guid.NewGuid():N}", Description = "Test role" };
 
-        var response = await client.PostAsJsonAsync("/api/roles", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/roles", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
@@ -78,7 +78,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- List --------
 
     /// <summary>
-    /// <c>GET /api/roles</c> with <c>roles:view</c> returns 200 with
+    /// <c>GET /roles</c> with <c>roles:view</c> returns 200 with
     /// the seeded role list. We seed an extra role so the test
     /// doesn't depend on the production seed.
     /// </summary>
@@ -88,7 +88,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
         await SeedRoleAsync($"list-{Guid.NewGuid():N}");
         var client = AuthenticatedClient("roles:view");
 
-        var response = await client.GetAsync("/api/roles");
+        var response = await client.GetAsync("/v1/roles");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<ListRolesResponse>(JsonOptions);
@@ -99,7 +99,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Get by id --------
 
     /// <summary>
-    /// <c>GET /api/roles/{id}</c> with <c>roles:view</c> returns 200
+    /// <c>GET /roles/{id}</c> with <c>roles:view</c> returns 200
     /// and surfaces the role's permissions via the join-table query
     /// in <c>GetRoleQueryHandler</c>.
     /// </summary>
@@ -109,7 +109,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
         var roleId = await SeedRoleAsync($"get-{Guid.NewGuid():N}");
         var client = AuthenticatedClient("roles:view");
 
-        var response = await client.GetAsync($"/api/roles/{roleId}");
+        var response = await client.GetAsync($"/v1/roles/{roleId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -117,7 +117,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Update --------
 
     /// <summary>
-    /// <c>PUT /api/roles/{id}</c> with <c>roles:edit</c> returns 200
+    /// <c>PUT /roles/{id}</c> with <c>roles:edit</c> returns 200
     /// with the updated name + description. Locks in the
     /// <c>RoleManager.UpdateAsync</c> path is reachable through the
     /// HTTP pipeline.
@@ -129,7 +129,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
         var client = AuthenticatedClient("roles:edit");
         var request = new { Name = $"updated-{Guid.NewGuid():N}", Description = "Updated" };
 
-        var response = await client.PutAsJsonAsync($"/api/roles/{roleId}", request, JsonOptions);
+        var response = await client.PutAsJsonAsync($"/v1/roles/{roleId}", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -137,7 +137,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
     // -------- Assign permissions --------
 
     /// <summary>
-    /// <c>PUT /api/roles/{id}/permissions</c> with
+    /// <c>PUT /roles/{id}/permissions</c> with
     /// <c>roles:edit_permissions</c> replaces the role's permission
     /// set. The endpoint re-queries the permission table so we seed
     /// a real permission row to bind to (rather than fabricating a
@@ -167,7 +167,7 @@ public sealed class RoleEndpointIntegrationTests(IdentityWebApplicationFactory f
         var client = AuthenticatedClient("roles:edit_permissions");
         var request = new { PermissionIds = new[] { permissionId } };
 
-        var response = await client.PutAsJsonAsync($"/api/roles/{roleId}/permissions", request, JsonOptions);
+        var response = await client.PutAsJsonAsync($"/v1/roles/{roleId}/permissions", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

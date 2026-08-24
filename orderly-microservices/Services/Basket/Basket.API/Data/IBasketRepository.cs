@@ -17,7 +17,7 @@ public interface IBasketRepository
     /// <summary>
     /// Returns the active cart, or an empty <see cref="Models.Basket"/>
     /// projected from the supplied ids when none exists. Never throws on
-    /// the missing-cart path — the <c>GET /api/v1/cart</c> contract is
+    /// the missing-cart path — the <c>GET /v1/cart</c> contract is
     /// <c>200 + empty body</c>, never 404 (per plan §0.4.7).
     /// </summary>
     Task<Models.Basket> GetActiveCartOrEmptyAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default);

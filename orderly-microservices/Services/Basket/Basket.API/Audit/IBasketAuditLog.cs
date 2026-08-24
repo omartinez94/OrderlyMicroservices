@@ -18,7 +18,7 @@ public interface IBasketAuditLog
     /// <summary>
     /// Paged audit query — newest-first, tenant-scoped by
     /// <paramref name="restaurantId"/>. Used by the (planned)
-    /// <c>GET /api/v1/admin/audit</c> endpoint; not part of the
+    /// <c>GET /v1/admin/audit</c> endpoint; not part of the
     /// Phase 4 admin-carts surface but the interface supports it
     /// so a future plan does not have to widen the contract.
     /// </summary>

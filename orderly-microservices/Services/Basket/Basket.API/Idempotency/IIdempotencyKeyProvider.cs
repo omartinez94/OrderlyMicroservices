@@ -2,7 +2,7 @@ namespace Basket.API.Idempotency;
 
 /// <summary>
 /// Server-side HMAC key for the <c>Idempotency-Key</c> filter on
-/// <c>POST /api/v1/cart/checkout</c>. The cache key uses
+/// <c>POST /v1/cart/checkout</c>. The cache key uses
 /// <c>HMAC-SHA256(key, envelope)</c> keyed on a server-side secret,
 /// NOT plain <c>SHA256(envelope)</c> — plain SHA-256 lets an attacker
 /// craft a <c>userId + restaurantId + key</c> collision if they guess

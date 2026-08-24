@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Identity.API.Tests.Integration;
 
 /// <summary>
-/// HTTP pipeline coverage for <c>/api/audit-log/*</c>. The endpoint is
+/// HTTP pipeline coverage for <c>/audit-log/*</c>. The endpoint is
 /// gated on <c>audit:view</c>; the test client injects the permission
 /// via <c>TestAuthHandler</c>. Audit-log rows are seeded directly via
 /// <see cref="SeedHelper.SeedAuditLogAsync"/> so the query handler has
@@ -31,7 +31,7 @@ public sealed class AuditLogEndpointIntegrationTests(IdentityWebApplicationFacto
     // -------- List --------
 
     /// <summary>
-    /// <c>GET /api/audit-log</c> with <c>audit:view</c> returns 200
+    /// <c>GET /audit-log</c> with <c>audit:view</c> returns 200
     /// with the seeded audit entries. Verifies the production
     /// <c>GetAuditLogQueryHandler</c> LINQ projection (joining on
     /// <c>Users</c> for the username) hits a real Postgres column.
@@ -42,7 +42,7 @@ public sealed class AuditLogEndpointIntegrationTests(IdentityWebApplicationFacto
         await factory.SeedAuditLogAsync(eventType: "LoginSuccess");
         var client = AuthenticatedClient("audit:view");
 
-        var response = await client.GetAsync("/api/audit-log");
+        var response = await client.GetAsync("/v1/audit-log");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -55,7 +55,7 @@ public sealed class AuditLogEndpointIntegrationTests(IdentityWebApplicationFacto
     // -------- Filtered list --------
 
     /// <summary>
-    /// <c>GET /api/audit-log?EventType=...</c> returns only matching
+    /// <c>GET /audit-log?EventType=...</c> returns only matching
     /// rows. We seed two distinct event types and filter on one to
     /// verify the <c>WHERE l.EventType == ...</c> clause in
     /// <c>GetAuditLogQueryHandler</c> is applied through the HTTP
@@ -69,7 +69,7 @@ public sealed class AuditLogEndpointIntegrationTests(IdentityWebApplicationFacto
 
         var client = AuthenticatedClient("audit:view");
 
-        var response = await client.GetAsync("/api/audit-log?EventType=LoginSuccess");
+        var response = await client.GetAsync("/audit-log?EventType=LoginSuccess");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 

@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Ordering.API.Tests.Integration;
 
 /// <summary>
-/// End-to-end coverage for the <c>DELETE /api/v1/orders/{id}</c>
+/// End-to-end coverage for the <c>DELETE /v1/orders/{id}</c>
 /// endpoint. The endpoint returns a 200 with a <c>DeleteOrderResponse</c>
 /// body (not 204) — the handler unconditionally returns
 /// <c>Results.Ok(new DeleteOrderResponse(IsSuccess))</c> regardless of
@@ -93,7 +93,7 @@ public sealed class DeleteOrderEndpointTests
         var client = NewWriteClient();
         var orderId = await SeedPendingOrderAsync();
 
-        var response = await client.DeleteAsync($"/api/v1/orders/{orderId}");
+        var response = await client.DeleteAsync($"/v1/orders/{orderId}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -110,7 +110,7 @@ public sealed class DeleteOrderEndpointTests
         // to 404. Hence this is the 404 path for a fresh id.
         var client = NewWriteClient();
 
-        var response = await client.DeleteAsync($"/api/v1/orders/{Guid.NewGuid()}");
+        var response = await client.DeleteAsync($"/v1/orders/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -123,14 +123,14 @@ public sealed class DeleteOrderEndpointTests
         var orderId = await SeedPendingOrderAsync();
 
         // First call removes the row.
-        var first = await client.DeleteAsync($"/api/v1/orders/{orderId}");
+        var first = await client.DeleteAsync($"/v1/orders/{orderId}");
         first.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second call hits the OrderNotFoundException arm again — 404,
         // not 200. The plan called for idempotency (204 either way),
         // but the production handler re-loads via FindAsync and throws
         // when the row is gone.
-        var second = await client.DeleteAsync($"/api/v1/orders/{orderId}");
+        var second = await client.DeleteAsync($"/v1/orders/{orderId}");
 
         second.StatusCode.Should().Be(HttpStatusCode.NotFound,
             $"body: {await second.Content.ReadAsStringAsync()}");

@@ -359,7 +359,7 @@ public sealed class StoreBasketHandlerTests
         // Locks the contract: when the repository reports the
         // basket was newly stored (no existing row replaced), the handler
         // returns StoreBasketResult.IsCreated = true. The endpoint maps
-        // this to 201 Created + Location: /api/v1/cart.
+        // this to 201 Created + Location: /v1/cart.
         var basket = BuildBasket(subtotal: 100m, appliedDiscounts: []);
         var repository = Substitute.For<IBasketRepository>();
         repository.StoreBasketAsync(Arg.Any<Models.Basket>(), Arg.Any<CancellationToken>())

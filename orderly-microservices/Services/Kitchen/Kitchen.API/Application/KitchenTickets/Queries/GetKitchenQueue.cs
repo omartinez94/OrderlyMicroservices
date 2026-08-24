@@ -3,7 +3,7 @@ namespace Kitchen.API.Application.KitchenTickets.Queries;
 /// <summary>
 /// Returns the kitchen queue (tickets in <c>New</c> or <c>InProgress</c>),
 /// optionally filtered by restaurant and station. Used by the
-/// <c>GET /api/v1/kitchen/queue</c> endpoint.
+/// <c>GET /v1/kitchen/queue</c> endpoint.
 /// </summary>
 public record GetKitchenQueueQuery(
     Guid? RestaurantId,

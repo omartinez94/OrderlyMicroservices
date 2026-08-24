@@ -8,7 +8,7 @@ namespace Basket.API.Idempotency;
 /// <summary>
 /// Carter <see cref="IEndpointFilter"/> that enforces the IETF
 /// <c>draft-ietf-httpapi-idempotency-key-header</c> contract on
-/// <c>POST /api/v1/cart/checkout</c>. Reads the <c>Idempotency-Key</c>
+/// <c>POST /v1/cart/checkout</c>. Reads the <c>Idempotency-Key</c>
 /// header (UUID v4 strict regex), looks up the cached response in
 /// Redis, and replays it verbatim on a body-matching request or
 /// returns <c>422 Unprocessable Content</c> on a body-mismatching
@@ -89,7 +89,7 @@ public sealed class BasketIdempotencyFilter(
         {
             return Results.Problem(
                 title: "Missing Idempotency-Key header",
-                detail: "POST /api/v1/cart/checkout requires the Idempotency-Key header (UUID v4).",
+                detail: "POST /v1/cart/checkout requires the Idempotency-Key header (UUID v4).",
                 statusCode: StatusCodes.Status400BadRequest,
                 type: $"{ProblemBaseUrl}missing-idempotency-key");
         }
@@ -117,7 +117,7 @@ public sealed class BasketIdempotencyFilter(
             // idempotency namespace.
             return Results.Problem(
                 title: "Authenticated user required",
-                detail: "POST /api/v1/cart/checkout requires an authenticated principal with a restaurantId claim.",
+                detail: "POST /v1/cart/checkout requires an authenticated principal with a restaurantId claim.",
                 statusCode: StatusCodes.Status401Unauthorized);
         }
 

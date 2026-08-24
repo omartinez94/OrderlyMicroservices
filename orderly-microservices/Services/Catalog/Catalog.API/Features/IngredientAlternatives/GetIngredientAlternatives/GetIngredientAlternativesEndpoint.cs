@@ -14,7 +14,7 @@ public class GetIngredientAlternativesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("IngredientAlternatives");
+        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapGet("/restaurants/{restaurantId:guid}/ingredient-alternatives", async (Guid restaurantId, ISender sender) =>
         {

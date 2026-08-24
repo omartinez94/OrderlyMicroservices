@@ -3,7 +3,7 @@ namespace Basket.API.Idempotency;
 /// <summary>
 /// Cached payload stored in Redis at
 /// <c>basket:idem:{userId}:{restaurantId}:{idempotencyKey}</c> when a
-/// <c>POST /api/v1/cart/checkout</c> request with a fresh
+/// <c>POST /v1/cart/checkout</c> request with a fresh
 /// <c>Idempotency-Key</c> header completes. JSON-serialised.
 /// </summary>
 /// <param name="StatusCode">

@@ -16,9 +16,9 @@ namespace Basket.API.Tests.Integration;
 /// test in the first alphabetical position so the failure message
 /// is the first thing a contributor sees when the WAF is broken.</para>
 /// <para>Hits the <c>/live</c> endpoint (no auth required) plus a
-/// <c>/api/v1/cart</c> call with the test user header to prove the
+/// <c>/v1/cart</c> call with the test user header to prove the
 /// auth scheme produces an authenticated principal. The
-/// <c>/api/v1/cart</c> response can be 200 (empty cart) or 403
+/// <c>/v1/cart</c> response can be 200 (empty cart) or 403
 /// (cross-tenant spoofing); both prove the pipeline reached the
 /// endpoint. The strict assertion is that the response is NOT
 /// 500 — a 500 indicates a WAF misconfiguration.</para>
@@ -46,7 +46,7 @@ public sealed class WafSmokeTests(BasketWebApplicationFactory factory)
         // Arrange
         using var client = factory.CreateClient();
         var userId = Guid.NewGuid();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/cart");
+        var request = new HttpRequestMessage(HttpMethod.Get, "/v1/cart");
         request.Headers.Add("X-Test-User", userId.ToString());
 
         // Act

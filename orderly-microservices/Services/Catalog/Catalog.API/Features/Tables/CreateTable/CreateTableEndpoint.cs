@@ -14,7 +14,7 @@ public class CreateTableEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Tables");
+        var group = app.MapGroup("/v1").WithTags("Tables");
 
         group.MapPost("/restaurants/{restaurantId}/tables", async (Guid restaurantId, CreateTableRequest request, ISender sender) =>
         {
@@ -22,7 +22,7 @@ public class CreateTableEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<CreateTableResponse>();
 
-            return Results.Created($"/api/v1/restaurants/{restaurantId}/tables/{response.Id}", response);
+            return Results.Created($"/v1/restaurants/{restaurantId}/tables/{response.Id}", response);
         })
         .WithDescription("Creates a new table for a restaurant.")
         .WithName("CreateTable")

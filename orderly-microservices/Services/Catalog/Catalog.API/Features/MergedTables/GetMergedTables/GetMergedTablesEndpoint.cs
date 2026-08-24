@@ -8,7 +8,7 @@ public class GetMergedTablesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MergedTables");
+        var group = app.MapGroup("/v1").WithTags("MergedTables");
 
         group.MapGet("/restaurants/{restaurantId}/merged-tables", async (Guid restaurantId, ISender sender) =>
         {

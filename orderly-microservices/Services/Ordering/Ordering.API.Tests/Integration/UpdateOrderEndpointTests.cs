@@ -8,7 +8,7 @@ using Ordering.Application.Dtos;
 namespace Ordering.API.Tests.Integration;
 
 /// <summary>
-/// End-to-end coverage for the <c>PUT /api/v1/orders</c> endpoint.
+/// End-to-end coverage for the <c>PUT /v1/orders</c> endpoint.
 /// Seeds a real <c>Order</c> aggregate via the application's
 /// <see cref="IApplicationDbContext"/>, drives it through the HTTP
 /// pipeline, then reads it back to confirm the scalar updates landed.
@@ -155,7 +155,7 @@ public sealed class UpdateOrderEndpointTests
         var (orderId, customerId, menuItemId) = await SeedPendingOrderAsync();
         var dto = NewUpdateDto(orderId, customerId, menuItemId);
 
-        var response = await client.PutAsJsonAsync("/api/v1/orders", new { order = dto }, JsonOptions);
+        var response = await client.PutAsJsonAsync("/v1/orders", new { order = dto }, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -172,7 +172,7 @@ public sealed class UpdateOrderEndpointTests
         // Fresh, non-seeded id — won't match any row in the DB.
         var dto = NewUpdateDto(Guid.NewGuid(), Guid.NewGuid(), menuItemId);
 
-        var response = await client.PutAsJsonAsync("/api/v1/orders", new { order = dto }, JsonOptions);
+        var response = await client.PutAsJsonAsync("/v1/orders", new { order = dto }, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
             $"body: {await response.Content.ReadAsStringAsync()}");
@@ -187,7 +187,7 @@ public sealed class UpdateOrderEndpointTests
         var client = NewWriteClient();
 
         var response = await client.PutAsJsonAsync(
-            "/api/v1/orders",
+            "/v1/orders",
             new { order = new { id = Guid.NewGuid() } },
             JsonOptions);
 

@@ -38,7 +38,7 @@ public class GetCustomerFeedbackEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("CustomerFeedback");
+        var group = app.MapGroup("/v1").WithTags("CustomerFeedback");
 
         group.MapGet("/restaurants/{restaurantId}/feedback", async (
             Guid restaurantId,

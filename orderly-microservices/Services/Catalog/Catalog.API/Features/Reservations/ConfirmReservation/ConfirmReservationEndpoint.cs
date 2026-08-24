@@ -6,7 +6,7 @@ public class ConfirmReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Reservations");
+        var group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPut("/restaurants/{restaurantId}/reservations/{id}/confirm", async (Guid id, ISender sender) =>
         {

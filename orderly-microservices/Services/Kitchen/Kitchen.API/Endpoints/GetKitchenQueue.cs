@@ -1,7 +1,7 @@
 namespace Kitchen.API.Endpoints;
 
 /// <summary>
-/// <c>GET /api/v1/kitchen/queue</c> — paginated list of tickets in
+/// <c>GET /v1/kitchen/queue</c> — paginated list of tickets in
 /// <c>New</c> or <c>InProgress</c> status, filterable by restaurant and
 /// station. Returns a <c>PaginatedResult&lt;KitchenTicketDto&gt;</c>.
 /// </summary>
@@ -9,7 +9,7 @@ public class GetKitchenQueue : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/v1/kitchen/queue", async (
+        app.MapGet("/v1/kitchen/queue", async (
             [AsParameters] GetKitchenQueueRequest request,
             ISender sender,
             CancellationToken cancellationToken) =>

@@ -9,7 +9,7 @@ public class DeleteOrder : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Orders");
+        var group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapDelete("/orders/{id}", async (Guid id, ISender sender) =>
         {

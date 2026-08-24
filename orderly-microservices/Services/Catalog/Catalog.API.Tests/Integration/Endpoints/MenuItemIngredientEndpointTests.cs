@@ -17,7 +17,7 @@ public sealed class MenuItemIngredientEndpointTests(CatalogWebApplicationFactory
         var request = new { IngredientId = "123" };
 
         // Act
-        var response = await _client.PostAsJsonAsync("/api/v1/menu-items/123/ingredients", request, CancellationToken.None);
+        var response = await _client.PostAsJsonAsync("/v1/menu-items/123/ingredients", request, CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -28,7 +28,7 @@ public sealed class MenuItemIngredientEndpointTests(CatalogWebApplicationFactory
     {
         // Arrange
         // Act
-        var response = await _client.GetAsync("/api/v1/menu-items/123/ingredients", CancellationToken.None);
+        var response = await _client.GetAsync("/v1/menu-items/123/ingredients", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -39,7 +39,7 @@ public sealed class MenuItemIngredientEndpointTests(CatalogWebApplicationFactory
     {
         // Arrange
         // Act
-        var response = await _client.DeleteAsync("/api/v1/menu-items/123/ingredients/456", CancellationToken.None);
+        var response = await _client.DeleteAsync("/v1/menu-items/123/ingredients/456", CancellationToken.None);
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);

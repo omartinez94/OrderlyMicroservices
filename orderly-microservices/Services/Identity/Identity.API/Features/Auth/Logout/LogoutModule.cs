@@ -4,7 +4,7 @@ public class LogoutModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/auth");
+        var group = app.MapGroup("/v1/auth");
 
         group.MapPost("/logout", async (
                 HttpContext context,

@@ -24,7 +24,7 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
         var client = AuthenticatedClient();
         var request = new { rating = 5, comment = "Great service!" };
 
-        var response = await client.PostAsJsonAsync($"/api/v1/restaurants/{restaurantId}/feedback", request);
+        var response = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/feedback", request);
 
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }
@@ -35,7 +35,7 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
         var restaurantId = await factory.SeedRestaurantAsync();
         var client = AuthenticatedClient();
 
-        var response = await client.GetAsync($"/api/v1/restaurants/{restaurantId}/feedback");
+        var response = await client.GetAsync($"/v1/restaurants/{restaurantId}/feedback");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -46,7 +46,7 @@ public sealed class CustomerFeedbackEndpointTests(CatalogWebApplicationFactory f
         var client = AuthenticatedClient();
         var id = Guid.NewGuid();
 
-        var response = await client.GetAsync($"/api/v1/feedback/{id}");
+        var response = await client.GetAsync($"/v1/feedback/{id}");
 
         response.StatusCode.Should().NotBe(HttpStatusCode.Unauthorized);
     }

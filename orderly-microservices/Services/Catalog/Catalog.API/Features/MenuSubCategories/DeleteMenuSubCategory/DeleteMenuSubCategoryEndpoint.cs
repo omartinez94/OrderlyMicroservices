@@ -6,7 +6,7 @@ public class DeleteMenuSubCategoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuSubCategories");
+        var group = app.MapGroup("/v1").WithTags("MenuSubCategories");
 
         group.MapDelete("/menu-sub-categories/{id:int}", async (int id, ISender sender) =>
         {

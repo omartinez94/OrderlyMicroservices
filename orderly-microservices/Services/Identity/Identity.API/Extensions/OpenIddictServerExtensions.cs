@@ -91,7 +91,7 @@ public static class OpenIddictServerExtensions
                 // travel over plain HTTP. In Development: the docker
                 // gateway forwards /identity-api → http://identity.api:8080
                 // (plain HTTP — see yarpapigateway's `identity-cluster`
-                // in appsettings.json), and the internal /api/auth/login →
+                // in appsettings.json), and the internal /v1/auth/login →
                 // /connect/token forward (LoginModule.cs) is also HTTP.
                 // Requiring HTTPS end-to-end inside the dev compose would
                 // force every developer to either trust the dev cert or
@@ -100,7 +100,7 @@ public static class OpenIddictServerExtensions
                 // branch.
                 if (environment.IsDevelopment())
                 {
-                    // /api/auth/login + /connect/token's password grant are
+                    // /v1/auth/login + /connect/token's password grant are
                     // designed for end-user login (the user IS the
                     // authenticator, not a client). Neither seeded client
                     // (orderly-spa — public + PKCE; orderly-service-bus —

@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Identity.API.Tests.Integration;
 
 /// <summary>
-/// HTTP pipeline coverage for <c>/api/permissions/*</c>. Two endpoints:
+/// HTTP pipeline coverage for <c>/permissions/*</c>. Two endpoints:
 /// list and assign-to-role. Both are gated by
 /// <c>permissions:view</c> and <c>roles:edit_permissions</c>
 /// respectively; the test client injects the matching permission via
@@ -35,7 +35,7 @@ public sealed class PermissionEndpointIntegrationTests(IdentityWebApplicationFac
     // -------- List --------
 
     /// <summary>
-    /// <c>GET /api/permissions</c> with <c>permissions:view</c>
+    /// <c>GET /permissions</c> with <c>permissions:view</c>
     /// returns 200 with the seeded permission catalogue. Production
     /// <c>DataSeeder</c> seeds ~30 baseline permissions; we add one
     /// more here so the test doesn't depend on the exact seed count.
@@ -58,7 +58,7 @@ public sealed class PermissionEndpointIntegrationTests(IdentityWebApplicationFac
 
         var client = AuthenticatedClient("permissions:view");
 
-        var response = await client.GetAsync("/api/permissions");
+        var response = await client.GetAsync("/v1/permissions");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -70,7 +70,7 @@ public sealed class PermissionEndpointIntegrationTests(IdentityWebApplicationFac
     // -------- Assign to role --------
 
     /// <summary>
-    /// <c>POST /api/permissions/assign-to-role</c> with
+    /// <c>POST /permissions/assign-to-role</c> with
     /// <c>roles:edit_permissions</c> replaces the role's permission
     /// set and returns 200. We seed both a real permission and a real
     /// role so the <c>RolePermissions</c> insert has something to bind.
@@ -113,7 +113,7 @@ public sealed class PermissionEndpointIntegrationTests(IdentityWebApplicationFac
         var client = AuthenticatedClient("roles:edit_permissions");
         var request = new { RoleId = roleId, PermissionIds = new[] { permissionId } };
 
-        var response = await client.PostAsJsonAsync("/api/permissions/assign-to-role", request, JsonOptions);
+        var response = await client.PostAsJsonAsync("/v1/permissions/assign-to-role", request, JsonOptions);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

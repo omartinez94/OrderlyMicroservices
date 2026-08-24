@@ -14,10 +14,10 @@
 > `X-Correlation-Id` flows from `LoggingBehavior` scope into the
 > OTel `Activity` bag via `CorrelationIdActivityMiddleware`;
 > `ETag` (SHA-256 of basket JSON) + `Last-Modified` (basket
-> `LastModifiedAt`) on `GET /api/v1/cart` with 304 Not Modified
+> `LastModifiedAt`) on `GET /v1/cart` with 304 Not Modified
 > conditional-GET support; Swashbuckle + OpenAPI 2.7.5 wired
 > (`/swagger/v1/swagger.json` in Development);
-> `/api/v1/admin/carts/{GET,PUT,DELETE}` requires the new
+> `/v1/admin/carts/{GET,PUT,DELETE}` requires the new
 > `orders:admin` permission (seeded in Identity.API
 > `DataSeeder.cs`); `BasketAuditLogEntry` Marten document +
 > `IBasketAuditLog` interface for cross-account mutation audit.
@@ -95,7 +95,7 @@ orderly-microservices/
 **Naming convention:**
 - C#: PascalCase types, camelCase locals.
 - DB tables/columns: PascalCase.
-- Routes: kebab-case. All Carter modules sit under `/api/v1`.
+- Routes: kebab-case. All Carter modules sit under `/v1`.
 
 ---
 
@@ -156,11 +156,11 @@ audit:view
 `NameIdentifier` (Guid), `Email`, `Name`, `firstName`, `lastName`, `isActive`, one `Role` claim per role name, one `restaurantId` claim, one `permissions` claim per permission.
 
 **Lockout & throttling:**
-- Lockout 5 failed attempts → 30 min, applied at both `/api/auth/login` and `/connect/token`.
+- Lockout 5 failed attempts → 30 min, applied at both `/v1/auth/login` and `/connect/token`.
 - Password: length ≥ 8, requires digit + non-alphanumeric + upper + lower, unique email.
 - Global fixed-window rate limit: 5 requests / 15 min **per remote IP**.
 
-**Audit.** `LoginAuditLog` rows are written by `AuditLogger.LogAsync` for events `RegisterSuccess`, `LoginSuccess`, `LoginFailure`, `AccountLocked`, `Logout`, `TokenIssued`, `TokenFailure`, `TokenRefreshed`. Read back via `GET /api/audit-log` (paginated, filters by `UserId`/`EventType`).
+**Audit.** `LoginAuditLog` rows are written by `AuditLogger.LogAsync` for events `RegisterSuccess`, `LoginSuccess`, `LoginFailure`, `AccountLocked`, `Logout`, `TokenIssued`, `TokenFailure`, `TokenRefreshed`. Read back via `GET /audit-log` (paginated, filters by `UserId`/`EventType`).
 
 **Refresh tokens.** Implemented through `/connect/token` with `grant_type=refresh_token`. Tokens are revoked at logout via `IOpenIddictTokenManager.TryRevokeAsync`.
 
@@ -170,21 +170,21 @@ audit:view
 
 | Method | Route | Permission |
 |---|---|---|
-| POST | `/api/auth/register` | public |
-| POST | `/api/auth/login` | public |
-| POST | `/api/auth/logout` | authenticated |
-| GET/POST | `/api/users`, `/api/users/{id}`, `…/{id}/roles`, `…/{id}/restaurants` | varies |
-| GET/POST | `/api/roles`, `/api/roles/{id}`, `…/{id}/permissions` | varies |
-| GET | `/api/permissions` | `permissions:view` |
-| POST | `/api/permissions/assign-to-role` | `roles:edit_permissions` |
-| GET | `/api/audit-log` | `audit:view` |
+| POST | `/v1/auth/register` | public |
+| POST | `/v1/auth/login` | public |
+| POST | `/v1/auth/logout` | authenticated |
+| GET/POST | `/v1/users`, `/v1/users/{id}`, `…/{id}/roles`, `…/{id}/restaurants` | varies |
+| GET/POST | `/v1/roles`, `/v1/roles/{id}`, `…/{id}/permissions` | varies |
+| GET | `/v1/permissions` | `permissions:view` |
+| POST | `/v1/permissions/assign-to-role` | `roles:edit_permissions` |
+| GET | `/v1/audit-log` | `audit:view` |
 | GET | `/health` | public |
 
 ---
 
 ### 4.2 Catalog Service (Port 6000 / 6060)
 
-**Surface:** Carter modules under `/api/v1`. Postgres for relations (Npgsql + EF Core) **and** Marten for 4 event/log documents in the same database.
+**Surface:** Carter modules under `/v1`. Postgres for relations (Npgsql + EF Core) **and** Marten for 4 event/log documents in the same database.
 
 **This service is the de-facto "operations" service for the restaurant — it owns a far wider footprint than the name suggests.** It is the only service with the restaurant and table domain, and it also owns every operational concern outside Ordering/Basket/Discount/Identity (reservations, walk-in queue, customer feedback, menu, ingredients, order snapshots, modification logs, price audit, menu analytics, notifications log, bulk-order upload staging).
 
@@ -217,7 +217,7 @@ audit:view
 | `OrderItemPriceAudit` | Marten document | Synthetic `Guid Id`, no relational base class |
 | `NotificationLog` | Marten document | Remains until Notification v1 lands, then is removed (synthetic `Guid Id`, no relational base) |
 
-**Endpoints by feature (Carter modules, all under `/api/v1`):**
+**Endpoints by feature (Carter modules, all under `/v1`):**
 `Brands`, `Restaurants`, `Tables`, `MergedTables`, `Reservations`, `WalkInQueues`, `MenuCategories`, `MenuSubCategories`, `MenuItems`, `MenuItemVariations`, `MenuItemIngredients`, `ComboItems`, `Ingredients`, `IngredientAlternatives`, `PriceHistories`, `CustomerFeedback`, `MenuItemAnalytics`.
 
 **Events published / consumed by Catalog.** Four integration events publish via the outbox (gated by `FeatureManagement__CatalogMenuEvents`, default `true`); one event is consumed.
@@ -242,12 +242,12 @@ audit:view
 All four jobs are **feature-flag gated** (`FeatureManagement__CatalogScheduledJobs`, default `false`). When the flag is off, the cron tick fires but each job's first action is a `IsEnabledAsync` check that returns without doing work — same self-gating pattern as `CacheDriftRepairService`. Cron expressions are configurable in `CatalogOptions:Hangfire` (`ReservationReminderCron`, `ReservationNoShowCron`, `WalkInNoShowCron`, `SeasonalAvailabilityCron`); `MaxRowsPerTick` (default 500) bounds transaction length; `WorkerCount` (default 4) is the Hangfire server worker pool size. Each job resolves its own `CatalogDbContext` via `IServiceScopeFactory.CreateAsyncScope()` so the lifetime is bounded to the tick — the outer `AddHangfireServer` is a Singleton. `[AutomaticRetry(Attempts = 3, DelaysInSeconds = [30, 60, 120])]` decorates each `RunAsync`. `ReservationReminderJob` and `ReservationNoShowJob` use UTC anchoring of `ReservationDate + ReservationTime` (per-restaurant `TimeZone` anchoring is a future consideration). The Hangfire dashboard is mounted at `/hangfire` with a `HangfireAdminOnlyFilter` that requires the JWT `Admin` or `Manager` role claim.
 
 **Complete vertical slices.** Six endpoint groups ship:
-- `DeleteMenuSubCategory` (`DELETE /api/v1/menu-sub-categories/{id}`) — soft-delete (idempotent on already-deleted rows).
-- `UpdateComboItem` (`PUT /api/v1/combo-items/{id}`) — quantity / `isOptional`; validates `IncludedMenuItemId` still exists.
+- `DeleteMenuSubCategory` (`DELETE /v1/menu-sub-categories/{id}`) — soft-delete (idempotent on already-deleted rows).
+- `UpdateComboItem` (`PUT /v1/combo-items/{id}`) — quantity / `isOptional`; validates `IncludedMenuItemId` still exists.
 - `BulkOrderUploads` (`POST /restaurants/{rid}/bulk-order-uploads`, `GET …/{id}`, `POST …/{id}/approve`, `POST …/{id}/reject`) — uploads are parsed client-side to JSON rows; the handler runs lightweight validation (menu item ids exist, table availability) and persists the batch envelope with `ErrorLog`. Approve / reject are idempotent on already-completed / already-failed rows. `BulkOrderUpload` base class flipped from `Entity<int>` to `AuditableEntity<int>` to carry the audit columns. The handler resolves the operator via `ICurrentUser` (Catalog-local abstraction mirroring `Kitchen.API`'s).
-- `RecomputeTodayAnalytics` (`POST /api/v1/restaurants/{rid}/analytics/menu-items/recompute-today`) — admin drift-repair action.
+- `RecomputeTodayAnalytics` (`POST /v1/restaurants/{rid}/analytics/menu-items/recompute-today`) — admin drift-repair action.
 - `MenuItemAnalyticsNightlyRecomputeService` — `BackgroundService` that runs daily at `MenuItemAnalyticsNightly:RunAtHour` (default `3`, `[Range(0, 23)]`); re-validates today's analytics rows for negative values.
-- `SubmitFeedback` (`POST /api/v1/restaurants/{rid}/feedback`) — accepts the four ratings + comments + `OrderId`; issues a 10% reward code on `OverallRating ≥ 4` and publishes `FeedbackSubmittedIntegrationEvent` (gated by `FeatureManagement__CatalogFeedbackEvents`).
+- `SubmitFeedback` (`POST /v1/restaurants/{rid}/feedback`) — accepts the four ratings + comments + `OrderId`; issues a 10% reward code on `OverallRating ≥ 4` and publishes `FeedbackSubmittedIntegrationEvent` (gated by `FeatureManagement__CatalogFeedbackEvents`).
 
 The shared `IPriceHistoryRecorder` (Scoped, in `Catalog.API/Features/PriceHistories/CreatePriceHistory/`) is invoked by every price-mutating handler — `UpdateMenuItem` (`BasePrice`), `UpdateMenuItemVariation` (`PriceModifier`), `UpdateIngredientAlternative` (`PriceModifier`), and `UpdateRestaurant` (`TaxRate` / `EstimatedTurnoverMinutes` via the new `PriceType.RestaurantConfiguration` enum value). The recorder skips no-op writes when `oldPrice == newPrice`. All audit rows commit in the same EF Core transaction as the mutation.
 
@@ -265,7 +265,7 @@ The four publish events live under `BuildingBlocks.Messaging/Events/Catalog/`. T
 
 ### 4.3 Basket Service (Port 6001 / 6061)
 
-**Surface:** Carter modules under `/api/v1`. Marten (Postgres, **per-tenant database creation via `CreateDatabasesForTenants`** + `opt.Schema.For<Models.Basket>().MultiTenanted()`) + Redis cache (`IDistributedCache` with a 30-minute absolute TTL). Calls Discount over gRPC.
+**Surface:** Carter modules under `/v1`. Marten (Postgres, **per-tenant database creation via `CreateDatabasesForTenants`** + `opt.Schema.For<Models.Basket>().MultiTenanted()`) + Redis cache (`IDistributedCache` with a 30-minute absolute TTL). Calls Discount over gRPC.
 
 **Two-tier design.** Marten is the durable store; Redis is the cache wrapper applied via `services.Decorate<IBasketRepository, CachedBasketRepository>()`. Cache key is `basket:{userId}:{restaurantId}`; on miss the basket is reloaded from Marten and re-cached for 30 min. Empty carts are cached too (closing the loop hole where concurrent "no cart yet" reads each triggered a Marten query).
 
@@ -302,27 +302,27 @@ public class BasketItem
 
 The repository queries by both `UserId` and `RestaurantId`; `[Identity]` is on `UserId` only — uniqueness is logical, not Marten-enforced.
 
-**Endpoint group.** `BasketEndpointGroup.MapBasketGroup()` (`Basket.API/Endpoints/BasketEndpointGroup.cs`) centralises the `MapGroup("/api/v1")` + `RequireAuthorization("Default")` + `WithTags("Baskets")` calls. Each Carter module calls `app.MapBasketGroup()` instead of duplicating the chain.
+**Endpoint group.** `BasketEndpointGroup.MapBasketGroup()` (`Basket.API/Endpoints/BasketEndpointGroup.cs`) centralises the `MapGroup("/v1")` + `RequireAuthorization("Default")` + `WithTags("Baskets")` calls. Each Carter module calls `app.MapBasketGroup()` instead of duplicating the chain.
 
 **Endpoints (Carter modules):**
 
 | Method | Route | Permission | Notes |
 |---|---|---|---|
-| GET | `/api/v1/cart` | `orders:view_own` | **Token-bound**. `(UserId, RestaurantId)` come from JWT. Returns 200 + empty cart body when no cart exists (never 404). `Cache-Control: no-store` on every response (cart contains PII). **`ETag` (SHA-256 of basket JSON) + `Last-Modified` (`basket.LastModifiedAt`)** headers drive conditional GET — `If-None-Match` / `If-Modified-Since` matching returns **304 Not Modified** with no body (Phase 4). |
-| PUT | `/api/v1/cart` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` MUST be `Guid.Empty` (§0.4.10 spoofing-footgun validator rejects any other value with **422**); the endpoint overwrites them with the JWT-derived identity before constructing the command so the identity guard sees matching values. Returns **201 Created** + `Location: /api/v1/cart` on the first PUT (new cart) and **200 OK** on every subsequent PUT (idempotent upsert). `Cache-Control: no-store`. |
-| DELETE | `/api/v1/cart` | `orders:create` | **Token-bound**. Idempotent — returns **204 No Content** (no body) regardless of whether the cart existed. `Cache-Control: no-store`. |
-| POST | `/api/v1/cart/checkout` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` enforced by the identity guard. `Cache-Control: no-store`. |
-| GET | `/api/v1/admin/carts` | `orders:admin` | **Cross-account admin surface (Phase 4)**. Paged list of carts in the active tenant. `RestaurantSupportAgent` tooling. Audit log row written on every mutation. |
-| PUT | `/api/v1/admin/carts/{userId}` | `orders:admin` | **Cross-account admin upsert (Phase 4)**. Body `Models.Basket`; URL `userId` + JWT `restaurantId` are authoritative (spoofing-footgun guard). Returns 201 + `Location: /api/v1/cart` (new) or 200 (update). |
-| DELETE | `/api/v1/admin/carts/{userId}` | `orders:admin` | **Cross-account admin delete (Phase 4)**. Idempotent — returns 204 regardless. |
+| GET | `/v1/cart` | `orders:view_own` | **Token-bound**. `(UserId, RestaurantId)` come from JWT. Returns 200 + empty cart body when no cart exists (never 404). `Cache-Control: no-store` on every response (cart contains PII). **`ETag` (SHA-256 of basket JSON) + `Last-Modified` (`basket.LastModifiedAt`)** headers drive conditional GET — `If-None-Match` / `If-Modified-Since` matching returns **304 Not Modified** with no body (Phase 4). |
+| PUT | `/v1/cart` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` MUST be `Guid.Empty` (§0.4.10 spoofing-footgun validator rejects any other value with **422**); the endpoint overwrites them with the JWT-derived identity before constructing the command so the identity guard sees matching values. Returns **201 Created** + `Location: /v1/cart` on the first PUT (new cart) and **200 OK** on every subsequent PUT (idempotent upsert). `Cache-Control: no-store`. |
+| DELETE | `/v1/cart` | `orders:create` | **Token-bound**. Idempotent — returns **204 No Content** (no body) regardless of whether the cart existed. `Cache-Control: no-store`. |
+| POST | `/v1/cart/checkout` | `orders:create` | **Token-bound**. Body `UserId`/`RestaurantId` enforced by the identity guard. `Cache-Control: no-store`. |
+| GET | `/v1/admin/carts` | `orders:admin` | **Cross-account admin surface (Phase 4)**. Paged list of carts in the active tenant. `RestaurantSupportAgent` tooling. Audit log row written on every mutation. |
+| PUT | `/v1/admin/carts/{userId}` | `orders:admin` | **Cross-account admin upsert (Phase 4)**. Body `Models.Basket`; URL `userId` + JWT `restaurantId` are authoritative (spoofing-footgun guard). Returns 201 + `Location: /v1/cart` (new) or 200 (update). |
+| DELETE | `/v1/admin/carts/{userId}` | `orders:admin` | **Cross-account admin delete (Phase 4)**. Idempotent — returns 204 regardless. |
 | GET | `/health` | public | (legacy — see also `/live` + `/ready` below) |
 | GET | `/live` | public | **Liveness probe (Phase 4)**. Process-alive only — no external dependencies. |
 | GET | `/ready` | public | **Readiness probe (Phase 4)**. Checks every backing store tagged `ready` (Postgres + Redis + RabbitMQ). |
 | GET | `/swagger/v1/swagger.json` | public (dev only) | **OpenAPI spec (Phase 4)**. Generated by Swashbuckle 10.2.3 + Microsoft.OpenApi 2.7.5. Mounted under `/swagger` in Development only. |
 
-The Phase 1 `[DEPRECATED]` `/api/v1/baskets/{userId}/{restaurantId}` shim suite (GET / PUT / DELETE / POST-checkout) was removed end of Phase 3. The router returns **404 Not Found** for any caller that still hits the legacy URL — the migration signal is the 404, not a `410 Gone` header. External callers must migrate to the token-bound `/api/v1/cart` endpoints.
+The Phase 1 `[DEPRECATED]` `/v1/baskets/{userId}/{restaurantId}` shim suite (GET / PUT / DELETE / POST-checkout) was removed end of Phase 3. The router returns **404 Not Found** for any caller that still hits the legacy URL — the migration signal is the 404, not a `410 Gone` header. External callers must migrate to the token-bound `/v1/cart` endpoints.
 
-**Repository contract.** `IBasketRepository` exposes both `GetBasketAsync(...)` (throws `BasketNotFoundException` on miss — admin / audit path) and `GetActiveCartOrEmptyAsync(...)` (returns an empty `Basket` projected from the ids on miss — `GET /api/v1/cart` happy path). Every operation runs the tenant assertion before the Marten query.
+**Repository contract.** `IBasketRepository` exposes both `GetBasketAsync(...)` (throws `BasketNotFoundException` on miss — admin / audit path) and `GetActiveCartOrEmptyAsync(...)` (returns an empty `Basket` projected from the ids on miss — `GET /v1/cart` happy path). Every operation runs the tenant assertion before the Marten query.
 
 **Logging redaction.** `CheckoutBasketCommand` is annotated `[PciSensitive]`. `LoggingBehavior<TRequest,TResponse>` reflects the attribute (cached per-type on first read) and replaces the request-data slot in every `[START]` / `[END]` / `[PERFORMANCE]` log line with `CheckoutBasketCommand (payload redacted)`. The card number never reaches a log sink.
 
@@ -332,9 +332,9 @@ The Phase 1 `[DEPRECATED]` `/api/v1/baskets/{userId}/{restaurantId}` shim suite 
 
 **gRPC resilience pipeline (Phase 4).** The `DiscountProtoServiceClient` is wrapped in `AddStandardResilienceHandler(...)` (Polly v8 via `Microsoft.Extensions.Http.Resilience`). Three policies stacked: 3-attempt retry with exponential backoff + jitter (avoid thundering-herd on broker recovery); 5-failure-in-30s circuit breaker with 30s break; 3s attempt timeout (8s total request budget across 3 attempts). Without the breaker a hard Discount outage would queue retries indefinitely and starve the basket thread pool. The basket handlers call `IDiscountLookup.GetCouponAsync` (the wrapper fails-closed on throw); the resilience pipeline does NOT change the error-translation path — it just limits blast radius during a Discount outage.
 
-**Idempotency-Key.** `POST /api/v1/cart/checkout` enforces the IETF `draft-ietf-httpapi-idempotency-key-header` contract via a Carter `IEndpointFilter` (`Basket.API/Idempotency/BasketIdempotencyFilter.cs`). Required `Idempotency-Key` header (UUID v4 strict regex `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`); absence or malformed → `400 Bad Request`. Replay with body-matching key → `200 OK` + cached body (with `Idempotent-Replayed: true` header). Replay with body-mismatching key → `422 Unprocessable Content` (NOT 409 — the IETF draft is explicit: state conflict ≠ resource conflict). Redis key shape: `basket:idem:{userId}:{restaurantId}:{idempotencyKey}` — tenant-scoped so a cross-user replay misses. Body fingerprint: `HMAC-SHA256(Basket:Idempotency:SecretHex, "${userId}|${restaurantId}|${sha256(body)}")` — the HMAC binds the (user, restaurant, body) triple to the server-side secret, preventing cache-poisoning by an attacker with Redis read access. TTL 24h (configurable via `Basket:Idempotency:Ttl`). Fail-closed on Redis errors: GET failure → `503 Service Unavailable` (handler does NOT run); SET failure is logged but the request still succeeds (next replay will miss). The Phase 1 `/baskets/checkout` shim was removed end of Phase 3 — only `/api/v1/cart/checkout` carries idempotency. Mirror of `Discount.Grpc.Authorization.IIdempotencyKeyProvider` (Basket-side variant — separate secret in `Basket:Idempotency:SecretHex` because sharing the secret would let a Discount-cache-poisoning bug bleed into Basket's namespace).
+**Idempotency-Key.** `POST /v1/cart/checkout` enforces the IETF `draft-ietf-httpapi-idempotency-key-header` contract via a Carter `IEndpointFilter` (`Basket.API/Idempotency/BasketIdempotencyFilter.cs`). Required `Idempotency-Key` header (UUID v4 strict regex `^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`); absence or malformed → `400 Bad Request`. Replay with body-matching key → `200 OK` + cached body (with `Idempotent-Replayed: true` header). Replay with body-mismatching key → `422 Unprocessable Content` (NOT 409 — the IETF draft is explicit: state conflict ≠ resource conflict). Redis key shape: `basket:idem:{userId}:{restaurantId}:{idempotencyKey}` — tenant-scoped so a cross-user replay misses. Body fingerprint: `HMAC-SHA256(Basket:Idempotency:SecretHex, "${userId}|${restaurantId}|${sha256(body)}")` — the HMAC binds the (user, restaurant, body) triple to the server-side secret, preventing cache-poisoning by an attacker with Redis read access. TTL 24h (configurable via `Basket:Idempotency:Ttl`). Fail-closed on Redis errors: GET failure → `503 Service Unavailable` (handler does NOT run); SET failure is logged but the request still succeeds (next replay will miss). The Phase 1 `/baskets/checkout` shim was removed end of Phase 3 — only `/v1/cart/checkout` carries idempotency. Mirror of `Discount.Grpc.Authorization.IIdempotencyKeyProvider` (Basket-side variant — separate secret in `Basket:Idempotency:SecretHex` because sharing the secret would let a Discount-cache-poisoning bug bleed into Basket's namespace).
 
-**Rate limiting.** `POST /api/v1/cart/checkout` is the only "spend money" surface and carries a `FixedWindowRateLimiter` keyed on `(userId, restaurantId)`: 5 requests per minute per partition. Partition function + OnRejected callback live in `Basket.API/RateLimiting/CheckoutRateLimiter.cs` (extracted from `Program.cs` so they're unit-testable without spinning up the full Basket host). The 429 response carries `Retry-After: <seconds>` (auto-populated by `AutoReplenishment=true` via `MetadataName.RetryAfter`) and an `application/problem+json` body (RFC 7807 envelope). `QueueLimit = 0` — 429 immediately on exceed, no server-side queue (queueing is the wrong default for a checkout endpoint; the client should back off, not wait). `app.UseRateLimiter()` is wired AFTER `app.UseAuthentication()` + `app.UseAuthorization()` so the partition function reads the authenticated principal's claims. The other three endpoints (GET/PUT/DELETE on the cart) stay unlimited.
+**Rate limiting.** `POST /v1/cart/checkout` is the only "spend money" surface and carries a `FixedWindowRateLimiter` keyed on `(userId, restaurantId)`: 5 requests per minute per partition. Partition function + OnRejected callback live in `Basket.API/RateLimiting/CheckoutRateLimiter.cs` (extracted from `Program.cs` so they're unit-testable without spinning up the full Basket host). The 429 response carries `Retry-After: <seconds>` (auto-populated by `AutoReplenishment=true` via `MetadataName.RetryAfter`) and an `application/problem+json` body (RFC 7807 envelope). `QueueLimit = 0` — 429 immediately on exceed, no server-side queue (queueing is the wrong default for a checkout endpoint; the client should back off, not wait). `app.UseRateLimiter()` is wired AFTER `app.UseAuthentication()` + `app.UseAuthorization()` so the partition function reads the authenticated principal's claims. The other three endpoints (GET/PUT/DELETE on the cart) stay unlimited.
 
 **TTL semantics.** Redis side: 30-minute absolute TTL on cache reads/writes (empty carts included — Phase 3 closes the loop hole where concurrent "no cart yet" reads each triggered a Marten query). Marten side: `Basket.ExpiresAt` is enforced by `BasketExpirySweepService` (`Basket.API/Services/BasketExpirySweepService.cs`), a `BackgroundService` that polls every `Basket:ExpirySweep:Interval` (default 5 min, bound via `IOptions<BasketOptions>` with `ValidateOnStart()`). Per tick it queries `mt_doc_basket` for `(UserId, RestaurantId)` pairs with `ExpiresAt < clock.GetCurrentInstant()`, takes up to `Basket:ExpirySweep:BatchSize` rows (default 1 000), and deletes each via `IDocumentSession.Delete<>` followed by a single `SaveChangesAsync`. **No `BasketCheckoutEvent` is published** — the sweep is pure housekeeping; the cart is being discarded, not promoted to an order. The dispatcher is multi-replica-safe via Marten's `mt_version` optimistic-concurrency fence: a concurrent delete on a peer replica raises `ConcurrencyException` on the second `SaveChangesAsync`, which is logged and the loop continues. Cross-tenant by design — the sweep service is the one legitimate caller that bypasses `IBasketRepository.AssertTenant` via a direct `IDocumentStore.LightweightSession()` per tick. Disposal is `IAsyncDisposable` so the `using` block waits for the background task to exit (sync `Dispose` would cancel the `CancellationTokenSource` but not wait — the test host would hang on shutdown).
 
@@ -428,7 +428,7 @@ All three are `MessageVersion=1` per `IntegrationEvent` base default; the `Outbo
 
 ### 4.5 Ordering Service (Port 6003 / 6063)
 
-**Surface:** Carter modules under `/api/v1`. MSSQL Server 2022 via EF Core SqlServer. Consumes `BasketCheckoutEvent` from RabbitMQ.
+**Surface:** Carter modules under `/v1`. MSSQL Server 2022 via EF Core SqlServer. Consumes `BasketCheckoutEvent` from RabbitMQ.
 
 **Layered DDD layout.**
 - `Ordering.Domain` (no external deps except `BuildingBlocks`): `Order : Aggregate<OrderId>` with private `OrderItems` list exposed as `IReadOnlyCollection`; entities `OrderItem : Entity<OrderItemId>` (with `MarkItemPreparing` / `MarkItemReady` per-item state transitions), `OrderBill : Entity<int>`, `OrderActivity : Abstractions.Entity<OrderActivityId>` (append-only child row — see "Activity feed" below), `Customer : AuditableEntity<CustomerId>`, `MenuItem : Entity<MenuItemId>`. Value objects in `ValueObjects/`: `OrderId`, `OrderItemId`, `OrderActivityId`, `MenuItemId`, `OrderNumber`, `CustomerId`, `Address` (5-digit ZipCode enforced), `Payment` (3-digit Ccv, MM/YY regex). Domain exceptions in `Ordering.Domain/Exceptions/`: `DomainException`, `InvalidOrderStateTransitionException` (→ HTTP 409), `InvalidOrderItemStateTransitionException` (→ HTTP 409), `OrderActivityInvariantException` (→ HTTP 422 Unprocessable Content; surfaced when the activity factory rejects unknown enum values or over-length free-text), `OrderNotFoundException`, `OrderItemNotFoundException`.
@@ -463,22 +463,22 @@ All three are `MessageVersion=1` per `IntegrationEvent` base default; the `Outbo
 
 | Tag | Method | Route | Sends | AuthZ |
 |---|---|---|---|---|
-| Orders | POST | `/api/v1/orders` | `CreateOrderCommand` | `orders:create` |
-| Orders | PUT | `/api/v1/orders` | `UpdateOrderCommand` | `orders:modify_*` |
-| Orders | DELETE | `/api/v1/orders/{id}` | `DeleteOrderCommand` | `orders:modify_*` |
-| Orders | GET | `/api/v1/orders/{id}` | `GetOrderByIdQuery` — response carries `Activities[]` (chronological activity feed, each row includes `correlationId` for log-trace correlation) | `orders:view_*` |
-| Orders | GET | `/api/v1/orders/{id}/activities` | `GetOrderActivitiesQuery` — standalone paged activity feed (`?type=&from=&to=&page=&pageSize=`) for callers that don't want the full order payload. Filters by `OrderActivityType` + half-open `Instant` date range. Returns `PaginatedResult<OrderActivityDto>` ordered by `OccurredAt ASC, Id ASC`. | `orders:view_own` |
-| Orders | GET | `/api/v1/orders` | `GetOrdersQuery` (paged) | `orders:view_*` |
-| Orders | GET | `/api/v1/orders/customer/{customerId}` | `GetOrdersByCustomerQuery` | `orders:view_*` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/confirm` | `ConfirmOrderCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/start-prep` | `StartOrderPrepCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/mark-ready` | `MarkOrderReadyCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/mark-delivered` | `MarkOrderDeliveredCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/cancel` (`{ "reason": "..." }`) | `CancelOrderCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/items/{itemId}/start-prep` | `StartItemPrepCommand` | `kitchen:update_prep_status` |
-| **Kitchen** | POST | `/api/v1/orders/{id}/items/{itemId}/mark-ready` | `MarkItemReadyCommand` | `kitchen:update_prep_status` |
+| Orders | POST | `/v1/orders` | `CreateOrderCommand` | `orders:create` |
+| Orders | PUT | `/v1/orders` | `UpdateOrderCommand` | `orders:modify_*` |
+| Orders | DELETE | `/v1/orders/{id}` | `DeleteOrderCommand` | `orders:modify_*` |
+| Orders | GET | `/v1/orders/{id}` | `GetOrderByIdQuery` — response carries `Activities[]` (chronological activity feed, each row includes `correlationId` for log-trace correlation) | `orders:view_*` |
+| Orders | GET | `/v1/orders/{id}/activities` | `GetOrderActivitiesQuery` — standalone paged activity feed (`?type=&from=&to=&page=&pageSize=`) for callers that don't want the full order payload. Filters by `OrderActivityType` + half-open `Instant` date range. Returns `PaginatedResult<OrderActivityDto>` ordered by `OccurredAt ASC, Id ASC`. | `orders:view_own` |
+| Orders | GET | `/v1/orders` | `GetOrdersQuery` (paged) | `orders:view_*` |
+| Orders | GET | `/v1/orders/customer/{customerId}` | `GetOrdersByCustomerQuery` | `orders:view_*` |
+| **Kitchen** | POST | `/v1/orders/{id}/confirm` | `ConfirmOrderCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/start-prep` | `StartOrderPrepCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/mark-ready` | `MarkOrderReadyCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/mark-delivered` | `MarkOrderDeliveredCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/cancel` (`{ "reason": "..." }`) | `CancelOrderCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/items/{itemId}/start-prep` | `StartItemPrepCommand` | `kitchen:update_prep_status` |
+| **Kitchen** | POST | `/v1/orders/{id}/items/{itemId}/mark-ready` | `MarkItemReadyCommand` | `kitchen:update_prep_status` |
 
-The seven Kitchen-tagged endpoints are grouped under `app.MapGroup("/api/v1").WithTags("Kitchen")` and use `RequirePermission("kitchen:update_prep_status")`. They all return `204 NoContent` on success, `404 NotFound` when the order/item is unknown, and `409 Conflict` on illegal transitions (via `InvalidOrderStateTransitionException` / `InvalidOrderItemStateTransitionException`).
+The seven Kitchen-tagged endpoints are grouped under `app.MapGroup("/v1").WithTags("Kitchen")` and use `RequirePermission("kitchen:update_prep_status")`. They all return `204 NoContent` on success, `404 NotFound` when the order/item is unknown, and `409 Conflict` on illegal transitions (via `InvalidOrderStateTransitionException` / `InvalidOrderItemStateTransitionException`).
 
 **Cross-service HTTP/gRPC.** None. `Ordering.Infrastructure` and `Ordering.API` contain no `HttpClient` / `GrpcClient` / `AddHttpClient` registrations. The only external HTTP target is the Identity service for JWT validation. All coordination with Basket and Kitchen is via RabbitMQ events.
 
@@ -655,14 +655,14 @@ record BasketCheckoutEvent : IntegrationEvent
 7. Ordering migrates with 30-attempt retry and seeds four customers, two menu items, four orders, four bills. The `AddOutboxMessages` migration runs alongside the existing ones; no extra command is required. The `TypedOrderItemCustomizationsJsonb` migration is empty at the SQL level (only the .NET property type changes; the on-disk column stays `nvarchar(max)` jsonb) and lands automatically with the existing migration set.
 7a. Kitchen.API migrates the `kitchendb` schema (3 tables + `outbox_messages`). Both services start their outbox dispatcher hosted services alongside the API; tests in either project flip `Outbox:Enabled=false` to skip the relay loop.
 8. Discount uses `EF Core Migrations` and runs `Database.MigrateAsync()` on startup; seed data is in `OnModelCreating`. Coupon is the single Discount entity (no Catalog-side writers, no backfill). `db_relational_model.mermaid` and `db_relational_model.md` updated to drop the Catalog-side Coupon block and the `Restaurants ||--o{ Coupons` relationship row; the `Coupon` entry is removed from the `AuditableEntity<TId>` user list in the companion doc.
-8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /api/v1/kitchen/queue` and `GET /api/v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
+8. Kitchen.API migrates the `kitchendb` schema (3 tables: `kitchen_tickets`, `kitchen_ticket_items`, `kitchen_stations`) on first start. The `KitchenTicket` aggregate is built from every inbound `OrderCreatedIntegrationEvent` (status `New`) and is queryable via `GET /v1/kitchen/queue` and `GET /v1/kitchen/tickets/{id}` (both require `kitchen:view_orders`). State-mutating commands (`accept`, `items/{id}/start`, `items/{id}/ready`, `mark-ready`, `bump`, `recall`, `cancel`) require `kitchen:update_prep_status` and publish aggregate-level integration events (`KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`) for Ordering to consume. Live updates broadcast over `/hubs/kitchen` (SignalR) — `IKitchenHubClient` carries `OrderReceived`, `TicketAccepted`, `ItemStateChanged`, `OrderReady`, `OrderBumped`, `OrderCancelled`, `TicketRecalled`. Group topology `restaurant:{id}` (auto-joined from the JWT's `restaurantIds` claim) and `station:{id}` (explicit `JoinStationGroup` invocation).
 
 ### YARP, called from outside the compose network
 ```
-https://localhost:6064/identity-api/api/auth/login      # login proxy
-http://localhost:6004/catalog-api/api/v1/menu-items     # public catalog proxy
-http://localhost:6004/basket-api/api/v1/baskets/...     # public basket proxy
-http://localhost:6004/ordering-api/api/v1/orders        # public ordering proxy
+https://localhost:6064/identity-api/v1/auth/login      # login proxy
+http://localhost:6004/catalog-api/v1/menu-items     # public catalog proxy
+http://localhost:6004/basket-api/v1/baskets/...     # public basket proxy
+http://localhost:6004/ordering-api/v1/orders        # public ordering proxy
 http://localhost:6004/kitchen-api/health               # kitchen health proxy
 http://localhost:6004/discount-api/                     # gRPC is HTTP/2, not callable via REST
 ```

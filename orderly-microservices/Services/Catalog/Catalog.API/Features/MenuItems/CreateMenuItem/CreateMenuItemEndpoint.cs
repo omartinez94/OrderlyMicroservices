@@ -24,7 +24,7 @@ public class CreateMenuItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, CreateMenuItemRequest request, ISender sender) =>
+        app.MapPost("/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, CreateMenuItemRequest request, ISender sender) =>
         {
             var command = request.Adapt<CreateMenuItemCommand>();
             command.RestaurantId = restaurantId;
@@ -32,7 +32,7 @@ public class CreateMenuItemEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<CreateMenuItemResponse>();
 
-            return Results.Created($"/api/v1/menu-items/{response.Id}", response);
+            return Results.Created($"/v1/menu-items/{response.Id}", response);
         })
         .WithTags("MenuItems")
         .WithDescription("Creates a new menu item for a restaurant.")

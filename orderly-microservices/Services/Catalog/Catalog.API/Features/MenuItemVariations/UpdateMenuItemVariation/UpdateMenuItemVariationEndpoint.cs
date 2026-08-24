@@ -13,7 +13,7 @@ public class UpdateMenuItemVariationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemVariations");
+        var group = app.MapGroup("/v1").WithTags("MenuItemVariations");
 
         group.MapPut("/menu-item-variations/{id:int}", async (int id, UpdateMenuItemVariationRequest request, ISender sender) =>
         {

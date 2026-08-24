@@ -4,7 +4,7 @@ public class GetRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/roles");
+        var group = app.MapGroup("/v1/roles");
 
         group.MapGet("{id:guid}", async (
                 Guid id,

@@ -9,9 +9,9 @@ public class DeleteBasketEndpoints : ICarterModule
         // DELETE returns 204 No Content. The cart
         // deletion is idempotent — repeating the call on a cart that
         // no longer exists returns 204, not 404.
-        // `[DEPRECATED]` /api/v1/baskets/{userId}/{restaurantId} shim
+        // `[DEPRECATED]` /v1/baskets/{userId}/{restaurantId} shim
         // is removed; the only route is the token-bound
-        // `/api/v1/cart`. The endpoint carried a
+        // `/v1/cart`. The endpoint carried a
         // `DeleteBasketResponse { IsSuccess = true }` body; the
         // 204-No-Content contract eliminates the body entirely.
         group.MapDelete("/cart", async (HttpContext httpContext, ISender sender, CancellationToken cancellationToken) =>

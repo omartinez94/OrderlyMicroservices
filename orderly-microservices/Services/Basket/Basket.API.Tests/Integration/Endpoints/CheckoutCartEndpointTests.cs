@@ -4,7 +4,7 @@ using BuildingBlocks.Messaging.Events;
 namespace Basket.API.Tests.Integration.Endpoints;
 
 /// <summary>
-/// End-to-end HTTP contract tests for <c>POST /api/v1/cart/checkout</c>.
+/// End-to-end HTTP contract tests for <c>POST /v1/cart/checkout</c>.
 /// Locks the §0.4.3 (200 + cached-cart-deleted), §0.4.6
 /// (<c>Idempotency-Key</c> IETF draft), §0.4.8 (rate limiter), and
 /// the empty-cart 409 contract.
@@ -48,7 +48,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -66,7 +66,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         // `Basket.Items` to confirm the post-checkout cart is empty.
         // Property names are PascalCase because the host's
         // ConfigureHttpJsonOptions sets PropertyNamingPolicy = null.
-        var getResponse = await client.GetAsync("/api/v1/cart");
+        var getResponse = await client.GetAsync("/v1/cart");
         getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var cartDoc = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
         var items = cartDoc.GetProperty("Basket").GetProperty("Items");
@@ -93,11 +93,11 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
 
         // Act — first request misses the cache, runs the handler,
         // deletes the cart, caches the response.
-        var firstResponse = await client.PostAsJsonAsync("/api/v1/cart/checkout", dto);
+        var firstResponse = await client.PostAsJsonAsync("/v1/cart/checkout", dto);
         firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second request with the same key + same body — REPLAY.
-        var secondResponse = await client.PostAsJsonAsync("/api/v1/cart/checkout", dto);
+        var secondResponse = await client.PostAsJsonAsync("/v1/cart/checkout", dto);
 
         // Assert
         secondResponse.StatusCode.Should().Be(HttpStatusCode.OK,
@@ -124,7 +124,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
 
         // First request — caches the response.
         var firstDto = BasketSeedHelper.BuildValidCheckoutDto();
-        var firstResponse = await client.PostAsJsonAsync("/api/v1/cart/checkout", firstDto);
+        var firstResponse = await client.PostAsJsonAsync("/v1/cart/checkout", firstDto);
         firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Second request — same key, different body.
@@ -132,7 +132,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         differentDto.FirstName = "DifferentName";
 
         // Act
-        var secondResponse = await client.PostAsJsonAsync("/api/v1/cart/checkout", differentDto);
+        var secondResponse = await client.PostAsJsonAsync("/v1/cart/checkout", differentDto);
 
         // Assert
         secondResponse.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity,
@@ -156,7 +156,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound,
@@ -181,7 +181,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
@@ -198,7 +198,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("X-Test-Permissions", "orders:create");
 
         // Act — no Idempotency-Key header
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
@@ -216,7 +216,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("Idempotency-Key", "not-a-uuid-v4");
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest,
@@ -231,7 +231,7 @@ public sealed class CheckoutCartEndpointTests(BasketWebApplicationFactory factor
         client.DefaultRequestHeaders.Add("Idempotency-Key", Guid.NewGuid().ToString());
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
+        var response = await client.PostAsJsonAsync("/v1/cart/checkout", BasketSeedHelper.BuildValidCheckoutDto());
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

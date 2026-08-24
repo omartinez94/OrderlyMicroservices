@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Basket.API.RateLimiting;
 
 /// <summary>
-/// Rate-limit policy for <c>POST /api/v1/cart/checkout</c>. Single
+/// Rate-limit policy for <c>POST /v1/cart/checkout</c>. Single
 /// policy, single key shape, single <see cref="FixedWindowRateLimiterOptions"/>
 /// — extracted from Program.cs so the partition function and the
 /// OnRejected callback are unit-testable without spinning up the full
@@ -119,7 +119,7 @@ public static class CheckoutRateLimiter
                 type = $"{baseUrl}too-many-requests",
                 title = "Too Many Requests",
                 status = StatusCodes.Status429TooManyRequests,
-                detail = $"POST /api/v1/cart/checkout is rate-limited to {PermitLimit} requests per {(int)Window.TotalMinutes} minute per (userId, restaurantId). Retry after the indicated interval.",
+                detail = $"POST /v1/cart/checkout is rate-limited to {PermitLimit} requests per {(int)Window.TotalMinutes} minute per (userId, restaurantId). Retry after the indicated interval.",
             },
             cancellationToken);
 

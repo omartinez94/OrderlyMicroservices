@@ -97,7 +97,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/confirm",
+            $"/v1/orders/{Guid.NewGuid()}/confirm",
             content: null);
 
         var body = await response.Content.ReadAsStringAsync();
@@ -110,7 +110,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/start-prep",
+            $"/v1/orders/{Guid.NewGuid()}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -122,7 +122,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/mark-ready",
+            $"/v1/orders/{Guid.NewGuid()}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -134,7 +134,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/cancel",
+            $"/v1/orders/{Guid.NewGuid()}/cancel",
             new { reason = "out of stock" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -146,7 +146,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/items/{Guid.NewGuid()}/start-prep",
+            $"/v1/orders/{Guid.NewGuid()}/items/{Guid.NewGuid()}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -158,7 +158,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/items/{Guid.NewGuid()}/mark-ready",
+            $"/v1/orders/{Guid.NewGuid()}/items/{Guid.NewGuid()}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -170,7 +170,7 @@ public sealed class OrderingApiIntegrationTests
         var client = _factory.CreateClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/mark-delivered",
+            $"/v1/orders/{Guid.NewGuid()}/mark-delivered",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -184,7 +184,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewReadOnlyClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/confirm",
+            $"/v1/orders/{Guid.NewGuid()}/confirm",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -198,7 +198,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/confirm",
+            $"/v1/orders/{Guid.NewGuid()}/confirm",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -210,7 +210,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/start-prep",
+            $"/v1/orders/{Guid.NewGuid()}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -222,7 +222,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/mark-ready",
+            $"/v1/orders/{Guid.NewGuid()}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -234,7 +234,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/cancel",
+            $"/v1/orders/{Guid.NewGuid()}/cancel",
             new { reason = "no-show" });
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -246,7 +246,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{Guid.NewGuid()}/mark-delivered",
+            $"/v1/orders/{Guid.NewGuid()}/mark-delivered",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -259,7 +259,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/items/{Guid.NewGuid()}/start-prep",
+            $"/v1/orders/{seeded.Id.Value}/items/{Guid.NewGuid()}/start-prep",
             content: null);
 
         // Aggregate's per-item existence check throws
@@ -275,7 +275,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/items/{Guid.NewGuid()}/mark-ready",
+            $"/v1/orders/{seeded.Id.Value}/items/{Guid.NewGuid()}/mark-ready",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
@@ -290,7 +290,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/cancel",
+            $"/v1/orders/{seeded.Id.Value}/cancel",
             new { reason = "" });
 
         // FluentValidation rejects empty reason before the handler runs.
@@ -306,7 +306,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/confirm",
+            $"/v1/orders/{seeded.Id.Value}/confirm",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -319,7 +319,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsJsonAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/cancel",
+            $"/v1/orders/{seeded.Id.Value}/cancel",
             new { reason = "customer requested" });
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -332,7 +332,7 @@ public sealed class OrderingApiIntegrationTests
         var client = NewKitchenStaffClient();
 
         var response = await client.PostAsync(
-            $"/api/v1/orders/{seeded.Id.Value}/start-prep",
+            $"/v1/orders/{seeded.Id.Value}/start-prep",
             content: null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
@@ -344,7 +344,7 @@ public sealed class OrderingApiIntegrationTests
         var seeded = await SeedOrderAsync(OrderStatus.Pending);
         var client = NewReadOnlyClient();
 
-        var response = await client.GetAsync($"/api/v1/orders/{seeded.Id.Value}");
+        var response = await client.GetAsync($"/v1/orders/{seeded.Id.Value}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -354,7 +354,7 @@ public sealed class OrderingApiIntegrationTests
     {
         var client = NewReadOnlyClient();
 
-        var response = await client.GetAsync($"/api/v1/orders/{Guid.NewGuid()}");
+        var response = await client.GetAsync($"/v1/orders/{Guid.NewGuid()}");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -366,7 +366,7 @@ public sealed class OrderingApiIntegrationTests
         // simplest 200 smoke test on the Ordering surface.
         var client = NewReadOnlyClient();
 
-        var response = await client.GetAsync("/api/v1/orders");
+        var response = await client.GetAsync("/v1/orders");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }

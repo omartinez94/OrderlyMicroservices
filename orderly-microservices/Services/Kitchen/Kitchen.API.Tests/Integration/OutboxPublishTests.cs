@@ -106,7 +106,7 @@ public sealed class OutboxPublishTests(KitchenWebApplicationFactory factory)
         var ticket = await SeedTicketAsync(NewTicket());
 
         var response = await NewClient().PostAsync(
-            $"/api/v1/kitchen/tickets/{ticket.Id.Value}/accept",
+            $"/v1/kitchen/tickets/{ticket.Id.Value}/accept",
             content: null);
         var body = await response.Content.ReadAsStringAsync();
         response.StatusCode.Should().Be(HttpStatusCode.NoContent, $"body: {body}");
@@ -123,7 +123,7 @@ public sealed class OutboxPublishTests(KitchenWebApplicationFactory factory)
         var ticket = await SeedTicketAsync(ReadyTicket());
 
         var response = await NewClient().PostAsync(
-            $"/api/v1/kitchen/tickets/{ticket.Id.Value}/bump",
+            $"/v1/kitchen/tickets/{ticket.Id.Value}/bump",
             content: null);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -139,7 +139,7 @@ public sealed class OutboxPublishTests(KitchenWebApplicationFactory factory)
         var ticket = await SeedTicketAsync(NewTicket());
 
         var response = await NewClient().PostAsJsonAsync(
-            $"/api/v1/kitchen/tickets/{ticket.Id.Value}/cancel",
+            $"/v1/kitchen/tickets/{ticket.Id.Value}/cancel",
             new { reason = "out of stock" });
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -155,7 +155,7 @@ public sealed class OutboxPublishTests(KitchenWebApplicationFactory factory)
         var ticket = await SeedTicketAsync(InProgressTicketWithAllItemsReady());
 
         var response = await NewClient().PostAsync(
-            $"/api/v1/kitchen/tickets/{ticket.Id.Value}/mark-ready",
+            $"/v1/kitchen/tickets/{ticket.Id.Value}/mark-ready",
             content: null);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
@@ -172,7 +172,7 @@ public sealed class OutboxPublishTests(KitchenWebApplicationFactory factory)
         var firstItemId = ticket.Items.First().Id.Value;
 
         var response = await NewClient().PostAsync(
-            $"/api/v1/kitchen/tickets/{ticket.Id.Value}/items/{firstItemId}/start",
+            $"/v1/kitchen/tickets/{ticket.Id.Value}/items/{firstItemId}/start",
             content: null);
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
 

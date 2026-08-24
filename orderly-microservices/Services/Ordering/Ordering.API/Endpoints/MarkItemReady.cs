@@ -3,7 +3,7 @@ using Ordering.Application.Orders.Commands.MarkItemReady;
 namespace Ordering.API.Endpoints;
 
 /// <summary>
-/// <c>POST /api/v1/orders/{id}/items/{itemId}/mark-ready</c> — mark a
+/// <c>POST /v1/orders/{id}/items/{itemId}/mark-ready</c> — mark a
 /// single line item as <c>Ready</c>. Returns 204 on success; 404 when
 /// the order or item is unknown; 409 on illegal item-state transition
 /// (item not yet <c>Preparing</c> or already <c>Ready</c>).
@@ -12,7 +12,7 @@ public class MarkItemReady : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGroup("/api/v1").WithTags("Kitchen")
+        app.MapGroup("/v1").WithTags("Kitchen")
             .MapPost("/orders/{id:guid}/items/{itemId:guid}/mark-ready", async (
                 Guid id,
                 Guid itemId,

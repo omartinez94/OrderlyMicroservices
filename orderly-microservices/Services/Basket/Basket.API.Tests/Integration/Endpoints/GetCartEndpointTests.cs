@@ -1,7 +1,7 @@
 namespace Basket.API.Tests.Integration.Endpoints;
 
 /// <summary>
-/// End-to-end HTTP contract tests for <c>GET /api/v1/cart</c>.
+/// End-to-end HTTP contract tests for <c>GET /v1/cart</c>.
 /// Locks the §0.4.3 (200 / 304) and §0.4.7 (empty-cart returns 200,
 /// never 404) contracts over the real ASP.NET Core pipeline:
 /// Carter → MapBasketGroup → MediatR → BasketIdentityGuardBehavior →
@@ -34,11 +34,11 @@ public sealed class GetCartEndpointTests(BasketWebApplicationFactory factory)
         client.DefaultRequestHeaders.Add("X-Test-Permissions", "orders:view_own");
 
         // Act
-        var response = await client.GetAsync("/api/v1/cart");
+        var response = await client.GetAsync("/v1/cart");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK,
-            "§0.4.7: GET /api/v1/cart for a user with no active cart returns 200 + empty body, never 404");
+            "§0.4.7: GET /v1/cart for a user with no active cart returns 200 + empty body, never 404");
 
         response.Headers.CacheControl.Should().NotBeNull(
             "every cart endpoint must set Cache-Control: no-store (PII)");
@@ -71,7 +71,7 @@ public sealed class GetCartEndpointTests(BasketWebApplicationFactory factory)
         client.DefaultRequestHeaders.Add("X-Test-Permissions", "orders:view_own");
 
         // Act
-        var response = await client.GetAsync("/api/v1/cart");
+        var response = await client.GetAsync("/v1/cart");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -91,7 +91,7 @@ public sealed class GetCartEndpointTests(BasketWebApplicationFactory factory)
         using var client = factory.CreateClient();
 
         // Act
-        var response = await client.GetAsync("/api/v1/cart");
+        var response = await client.GetAsync("/v1/cart");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
@@ -117,7 +117,7 @@ public sealed class GetCartEndpointTests(BasketWebApplicationFactory factory)
         client.DefaultRequestHeaders.Add("X-Test-User", userId.ToString());
         client.DefaultRequestHeaders.Add("X-Test-Permissions", "orders:view_own");
 
-        var firstResponse = await client.GetAsync("/api/v1/cart");
+        var firstResponse = await client.GetAsync("/v1/cart");
         firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var etag = firstResponse.Headers.ETag;
         etag.Should().NotBeNull("the GET endpoint must set an ETag on a populated cart");
@@ -133,7 +133,7 @@ public sealed class GetCartEndpointTests(BasketWebApplicationFactory factory)
         second.DefaultRequestHeaders.Add("X-Test-Permissions", "orders:view_own");
         second.DefaultRequestHeaders.Add("If-None-Match", etagValue);
 
-        var secondResponse = await second.GetAsync("/api/v1/cart");
+        var secondResponse = await second.GetAsync("/v1/cart");
 
         // Assert
         secondResponse.StatusCode.Should().Be(HttpStatusCode.NotModified,

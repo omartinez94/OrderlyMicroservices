@@ -31,7 +31,7 @@ public class MenuCategoryEndpointTests : IClassFixture<OrderlyTestFactory<Progra
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var request = new { Name = "Category" };
-        var response = await _client.PostAsJsonAsync($"/api/v1/restaurants/{rId}/menu-categories", request);
+        var response = await _client.PostAsJsonAsync($"/v1/restaurants/{rId}/menu-categories", request);
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         response.Headers.Location.Should().NotBeNull();
     }
@@ -42,7 +42,7 @@ public class MenuCategoryEndpointTests : IClassFixture<OrderlyTestFactory<Progra
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         await TestDataSeeder.SeedMenuCategoryAsync(_factory, rId);
-        var response = await _client.GetAsync($"/api/v1/restaurants/{rId}/menu-categories");
+        var response = await _client.GetAsync($"/v1/restaurants/{rId}/menu-categories");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -52,7 +52,7 @@ public class MenuCategoryEndpointTests : IClassFixture<OrderlyTestFactory<Progra
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuCategoryAsync(_factory, rId);
-        var response = await _client.GetAsync($"/api/v1/menu-categories/{id}");
+        var response = await _client.GetAsync($"/v1/menu-categories/{id}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -63,7 +63,7 @@ public class MenuCategoryEndpointTests : IClassFixture<OrderlyTestFactory<Progra
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuCategoryAsync(_factory, rId);
         var request = new { Name = "Updated Category" };
-        var response = await _client.PutAsJsonAsync($"/api/v1/menu-categories/{id}", request);
+        var response = await _client.PutAsJsonAsync($"/v1/menu-categories/{id}", request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
@@ -73,8 +73,8 @@ public class MenuCategoryEndpointTests : IClassFixture<OrderlyTestFactory<Progra
         await AuthenticateAsync();
         var rId = await TestDataSeeder.SeedRestaurantAsync(_factory);
         var id = await TestDataSeeder.SeedMenuCategoryAsync(_factory, rId);
-        var deleteResponse = await _client.DeleteAsync($"/api/v1/menu-categories/{id}");
-        var getResponse = await _client.GetAsync($"/api/v1/menu-categories/{id}");
+        var deleteResponse = await _client.DeleteAsync($"/v1/menu-categories/{id}");
+        var getResponse = await _client.GetAsync($"/v1/menu-categories/{id}");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
         getResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

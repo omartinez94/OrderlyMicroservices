@@ -11,7 +11,7 @@ public class AddMenuItemIngredientEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemIngredients");
+        var group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
 
         group.MapPost("/menu-items/{menuItemId}/ingredients", async (Guid menuItemId, AddMenuItemIngredientRequest request, ISender sender) =>
         {
@@ -19,7 +19,7 @@ public class AddMenuItemIngredientEndpoint : ICarterModule
             var result = await sender.Send(command);
             var response = result.Adapt<AddMenuItemIngredientResponse>();
 
-            return Results.Created($"/api/v1/menu-items/{menuItemId}/ingredients/{response.Id}", response);
+            return Results.Created($"/v1/menu-items/{menuItemId}/ingredients/{response.Id}", response);
         })
         .WithDescription("Adds an ingredient to a menu item.")
         .WithName("AddMenuItemIngredient")

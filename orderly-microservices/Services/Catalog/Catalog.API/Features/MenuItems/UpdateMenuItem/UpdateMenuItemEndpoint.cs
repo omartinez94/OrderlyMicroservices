@@ -24,7 +24,7 @@ public class UpdateMenuItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPut("/api/v1/menu-items/{id:guid}", async (Guid id, UpdateMenuItemRequest request, ISender sender) =>
+        app.MapPut("/v1/menu-items/{id:guid}", async (Guid id, UpdateMenuItemRequest request, ISender sender) =>
         {
             var command = request.Adapt<UpdateMenuItemCommand>();
             command.Id = id;

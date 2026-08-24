@@ -6,7 +6,7 @@ public class DeleteMenuItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapDelete("/api/v1/menu-items/{id:guid}", async (Guid id, ISender sender) =>
+        app.MapDelete("/v1/menu-items/{id:guid}", async (Guid id, ISender sender) =>
         {
             var result = await sender.Send(new DeleteMenuItemCommand(id));
             var response = result.Adapt<DeleteMenuItemResponse>();

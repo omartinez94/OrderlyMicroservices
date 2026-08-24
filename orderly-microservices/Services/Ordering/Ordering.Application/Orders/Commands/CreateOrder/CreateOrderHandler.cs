@@ -55,7 +55,7 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
         // default values (0 / 0 / 0 / 0 / "" / 0); the wire-side values
         // (computed by the Basket / Discount helpers upstream) must be
         // stamped here so the persisted row reflects what the caller
-        // saw at checkout time. Without this, GET /api/v1/orders/{id}
+        // saw at checkout time. Without this, GET /v1/orders/{id}
         // returns 0 / 0 / 0 / 0 / "" / 0 and the customer-facing bill
         // is wrong.
         order.Subtotal = dto.Subtotal;

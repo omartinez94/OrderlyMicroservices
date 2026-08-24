@@ -15,7 +15,7 @@ public class UpdateBrandEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("Brands");
+        var group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapPut("/brands/{id}", async (Guid id, UpdateBrandRequest request, ISender sender) =>
         {

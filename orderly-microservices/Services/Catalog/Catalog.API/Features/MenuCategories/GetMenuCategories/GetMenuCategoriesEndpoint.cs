@@ -6,7 +6,7 @@ public class GetMenuCategoriesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuCategories");
+        var group = app.MapGroup("/v1").WithTags("MenuCategories");
 
         group.MapGet("/restaurants/{restaurantId:guid}/menu-categories", async (Guid restaurantId, ISender sender) =>
         {

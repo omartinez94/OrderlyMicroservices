@@ -13,7 +13,7 @@ public class GetMenuItemIngredientsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("MenuItemIngredients");
+        var group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
 
         group.MapGet("/menu-items/{menuItemId}/ingredients", async (Guid menuItemId, ISender sender) =>
         {

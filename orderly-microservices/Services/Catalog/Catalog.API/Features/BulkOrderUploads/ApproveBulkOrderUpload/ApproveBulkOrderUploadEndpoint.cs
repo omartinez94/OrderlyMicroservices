@@ -6,7 +6,7 @@ public class ApproveBulkOrderUploadEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/v1").WithTags("BulkOrderUploads");
+        var group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
 
         group.MapPost("/restaurants/{restaurantId}/bulk-order-uploads/{id:int}/approve", async (
             Guid restaurantId,

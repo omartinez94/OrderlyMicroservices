@@ -4,7 +4,7 @@ public class GetAuditLogModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/audit-log");
+        var group = app.MapGroup("/v1/audit-log");
 
         group.MapGet("", async (
                 [AsParameters] GetAuditLogRequest request,

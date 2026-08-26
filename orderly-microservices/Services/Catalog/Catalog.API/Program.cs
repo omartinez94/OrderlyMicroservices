@@ -64,6 +64,10 @@ builder.Services.AddStackExchangeRedisCache(redisCache =>
 builder.Services.AddScoped<IMenuReader, MenuReader>();
 builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 
+builder.Services.Configure<MigratorHostedServiceOptions>(
+    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+builder.Services.AddHostedService<CatalogMigratorHostedService>();
+
 // Drift-repair hosted service. The tick logic self-gates on the
 // CatalogRedisCache feature flag, so the service can be registered
 // unconditionally and toggled at runtime.
@@ -184,15 +188,6 @@ builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
                 errorCodesToAdd: null);
     });
 });
-
-// Register the migration hosted service. Replaces the inline
-// `await MigrateAsync()` block that previously sat between builder.Build
-// and app.MapCarter. The migrator retries with exponential backoff
-// (default 2s → 32s) up to MigrationTimeoutSeconds (default 120s), then
-// fails the host. Survives Postgres cold-start during rolling restart.
-builder.Services.Configure<MigratorHostedServiceOptions>(
-    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
-builder.Services.AddHostedService<CatalogMigratorHostedService>();
 
 if (builder.Environment.IsDevelopment())
 {

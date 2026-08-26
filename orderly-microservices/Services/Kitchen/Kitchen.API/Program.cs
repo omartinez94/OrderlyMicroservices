@@ -44,6 +44,10 @@ builder.Services.AddOpenApi();
 // ApiGateway/YarpApiGateway/appsettings.json).
 builder.Services.AddSignalR();
 
+builder.Services.Configure<MigratorHostedServiceOptions>(
+    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
+builder.Services.AddHostedService<KitchenMigratorHostedService>();
+
 builder.Services
     .AddApplicationServices(builder.Configuration)
     .AddInfrastructureServices(builder.Configuration);
@@ -60,14 +64,6 @@ builder.Services.AddFeatureManagement();
 // don't need a separate explicit RabbitMQ check.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
-
-// Phase 2: replace the dev-only inline MigrateAsync with the shared
-// MigratorHostedService. Schema application now runs at host startup
-// (unconditional, not gated on IsDevelopment()) with exponential-backoff
-// retry — survives Postgres cold-start during rolling restart.
-builder.Services.Configure<MigratorHostedServiceOptions>(
-    builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
-builder.Services.AddHostedService<KitchenMigratorHostedService>();
 
 var app = builder.Build();
 

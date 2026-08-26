@@ -18,6 +18,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MessagePack" Version="3.1.8" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--
       Project references are required so the AppHost SDK can generate the
       `Projects.<Service>` metadata classes at build time. Each reference

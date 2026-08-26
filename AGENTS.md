@@ -14,6 +14,11 @@
 - **Routing & Endpoints**: Use **Carter** for minimal APIs. Do NOT use MVC Controllers.
 - **CQRS**: Use **MediatR** for Commands and Queries. Handle validation via **FluentValidation** pipeline behaviors.
 - **Date & Time**: Always use **NodaTime** (e.g., `Instant`, `LocalDate`) from `BuildingBlocks` instead of standard .NET `DateTime`.
+- **Variables**: Use explicit typed variables instead of `var` when possible.
+- **Null Checks**: Prefer `is not null` over `!= null`.
+- **Pattern Matching**: Prefer using C# pattern matching when possible.
+  - *Example*: Use switch expressions (`obj switch { Type t => ... }`) or property patterns (`if (obj is { Property: value })`).
+- **Guard Clauses**: Use early returns/guard clauses to avoid deep nesting of `if` statements.
 
 ## Persistence Reality vs Documentation
 

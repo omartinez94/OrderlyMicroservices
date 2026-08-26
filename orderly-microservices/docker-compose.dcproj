@@ -15,7 +15,7 @@
       so the dev defaults (ASPNETCORE_ENVIRONMENT=Development, dev passwords,
       volume mounts) never apply and the stack boots in Production posture.
     -->
-    <DockerComposeProjectFiles>docker-compose.yml;docker-compose.override.dev.yml</DockerComposeProjectFiles>
+    <AdditionalComposeFilePaths>docker-compose.override.dev.yml</AdditionalComposeFilePaths>
   </PropertyGroup>
   <ItemGroup>
     <None Include="docker-compose.yml" />

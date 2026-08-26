@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Builder;
-
+using Microsoft.Extensions.DependencyInjection;
 namespace Ordering.Infrastructure.Data.Extensions;
 
 public static class DatabaseExtensions
@@ -12,9 +12,9 @@ public static class DatabaseExtensions
     // The seeder below assumes the schema is already in place when
     // InitializeDatabaseAsync runs.
 
-    public static async Task InitializeDatabaseAsync(this WebApplication app)
+    public static async Task InitializeDatabaseAsync(IServiceProvider services)
     {
-        using var scope = app.Services.CreateScope();
+        using var scope = services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
 
         await SeedAsync(context);

@@ -109,6 +109,7 @@ builder.Services.AddMediatR(cfg =>
 builder.Services.Configure<MigratorHostedServiceOptions>(
     builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
 builder.Services.AddHostedService<IdentityMigratorHostedService>();
+builder.Services.AddHostedService<DataSeederHostedService>();
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
@@ -230,6 +231,13 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
 });
 
-await DataSeeder.SeedDataAsync(app.Services, app.Environment);
-
 app.Run();
+
+class DataSeederHostedService(IServiceProvider serviceProvider, IWebHostEnvironment environment) : IHostedService
+{
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await DataSeeder.SeedDataAsync(serviceProvider, environment, cancellationToken);
+    }
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}

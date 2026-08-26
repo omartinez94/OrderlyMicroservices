@@ -24,6 +24,8 @@ builder.Services
     .AddInfrastructureServices(builder.Configuration)
     .AddApiServices(builder.Environment, builder.Configuration);
 
+builder.Services.AddHostedService<OrderingDataSeederHostedService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -31,8 +33,6 @@ app.UseApiServices();
 
 if (app.Environment.IsDevelopment())
 {
-    await app.InitializeDatabaseAsync();
-
     // Dev-only trigger endpoints for the Orderly.DevMCP.Server's
     // `trigger_scheduled_jobs` tool. Gated on IsDevelopment() +
     // X-Dev-Trigger-Secret header (constant-time compared against
@@ -63,3 +63,15 @@ if (app.Environment.IsDevelopment())
 }
 
 app.Run();
+
+class OrderingDataSeederHostedService(IServiceProvider serviceProvider, IWebHostEnvironment environment) : IHostedService
+{
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (environment.IsDevelopment())
+        {
+            await DatabaseExtensions.InitializeDatabaseAsync(serviceProvider);
+        }
+    }
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+}

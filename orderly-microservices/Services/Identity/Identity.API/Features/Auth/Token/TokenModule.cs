@@ -4,7 +4,7 @@ public class TokenModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/connect");
+        RouteGroupBuilder group = app.MapGroup("/connect");
 
         group.MapPost("/token", async (
                 HttpContext context,
@@ -12,25 +12,25 @@ public class TokenModule : ICarterModule
                 AuditLogger auditLogger,
                 CancellationToken ct) =>
             {
-                var request = context.GetOpenIddictServerRequest()
+                OpenIddictRequest request = context.GetOpenIddictServerRequest()
                     ?? throw new InvalidOperationException("Invalid token request.");
 
-                var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = context.Request.Headers.UserAgent.ToString();
+                string ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                string userAgent = context.Request.Headers.UserAgent.ToString();
 
                 if (request.IsPasswordGrantType())
                 {
-                    var userManager = context.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
-                    var signInManager = context.RequestServices.GetRequiredService<SignInManager<ApplicationUser>>();
+                    UserManager<ApplicationUser> userManager = context.RequestServices.GetRequiredService<UserManager<ApplicationUser>>();
+                    SignInManager<ApplicationUser> signInManager = context.RequestServices.GetRequiredService<SignInManager<ApplicationUser>>();
 
-                    var user = await userManager.FindByEmailAsync(request.Username!);
+                    ApplicationUser? user = await userManager.FindByEmailAsync(request.Username!);
                     if (user is null || !user.IsActive)
                     {
                         await auditLogger.LogAsync(user?.Id, "TokenFailure", ipAddress, userAgent, "User not found or inactive", ct);
                         return Results.Problem("Invalid credentials.", statusCode: 400);
                     }
 
-                    var result = await signInManager.CheckPasswordSignInAsync(user, request.Password!, true);
+                    SignInResult result = await signInManager.CheckPasswordSignInAsync(user, request.Password!, true);
                     if (!result.Succeeded)
                     {
                         await auditLogger.LogAsync(user.Id, "TokenFailure", ipAddress, userAgent, "Invalid credentials", ct);
@@ -39,19 +39,18 @@ public class TokenModule : ICarterModule
 
                     await auditLogger.LogAsync(user.Id, "TokenIssued", ipAddress, userAgent, "Password grant", ct);
 
-                    var principal = await signInManager.CreateUserPrincipalAsync(user);
+                    ClaimsPrincipal principal = await signInManager.CreateUserPrincipalAsync(user);
                     principal.SetScopes(request.GetScopes());
 
-                    var claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
-                    var identity = principal.Identity as ClaimsIdentity;
-                    if (identity != null)
+                    ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
+                    if (principal.Identity is ClaimsIdentity identity)
                     {
-                        var existingClaims = identity.Claims.ToList();
-                        foreach (var claim in existingClaims)
+                        List<Claim> existingClaims = [.. identity.Claims];
+                        foreach (Claim? claim in existingClaims)
                         {
                             identity.RemoveClaim(claim);
                         }
-                        foreach (var claim in claims)
+                        foreach (Claim claim in claims)
                         {
                             identity.AddClaim(claim);
                         }
@@ -64,25 +63,25 @@ public class TokenModule : ICarterModule
 
                 if (request.IsRefreshTokenGrantType())
                 {
-                    var authenticateResult = await context.AuthenticateAsync("OpenIddict.Server.AspNetCore");
-                    var principal = authenticateResult.Principal
+                    AuthenticateResult authenticateResult = await context.AuthenticateAsync("OpenIddict.Server.AspNetCore");
+                    ClaimsPrincipal principal = authenticateResult.Principal
                         ?? throw new InvalidOperationException("Invalid refresh token.");
 
-                    var userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-                    Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
+                    string? userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                    Guid? userId = Guid.TryParse(userIdString, out Guid parsedId) ? parsedId : null;
 
                     await auditLogger.LogAsync(userId, "TokenRefreshed", ipAddress, userAgent, "Refresh token grant", ct);
 
-                    var claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
+                    ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
                     var identity = principal.Identity as ClaimsIdentity;
-                    if (identity != null)
+                    if (identity is not null)
                     {
-                        var existingClaims = identity.Claims.ToList();
-                        foreach (var claim in existingClaims)
+                        List<Claim> existingClaims = [.. identity.Claims];
+                        foreach (Claim? claim in existingClaims)
                         {
                             identity.RemoveClaim(claim);
                         }
-                        foreach (var claim in claims)
+                        foreach (Claim claim in claims)
                         {
                             identity.AddClaim(claim);
                         }
@@ -97,16 +96,6 @@ public class TokenModule : ICarterModule
             })
             .Produces<TokenResponse>()
             .ProducesProblem(400);
-        // Deliberately left on the global limiter rather than the strict
-        // RateLimitPolicies.Auth budget. This one route serves two grant
-        // types: `password` (brute-forceable, wants a tight budget) and
-        // `refresh_token` (routine, high-frequency client traffic that a
-        // 5-per-15-minute cap would break). Distinguishing them inside the
-        // partitioner would mean reading the un-buffered form body. The
-        // password path is instead covered by ASP.NET Identity's per-account
-        // lockout — CheckPasswordSignInAsync is called with
-        // lockoutOnFailure: true above — which is the per-account control the
-        // per-IP limiter cannot be.
     }
 
     private static IEnumerable<string> GetDestinations(Claim claim)
@@ -123,7 +112,7 @@ public class TokenModule : ICarterModule
                 => [OpenIddictConstants.Destinations.AccessToken],
             "permissions"
                 => [OpenIddictConstants.Destinations.AccessToken],
-            _ => [OpenIddictConstants.Destinations.AccessToken]
+            _ => [OpenIddictConstants.Destinations.AccessToken],
         };
     }
 }

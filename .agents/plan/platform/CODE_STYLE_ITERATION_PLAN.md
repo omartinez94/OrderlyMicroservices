@@ -1,6 +1,6 @@
 # Code-Style Iteration — Orderly Microservices
 
-> **Plan version**: `v3.0` — 2026-08-27. Phase 0 + Step 0.5 executed. Plan doc updated post-execution: bumped version to v3.0, captured actual build numbers (8,468 warnings vs earlier estimate of ~4,047), actual Phase 1 scope (200 IDE0011 sites across 39 files vs earlier estimate of 46/8), new Step 0.5 (canary re-baseline), new canary-NoWarn mechanism (replaces the in-editorconfig canary override that didn't reach TWAE projects), new `Directory.Build.props` requirement (`EnforceCodeStyleInBuild=true`), corrected file references that no longer exist (`BuildingBlocks.Dev/Extensions/OpenIddictServerExtensions.cs`), corrected "multiline braceless" claims (the dangerous pattern is nowhere in the repo — all sites are safe).
+> **Plan version**: `v3.1` — 2026-08-28. Phase 1 executed and complete. Updated post-execution: marked Phase 1 ✅, captured actual numbers (~110 unique brace sites / 41 files vs earlier estimate of 200 IDE0011 sites / 39 files), new findings from execution (multiline braceless in `TenantedSessionFactory.cs` found + handled safely by Batch B sub-agent; dangerous pattern in `BuildingBlocks.Messaging/MassTransit/Extensions.cs` confirmed NOT to exist — all sites are single-line, not multiline; pre-existing 94/135 Catalog.API.Tests `[AsParameters]` failure confirmed to be unrelated to Phase 1 by stash/pop test against main).
 > **Strategy**: phased mechanical-then-manual cascade. Direct-on-main, no feature branch (per user decision).
 > **Scope**: full solution, all 30 .csproj / 921 .cs files (excluding `obj/`, `bin/`, `**/Migrations/**/*.cs`, `*.Designer.cs`).
 
@@ -84,20 +84,36 @@ Hot-spot projects (largest work-pile): `Catalog.API` (515 var, 16 braceless ifs)
 
 ---
 
+## Status (live)
+
+| Phase | Status | Notes |
+|---|---|---|
+| **Step 0.5 — canary re-baseline** | ✅ complete 2026-08-27 | See new section below. |
+| **Phase 0 — tooling baseline** | ✅ complete 2026-08-27 | See §Phase 0 below. |
+| **Phase 1 — braces** | ✅ complete 2026-08-28 | ~110 unique sites / 41 files. See §Phase 1 below. |
+| **Phase 2 — null checks** | ⏸ not started | 65 sites / 11 projects (regex audit; Marten validation needed). |
+| **Phase 3 — var → explicit type** | ⏸ not started | 2,730 production-code var sites. Script not authored. |
+| **Phase 4 — manual refactors** | ⏸ not started | Per-service. |
+| **Phase 5 — CI + style-gate script** | ⏸ not started | Workflow + check-code-style.ps1 + phase-guard section 22. |
+| **Phase 6 — close + memory** | ⏸ not started | |
+
 ## Phasing — mechanical cascade, then manual
 
 **Order is braces → null → var → manual**. Doing braces and null first means reviewers' cognitive load stays concentrated on the biggest pile (var) at the end. Doing BuildingBlocks.Dev first in Phase 3 means the canary proves the gate works before the cascade.
 
 **PR strategy: per-phase-across-projects** (one PR per phase touching every project). The mechanical phases are homogeneous ("LHS must equal the inferred type"), so splitting per-project produces review fatigue without any incremental safety. Phase 4 stays per-project (manual review per handler).
 
-### Phase 0 — Tooling baseline (no code changes)
+### ✅ Phase 0 — Tooling baseline (no code changes) — done 2026-08-27
 
 **Goal**: lock AGENTS.md rules into the editorconfig at warning severity.
 
-**Critical files**:
-- `orderly-microservices/.editorconfig` — promote and add the keys below.
+**Critical files (4 files touched)**:
+- `orderly-microservices/.editorconfig` — promote and add the keys below; add test-project exempt.
+- `orderly-microservices/Directory.Build.props` — **NEW**: add `<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>` (without it, IDE0xxx rules are advisory-only and the build does not surface them).
+- `orderly-microservices/BuildingBlocks.Dev/BuildingBlocks.Dev.csproj` — Step 0.5 `<NoWarn>` (see below).
+- `orderly-microservices/BuildingBlocks.Dev.Tests/BuildingBlocks.Dev.Tests.csproj` — Step 0.5 `<NoWarn>` (see below).
 
-**Edits**:
+**Edits applied (`.editorconfig`)**:
 
 ```ini
 # --- Style rules promoted per AGENTS.md (was :suggestion; now :warning) ---
@@ -117,30 +133,36 @@ csharp_style_pattern_matching_over_is_with_cast_check  = true:warning   # IDE002
 csharp_style_pattern_matching_over_as_with_null_check  = true:warning   # IDE0019
 csharp_style_prefer_pattern_matching                   = true:warning   # IDE0078
 csharp_style_prefer_not_pattern                        = true:warning   # IDE0083
-csharp_style_prefer_extended_property_pattern           = true:warning   # IDE0170
+csharp_style_prefer_extended_property_pattern          = true:warning   # IDE0170
 
 # --- String handling ---
 # No editorconfig key exists for string.Empty / string.IsNullOrEmpty preference.
 # 0 current violations. Enforced by check-code-style.ps1 grep to prevent regression.
+
+# --- Test project var + brace exemption (plan §"Test project var policy") ---
+# `**/*Tests/**/*.cs` walks any folder whose name ends in `Tests` at any depth
+# (e.g. Services/Basket/Basket.API.Tests/Unit/Foo.cs).
+[**/*Tests/**/*.cs]
+csharp_style_var_for_built_in_types    = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere            = false:suggestion
+csharp_prefer_braces                  = true:suggestion
 ```
 
-**Canary override** (temporary — removed by Phase 3 PR #3.1):
+**Edits applied (`Directory.Build.props`)** — required, missing from earlier plan versions:
 
-Both `BuildingBlocks.Dev` and `BuildingBlocks.Dev.Tests` have `TreatWarningsAsErrors=true`. The promotion above turns var/brace warnings into build errors for those two projects. Add these sections at the bottom of `.editorconfig` to keep them building until Phase 3 fixes their var sites:
-
-```ini
-# --- Temporary: suppress var warnings in canary projects until Phase 3 PR #3.1 ---
-# Remove this section after PR #3.1 lands.
-[BuildingBlocks.Dev/**/*.cs]
-csharp_style_var_for_built_in_types    = false:suggestion
-csharp_style_var_when_type_is_apparent = false:suggestion
-csharp_style_var_elsewhere            = false:suggestion
-
-[BuildingBlocks.Dev.Tests/**/*.cs]
-csharp_style_var_for_built_in_types    = false:suggestion
-csharp_style_var_when_type_is_apparent = false:suggestion
-csharp_style_var_elsewhere            = false:suggestion
+```diff
+   <PropertyGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">
+     ...
+     <AnalysisLevel>latest-all</AnalysisLevel>
+     <EnableNETAnalyzers>true</EnableNETAnalyzers>
++    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+   </PropertyGroup>
 ```
+
+> **Without `EnforceCodeStyleInBuild=true`, the IDE0xxx rules are advisory-only and do not fire at build time even when the .editorconfig sets them to `:warning`.** This is the single biggest blocker for Phase 0; adding it turned the 4,047-warning estimate into the actual 8,468-warning count (IDE0008 / IDE0011 / IDE0078 ramped from 0 to 2,730 / 200 / 16 respectively). Verified empirically 2026-08-27.
+
+**`.editorconfig severity = none` is ignored when `TreatWarningsAsErrors=true`** — verified empirically against all 37 pre-existing canary errors. The in-`.editorconfig` canary override originally proposed for this phase ([BuildingBlocks.Dev/**/*.cs] / [BuildingBlocks.Dev.Tests/**/*.cs]) does NOT reach the build when TWAE=true. **Use `.csproj <NoWarn>` instead** — see Step 0.5 below.
 
 **Do NOT touch**:
 - `TreatWarningsAsErrors` — leave `false` globally. Promotion to `:warning` is enough.
@@ -148,40 +170,87 @@ csharp_style_var_elsewhere            = false:suggestion
 - The 24 StyleCop / FxCop rules already at `severity = none` (SA1200, SA1633-1641, SA1652, SA1101, CA1014, CA1052, CA1032, CA1031, CA1062, CA1307, CA1848, CA1873, CA2007, SA0001, SA1402, SA1513, SA1518, SA1116/1117, CA1707, CA1859, CA1861, CA1812, CA1515, SA1202, SA1208, SA1512, SA1515, SA1516).
 - `BuildingBlocks.GeneratedMSBuildEditorConfig.editorconfig` — auto-regenerated by MSBuild on every build.
 
-**Smoke test** (mandatory before Phase 1):
+**Smoke test (executed 2026-08-27)**:
 ```powershell
 Set-Location orderly-microservices
 dotnet build orderly-microservices.slnx --no-restore 2>&1 | Tee-Object -FilePath phase0-build.log
-# Expect ~4,047+ warnings:
-#   IDE0008 (var → explicit type)              ~4,001
-#   IDE0011 / SA1503 (braces)                  ~46
-#   IDE0020/IDE0019/IDE0078 (pattern matching)  small, project-dependent
-#
-# == null / != null will NOT appear as IDE warnings — no analyzer covers this.
-# They are enforced by check-code-style.ps1 (Phase 5) instead.
+# Actual result: 0 errors, 8,468 warnings (5,522 SA/CA pre-existing + 2,730 IDE0008 + 200 IDE0011 + 16 IDE0078).
+# Plan estimate was ~4,047 (still off because EnforceCodeStyleInBuild flag was absent pre-fix).
 ```
 
-`SA1503` (Braces must not be omitted) is already fired by StyleCop.Analyzers with default severity. The audit's 46 braceless sites will appear in the build output as SA1503 too. Phase 1 must address both IDE0011 and SA1503.
+**Verification gate (all green 2026-08-27)**:
+- `dotnet build orderly-microservices/orderly-microservices.slnx --no-restore` — 0 errors, 8,468 warnings.
+- `dotnet format whitespace orderly-microservices/orderly-microservices.slnx --verify-no-changes --no-restore` — green.
+
+### ✅ Step 0.5 — Canary re-baseline (was Phase 0 prerequisite) — done 2026-08-27
+
+**Problem**: The plan v2.0 asserted `BuildingBlocks.Dev` and `BuildingBlocks.Dev.Tests` build clean with `TreatWarningsAsErrors=true`. Verified 2026-08-27 they do NOT — 37 pre-existing errors across SA1200 (using-directive placement), SA1633 (file header missing), SA1513 (closing-brace + blank line), SA1402 (multiple types per file), SA0001 (XML-doc analysis disabled), CA1032 (exception constructors), CA1031 (general catch), CA1062 (null validation), CA1307 (StringComparison), CA1848 (LoggerMessage), CA1873 (expensive logging args), CA2007 (ConfigureAwait). None of these were caused by Phase 0; they predate the canary close-pass in the plan's v1.1 reference.
+
+**Root cause**: When `TreatWarningsAsErrors=true` is set in a csproj, `.editorconfig`'s `severity = none` is empirically NOT honored for StyleCop / .NET analyzer rules. Verified by smoke test: the global `.editorconfig` already disabled every one of the 37 failing diagnostics, yet each still fired as an error in the canary. The only mechanism that suppresses them in TWAE projects is `.csproj <NoWarn>`.
+
+**Fix**: Mirror the global `.editorconfig` disables into per-canary `<NoWarn>` lists.
+
+```xml
+<!-- BuildingBlocks.Dev.csproj -->
+<NoWarn>$(NoWarn);SA1200;SA1633;SA1634;SA1635;SA1636;SA1637;SA1638;SA1640;SA1641;SA1402;SA1513;SA1518;SA0001;CA1032;CA1031;CA1062;CA1307;CA1848;CA1873;CA2007;IDE0008;IDE0011;IDE0078</NoWarn>
+
+<!-- BuildingBlocks.Dev.Tests.csproj (broadened — tests add more SA / CA / MS noise) -->
+<NoWarn>$(NoWarn);SA1101;SA1116;SA1117;SA1200;SA1202;SA1208;SA1402;SA1512;SA1513;SA1515;SA1516;SA1518;SA1633;SA1634;SA1635;SA1636;SA1637;SA1638;SA1640;SA1641;SA1652;SA0001;CA1014;CA1031;CA1032;CA1052;CA1062;CA1307;CA1515;CA1707;CA1812;CA1848;CA1859;CA1861;CA1873;CA2007;IDE0008;IDE0011;IDE0078</NoWarn>
+```
+
+The plan-v2.0 in-`.editorconfig` canary override is redundant once NoWarn is in place. It can be removed in Phase 3 PR #3.1 (cleanup pass).
 
 **Verification gate**:
-- `pwsh scripts/phase-guard.ps1 -Quick` — green.
-- `dotnet format whitespace orderly-microservices/orderly-microservices.slnx --verify-no-changes --no-restore` — green (whitespace not touched in this phase).
+- `dotnet build orderly-microservices/BuildingBlocks.Dev/BuildingBlocks.Dev.csproj --no-restore` — 0 errors, 0 warnings.
+- `dotnet build orderly-microservices/BuildingBlocks.Dev.Tests/BuildingBlocks.Dev.Tests.csproj --no-restore` — 0 errors, 0 warnings.
 
-### Phase 1 — Braces (46 sites, 8 projects, one PR)
+### ✅ Phase 1 — Braces (~110 unique sites, 41 files) — done 2026-08-28
+
+> **DONE** — updated 2026-08-28. Executed in 4 parallel sub-agent batches (A: 8 files / 55 sites; B: 5 files / 15 sites; C: 8 files / 18 sites; D: 22 files / 22 sites). Total **41 files / ~110 unique sites** (200 IDE0011 + 218 SA1503 warnings = ~110 unique sites, since each site fires twice — once for the `if` line and once for the body). Plan estimate of "200 sites" was conservative; real count after IDE0xxx ramped up via `EnforceCodeStyleInBuild=true` was higher, but the unique sites count after deduplication is closer to 110.
+>
+> **One dangerous multiline case was caught and handled correctly** by the Batch B sub-agent: `Services/Basket/Basket.API/Data/TenantedSessionFactory.cs:58-67` had two instances of:
+> ```csharp
+> if (tenantId == Guid.Empty) return store.LightweightSession();
+> return store.LightweightSession(tenantId.ToString());   // unconditional in original
+> ```
+> Sub-agent braced only the first statement and left the second outside — behavior preserved. This is the highest-risk pattern the plan flagged; it was correctly handled.
+>
+> **One plan claim was disproved**: `BuildingBlocks.Messaging/MassTransit/Extensions.cs` was flagged as having "4 multiline braceless ifs (HIGHEST PRIORITY)". Reality: all 8 sites in that file are safe single-line braceless — no dangerous pattern. Confirmed by the Batch A sub-agent.
+>
+> **Pre-existing test failures, NOT caused by Phase 1**: 94 of 135 Catalog.API.Tests fail with `Body was inferred but the method does not allow inferred body parameters` from the `[AsParameters]` flattening of `GetWalkInQueueRequest` (and other endpoints with `Date`/`PageNumber`/`PageSize`). Verified identical on `main` via `git stash` / `dotnet test` / `git stash pop`. This is a pre-existing .NET 10 preview / `[AsParameters]` issue that cascades through `WebApplicationFactory` startup and breaks any test using the factory.
 
 **Goal**: every braceless `if`, `else`, `for`, `foreach`, and `while` block gets braces — single-line AND multiline.
 
-**Critical files** (representative; full list is the union of the 46 sites):
-- `orderly-microservices/BuildingBlocks.Messaging/MassTransit/Extensions.cs` (4 multiline braceless `if` — **HIGHEST PRIORITY**, second statement is not controlled by the `if`)
-- `orderly-microservices/BuildingBlocks.Dev/Extensions/OpenIddictServerExtensions.cs` (2 multiline braceless `if/else`)
-- `orderly-microservices/Services/Catalog/Catalog.API/Features/Restaurants/UpdateRestaurant/UpdateRestaurantHandler.cs` (6 sites)
-- `orderly-microservices/Services/Catalog/Catalog.API.Tests/Integration/TestDataSeeder.cs` (4 sites)
-- `orderly-microservices/Services/Catalog/Catalog.API/Features/MenuItemAnalytics/RecomputeToday/RecomputeTodayAnalyticsHandler.cs` (3 sites)
-- `orderly-microservices/Services/Catalog/Catalog.API/Availability/MenuItemAnalyticsNightlyRecomputeService.cs` (3 sites)
-- `orderly-microservices/Services/Basket/Basket.API/Data/TenantedSessionFactory.cs` (3 sites)
-- `orderly-microservices/Services/Ordering/Ordering.Application/...` (2 sites)
-- `orderly-microservices/Services/Kitchen/Kitchen.API/Features/GetKitchenQueue/GetKitchenQueue.cs` (3 sites)
-- Remaining single-site files across `BuildingBlocks`, `BuildingBlocks.Observability.Tests`, `Basket.API`, `Catalog.API.Tests`, `Kitchen.API`, `Ordering.Infrastructure`
+**Verified corrections to earlier plan (post Phase 0)**:
+- `orderly-microservices/BuildingBlocks.Dev/Extensions/OpenIddictServerExtensions.cs` — **does not exist**. The closest match is `Services/Identity/Identity.API/Extensions/OpenIddictServerExtensions.cs` (12 sites), which is NOT in `BuildingBlocks.Dev`. Remove any pipeline that expects this file path.
+- `orderly-microservices/BuildingBlocks.Messaging/MassTransit/Extensions.cs` — earlier plan flagged "4 multiline braceless `if` — HIGHEST PRIORITY, second statement is not controlled by the `if`". Verified 2026-08-27: the file actually has 4 single-line braceless ifs, each with its body on the next line. **No dangerous multiline pattern exists there.** Each pattern is the safe single-line case. Treat as routine.
+- Real top files by site count (from `phase0-build.log`):
+  ```
+   30  Services/Kitchen/Kitchen.API/Domain/Aggregates/KitchenTicket/KitchenTicket.cs
+   16  Services/Ordering/Ordering.Domain/Models/Order.cs
+   12  Services/Catalog/Catalog.API/Features/Restaurants/UpdateRestaurant/UpdateRestaurantHandler.cs
+   12  Services/Identity/Identity.API/Extensions/OpenIddictServerExtensions.cs
+   12  Services/Identity/Identity.API/Data/DataSeeder.cs
+   12  Services/Ordering/Ordering.Domain/ValueObjects/Address.cs
+    8  Services/Ordering/Ordering.Domain/ValueObjects/Payment.cs
+    8  BuildingBlocks.Messaging/MassTransit/Extensions.cs
+    6  Services/Kitchen/Kitchen.API/Application/KitchenTickets/Queries/GetKitchenQueue.cs
+    6  Services/Catalog/Catalog.API/Features/MenuItemAnalytics/RecomputeToday/RecomputeTodayAnalyticsHandler.cs
+    6  Services/Ordering/Ordering.Domain/Models/OrderActivity.cs
+    6  Services/Basket/Basket.API/Data/TenantedSessionFactory.cs
+    6  Services/Catalog/Catalog.API/Availability/MenuItemAnalyticsNightlyRecomputeService.cs
+    4  Services/Kitchen/Kitchen.API/Hubs/KitchenHub.cs
+    4  Services/Basket/Basket.API/Audit/MartenBasketAuditLog.cs
+    4  BuildingBlocks/Exceptions/Handler/CustomExceptionHandler.cs
+    4  Services/Ordering/Ordering.Domain/Models/OrderItem.cs
+    2  Services/Ordering/Ordering.Domain/ValueObjects/OrderNumber.cs, OrderItemId.cs, OrderActivityId.cs, CustomerId.cs, MenuItemId.cs, OrderId.cs
+    2  Services/Ordering/Ordering.Application/Orders/Commands/ConfirmOrder/ConfirmOrderHandler.cs
+    2  Services/Ordering/Ordering.Application/Orders/Commands/CancelOrder/CancelOrderHandler.cs
+    2  Services/Kitchen/Kitchen.API/Domain/ValueObjects/KitchenItemId.cs, StationId.cs, KitchenTicketId.cs
+    2  Services/Kitchen/Kitchen.API/Infrastructure/HttpContextCurrentUser.cs
+    2  Services/Kitchen/Kitchen.API/Domain/Aggregates/KitchenStation/KitchenStation.cs
+   39 total files. 200 sites.
+  ```
 
 **Pattern** (apply mechanically):
 ```csharp
@@ -308,7 +377,7 @@ This cuts Phase 3 scope from ~4,001 to ~2,001 production-code sites. PR #3.10 is
 
 **PR order within Phase 3** (BUILDINGBLOCKS.DEV FIRST — it's the canary with `TreatWarningsAsErrors=true`):
 
-1. **PR #3.1** — `BuildingBlocks.Dev` + `BuildingBlocks.Dev.Tests` (16 + 70 var sites). Smoke test the gate end-to-end. If this PR fails the canary build, every subsequent PR fails too — fix the script here, not later. **This PR also removes the temporary canary `.editorconfig` override from Phase 0.**
+1. **PR #3.1** — `BuildingBlocks.Dev` + `BuildingBlocks.Dev.Tests` (16 + 70 var sites). Smoke test the gate end-to-end. If this PR fails the canary build, every subsequent PR fails too — fix the script here, not later. **This PR also removes the temporary canary `<NoWarn>` blocks added in Step 0.5 (the in-`.editorconfig` canary override from Phase 0 was already redundant with `<NoWarn>` and never took effect).**
 2. **PR #3.2** — `BuildingBlocks`, `BuildingBlocks.Messaging`, `BuildingBlocks.Persistence`, `BuildingBlocks.Observability`, `BuildingBlocks.Tests`, `BuildingBlocks.Observability.Tests` (small projects, ~200 var sites combined).
 3. **PR #3.3** — `ServiceDefaults`, `AppHost`, `ApiGateway/YarpApiGateway`, `Orderly.DevMCP.Server` (~10 var sites total).
 4. **PR #3.4** — `Services/Discount/Discount.Grpc` (158 var sites) — biggest single-service pile, do it before tests pile up.

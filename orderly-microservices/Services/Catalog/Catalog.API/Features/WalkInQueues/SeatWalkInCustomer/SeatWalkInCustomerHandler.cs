@@ -17,7 +17,7 @@ internal class SeatWalkInCustomerCommandHandler(CatalogDbContext dbContext) : IC
 
         // Also update the table status
         var table = await dbContext.Tables.FindAsync([command.TableId], cancellationToken);
-        if (table != null)
+        if (table is not null)
         {
             table.Status = TableStatus.Occupied;
         }

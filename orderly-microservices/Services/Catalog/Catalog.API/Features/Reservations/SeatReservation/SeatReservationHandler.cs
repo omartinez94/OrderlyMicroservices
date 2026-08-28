@@ -19,7 +19,7 @@ internal class SeatReservationCommandHandler(CatalogDbContext dbContext) : IComm
 
             // Also update the table status
             var table = await dbContext.Tables.FindAsync([command.TableId.Value], cancellationToken);
-            if (table != null)
+            if (table is not null)
             {
                 table.Status = TableStatus.Occupied;
                 table.CurrentOrderId = null; // CurrentOrderId would be set when an order is created

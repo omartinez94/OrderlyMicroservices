@@ -22,7 +22,7 @@ public static class AuthTokenHelper
             new Claim("role", "Admin")
         };
 
-        if (permissions != null)
+        if (permissions is not null)
         {
             foreach (var perm in permissions)
             {

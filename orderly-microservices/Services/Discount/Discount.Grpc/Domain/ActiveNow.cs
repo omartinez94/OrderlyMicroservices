@@ -25,7 +25,7 @@ public static class ActiveNow
     /// paths; the helper re-applies it for in-memory results (post-fetch
     /// filter) so divergent copies can't drift.</summary>
     public static bool Coupon(Coupon c, TimeProvider clock)
-        => c.DeletedAt == null
+        => c.DeletedAt is null
         && c.IsActive
         && (c.ExpirationDate is null || c.ExpirationDate >= Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime));
 
@@ -34,7 +34,7 @@ public static class ActiveNow
     /// helper; Phase 1's <c>Coupon.IsActiveNow</c> is migrated here
     /// (follow-up commit) so the two read paths converge on one shape.</summary>
     public static bool RewardCode(RewardCode r, TimeProvider clock)
-        => r.DeletedAt == null
+        => r.DeletedAt is null
         && r.IsActive
         && (r.ExpirationDate is null || r.ExpirationDate >= Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime));
 }

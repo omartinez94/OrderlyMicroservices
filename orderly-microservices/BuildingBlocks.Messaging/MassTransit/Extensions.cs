@@ -40,7 +40,7 @@ public static class Extensions
         {
             config.SetKebabCaseEndpointNameFormatter();
 
-            if (assembly != null)
+            if (assembly is not null)
             {
                 config.AddConsumers(assembly);
             }

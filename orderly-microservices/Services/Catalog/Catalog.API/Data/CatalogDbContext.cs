@@ -806,7 +806,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         foreach (var entry in entries)
         {
             // Update UpdatedAt if property exists
-            if (entry.Entity.GetType().GetProperty("UpdatedAt") != null)
+            if (entry.Entity.GetType().GetProperty("UpdatedAt") is not null)
             {
                 entry.Property("UpdatedAt").CurrentValue = SystemClock.Instance.GetCurrentInstant();
             }

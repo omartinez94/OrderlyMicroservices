@@ -56,7 +56,7 @@ public class CreateUserCommandHandler(
                 User = user,
                 RestaurantId = rid,
                 IsDefault = command.DefaultRestaurantId == rid ||
-                           (command.DefaultRestaurantId == null && rid == command.RestaurantIds.First())
+                           (command.DefaultRestaurantId is null && rid == command.RestaurantIds.First())
             });
             dbContext.UserRestaurants.AddRange(userRestaurants);
         }

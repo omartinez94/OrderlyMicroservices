@@ -28,7 +28,7 @@ internal class UpdateMenuCategoryCommandHandler(
         var category = await dbContext.MenuCategories
             .FirstOrDefaultAsync(c => c.Id == command.Id, cancellationToken);
 
-        if (category == null)
+        if (category is null)
         {
             throw new MenuCategoryNotFoundException(command.Id);
         }

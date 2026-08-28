@@ -14,7 +14,7 @@ public static class TestDataSeeder
         // var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
         // Using reflection to bypass compile errors if CatalogDbContext is internal
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null)
+        if (dbType is null)
         {
             return Guid.NewGuid();
         }
@@ -34,7 +34,7 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null)
+        if (dbType is null)
         {
             return Guid.NewGuid();
         }
@@ -61,7 +61,7 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null)
+        if (dbType is null)
         {
             return Guid.NewGuid();
         }
@@ -85,7 +85,7 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null)
+        if (dbType is null)
         {
             return Guid.NewGuid();
         }

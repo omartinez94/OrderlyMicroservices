@@ -50,7 +50,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
-        if (location != null)
+        if (location is not null)
         {
             var response = await client.GetAsync(location);
             response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -66,7 +66,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
-        if (location != null)
+        if (location is not null)
         {
             var updateRequest = new { name = "T3-Updated", capacity = 4 };
             var response = await client.PutAsJsonAsync(location, updateRequest);
@@ -83,7 +83,7 @@ public sealed class TableEndpointTests(CatalogWebApplicationFactory factory)
         var createResponse = await client.PostAsJsonAsync($"/v1/restaurants/{restaurantId}/tables", request);
         var location = createResponse.Headers.Location;
 
-        if (location != null)
+        if (location is not null)
         {
             var deleteResponse = await client.DeleteAsync(location);
             deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);

@@ -16,7 +16,7 @@ internal class GetMenuCategoryByIdQueryHandler(CatalogDbContext dbContext) : IQu
 
         var firstCat = await category.FirstOrDefaultAsync(c => c.Id == query.Id, cancellationToken);
 
-        return category == null
+        return category is null
             ? throw new MenuCategoryNotFoundException(query.Id)
             : new GetMenuCategoryByIdResult(category.Adapt<MenuCategoryDto>());
     }

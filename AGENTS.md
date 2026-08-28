@@ -19,6 +19,8 @@
 - **Pattern Matching**: Prefer using C# pattern matching when possible.
   - *Example*: Use switch expressions (`obj switch { Type t => ... }`) or property patterns (`if (obj is { Property: value })`).
 - **Guard Clauses**: Use early returns/guard clauses to avoid deep nesting of `if` statements.
+- **Braces should not be ommited**: Always use curly braces for if and for statements does not matter if it is only online
+- **string class**: When dealing with strings prefer working with the built-in string class methods and fields for instance instead of comparing a variable with an empty string using a string template, compare against `string.Empty` or use `string.IsNullOrEmpty(role)`
 
 ## Persistence Reality vs Documentation
 

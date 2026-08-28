@@ -17,7 +17,10 @@ internal class GetReservationsQueryHandler(CatalogDbContext dbContext) : IQueryH
     {
         var pageNumber = query.PageNumber ?? 1;
         var pageSize = query.PageSize ?? 10;
-        if (pageSize > 50) pageSize = 50;
+        if (pageSize > 50)
+        {
+            pageSize = 50;
+        }
 
         var baseQuery = dbContext.Reservations
             .AsNoTracking()

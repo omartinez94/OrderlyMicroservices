@@ -64,11 +64,17 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         Instant receivedAt)
     {
         if (orderId == Guid.Empty)
+        {
             throw new ArgumentException("orderId cannot be empty.", nameof(orderId));
+        }
         if (restaurantId == Guid.Empty)
+        {
             throw new ArgumentException("restaurantId cannot be empty.", nameof(restaurantId));
+        }
         if (customerId == Guid.Empty)
+        {
             throw new ArgumentException("customerId cannot be empty.", nameof(customerId));
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(orderNumber);
         ArgumentNullException.ThrowIfNull(itemSeeds);
 
@@ -109,10 +115,14 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void Accept(Guid staffUserId, Instant now)
     {
         if (Status != KitchenTicketStatus.New)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Accept));
+        }
 
         if (staffUserId == Guid.Empty)
+        {
             throw new ArgumentException("staffUserId cannot be empty.", nameof(staffUserId));
+        }
 
         Status = KitchenTicketStatus.InProgress;
         ConfirmedByUserId = staffUserId;
@@ -128,13 +138,17 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void StartItemPrep(KitchenItemId itemId, Instant now)
     {
         if (Status != KitchenTicketStatus.New && Status != KitchenTicketStatus.InProgress)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(StartItemPrep));
+        }
 
         var item = FindItem(itemId);
         item.Start(now);
 
         if (StartedAt is null)
+        {
             StartedAt = now;
+        }
 
         AddDomainEvent(new KitchenTicketItemPrepStartedEvent(this, itemId, now));
     }
@@ -150,7 +164,9 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         // InProgress). Once the ticket is Ready/Bumped/Cancelled, individual
         // items are frozen.
         if (Status != KitchenTicketStatus.New && Status != KitchenTicketStatus.InProgress)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(MarkItemReady));
+        }
 
         var item = FindItem(itemId);
         item.MarkReady(now);
@@ -165,12 +181,16 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void MarkReady(Instant now)
     {
         if (Status != KitchenTicketStatus.InProgress)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(MarkReady));
+        }
 
         if (_items.Any(i => i.Status != KitchenItemStatus.Ready))
+        {
             throw new KitchenDomainException(
                 "Cannot mark ticket ready while any item is still preparing.",
                 nameof(MarkReady));
+        }
 
         Status = KitchenTicketStatus.Ready;
         ReadyAt = now;
@@ -184,7 +204,9 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void Bump(Instant now)
     {
         if (Status != KitchenTicketStatus.Ready)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Bump));
+        }
 
         Status = KitchenTicketStatus.Bumped;
         BumpedAt = now;
@@ -199,7 +221,9 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void Recall(Instant now)
     {
         if (Status != KitchenTicketStatus.Bumped)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Recall));
+        }
 
         Status = KitchenTicketStatus.Ready;
         BumpedAt = null;
@@ -214,11 +238,15 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public void Cancel(string reason, Guid userId, Instant now)
     {
         if (Status == KitchenTicketStatus.Cancelled)
+        {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Cancel));
+        }
 
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         if (userId == Guid.Empty)
+        {
             throw new ArgumentException("userId cannot be empty.", nameof(userId));
+        }
 
         Status = KitchenTicketStatus.Cancelled;
         CancellationReason = reason;
@@ -232,9 +260,11 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     {
         var item = _items.FirstOrDefault(i => i.Id == itemId);
         if (item is null)
+        {
             throw new KitchenDomainException(
                 $"Item {itemId.Value} does not belong to ticket {Id.Value}.",
                 nameof(itemId));
+        }
         return item;
     }
 }

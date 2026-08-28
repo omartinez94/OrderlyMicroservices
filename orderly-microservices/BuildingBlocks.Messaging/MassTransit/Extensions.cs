@@ -18,11 +18,17 @@ public static class Extensions
         var userName = configuration["MessageBroker:UserName"];
         var password = configuration["MessageBroker:Password"];
         if (string.IsNullOrWhiteSpace(host))
+        {
             missing.Add("MessageBroker:Host");
+        }
         if (string.IsNullOrWhiteSpace(userName))
+        {
             missing.Add("MessageBroker:UserName");
+        }
         if (string.IsNullOrWhiteSpace(password))
+        {
             missing.Add("MessageBroker:Password");
+        }
         if (missing.Count > 0)
         {
             throw new BrokerConfigurationException(
@@ -35,7 +41,9 @@ public static class Extensions
             config.SetKebabCaseEndpointNameFormatter();
 
             if (assembly != null)
+            {
                 config.AddConsumers(assembly);
+            }
 
             config.UsingRabbitMq((context, configurator) =>
             {

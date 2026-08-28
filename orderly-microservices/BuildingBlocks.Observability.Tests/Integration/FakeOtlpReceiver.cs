@@ -90,7 +90,10 @@ public sealed class FakeOtlpReceiver : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
         _disposed = true;
         await _app.StopAsync();
         await _app.DisposeAsync();

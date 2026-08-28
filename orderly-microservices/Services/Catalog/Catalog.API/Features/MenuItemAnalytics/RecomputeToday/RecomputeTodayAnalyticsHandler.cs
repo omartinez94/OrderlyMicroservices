@@ -55,9 +55,18 @@ internal class RecomputeTodayAnalyticsCommandHandler(
                 // they sum to a consistent value; otherwise leave it.
                 row.TimesOrdered = total;
             }
-            if (row.TimesOrdered < 0) row.TimesOrdered = 0;
-            if (row.TotalRevenue < 0m) row.TotalRevenue = 0m;
-            if (row.TimesOutOfStock < 0) row.TimesOutOfStock = 0;
+            if (row.TimesOrdered < 0)
+            {
+                row.TimesOrdered = 0;
+            }
+            if (row.TotalRevenue < 0m)
+            {
+                row.TotalRevenue = 0m;
+            }
+            if (row.TimesOutOfStock < 0)
+            {
+                row.TimesOutOfStock = 0;
+            }
             itemsTouched++;
         }
 

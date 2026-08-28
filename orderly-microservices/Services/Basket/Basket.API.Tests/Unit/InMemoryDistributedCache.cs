@@ -56,8 +56,14 @@ internal sealed class InMemoryDistributedCache : IDistributedCache
     public byte[]? Get(string key) => _store.TryGetValue(key, out var bytes) ? bytes : null;
     public void Set(string key, byte[]? value, DistributedCacheEntryOptions options)
     {
-        if (value is not null) _store[key] = value;
-        else _store.TryRemove(key, out _);
+        if (value is not null)
+        {
+            _store[key] = value;
+        }
+        else
+        {
+            _store.TryRemove(key, out _);
+        }
     }
     public void Refresh(string key) { /* no-op */ }
     public void Remove(string key) => _store.TryRemove(key, out _);

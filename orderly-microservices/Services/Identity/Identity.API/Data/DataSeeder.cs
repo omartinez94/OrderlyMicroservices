@@ -65,7 +65,9 @@ public static class DataSeeder
     private static async Task SeedPermissionsAsync(IdentityDbContext dbContext, CancellationToken ct)
     {
         if (await dbContext.Permissions.AnyAsync(ct))
+        {
             return;
+        }
 
         var permissions = new List<Permission>
         {
@@ -222,7 +224,9 @@ public static class DataSeeder
         CancellationToken ct)
     {
         if (!environment.IsDevelopment())
+        {
             return;
+        }
 
         var adminEmail = "admin@orderly.com";
         var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
@@ -321,7 +325,9 @@ public static class DataSeeder
         CancellationToken ct)
     {
         if (environment.IsDevelopment())
+        {
             return;
+        }
 
         var superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
         if (superAdmins.Count == 0)
@@ -357,7 +363,9 @@ public static class DataSeeder
         foreach (var (name, displayName, description) in customScopes)
         {
             if (await scopeManager.FindByNameAsync(name) is not null)
+            {
                 continue;
+            }
 
             await scopeManager.CreateAsync(new OpenIddictScopeDescriptor
             {
@@ -392,7 +400,9 @@ public static class DataSeeder
         const string clientId = "orderly-spa";
 
         if (await applicationManager.FindByClientIdAsync(clientId) is not null)
+        {
             return;
+        }
 
         var redirectUri = configuration["Spa:RedirectUri"]
             ?? throw new InvalidOperationException("Spa:RedirectUri is required to seed the orderly-spa OpenIddict client.");
@@ -444,7 +454,9 @@ public static class DataSeeder
             ?? throw new InvalidOperationException("M2M:ClientId is required to seed the M2M OpenIddict client.");
 
         if (await applicationManager.FindByClientIdAsync(clientId) is not null)
+        {
             return;
+        }
 
         var clientSecret = configuration["M2M:ClientSecret"]
             ?? throw new InvalidOperationException("M2M:ClientSecret is required to seed the M2M OpenIddict client.");

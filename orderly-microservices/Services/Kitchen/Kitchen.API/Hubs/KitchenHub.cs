@@ -56,7 +56,9 @@ public class KitchenHub : Hub<IKitchenHubClient>
     public async Task JoinStationGroup(Guid stationId)
     {
         if (stationId == Guid.Empty)
+        {
             throw new HubException("stationId must be non-empty.");
+        }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, $"station:{stationId}");
     }
@@ -65,7 +67,9 @@ public class KitchenHub : Hub<IKitchenHubClient>
     public async Task LeaveStationGroup(Guid stationId)
     {
         if (stationId == Guid.Empty)
+        {
             throw new HubException("stationId must be non-empty.");
+        }
 
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"station:{stationId}");
     }

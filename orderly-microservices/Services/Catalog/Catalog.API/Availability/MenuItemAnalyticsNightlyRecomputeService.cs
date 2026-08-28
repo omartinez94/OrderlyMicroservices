@@ -93,9 +93,18 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
 
         foreach (var row in inconsistent)
         {
-            if (row.TimesOrdered < 0) row.TimesOrdered = 0;
-            if (row.TotalRevenue < 0m) row.TotalRevenue = 0m;
-            if (row.TimesOutOfStock < 0) row.TimesOutOfStock = 0;
+            if (row.TimesOrdered < 0)
+            {
+                row.TimesOrdered = 0;
+            }
+            if (row.TotalRevenue < 0m)
+            {
+                row.TotalRevenue = 0m;
+            }
+            if (row.TimesOutOfStock < 0)
+            {
+                row.TimesOutOfStock = 0;
+            }
         }
 
         await dbContext.SaveChangesAsync(stoppingToken);

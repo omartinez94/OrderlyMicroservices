@@ -20,7 +20,10 @@ public class DispatchDomainEventsInterceptor(IMediator mediator) : SaveChangesIn
 
     private async Task DispatchDomainEvents(DbContext? context)
     {
-        if (context is null) return;
+        if (context is null)
+        {
+            return;
+        }
 
         var aggregates = context.ChangeTracker
             .Entries<IAggregate>()

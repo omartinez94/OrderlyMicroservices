@@ -7,7 +7,9 @@ public record MenuItemId
     public static MenuItemId Of(Guid value)
     {
         if (value == Guid.Empty)
+        {
             throw new DomainException("MenuItemId cannot be empty.", nameof(value));
+        }
 
         return new(value);
     }

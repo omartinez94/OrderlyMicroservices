@@ -78,7 +78,10 @@ public static class ApplyDiscountsHelper
             // applied contribution is the lesser of (rawReduction, running).
             var appliedReduction = rawReduction > running ? running : rawReduction;
             running -= appliedReduction;
-            if (running < 0m) running = 0m;
+            if (running < 0m)
+            {
+                running = 0m;
+            }
             totalReduction += appliedReduction;
 
             breakdown.Add(new AppliedDiscountBreakdown(

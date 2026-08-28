@@ -12,7 +12,10 @@ internal class GetBrandsQueryHandler(CatalogDbContext dbContext) : IQueryHandler
     {
         var pageNumber = query.PageNumber ?? 1;
         var pageSize = query.PageSize ?? 10;
-        if (pageSize > 50) pageSize = 50;
+        if (pageSize > 50)
+        {
+            pageSize = 50;
+        }
 
         var brands = await EntityFrameworkQueryableExtensions.ToListAsync(
             dbContext.Brands

@@ -69,12 +69,30 @@ internal class UpdateRestaurantCommandHandler(
         // currency no longer matches; Notification refreshes receipt
         // templates for tax/currency placeholders).
         var changedFields = new List<string>(capacity: 6);
-        if (restaurant.TaxRate != command.TaxRate) changedFields.Add(nameof(restaurant.TaxRate));
-        if (restaurant.Currency != command.Currency) changedFields.Add(nameof(restaurant.Currency));
-        if (restaurant.TimeZone != command.TimeZone) changedFields.Add(nameof(restaurant.TimeZone));
-        if (restaurant.AutoConfirmReservations != command.AutoConfirmReservations) changedFields.Add(nameof(restaurant.AutoConfirmReservations));
-        if (restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute) changedFields.Add(nameof(restaurant.AllowAutoSubstitute));
-        if (restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes) changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
+        if (restaurant.TaxRate != command.TaxRate)
+        {
+            changedFields.Add(nameof(restaurant.TaxRate));
+        }
+        if (restaurant.Currency != command.Currency)
+        {
+            changedFields.Add(nameof(restaurant.Currency));
+        }
+        if (restaurant.TimeZone != command.TimeZone)
+        {
+            changedFields.Add(nameof(restaurant.TimeZone));
+        }
+        if (restaurant.AutoConfirmReservations != command.AutoConfirmReservations)
+        {
+            changedFields.Add(nameof(restaurant.AutoConfirmReservations));
+        }
+        if (restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute)
+        {
+            changedFields.Add(nameof(restaurant.AllowAutoSubstitute));
+        }
+        if (restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes)
+        {
+            changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
+        }
 
         var oldTaxRate = restaurant.TaxRate;
         var oldEstimatedTurnoverMinutes = restaurant.EstimatedTurnoverMinutes;

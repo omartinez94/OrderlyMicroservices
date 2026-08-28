@@ -25,7 +25,10 @@ public class UpdateRestaurantEndpoint : ICarterModule
 
         group.MapPut("/restaurants/{id}", async (Guid id, UpdateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            if (id != request.Id) return Results.BadRequest();
+            if (id != request.Id)
+            {
+                return Results.BadRequest();
+            }
 
             var command = request.Adapt<UpdateRestaurantCommand>();
             var result = await sender.Send(command);

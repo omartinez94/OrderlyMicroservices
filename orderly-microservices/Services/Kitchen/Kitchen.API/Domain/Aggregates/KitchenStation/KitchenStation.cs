@@ -19,7 +19,9 @@ public class KitchenStation : Entity<StationId>
     {
         ArgumentNullException.ThrowIfNull(id);
         if (restaurantId == Guid.Empty)
+        {
             throw new KitchenDomainException("restaurantId cannot be empty.", nameof(restaurantId));
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         Id = id;

@@ -25,13 +25,21 @@ public record Payment
     public static Payment Of(PaymentMethod method, string brand, string lastFour)
     {
         if (method == PaymentMethod.Unspecified)
+        {
             throw new DomainException("PaymentMethod.Unspecified is reserved for legacy rows; fresh orders must carry a defined method (Card / Cash / Wallet).", nameof(method));
+        }
         if (string.IsNullOrWhiteSpace(brand))
+        {
             throw new DomainException("Brand cannot be empty.", nameof(brand));
+        }
         if (string.IsNullOrWhiteSpace(lastFour))
+        {
             throw new DomainException("LastFour cannot be empty.", nameof(lastFour));
+        }
         if (lastFour.Length != 4 || !lastFour.All(char.IsDigit))
+        {
             throw new DomainException("LastFour must be exactly 4 digits.", nameof(lastFour));
+        }
 
         return new Payment(method, brand, lastFour);
     }

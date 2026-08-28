@@ -66,13 +66,19 @@ public class OrderActivity : Abstractions.Entity<OrderActivityId>
         ArgumentNullException.ThrowIfNull(orderId);
 
         if (!Enum.IsDefined(typeof(OrderActivityType), activityType))
+        {
             throw new OrderActivityInvariantException($"Unknown activity type: {activityType}.");
+        }
 
         if (correlationId is { Length: > 100 })
+        {
             throw new OrderActivityInvariantException("CorrelationId must be ≤100 chars.");
+        }
 
         if (notes is { Length: > 2000 })
+        {
             throw new OrderActivityInvariantException("Notes must be ≤2000 chars.");
+        }
 
         return new OrderActivity
         {

@@ -13,7 +13,9 @@ public record KitchenItemId
     public static KitchenItemId Of(Guid value)
     {
         if (value == Guid.Empty)
+        {
             throw new KitchenDomainException("KitchenItemId cannot be empty.", nameof(value));
+        }
 
         return new(value);
     }

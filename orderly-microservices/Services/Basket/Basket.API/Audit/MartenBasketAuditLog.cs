@@ -38,8 +38,14 @@ public sealed class MartenBasketAuditLog(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        if (page < 0) throw new ArgumentOutOfRangeException(nameof(page));
-        if (pageSize is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(pageSize));
+        if (page < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(page));
+        }
+        if (pageSize is < 1 or > 200)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pageSize));
+        }
 
         // Open a read session — Marten's IQuerySession is a thin
         // wrapper over the store; LightweightSession() is read+write

@@ -55,7 +55,10 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
     public IDocumentSession OpenSession()
     {
         var tenantId = ResolveTenantId();
-        if (tenantId == Guid.Empty) return store.LightweightSession();
+        if (tenantId == Guid.Empty)
+        {
+            return store.LightweightSession();
+        }
         return store.LightweightSession(tenantId.ToString());
     }
 
@@ -63,7 +66,10 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
     public IQuerySession QuerySession()
     {
         var tenantId = ResolveTenantId();
-        if (tenantId == Guid.Empty) return store.QuerySession();
+        if (tenantId == Guid.Empty)
+        {
+            return store.QuerySession();
+        }
         return store.QuerySession(tenantId.ToString());
     }
 
@@ -76,7 +82,10 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
         // surfaces the per-request User claims reliably when the host
         // is processing a request.
         var user = httpContextAccessor.HttpContext?.User;
-        if (user?.Identity?.IsAuthenticated != true) return Guid.Empty;
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return Guid.Empty;
+        }
 
         var raw = user.FindFirstValue("restaurantId");
         return Guid.TryParse(raw, out var id) ? id : Guid.Empty;

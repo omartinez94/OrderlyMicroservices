@@ -84,8 +84,14 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
             // (BuildingBlocks must stay Domain-agnostic).
             var fromStatus = TryGetProperty(exception, "FromStatus");
             var attempted = TryGetProperty(exception, "AttemptedTransition");
-            if (fromStatus is not null) problemDetails.Extensions["fromStatus"] = fromStatus;
-            if (attempted is not null) problemDetails.Extensions["attemptedTransition"] = attempted;
+            if (fromStatus is not null)
+            {
+                problemDetails.Extensions["fromStatus"] = fromStatus;
+            }
+            if (attempted is not null)
+            {
+                problemDetails.Extensions["attemptedTransition"] = attempted;
+            }
         }
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);

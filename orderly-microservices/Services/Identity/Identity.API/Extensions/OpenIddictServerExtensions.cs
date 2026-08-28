@@ -170,18 +170,26 @@ public static class OpenIddictServerExtensions
             {
                 var cert = X509Certificate2.CreateFromPemFile(path, ReadKeyFileOrNull(path));
                 if (isEncryption)
+                {
                     options.AddEncryptionCertificate(cert);
+                }
                 else
+                {
                     options.AddSigningCertificate(cert);
+                }
             }
             else
             {
                 // PKCS#12 / PFX path
                 using var stream = File.OpenRead(path);
                 if (isEncryption)
+                {
                     options.AddEncryptionCertificate(stream, password);
+                }
                 else
+                {
                     options.AddSigningCertificate(stream, password);
+                }
             }
         }
         catch (OpenIddictCertificateLoadException)
@@ -209,13 +217,17 @@ public static class OpenIddictServerExtensions
         var dir = Path.GetDirectoryName(certPath);
         var name = Path.GetFileNameWithoutExtension(certPath);
         if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name))
+        {
             return null;
+        }
 
         foreach (var keyExt in new[] { ".key", "-key.pem", ".key.pem" })
         {
             var keyPath = Path.Combine(dir, name + keyExt);
             if (File.Exists(keyPath))
+            {
                 return keyPath;
+            }
         }
         return null;
     }

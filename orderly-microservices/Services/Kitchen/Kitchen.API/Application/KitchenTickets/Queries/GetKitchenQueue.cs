@@ -21,9 +21,18 @@ public class GetKitchenQueueHandler(
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        if (query.Page < 1) query = query with { Page = 1 };
-        if (query.PageSize < 1) query = query with { PageSize = 50 };
-        if (query.PageSize > 200) query = query with { PageSize = 200 };
+        if (query.Page < 1)
+        {
+            query = query with { Page = 1 };
+        }
+        if (query.PageSize < 1)
+        {
+            query = query with { PageSize = 50 };
+        }
+        if (query.PageSize > 200)
+        {
+            query = query with { PageSize = 200 };
+        }
 
         int skip = (query.Page - 1) * query.PageSize;
         IReadOnlyList<KitchenTicket> rows = await repository.GetQueueAsync(

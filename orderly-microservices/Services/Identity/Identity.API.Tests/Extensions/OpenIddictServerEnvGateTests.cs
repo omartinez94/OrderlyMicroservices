@@ -41,7 +41,9 @@ public class OpenIddictServerEnvGateTests : IDisposable
         try
         {
             if (Directory.Exists(_tempDir))
+            {
                 Directory.Delete(_tempDir, recursive: true);
+            }
         }
         catch
         {

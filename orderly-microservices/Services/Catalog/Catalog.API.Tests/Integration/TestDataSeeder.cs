@@ -14,7 +14,10 @@ public static class TestDataSeeder
         // var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
         // Using reflection to bypass compile errors if CatalogDbContext is internal
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null) return Guid.NewGuid();
+        if (dbType == null)
+        {
+            return Guid.NewGuid();
+        }
 
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 
@@ -31,7 +34,10 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null) return Guid.NewGuid();
+        if (dbType == null)
+        {
+            return Guid.NewGuid();
+        }
 
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
         var id = brandId ?? await SeedBrandAsync(factory);
@@ -55,7 +61,10 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null) return Guid.NewGuid();
+        if (dbType == null)
+        {
+            return Guid.NewGuid();
+        }
 
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 
@@ -76,7 +85,10 @@ public static class TestDataSeeder
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var dbType = Type.GetType("Catalog.API.CatalogDbContext, Catalog.API");
-        if (dbType == null) return Guid.NewGuid();
+        if (dbType == null)
+        {
+            return Guid.NewGuid();
+        }
 
         dynamic db = scope.ServiceProvider.GetRequiredService(dbType);
 

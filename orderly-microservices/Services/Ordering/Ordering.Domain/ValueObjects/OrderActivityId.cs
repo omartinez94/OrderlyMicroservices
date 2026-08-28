@@ -12,7 +12,9 @@ public record OrderActivityId
     public static OrderActivityId Of(Guid value)
     {
         if (value == Guid.Empty)
+        {
             throw new DomainException("OrderActivityId cannot be empty.", nameof(value));
+        }
 
         return new(value);
     }

@@ -124,10 +124,14 @@ public class Order : Aggregate<OrderId>
     public void Confirm(Guid confirmedByUserId, Instant now)
     {
         if (Status != OrderStatus.Pending)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(Confirm));
+        }
 
         if (confirmedByUserId == Guid.Empty)
+        {
             throw new ArgumentException("confirmedByUserId cannot be empty.", nameof(confirmedByUserId));
+        }
 
         var previousStatus = Status;
         Status = OrderStatus.Confirmed;
@@ -158,7 +162,9 @@ public class Order : Aggregate<OrderId>
     public void MarkReady(Instant now)
     {
         if (Status != OrderStatus.Preparing)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkReady));
+        }
 
         var previousStatus = Status;
         Status = OrderStatus.Ready;
@@ -190,7 +196,9 @@ public class Order : Aggregate<OrderId>
     public void MarkPreparing(Instant now)
     {
         if (Status != OrderStatus.Confirmed)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkPreparing));
+        }
 
         var previousStatus = Status;
         Status = OrderStatus.Preparing;
@@ -222,7 +230,9 @@ public class Order : Aggregate<OrderId>
     public void StartDelivery()
     {
         if (Status != OrderStatus.Ready)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(StartDelivery));
+        }
 
         var previousDeliveryStatus = DeliveryStatus;
         var occurredAt = SystemClock.Instance.GetCurrentInstant();
@@ -254,7 +264,9 @@ public class Order : Aggregate<OrderId>
     public void MarkDelivered(Instant now)
     {
         if (Status != OrderStatus.Ready)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkDelivered));
+        }
 
         var previousStatus = Status;
         var previousDeliveryStatus = DeliveryStatus;
@@ -286,7 +298,9 @@ public class Order : Aggregate<OrderId>
     public void Complete(Instant now)
     {
         if (Status != OrderStatus.Delivered)
+        {
             throw new InvalidOrderStateTransitionException(Status, nameof(Complete));
+        }
 
         var previousStatus = Status;
         Status = OrderStatus.Completed;
@@ -324,7 +338,9 @@ public class Order : Aggregate<OrderId>
 
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         if (cancelledByUserId == Guid.Empty)
+        {
             throw new ArgumentException("cancelledByUserId cannot be empty.", nameof(cancelledByUserId));
+        }
 
         var previousStatus = Status;
         Status = OrderStatus.Cancelled;

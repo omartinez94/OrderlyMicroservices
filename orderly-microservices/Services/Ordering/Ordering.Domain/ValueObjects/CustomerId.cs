@@ -7,7 +7,9 @@ public record CustomerId
     public static CustomerId Of(Guid value)
     {
         if (value == Guid.Empty)
+        {
             throw new DomainException("CustomerId cannot be empty.", nameof(value));
+        }
 
         return new(value);
     }

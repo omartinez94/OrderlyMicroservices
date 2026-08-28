@@ -24,7 +24,10 @@ public class AuditableEntityInterceptor : SaveChangesInterceptor
 
     private void UpdateEntities(DbContext? context)
     {
-        if (context is null) return;
+        if (context is null)
+        {
+            return;
+        }
 
         var userId = GetUserId(context);
         var timestamp = SystemClock.Instance.GetCurrentInstant();

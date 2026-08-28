@@ -62,7 +62,9 @@ public sealed class KitchenHealthEndpointTests
         {
             response = await client.GetAsync("/health");
             if (response.StatusCode == HttpStatusCode.OK)
+            {
                 return response;
+            }
             await Task.Delay(1000);
         }
         return response;
@@ -75,7 +77,9 @@ public sealed class KitchenHealthEndpointTests
         {
             response = await client.GetAsync("/health");
             if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
                 return response;
+            }
             await Task.Delay(500);
         }
         return response;
@@ -124,7 +128,9 @@ public sealed class KitchenHealthEndpointBrokerDownTests : IClassFixture<Kitchen
         {
             response = await client.GetAsync("/health");
             if (response.StatusCode == HttpStatusCode.OK)
+            {
                 return response;
+            }
             await Task.Delay(1000);
         }
         return response;
@@ -137,7 +143,9 @@ public sealed class KitchenHealthEndpointBrokerDownTests : IClassFixture<Kitchen
         {
             response = await client.GetAsync("/health");
             if (response.StatusCode == HttpStatusCode.ServiceUnavailable)
+            {
                 return response;
+            }
             await Task.Delay(500);
         }
         return response;

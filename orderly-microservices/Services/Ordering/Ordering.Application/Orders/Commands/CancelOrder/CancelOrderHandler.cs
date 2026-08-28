@@ -32,7 +32,10 @@ public class CancelOrderHandler(
     private Guid ResolveStaffUserId()
     {
         var user = httpContextAccessor.HttpContext?.User;
-        if (user is null) return Guid.Empty;
+        if (user is null)
+        {
+            return Guid.Empty;
+        }
 
         var sub = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? user.FindFirstValue("sub");

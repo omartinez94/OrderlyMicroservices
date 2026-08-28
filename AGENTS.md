@@ -14,7 +14,7 @@
 - **Routing & Endpoints**: Use **Carter** for minimal APIs. Do NOT use MVC Controllers.
 - **CQRS**: Use **MediatR** for Commands and Queries. Handle validation via **FluentValidation** pipeline behaviors.
 - **Date & Time**: Always use **NodaTime** (e.g., `Instant`, `LocalDate`) from `BuildingBlocks` instead of standard .NET `DateTime`.
-- **Variables**: Use explicit typed variables instead of `var` when possible.
+- **Variables**: Use explicit typed variables instead of `var` when possible. Exceptions: `using var`, `out var`, anonymous types, tuple deconstruction, and LINQ queries are permitted to use `var`.
 - **Null Checks**: Prefer `is not null` over `!= null`.
 - **Pattern Matching**: Prefer using C# pattern matching when possible.
   - *Example*: Use switch expressions (`obj switch { Type t => ... }`) or property patterns (`if (obj is { Property: value })`).
@@ -39,4 +39,4 @@
   cd orderly-microservices
   docker-compose up catalogdb basketdb distributedcache -d
   ```
-- **Testing**: There are currently **NO test projects** (`.Tests.csproj`) in the repository. Do not search for or attempt to run existing test suites unless explicitly asked to create one.
+- **Testing**: Test projects (`.Tests.csproj`) exist in the repository. Ensure you run relevant tests and fix any test failures when making changes to the codebase.

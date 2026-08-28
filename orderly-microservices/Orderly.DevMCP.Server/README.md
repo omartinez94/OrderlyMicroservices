@@ -2,6 +2,8 @@
 
 > Local-only MCP server that exposes the OrderlyMicroservices backend to AI assistants during frontend development. Implements the [Model Context Protocol](https://modelcontextprotocol.io/) over HTTP/SSE so LAN clients (the Web CRM, the Mobile App, Claude Desktop, Cursor) can connect.
 
+> **Package manager**: This project uses [pnpm](https://pnpm.io/) via Corepack. Run `corepack enable` once per machine; the `packageManager` field in `package.json` pins the version for everyone.
+
 > [!CAUTION]
 > **Strictly forbidden in production.** This server has direct read/write access to every database, can publish arbitrary events, can generate valid auth tokens, and can stop API containers. It refuses to run unless `NODE_ENV=development` and the dev-host allow-list passes.
 
@@ -39,15 +41,16 @@ cd orderly-microservices/Orderly.DevMCP.Server
 cp .env.example .env
 # Edit .env — at minimum set JWT_SECRET to a fresh random value:
 #   node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-npm install
+corepack enable        # one-time; activates the packageManager pin from package.json
+pnpm install
 ```
 
-`npm install` does not need Docker — only `npm run dev` does.
+`pnpm install` does not need Docker — only `pnpm dev` does.
 
 ## 4. Run
 
 ```bash
-npm run dev          # nodemon-free --watch + .env
+pnpm dev          # nodemon-free --watch + .env
 ```
 
 On a clean stack the boot log should look like:
@@ -125,22 +128,22 @@ The full snippet is in [`../docs/sse-config-snippet.json`](../docs/sse-config-sn
 | `error: refusing to connect to "X"; allowed hosts: localhost,127.0.0.1` | Add the host to `DEV_HOST` in `.env` (e.g. `DEV_HOST=localhost,127.0.0.1,postgres`). |
 | `Bad "options.issuer" option. The payload already has an "iss" property` | This was a bug in the auth tool during Phase 2 development — the canonical version puts `iss` / `aud` in the claims only, not in `jwt.sign` options. |
 | `Cannot find name 'parameter property'` error at import | Make sure no `class Foo { constructor(private x: number) {} }` is used — type stripping forbids parameter properties. |
-| Tools don't show up in the Inspector | Check that `npm run dev` printed `phase 4 ready — 20 tools registered` (or whatever phase). If the boot failed, the tools aren't registered. |
+| Tools don't show up in the Inspector | Check that `pnpm dev` printed `phase 4 ready — 20 tools registered` (or whatever phase). If the boot failed, the tools aren't registered. |
 
 ## 9. Development
 
 ```bash
-npm run dev          # --watch + --env-file
-npm run typecheck    # tsc --noEmit
-npm test             # node --test (skips live-backend tests if Docker is down)
-npm run lint:mmd     # fails if any resources/flows/*.mmd is older than tools/flow-tracing.ts
+pnpm dev          # --watch + --env-file
+pnpm typecheck    # tsc --noEmit
+pnpm test         # node --test (skips live-backend tests if Docker is down)
+pnpm run lint:mmd # fails if any resources/flows/*.mmd is older than tools/flow-tracing.ts
 ```
 
 The `.mmd` lint exists because drift between diagram and code is the bug class this whole server exists to prevent. Touch a `.mmd` to silence the lint after review; never auto-update.
 
 ## 10. Verification with Docker (live-backend tests)
 
-The default `npm test` skips the live-backend integration tests when Docker is unreachable — keeps CI hermetic. To run the full happy-path end-to-end against live backends:
+The default `pnpm test` skips the live-backend integration tests when Docker is unreachable — keeps CI hermetic. To run the full happy-path end-to-end against live backends:
 
 ```bash
 # 1. Bring up the full backend stack

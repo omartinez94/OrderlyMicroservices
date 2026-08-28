@@ -1,10 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    BuildingBlocks.Dev is the canary for TreatWarningsAsErrors=true in this
+    solution. The #code-style-iteration-plan work uses this canary to verify
+    that style rules promoted to :warning actually fail the build, but
+    several StyleCop / .NET analyzer rules have empirically been found to
+    IGNORE .editorconfig's `severity = none` once TreatWarningsAsErrors=true
+    is set (verified 2026-08-27). The rules below are mirrored from the
+    global .editorconfig to make them actually suppress here; without the
+    mirror the canary build fires 37+ spurious errors. Every rule listed
+    here is already disabled globally for the rest of the solution.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);SA1200;SA1633;SA1634;SA1635;SA1636;SA1637;SA1638;SA1640;SA1641;SA1402;SA1513;SA1518;SA0001;CA1032;CA1031;CA1062;CA1307;CA1848;CA1873;CA2007;IDE0008;IDE0011;IDE0078</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,6 +1,6 @@
 # Code-Style Iteration — Orderly Microservices
 
-> **Plan version**: `v2.0` — updated 2026-08-27. Gap-analysis pass: fixed 3 fabricated editorconfig keys, corrected braceless count (36→46), fixed CI `-warnaserror` list, added `BuildingBlocks.Dev.Tests` canary, renumbered phases to execution order, converted Unix commands to PowerShell, added `check-code-style.ps1` integration, added Marten validation procedure, decided test-var policy upfront, accounted for `Orderly.DevMCP.Server`.
+> **Plan version**: `v3.0` — 2026-08-27. Phase 0 + Step 0.5 executed. Plan doc updated post-execution: bumped version to v3.0, captured actual build numbers (8,468 warnings vs earlier estimate of ~4,047), actual Phase 1 scope (200 IDE0011 sites across 39 files vs earlier estimate of 46/8), new Step 0.5 (canary re-baseline), new canary-NoWarn mechanism (replaces the in-editorconfig canary override that didn't reach TWAE projects), new `Directory.Build.props` requirement (`EnforceCodeStyleInBuild=true`), corrected file references that no longer exist (`BuildingBlocks.Dev/Extensions/OpenIddictServerExtensions.cs`), corrected "multiline braceless" claims (the dangerous pattern is nowhere in the repo — all sites are safe).
 > **Strategy**: phased mechanical-then-manual cascade. Direct-on-main, no feature branch (per user decision).
 > **Scope**: full solution, all 30 .csproj / 921 .cs files (excluding `obj/`, `bin/`, `**/Migrations/**/*.cs`, `*.Designer.cs`).
 
@@ -25,9 +25,11 @@ The conventions are already idiomatic in `BuildingBlocks`, `Identity.API`, and `
 
 ---
 
-## Baseline measurements (audit, 2026-08-27)
+## Baseline measurements (post-Phase-0 execution, 2026-08-27)
 
-Excluding `obj/`, `bin/`, `**/Migrations/**/*.cs`. Numbers from a regex-based audit; cross-checked by sampling.
+Excluding `obj/`, `bin/`, `**/Migrations/**/*.cs`. Numbers from a regex-based audit, cross-checked by IDE analyzer output after Phase 0 promotion.
+
+**Pre-Phase-0 audit (regex-based):**
 
 | Metric | Count |
 |---|---:|
@@ -41,11 +43,44 @@ Excluding `obj/`, `bin/`, `**/Migrations/**/*.cs`. Numbers from a regex-based au
 | Braceless `if/else` (multiline) | **2** |
 | Braceless `for`/`foreach`/`while` | **0** |
 | Real `== ""` / `!= ""` empty-string equality | **0** (1 comment-only hit) |
-| Estimated total violations to fix | **~4,112** |
+
+**Post-Phase-0 actual analyzer output (real, replaces estimates below):**
+
+| Anomaly | Count | Notes |
+|---|---:|---|
+| IDE0008 (var → explicit) | **2,730** (production, after `*Tests/**/*.cs` override subtracts most tests) | Plan estimated ~4,001 in production; actual is 2,730 after test exemption. Phase 3 will fix this many in production. |
+| IDE0011 (braces required) | **200** | Plan estimated 46 single-line + 4 multiline + 2 if/else = 52. Real count is 200 across 39 files. Audit was conservative. |
+| IDE0078 (pattern matching) | **16** | Plan estimated "small, project-dependent". |
+| Total warnings after Phase 0 build | **8,468** | Plan estimated ~4,047. Bigger because IDE0xxx wasn't firing pre-Phase-0 (missing `EnforceCodeStyleInBuild`) and a lot of pre-existing SA/CA debt is still pending suppression/fix decisions. |
+| Build errors | **0** | After Step 0.5 canary re-baseline. |
+
+Top brace-heavy files for Phase 1 (real, from `phase0-build.log`):
+```
+ 30  Services/Kitchen/Kitchen.API/Domain/Aggregates/KitchenTicket/KitchenTicket.cs
+ 16  Services/Ordering/Ordering.Domain/Models/Order.cs
+ 12  Services/Catalog/Catalog.API/Features/Restaurants/UpdateRestaurant/UpdateRestaurantHandler.cs
+ 12  Services/Identity/Identity.API/Extensions/OpenIddictServerExtensions.cs
+ 12  Services/Identity/Identity.API/Data/DataSeeder.cs
+ 12  Services/Ordering/Ordering.Domain/ValueObjects/Address.cs
+  8  Services/Ordering/Ordering.Domain/ValueObjects/Payment.cs
+  8  BuildingBlocks.Messaging/MassTransit/Extensions.cs
+  6  Services/Kitchen/Kitchen.API/Application/KitchenTickets/Queries/GetKitchenQueue.cs
+  6  Services/Catalog/Catalog.API/Features/MenuItemAnalytics/RecomputeToday/RecomputeTodayAnalyticsHandler.cs
+  6  Services/Ordering/Ordering.Domain/Models/OrderActivity.cs
+  6  Services/Basket/Basket.API/Data/TenantedSessionFactory.cs
+  6  Services/Catalog/Catalog.API/Availability/MenuItemAnalyticsNightlyRecomputeService.cs
+  4  Services/Kitchen/Kitchen.API/Hubs/KitchenHub.cs
+  4  Services/Basket/Basket.API/Audit/MartenBasketAuditLog.cs
+  4  BuildingBlocks/Exceptions/Handler/CustomExceptionHandler.cs
+  4  Services/Ordering/Ordering.Domain/Models/OrderItem.cs
+  2  Services/Ordering/Ordering.Domain/ValueObjects/*.cs (8 value-object files)
+  2  Services/Kitchen/Kitchen.API/Domain/ValueObjects/*.cs (3 files)
+  2  Services/Kitchen/Kitchen.API/Infrastructure/HttpContextCurrentUser.cs
+  2  Services/Ordering/Ordering.Application/Orders/Commands/ConfirmOrder/ConfirmOrderHandler.cs
+  2  Services/Ordering/Ordering.Application/Orders/Commands/CancelOrder/CancelOrderHandler.cs
+```
 
 Hot-spot projects (largest work-pile): `Catalog.API` (515 var, 16 braceless ifs), `Basket.API.Tests` (475 var), `Identity.API.Tests` (397 var), `Catalog.API.Tests` (385 var, 4 braceless ifs), `Identity.API` (363 var), `Discount.Grpc.Tests` (346 var), `Ordering.Application.Tests` (273 var), `Ordering.API.Tests` (260 var), `Discount.Grpc` (158 var, 18 `== null`), `Kitchen.API.Tests` (210 var).
-
-`BuildingBlocks.Dev\BuildingBlocks.Dev.csproj` AND `BuildingBlocks.Dev.Tests\BuildingBlocks.Dev.Tests.csproj` are canaries: both override `TreatWarningsAsErrors=true`. Phase 0's promotion to `:warning` will turn style violations into build errors in BOTH projects. A temporary per-directory `.editorconfig` override downgrades `var` rules to `:suggestion` for these two projects until Phase 3 PR #3.1 lands (see Phase 0 edits).
 
 ---
 

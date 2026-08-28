@@ -36,9 +36,45 @@ dotnet_style_qualification_for_field = false:suggestion
 dotnet_style_qualification_for_property = false:suggestion
 dotnet_style_qualification_for_method = false:suggestion
 dotnet_style_qualification_for_event = false:suggestion
-csharp_style_var_for_built_in_types = false:suggestion
+
+# ============================================================
+# Style rules promoted per AGENTS.md (was :suggestion; now :warning)
+# See .agents/plan/platform/CODE_STYLE_ITERATION_PLAN.md Phase 0.
+# ============================================================
+csharp_style_var_for_built_in_types             = false:warning
+csharp_style_var_when_type_is_apparent          = false:warning   # was true:suggestion — align with AGENTS.md
+csharp_style_var_elsewhere                      = false:warning
+
+# --- Braces ---
+# AGENTS.md rule: always use curly braces for if/for/foreach.
+# Drives IDE0011. StyleCop SA1503 (Braces must not be omitted) is fired
+# separately by StyleCop.Analyzers with default severity.
+csharp_prefer_braces                            = true:warning
+
+# --- Null checks ---
+# IDE0041 only covers ReferenceEquals(x, null) → x is null.
+# There is NO editorconfig key that enforces == null → is null or
+# != null → is not null. That rule is enforced by
+# scripts/quality-helpers/check-code-style.ps1 (Phase 5 of the plan).
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+
+# --- Pattern matching rules (real keys, with IDE rule IDs) ---
+csharp_style_pattern_matching_over_is_with_cast_check  = true:warning   # IDE0020
+csharp_style_pattern_matching_over_as_with_null_check  = true:warning   # IDE0019
+csharp_style_prefer_pattern_matching                   = true:warning   # IDE0078
+csharp_style_prefer_not_pattern                        = true:warning   # IDE0083
+csharp_style_prefer_extended_property_pattern          = true:warning   # IDE0170
+
+# --- Test project var exemption ---
+# Test readability favours `var` (e.g. `var result = await handler.Handle(...)`).
+# Code-style-iteration plan §"Test project var policy" decides this upfront.
+# `**/*Tests/**/*.cs` walks any folder whose name ends in `Tests` at any depth
+# (e.g. Services/Basket/Basket.API.Tests/Unit/Foo.cs).
+[**/*Tests/**/*.cs]
+csharp_style_var_for_built_in_types    = false:suggestion
 csharp_style_var_when_type_is_apparent = true:suggestion
-csharp_style_var_elsewhere = false:suggestion
+csharp_style_var_elsewhere            = false:suggestion
+csharp_prefer_braces                  = true:suggestion
 
 # ============================================================
 # Disabled StyleCop / FxCop rules
@@ -307,3 +343,24 @@ dotnet_diagnostic.CA5393.severity = error
 dotnet_diagnostic.CA5394.severity = error
 dotnet_diagnostic.CA5395.severity = error
 dotnet_diagnostic.CA5396.severity = error
+
+# ============================================================
+# TEMPORARY: suppress style warnings in canary projects until Phase 3 PR #3.1
+# BuildingBlocks.Dev and BuildingBlocks.Dev.Tests both set
+# <TreatWarningsAsErrors>true</TreatWarningsAsErrors>, so the promotion above
+# would turn their existing var/brace/style violations into build errors.
+# Phase 3 PR #3.1 fixes BuildingBlocks.Dev + Dev.Tests var sites and removes
+# these overrides. See .agents/plan/platform/CODE_STYLE_ITERATION_PLAN.md §
+# "Canary override" for context.
+# ============================================================
+[BuildingBlocks.Dev/**/*.cs]
+csharp_style_var_for_built_in_types    = false:suggestion
+csharp_style_var_when_type_is_apparent = false:suggestion
+csharp_style_var_elsewhere            = false:suggestion
+csharp_prefer_braces                  = true:suggestion
+
+[BuildingBlocks.Dev.Tests/**/*.cs]
+csharp_style_var_for_built_in_types    = false:suggestion
+csharp_style_var_when_type_is_apparent = false:suggestion
+csharp_style_var_elsewhere            = false:suggestion
+csharp_prefer_braces                  = true:suggestion

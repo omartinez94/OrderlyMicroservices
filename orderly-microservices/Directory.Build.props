@@ -10,6 +10,17 @@
     TreatWarningsAsErrors is intentionally false in Phase 1: the plan §10
     requires StyleCop rules to be tuned via .editorconfig before promoting
     warnings to errors. See the plan for the promotion path.
+
+    Phase 0 of CODE_STYLE_ITERATION_PLAN.md adds EnforceCodeStyleInBuild=true
+    so the IDE0xxx style rules (var → explicit type, IDE0008; braces,
+    IDE0011; pattern matching, IDE0020/0019/0078/0083/0170) actually surface
+    as compile warnings. Without this flag, .editorconfig severity settings
+    are advisory-only and only the IDE surfaces them; the build stays silent
+    on style drift. The accompanying .editorconfig promotes these rules to
+    :warning and exempts test projects ([*Tests/**/*.cs] override) so this
+    doesn't break the test suite. BuildingBlocks.Dev + .Tests suppress via
+    their own .csproj NoWarn since TWAE=true ignores .editorconfig severity
+    overrides (verified 2026-08-27).
   -->
   <PropertyGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">
     <TargetFramework>net10.0</TargetFramework>
@@ -19,6 +30,7 @@
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
     <AnalysisLevel>latest-all</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">

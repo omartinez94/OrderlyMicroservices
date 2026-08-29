@@ -91,7 +91,7 @@ Hot-spot projects (largest work-pile): `Catalog.API` (515 var, 16 braceless ifs)
 | **Step 0.5 — canary re-baseline** | ✅ complete 2026-08-27 | See new section below. |
 | **Phase 0 — tooling baseline** | ✅ complete 2026-08-27 | See §Phase 0 below. |
 | **Phase 1 — braces** | ✅ complete 2026-08-28 | ~110 unique sites / 41 files. See §Phase 1 below. |
-| **Phase 2 — null checks** | ⏸ not started | 65 sites / 11 projects (regex audit; Marten validation needed). |
+| **Phase 2 — null checks** | ✅ complete 2026-08-28 | 18 sites / 12 files. Scope-corrected: CS8122 forbids `is null` in expression trees. See §Phase 2 below. |
 | **Phase 3 — var → explicit type** | ⏸ not started | 2,730 production-code var sites. Script not authored. |
 | **Phase 4 — manual refactors** | ⏸ not started | Per-service. |
 | **Phase 5 — CI + style-gate script** | ⏸ not started | Workflow + check-code-style.ps1 + phase-guard section 22. |
@@ -281,59 +281,93 @@ statement2;  // ← now visually clear this is unconditional
 - All test projects green.
 - `dotnet format whitespace --verify-no-changes` — green.
 
-### Phase 2 — Null checks (65 sites, 11 projects, one PR)
+### ⏸ Phase 2 — Null checks — scope corrected 2026-08-28
 
-**Goal**: every `!= null` → `is not null`, every `== null` → `is null`.
+> **SCOPE CORRECTED** — updated 2026-08-28 during execution. The plan estimated 65 sites / 11 projects. Real audit (regex sweep) found **53 sites / 11 files**, but the compiler's `CS8122: An expression tree may not contain a pattern-matching 'is' operator` (verified empirically by attempting `is null` in `OrderActivityConfiguration.HasConversion(...)` — broke the build) limits conversion to **18 sites in 12 files**. The remaining **~35 sites in LINQ expression trees MUST stay `== null`**.
 
-**Critical files** (representative):
-- `orderly-microservices/Services/Discount/Discount.Grpc/...` (18 `== null`, mostly inside `Where(c => c.DeletedAt == null ...)` — EF Core 9 + Npgsql translates `== null` and `is null` to identical SQL, semantically safe)
-- `orderly-microservices/Services/Catalog/Catalog.API/Features/Reservations/SeatReservation/SeatReservationHandler.cs` (`table != null`)
-- `orderly-microservices/Services/Catalog/Catalog.API.Tests/Integration/Endpoints/TableEndpointTests.cs` (3 `!= null`)
-- `orderly-microservices/Services/Kitchen/Kitchen.API/Infrastructure/Data/Configurations/KitchenTicketConfiguration.cs` (2)
-- `orderly-microservices/Services/Ordering/Ordering.Infrastructure/Data/Configurations/OrderItemConfiguration.cs` (2)
-- `orderly-microservices/BuildingBlocks/Behaviors/ValidationBehavior.cs` (`f != null` inside a LINQ `.Where`)
-- ~5 more in `BuildingBlocks/Authorization`, `BuildingBlocks.Messaging/MassTransit/Extensions.cs`
+**Goal**: every `!= null` → `is not null`, every `== null` → `is null` **in regular C# code only**. LINQ expression trees (see C# limitation below) keep `== null`.
 
-**Pattern** (apply mechanically; do NOT touch XML doc comments or `//` comments):
+### C# compiler limitation (CS8122) — the reason scope is limited
+
+`is null` / `is not null` patterns are **not representable in `System.Linq.Expressions.Expression<T>`**. The C# compiler rejects them with `CS8122` whenever a lambda is converted to an expression tree rather than a delegate. The Roslyn probe (changing `m => m == null ? ...` → `m => m is null ? ...` in `OrderActivityConfiguration.cs:53,54` against `HasConversion(...)`) confirmed: Roslyn's overload resolution picks the `Expression<Func<>>` overload of `HasConversion` when both overloads are valid, and the build broke with `CS8122`.
+
+**Sites that MUST keep `== null` / `!= null` (LINQ expression trees)**:
+- `.Where(x => x.X == null)`, `.Select(...)`, `.Join(...)`, `.Take(...)`, `.OrderBy(...)` LINQ chains over `IQueryable<T>` (EF Core, Marten)
+- `HasQueryFilter(x => x.X == null)` EF Core global filters
+- `ValueComparer(x => (a == null && b == null) || ...)` — `ValueComparer` constructor takes `Expression<Func<T,T,bool>>`
+- `HasConversion(x => x == null ? null : ...)` — Roslyn picks the `Expression<Func<>>` overload
+- `FluentValidation.RuleBuilder<T,TProperty>.Must(x => x.X == null)` — FluentValidation rule expressions are expression trees
+- `FluentAssertions.IEnumerableAssertions.ContainOnly(x => x.X != null)` / `.Match(...)` / `.Be(...)` — assertion expression trees
+- In-memory LINQ chains (`IEnumerable<T>.Where(...)` over a list) where the lambda body is wrapped by another expression-tree consumer — rare in this codebase, but check
+
+**Sites that CAN be converted (regular C# code)**:
+- `if (x == null)`, `if (x != null)`, `else if (x == null)`, etc.
+- `return x == null;`, `return x != null;`
+- `x == null ? a : b` ternaries outside expression trees
+- Delegate bodies (`Func<T,R>`) that are NOT wrapped in expression trees
+- In-memory `IEnumerable<T>.Select(rid => new T { IsDefault = command.DefaultRestaurantId == rid || ... })` — the lambda is a `Func<T,R>` delegate, not an expression tree
+
+### Critical files
+
+**Convertible (18 sites in 12 files)** — converted in Batch A (production) and Batch B (tests):
+- `BuildingBlocks.Messaging/MassTransit/Extensions.cs:43` — `if (assembly != null)`
+- `Services/Catalog/Catalog.API/Data/CatalogDbContext.cs:809` — reflection null check
+- `Services/Catalog/Catalog.API/Features/MenuCategories/{DeleteMenuCategory,GetMenuCategoryById,UpdateMenuCategory}Handler.cs` — handler null guards
+- `Services/Catalog/Catalog.API/Features/Reservations/SeatReservationHandler.cs:22` — `if (table != null)`
+- `Services/Catalog/Catalog.API/Features/WalkInQueues/SeatWalkInCustomer/SeatWalkInCustomerHandler.cs:20` — `if (table != null)`
+- `Services/Catalog/Catalog.API.Tests/Integration/Endpoints/TableEndpointTests.cs` (3 sites) — test null guards
+- `Services/Catalog.Catalog.API.Tests/Integration/AuthTokenHelper.cs:25` — test helper
+- `Services/Catalog.API.Tests/Integration/TestDataSeeder.cs` (4 sites) — test data builder
+- `Services/Discount.Grpc/Domain/ActiveNow.cs:28,37` — regular method bodies
+- `Services/Identity.API/Features/Users/CreateUser/CreateUserCommand.cs:59` — in-memory Select lambda body
+
+**Must stay `== null` / `!= null` (~35 sites)** — DO NOT touch:
+- `BuildingBlocks/Behaviors/ValidationBehavior.cs:32` — `.Where(f => f != null)` (in-memory LINQ over validation results — actually wait, this is in-memory but the consumer is `fluentvalidation`. Need to verify.)
+- `Services/Basket/Basket.API/Basket/StoreBasket/StoreBasketHandler.cs:58` — `.Must(codes => codes == null || ...)` (FluentValidation expression tree)
+- `Services/Basket/Basket.API/Messaging/CheckoutBasketOutboxDispatcher.cs:137` — `.Where(m => m.DispatchedAt == null)` (Marten)
+- `Services/Basket/Basket.API.Tests/Unit/CheckoutBasketCommandHandlerTests.cs:103` — assertion
+- `Services/Catalog/Catalog.API/Readers/MenuReader.cs:55` — `.Where(...)` (Marten/EF Core)
+- `Services/Catalog/Catalog.API/Scheduling/{ReservationNoShowJob,ReservationReminderJob,WalkInNoShowJob}.cs` — EF Core LINQ
+- `Services/Catalog.API.Tests/Integration/CatalogOutboxPublisherTests.cs:46` — `.Where(...)` (EF Core)
+- `Services/Discount/Discount.Grpc/Data/DiscountContext.cs:84,91` — `HasQueryFilter(...)`
+- `Services/Discount.Grpc/Messaging/EventHandlers/{MenuItemChangedConsumer,OrderCreatedConsumer}.cs` — EF Core LINQ
+- `Services/Discount.Grpc/Services/{DiscountExpirySweepService,DiscountRuleService,RewardCodeService}.cs` — EF Core LINQ
+- `Services/Discount.Grpc.Tests/Integration/FeedbackSubmittedConsumerTests.cs:73` — FluentAssertions
+- `Services/Identity/Identity.API/Services/ClaimsTransformer.cs:46` — `.Where(r => r != null)` (EF Core)
+- `Services/Ordering.API.Tests/Integration/OrderingOutboxMultiReplicaTests.cs:90` — `.Where(...)` (EF Core)
+- `Services/Kitchen/Kitchen.API/Infrastructure/Data/Configurations/KitchenTicketConfiguration.cs:68,78` — `ValueComparer(...)` (Expression)
+- `Services/Ordering/Ordering.Infrastructure/Data/Configurations/OrderActivityConfiguration.cs:53,54` — `HasConversion(...)` (Expression)
+- `Services/Ordering/Ordering.Infrastructure/Data/Configurations/OrderConfiguration.cs:80,81` — `HasConversion(...)` (Expression)
+- `Services/Ordering/Ordering.Infrastructure/Data/Configurations/OrderItemConfiguration.cs:65,77` — `ValueComparer(...)` (Expression)
+
+### Pattern (apply mechanically; do NOT touch XML doc comments or `//` comments):
+
 ```csharp
 // before
-.Where(c => c.DeletedAt == null && c.ExpirationDate <= now)
+if (category == null) throw new NotFoundException(...);
 // after
-.Where(c => c.DeletedAt is null && c.ExpirationDate <= now)
+if (category is null) throw new NotFoundException(...);
 ```
 
-**Caveats**:
-- **Skip XML doc comments and `//` comments** — `Discount.Grpc/Services/DiscountService.cs:182` and `Protos/Discount.cs` (in obj/, already excluded) have `== null` inside `<c>` tags and prose. Manual review for any XML doc hit.
-- **EF Core safety**: verified by reading 15 of the 18 Discount.Grpc sites. All are `c.DeletedAt == null` LINQ predicates. EF Core 5+ translates `is null` to the same SQL. Safe.
-- **Marten DB validation** (run BEFORE bulk conversion in Catalog/Basket):
-  1. Add a throwaway integration test in `Catalog.API.Tests`:
-     ```csharp
-     [Fact]
-     public async Task MartenSupportsIsNullLinqTranslation()
-     {
-         await using IDocumentSession session = _store.LightweightSession();
-         NpgsqlCommand command = session.Query<Restaurant>()
-             .Where(r => r.DeletedAt is null).ToCommand();
-         string sql = command.CommandText;
-         Assert.Contains("IS NULL", sql, StringComparison.OrdinalIgnoreCase);
-     }
-     ```
-  2. Verify the generated SQL produces `WHERE deleted_at IS NULL` (not a broken/empty predicate).
-  3. If Marten fails: keep `== null` for Marten LINQ queries and add an inline comment `// Marten LINQ: == null required`.
-- **One known inconsistency**: `BuildingBlocks/Entities/Interceptors/AuditableEntityInterceptor.cs:27` uses `if (context is null) return;` (already `is null`). Inconsistent with the codebase-wide `is not null` style elsewhere — no change needed, this is the *target* pattern. Use it as a model for the rest.
+### Caveats
 
-**Risk**: low. EF Core translation is safe, but Marten must be validated first.
+- **Skip XML doc comments and `//` comments** — `Discount.Grpc/Services/DiscountService.cs:182` and `Protos/Discount.cs` (in obj/, already excluded) have `== null` inside `<c>` tags and prose.
+- **EF Core safety** (N/A now — those sites are all expression trees, not converted): verified by reading the LINQ predicate shape. EF Core 5+ translates `is null` to identical SQL. Safe — but unreachable in this phase.
+- **Marten LINQ safety** (N/A now — same reason): the only Marten LINQ site is `Basket.API/Messaging/CheckoutBasketOutboxDispatcher.cs:137`, kept as `== null` for the compiler reason.
+- **AGENTS.md update required**: the existing rule "`is null` / `is not null` over `!= null` / `== null`" must be qualified to "in regular C# code; LINQ expression trees (`.Where`, `HasQueryFilter`, `ValueComparer`, `HasConversion`, `.Must(...)`, `.Should().OnlyContain(...)` and similar) keep `== null` due to `CS8122`".
+
+**Risk**: very low. Only 18 sites in 12 files, all in regular C# code, with mechanical conversion that the compiler validates.
 
 **Verification gate**:
-- `dotnet build orderly-microservices.slnx` — green.
-- All test projects green.
+- `dotnet build orderly-microservices.slnx` — green (no `CS8122`).
 - `dotnet format whitespace --verify-no-changes` — green.
-- PowerShell sweep — 0 hits (excluding `obj/`, `bin/`, comments):
+- PowerShell sweep — count of `== null` / `!= null` in regular C# code drops from 18 to 0; expression-tree sites unchanged:
   ```powershell
   Get-ChildItem -Recurse -Include *.cs orderly-microservices |
-    Where-Object { $_.FullName -notmatch 'obj|bin|Migrations|\.Designer\.cs' } |
+    Where-Object { $_.FullName -notmatch 'obj|bin|Migrations|\.Designer\.cs|\.g\.cs' } |
     Select-String -Pattern '(\!\=|\=\=)\s*null' |
-    Where-Object { $_.Line -notmatch '^\s*//' }
+    Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -notmatch '^\s*///' } |
+    ForEach-Object { ... }
   ```
 
 ### Phase 3 — `var` → explicit type (4,001 sites, 30 projects, multiple PRs)

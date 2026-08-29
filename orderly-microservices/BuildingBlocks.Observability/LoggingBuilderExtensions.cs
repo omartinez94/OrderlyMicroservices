@@ -37,11 +37,11 @@ public static class LoggingBuilderExtensions
         ArgumentNullException.ThrowIfNull(builder);
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var options = configuration
+        ObservabilityOptions? options = configuration
             .GetSection(ObservabilityOptions.SectionName)
             .Get<ObservabilityOptions>() ?? new ObservabilityOptions();
 
-        var otlpProtocol = options.OtlpProtocol == OtlpProtocol.HttpProtobuf
+        OtlpExportProtocol otlpProtocol = options.OtlpProtocol == OtlpProtocol.HttpProtobuf
             ? OtlpExportProtocol.HttpProtobuf
             : OtlpExportProtocol.Grpc;
 

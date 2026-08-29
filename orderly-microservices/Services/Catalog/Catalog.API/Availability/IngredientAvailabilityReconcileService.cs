@@ -58,7 +58,7 @@ public sealed class IngredientAvailabilityReconcileService(
 
             try
             {
-                var interval = TimeSpan.FromMinutes(options.CurrentValue.AvailabilityRecurrenceIntervalMinutes);
+                TimeSpan interval = TimeSpan.FromMinutes(options.CurrentValue.AvailabilityRecurrenceIntervalMinutes);
                 await Task.Delay(interval, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -80,10 +80,10 @@ public sealed class IngredientAvailabilityReconcileService(
     private async Task SweepAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        IMediator? mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
 
-        var menuItemIds = await dbContext.MenuItems
+        List<Guid>? menuItemIds = await dbContext.MenuItems
             .IgnoreQueryFilters()
             .Select(m => m.Id)
             .ToListAsync(cancellationToken)
@@ -95,10 +95,10 @@ public sealed class IngredientAvailabilityReconcileService(
             return;
         }
 
-        var now = SystemClock.Instance.GetCurrentInstant();
-        var dispatched = 0;
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        int dispatched = 0;
 
-        foreach (var menuItemId in menuItemIds)
+        foreach (Guid menuItemId in menuItemIds)
         {
             if (cancellationToken.IsCancellationRequested)
             {

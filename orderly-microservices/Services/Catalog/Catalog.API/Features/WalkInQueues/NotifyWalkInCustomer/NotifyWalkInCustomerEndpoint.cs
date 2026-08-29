@@ -6,13 +6,13 @@ public class NotifyWalkInCustomerEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapPut("/restaurants/{restaurantId}/walk-in-queue/{id}/notify", async (int id, ISender sender) =>
         {
-            var command = new NotifyWalkInCustomerCommand(id);
-            var result = await sender.Send(command);
-            var response = result.Adapt<NotifyWalkInCustomerResponse>();
+            NotifyWalkInCustomerCommand? command = new NotifyWalkInCustomerCommand(id);
+            NotifyWalkInCustomerResult? result = await sender.Send(command);
+            NotifyWalkInCustomerResponse? response = result.Adapt<NotifyWalkInCustomerResponse>();
 
             return Results.Ok(response);
         })

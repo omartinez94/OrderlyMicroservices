@@ -20,7 +20,7 @@ public class ListUsersQueryHandler(
 {
     public async Task<ListUsersResponse> Handle(ListUsersQuery query, CancellationToken cancellationToken)
     {
-        var usersQuery = dbContext.Users.AsQueryable();
+        IQueryable<ApplicationUser>? usersQuery = dbContext.Users.AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(query.SearchTerm))
         {
@@ -30,18 +30,18 @@ public class ListUsersQueryHandler(
                 u.LastName.Contains(query.SearchTerm));
         }
 
-        var totalCount = await usersQuery.CountAsync(cancellationToken);
+        int totalCount = await usersQuery.CountAsync(cancellationToken);
 
-        var users = await usersQuery
+        List<ApplicationUser>? users = await usersQuery
             .OrderBy(u => u.LastName)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        var userItems = new List<UserListItem>();
-        foreach (var user in users)
+        List<UserListItem>? userItems = new List<UserListItem>();
+        foreach (ApplicationUser? user in users)
         {
-            var roles = await userManager.GetRolesAsync(user);
+            IList<string>? roles = await userManager.GetRolesAsync(user);
             userItems.Add(new UserListItem(
                 user.Id,
                 user.Email ?? string.Empty,

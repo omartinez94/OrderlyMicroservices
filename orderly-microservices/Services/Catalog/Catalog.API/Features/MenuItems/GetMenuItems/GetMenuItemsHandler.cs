@@ -47,7 +47,7 @@ internal class GetMenuItemsQueryHandler(CatalogDbContext dbContext) : IQueryHand
 {
     public async Task<GetMenuItemsResult> Handle(GetMenuItemsQuery query, CancellationToken cancellationToken)
     {
-        var dbQuery = dbContext.MenuItems
+        IQueryable<MenuItem>? dbQuery = dbContext.MenuItems
             .AsNoTracking()
             .Where(m => m.RestaurantId == query.RestaurantId);
 
@@ -61,16 +61,16 @@ internal class GetMenuItemsQueryHandler(CatalogDbContext dbContext) : IQueryHand
             dbQuery = dbQuery.Where(m => m.IsAvailable == query.IsAvailable.Value);
         }
 
-        var totalCount = await dbQuery.CountAsync(cancellationToken);
+        int totalCount = await dbQuery.CountAsync(cancellationToken);
 
-        var items = await dbQuery
+        List<MenuItem>? items = await dbQuery
             .OrderBy(m => m.DisplayOrder)
             .ThenBy(m => m.Name)
             .Skip((query.PageNumber - 1) * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = items.Adapt<IEnumerable<MenuItemDto>>();
+        IEnumerable<MenuItemDto>? dtos = items.Adapt<IEnumerable<MenuItemDto>>();
 
         return new GetMenuItemsResult(dtos, totalCount, query.PageNumber, query.PageSize);
     }

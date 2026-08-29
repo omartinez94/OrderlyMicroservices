@@ -8,13 +8,13 @@ public class GetOrders : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Orders");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapGet("/orders", async ([AsParameters] PaginationRequest request, ISender sender) =>
         {
-            var query = new GetOrdersQuery(request);
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetOrdersResponse>();
+            GetOrdersQuery? query = new GetOrdersQuery(request);
+            GetOrdersResult? result = await sender.Send(query);
+            GetOrdersResponse? response = result.Adapt<GetOrdersResponse>();
 
             return Results.Ok(response);
         })

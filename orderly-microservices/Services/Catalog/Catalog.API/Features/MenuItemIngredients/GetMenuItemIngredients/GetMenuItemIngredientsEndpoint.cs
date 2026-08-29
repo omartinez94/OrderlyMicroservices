@@ -13,13 +13,13 @@ public class GetMenuItemIngredientsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
 
         group.MapGet("/menu-items/{menuItemId}/ingredients", async (Guid menuItemId, ISender sender) =>
         {
-            var query = new GetMenuItemIngredientsQuery(menuItemId);
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetMenuItemIngredientsResponse>();
+            GetMenuItemIngredientsQuery? query = new GetMenuItemIngredientsQuery(menuItemId);
+            GetMenuItemIngredientsResult? result = await sender.Send(query);
+            GetMenuItemIngredientsResponse? response = result.Adapt<GetMenuItemIngredientsResponse>();
 
             return Results.Ok(response);
         })

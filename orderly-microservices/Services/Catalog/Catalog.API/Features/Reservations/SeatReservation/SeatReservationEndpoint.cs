@@ -8,13 +8,13 @@ public class SeatReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Reservations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPut("/restaurants/{restaurantId}/reservations/{id}/seat", async (Guid id, SeatReservationRequest request, ISender sender) =>
         {
-            var command = new SeatReservationCommand(id, request.TableId);
-            var result = await sender.Send(command);
-            var response = result.Adapt<SeatReservationResponse>();
+            SeatReservationCommand? command = new SeatReservationCommand(id, request.TableId);
+            SeatReservationResult? result = await sender.Send(command);
+            SeatReservationResponse? response = result.Adapt<SeatReservationResponse>();
 
             return Results.Ok(response);
         })

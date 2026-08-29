@@ -13,13 +13,13 @@ public class CreateIngredientEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Ingredients");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Ingredients");
 
         group.MapPost("/restaurants/{restaurantId:guid}/ingredients", async (Guid restaurantId, CreateIngredientRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateIngredientCommand>() with { RestaurantId = restaurantId };
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateIngredientResponse>();
+            CreateIngredientCommand? command = request.Adapt<CreateIngredientCommand>() with { RestaurantId = restaurantId };
+            CreateIngredientResult? result = await sender.Send(command);
+            CreateIngredientResponse? response = result.Adapt<CreateIngredientResponse>();
 
             return Results.Created($"/v1/restaurants/{restaurantId}/ingredients/{response.Id}", response);
         })

@@ -5,7 +5,7 @@ using Identity.API.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -39,14 +39,14 @@ builder.Services.AddOpenApi(options =>
         // Title-case + singularise-by-stripping-trailing-s so the tag
         // reads naturally in the Swagger UI (e.g. "Permissions" not
         // "Permissions").
-        var relativePath = context.Description.RelativePath ?? string.Empty;
-        var trimmed = relativePath.TrimStart('/');
+        string? relativePath = context.Description.RelativePath ?? string.Empty;
+        string? trimmed = relativePath.TrimStart('/');
         if (trimmed.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
         {
             trimmed = trimmed[4..];
         }
 
-        var firstSegment = trimmed
+        string? firstSegment = trimmed
             .Split('/', StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault();
 
@@ -55,7 +55,7 @@ builder.Services.AddOpenApi(options =>
             // `permissions/{id}` → "Permissions"; `roles` → "Roles";
             // `audit-log` → "Audit Log". Skips parameters + non-identifier
             // segments via the char.IsLetter check.
-            var pascal = string.Concat(firstSegment
+            string? pascal = string.Concat(firstSegment
                 .Replace("-", " ")
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
@@ -135,12 +135,12 @@ builder.Services.AddScoped<AuditLogger>();
 //    against everything else. It is preserved verbatim as the "auth" policy
 //    (see RateLimitPolicies.Auth) and applied to login/register/token; the
 //    global fallback is now a much looser abuse-ceiling.
-var rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
-var rateLimitingEnabled = rateLimitingSection.GetValue("Enabled", true);
-var globalPermitLimit = rateLimitingSection.GetValue("GlobalPermitLimit", 300);
-var globalWindowSeconds = rateLimitingSection.GetValue("GlobalWindowSeconds", 60);
-var authPermitLimit = rateLimitingSection.GetValue("AuthPermitLimit", 5);
-var authWindowMinutes = rateLimitingSection.GetValue("AuthWindowMinutes", 15);
+IConfigurationSection? rateLimitingSection = builder.Configuration.GetSection("RateLimiting");
+bool rateLimitingEnabled = rateLimitingSection.GetValue("Enabled", true);
+int globalPermitLimit = rateLimitingSection.GetValue("GlobalPermitLimit", 300);
+int globalWindowSeconds = rateLimitingSection.GetValue("GlobalWindowSeconds", 60);
+int authPermitLimit = rateLimitingSection.GetValue("AuthPermitLimit", 5);
+int authWindowMinutes = rateLimitingSection.GetValue("AuthWindowMinutes", 15);
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -199,7 +199,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetConnectionString("IdentityDB")!,
         tags: new[] { "ready" });
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 app.MapCarter();
 

@@ -8,12 +8,12 @@ public static class DataSeeder
         CancellationToken ct = default)
     {
         using var scope = serviceProvider.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-        var applicationManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
-        var scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
+        IdentityDbContext? dbContext = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        RoleManager<ApplicationRole>? roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<ApplicationRole>>();
+        UserManager<ApplicationUser>? userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        IConfiguration? configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        IOpenIddictApplicationManager? applicationManager = scope.ServiceProvider.GetRequiredService<IOpenIddictApplicationManager>();
+        IOpenIddictScopeManager? scopeManager = scope.ServiceProvider.GetRequiredService<IOpenIddictScopeManager>();
 
         // Phase 2: schema application moved to IdentityMigratorHostedService
         // (registered in Program.cs). The hosted service runs at
@@ -51,7 +51,7 @@ public static class DataSeeder
         {
             if (!await roleManager.RoleExistsAsync(roleData.Name))
             {
-                var role = new ApplicationRole
+                ApplicationRole? role = new ApplicationRole
                 {
                     Name = roleData.Name,
                     NormalizedName = roleData.Name.ToUpperInvariant(),
@@ -69,7 +69,7 @@ public static class DataSeeder
             return;
         }
 
-        var permissions = new List<Permission>
+        List<Permission>? permissions = new List<Permission>
         {
             // Users
             new() { Id = Guid.NewGuid(), Name = "users:view_all", Description = "View all users", Resource = "users", Action = "view_all" },
@@ -129,7 +129,7 @@ public static class DataSeeder
             return;
         }
 
-        var rolePermissionMap = new Dictionary<string, List<string>>
+        Dictionary<string, List<string>>? rolePermissionMap = new Dictionary<string, List<string>>
         {
             ["SuperAdmin"] = dbContext.Permissions.Select(p => p.Name).ToList(),
             ["RestaurantAdmin"] = new()
@@ -186,17 +186,17 @@ public static class DataSeeder
 
         foreach (var (roleName, permissionNames) in rolePermissionMap)
         {
-            var role = await roleManager.FindByNameAsync(roleName);
+            ApplicationRole? role = await roleManager.FindByNameAsync(roleName);
             if (role is null)
             {
                 continue;
             }
 
-            var permissions = await dbContext.Permissions
+            List<Permission>? permissions = await dbContext.Permissions
                 .Where(p => permissionNames.Contains(p.Name))
                 .ToListAsync(ct);
 
-            var rolePermissions = permissions.Select(p => new RolePermission
+            IEnumerable<RolePermission>? rolePermissions = permissions.Select(p => new RolePermission
             {
                 RoleId = role.Id,
                 Role = role,
@@ -228,14 +228,14 @@ public static class DataSeeder
             return;
         }
 
-        var adminEmail = "admin@orderly.com";
-        var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
+        string? adminEmail = "admin@orderly.com";
+        ApplicationUser? existingAdmin = await userManager.FindByEmailAsync(adminEmail);
         if (existingAdmin is not null)
         {
             return;
         }
 
-        var admin = new ApplicationUser
+        ApplicationUser? admin = new ApplicationUser
         {
             UserName = adminEmail,
             Email = adminEmail,
@@ -246,10 +246,10 @@ public static class DataSeeder
             EmailConfirmed = true,
         };
 
-        var result = await userManager.CreateAsync(admin, "Admin@123456");
+        IdentityResult? result = await userManager.CreateAsync(admin, "Admin@123456");
         if (result.Succeeded)
         {
-            var role = await roleManager.FindByNameAsync("SuperAdmin");
+            ApplicationRole? role = await roleManager.FindByNameAsync("SuperAdmin");
             if (role is not null)
             {
                 await userManager.AddToRoleAsync(admin, "SuperAdmin");
@@ -276,13 +276,13 @@ public static class DataSeeder
             new { Email = "kitchen@acme.com", FirstName = "Acme", LastName = "Kitchen", Role = "KitchenManager" },
         };
 
-        var restaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        Guid restaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
         foreach (var u in users)
         {
             if (await userManager.FindByEmailAsync(u.Email) is null)
             {
-                var user = new ApplicationUser
+                ApplicationUser? user = new ApplicationUser
                 {
                     UserName = u.Email,
                     Email = u.Email,
@@ -293,7 +293,7 @@ public static class DataSeeder
                     EmailConfirmed = true,
                 };
 
-                var result = await userManager.CreateAsync(user, "Password123!");
+                IdentityResult? result = await userManager.CreateAsync(user, "Password123!");
                 if (result.Succeeded && await roleManager.RoleExistsAsync(u.Role))
                 {
                     await userManager.AddToRoleAsync(user, u.Role);
@@ -329,7 +329,7 @@ public static class DataSeeder
             return;
         }
 
-        var superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
+        IList<ApplicationUser>? superAdmins = await userManager.GetUsersInRoleAsync("SuperAdmin");
         if (superAdmins.Count == 0)
         {
             throw new MissingSuperAdminException(
@@ -353,7 +353,7 @@ public static class DataSeeder
         IOpenIddictScopeManager scopeManager,
         CancellationToken ct)
     {
-        var customScopes = new[]
+        (string Name, string DisplayName, string Description)[]? customScopes = new[]
         {
             (Name: "scp:offline_access", DisplayName: "Offline access", Description: "Allows the client to request refresh tokens for offline access."),
             (Name: "scp:restaurantId", DisplayName: "Restaurant ID", Description: "Restaurant (tenant) identifier associated with the authenticated user."),
@@ -404,12 +404,12 @@ public static class DataSeeder
             return;
         }
 
-        var redirectUri = configuration["Spa:RedirectUri"]
+        string? redirectUri = configuration["Spa:RedirectUri"]
             ?? throw new InvalidOperationException("Spa:RedirectUri is required to seed the orderly-spa OpenIddict client.");
-        var postLogoutRedirectUri = configuration["Spa:PostLogoutRedirectUri"]
+        string? postLogoutRedirectUri = configuration["Spa:PostLogoutRedirectUri"]
             ?? throw new InvalidOperationException("Spa:PostLogoutRedirectUri is required to seed the orderly-spa OpenIddict client.");
 
-        var descriptor = new OpenIddictApplicationDescriptor
+        OpenIddictApplicationDescriptor? descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = clientId,
             DisplayName = "Orderly SPA",
@@ -450,7 +450,7 @@ public static class DataSeeder
         IConfiguration configuration,
         CancellationToken ct)
     {
-        var clientId = configuration["M2M:ClientId"]
+        string? clientId = configuration["M2M:ClientId"]
             ?? throw new InvalidOperationException("M2M:ClientId is required to seed the M2M OpenIddict client.");
 
         if (await applicationManager.FindByClientIdAsync(clientId) is not null)
@@ -458,10 +458,10 @@ public static class DataSeeder
             return;
         }
 
-        var clientSecret = configuration["M2M:ClientSecret"]
+        string? clientSecret = configuration["M2M:ClientSecret"]
             ?? throw new InvalidOperationException("M2M:ClientSecret is required to seed the M2M OpenIddict client.");
 
-        var descriptor = new OpenIddictApplicationDescriptor
+        OpenIddictApplicationDescriptor? descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = clientId,
             DisplayName = "Orderly Service Bus",

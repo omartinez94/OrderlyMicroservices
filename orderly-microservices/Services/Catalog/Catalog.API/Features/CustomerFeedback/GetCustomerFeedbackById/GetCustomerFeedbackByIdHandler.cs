@@ -14,7 +14,7 @@ internal class GetCustomerFeedbackByIdQueryHandler(CatalogDbContext dbContext)
         GetCustomerFeedbackByIdQuery query,
         CancellationToken cancellationToken)
     {
-        var item = await dbContext.CustomerFeedbacks
+        Models.CustomerFeedback? item = await dbContext.CustomerFeedbacks
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id && x.RestaurantId == query.RestaurantId, cancellationToken)
             ?? throw new CustomerFeedbackNotFoundException(query.Id);

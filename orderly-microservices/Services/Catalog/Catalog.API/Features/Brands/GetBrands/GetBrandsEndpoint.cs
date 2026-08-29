@@ -8,13 +8,13 @@ public class GetBrandsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Brands");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapGet("/brands", async ([AsParameters] GetBrandsRequest request, ISender sender) =>
         {
-            var query = request.Adapt<GetBrandsQuery>();
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetBrandsResponse>();
+            GetBrandsQuery? query = request.Adapt<GetBrandsQuery>();
+            GetBrandsResult? result = await sender.Send(query);
+            GetBrandsResponse? response = result.Adapt<GetBrandsResponse>();
 
             return Results.Ok(response);
         })

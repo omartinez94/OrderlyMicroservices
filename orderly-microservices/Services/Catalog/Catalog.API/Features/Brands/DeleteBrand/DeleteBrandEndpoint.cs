@@ -6,13 +6,13 @@ public class DeleteBrandEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Brands");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapDelete("/brands/{id}", async (Guid id, ISender sender) =>
         {
-            var command = new DeleteBrandCommand(id);
-            var result = await sender.Send(command);
-            var response = result.Adapt<DeleteBrandResponse>();
+            DeleteBrandCommand? command = new DeleteBrandCommand(id);
+            DeleteBrandResult? result = await sender.Send(command);
+            DeleteBrandResponse? response = result.Adapt<DeleteBrandResponse>();
 
             return Results.Ok(response);
         })

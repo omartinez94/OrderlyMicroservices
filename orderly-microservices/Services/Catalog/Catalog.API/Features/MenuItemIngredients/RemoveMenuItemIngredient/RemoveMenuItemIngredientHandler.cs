@@ -23,7 +23,7 @@ internal class RemoveMenuItemIngredientCommandHandler(
 {
     public async Task<RemoveMenuItemIngredientResult> Handle(RemoveMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
-        var link = await dbContext.MenuItemIngredients
+        MenuItemIngredient? link = await dbContext.MenuItemIngredients
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.MenuItemId == command.MenuItemId, cancellationToken);
 
         if (link is null)
@@ -31,12 +31,12 @@ internal class RemoveMenuItemIngredientCommandHandler(
             throw new NotFoundException(nameof(MenuItemIngredient), command.Id);
         }
 
-        var menuRestaurantId = await dbContext.MenuItems
+        Guid? menuRestaurantId = await dbContext.MenuItems
             .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var ingredientRestaurantId = await dbContext.Ingredients
+        Guid? ingredientRestaurantId = await dbContext.Ingredients
             .Where(i => i.Id == link.IngredientId)
             .Select(i => (Guid?)i.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);

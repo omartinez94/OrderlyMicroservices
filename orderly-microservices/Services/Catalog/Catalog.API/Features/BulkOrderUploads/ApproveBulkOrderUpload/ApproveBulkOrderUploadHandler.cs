@@ -29,7 +29,7 @@ internal class ApproveBulkOrderUploadCommandHandler(
 {
     public async Task<ApproveBulkOrderUploadResult> Handle(ApproveBulkOrderUploadCommand command, CancellationToken cancellationToken)
     {
-        var upload = await dbContext.BulkOrderUploads
+        BulkOrderUpload? upload = await dbContext.BulkOrderUploads
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken)
             ?? throw new BulkOrderUploadNotFoundException(command.Id);
 

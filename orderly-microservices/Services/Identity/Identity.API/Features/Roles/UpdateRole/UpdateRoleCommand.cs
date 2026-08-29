@@ -9,7 +9,7 @@ public class UpdateRoleCommandHandler(RoleManager<ApplicationRole> roleManager)
 {
     public async Task<UpdateRoleResponse> Handle(UpdateRoleCommand command, CancellationToken cancellationToken)
     {
-        var role = await roleManager.FindByIdAsync(command.RoleId.ToString());
+        ApplicationRole? role = await roleManager.FindByIdAsync(command.RoleId.ToString());
         if (role is null)
         {
             throw new NotFoundException("Role", command.RoleId);
@@ -19,10 +19,10 @@ public class UpdateRoleCommandHandler(RoleManager<ApplicationRole> roleManager)
         role.NormalizedName = command.Name.ToUpperInvariant();
         role.Description = command.Description;
 
-        var result = await roleManager.UpdateAsync(role);
+        IdentityResult? result = await roleManager.UpdateAsync(role);
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            string? errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new BadRequestException($"Role update failed: {errors}");
         }
 

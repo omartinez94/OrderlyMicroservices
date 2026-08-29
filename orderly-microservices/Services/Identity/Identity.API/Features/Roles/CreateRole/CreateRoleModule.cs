@@ -4,15 +4,15 @@ public class CreateRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/roles");
+        RouteGroupBuilder? group = app.MapGroup("/v1/roles");
 
         group.MapPost("", async (
                 ISender sender,
                 CreateRoleRequest request,
                 CancellationToken ct) =>
             {
-                var command = new CreateRoleCommand(request.Name, request.Description);
-                var response = await sender.Send(command, ct);
+                CreateRoleCommand? command = new CreateRoleCommand(request.Name, request.Description);
+                CreateRoleResponse? response = await sender.Send(command, ct);
 
                 return Results.Created($"/v1/roles/{response.RoleId}", response);
             }).RequirePermission("roles:create").Accepts<CreateRoleRequest>("application/json")

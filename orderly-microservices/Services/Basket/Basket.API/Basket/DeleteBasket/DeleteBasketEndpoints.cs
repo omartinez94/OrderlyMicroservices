@@ -4,7 +4,7 @@ public class DeleteBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapBasketGroup();
+        RouteGroupBuilder? group = app.MapBasketGroup();
 
         // DELETE returns 204 No Content. The cart
         // deletion is idempotent — repeating the call on a cart that
@@ -16,8 +16,8 @@ public class DeleteBasketEndpoints : ICarterModule
         // 204-No-Content contract eliminates the body entirely.
         group.MapDelete("/cart", async (HttpContext httpContext, ISender sender, CancellationToken cancellationToken) =>
         {
-            var userId = httpContext.User.GetUserId();
-            var restaurantId = httpContext.User.GetRestaurantId();
+            Guid userId = httpContext.User.GetUserId();
+            Guid restaurantId = httpContext.User.GetRestaurantId();
             await sender.Send(new DeleteBasketCommand(userId, restaurantId), cancellationToken);
 
             // Cache-Control: no-store — the cart

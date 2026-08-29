@@ -10,7 +10,7 @@ internal class GetIngredientByIdQueryHandler(CatalogDbContext dbContext) : IQuer
 {
     public async Task<GetIngredientByIdResult> Handle(GetIngredientByIdQuery query, CancellationToken cancellationToken)
     {
-        var ingredient = await dbContext.Ingredients
+        Ingredient? ingredient = await dbContext.Ingredients
             .AsNoTracking()
             .FirstOrDefaultAsync(i => i.RestaurantId == query.RestaurantId && i.Id == query.Id, cancellationToken)
             ?? throw new IngredientNotFoundException(query.Id);

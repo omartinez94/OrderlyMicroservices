@@ -36,7 +36,7 @@ internal class UpdateComboItemCommandHandler(
 {
     public async Task<UpdateComboItemResult> Handle(UpdateComboItemCommand command, CancellationToken cancellationToken)
     {
-        var comboItem = await dbContext.ComboItems.FindAsync([command.Id], cancellationToken);
+        ComboItem? comboItem = await dbContext.ComboItems.FindAsync([command.Id], cancellationToken);
 
         if (comboItem is null)
         {
@@ -46,7 +46,7 @@ internal class UpdateComboItemCommandHandler(
         // The plan (§7 Phase 4) requires us to validate the included menu
         // item still exists — a combo row pointing at a soft-deleted menu
         // item would surface as a broken menu at order time.
-        var includedMenuItemExists = await dbContext.MenuItems
+        bool includedMenuItemExists = await dbContext.MenuItems
             .Where(m => m.Id == comboItem.IncludedMenuItemId && !m.IsDeleted)
             .AnyAsync(cancellationToken);
         if (!includedMenuItemExists)
@@ -59,7 +59,7 @@ internal class UpdateComboItemCommandHandler(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var restaurantId = await dbContext.MenuItems
+        Guid? restaurantId = await dbContext.MenuItems
             .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);

@@ -8,13 +8,13 @@ public class SeatWalkInCustomerEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapPut("/restaurants/{restaurantId}/walk-in-queue/{id}/seat", async (int id, SeatWalkInCustomerRequest request, ISender sender) =>
         {
-            var command = new SeatWalkInCustomerCommand(id, request.TableId);
-            var result = await sender.Send(command);
-            var response = result.Adapt<SeatWalkInCustomerResponse>();
+            SeatWalkInCustomerCommand? command = new SeatWalkInCustomerCommand(id, request.TableId);
+            SeatWalkInCustomerResult? result = await sender.Send(command);
+            SeatWalkInCustomerResponse? response = result.Adapt<SeatWalkInCustomerResponse>();
 
             return Results.Ok(response);
         })

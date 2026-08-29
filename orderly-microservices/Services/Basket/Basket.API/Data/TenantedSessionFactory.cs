@@ -42,7 +42,7 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
     /// <inheritdoc />
     public IDocumentSession OpenSession(DocumentStore documentStore)
     {
-        var tenantId = ResolveTenantId();
+        Guid tenantId = ResolveTenantId();
         Marten.Services.SessionOptions options = new();
         if (tenantId != Guid.Empty)
         {
@@ -54,7 +54,7 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
     /// <inheritdoc />
     public IDocumentSession OpenSession()
     {
-        var tenantId = ResolveTenantId();
+        Guid tenantId = ResolveTenantId();
         if (tenantId == Guid.Empty)
         {
             return store.LightweightSession();
@@ -65,7 +65,7 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
     /// <inheritdoc />
     public IQuerySession QuerySession()
     {
-        var tenantId = ResolveTenantId();
+        Guid tenantId = ResolveTenantId();
         if (tenantId == Guid.Empty)
         {
             return store.QuerySession();
@@ -81,13 +81,13 @@ public sealed class TenantedSessionFactory(IDocumentStore store, IHttpContextAcc
         // scope. Read the HttpContext directly — the IHttpContextAccessor
         // surfaces the per-request User claims reliably when the host
         // is processing a request.
-        var user = httpContextAccessor.HttpContext?.User;
+        ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
         if (user?.Identity?.IsAuthenticated != true)
         {
             return Guid.Empty;
         }
 
-        var raw = user.FindFirstValue("restaurantId");
+        string? raw = user.FindFirstValue("restaurantId");
         return Guid.TryParse(raw, out var id) ? id : Guid.Empty;
     }
 }

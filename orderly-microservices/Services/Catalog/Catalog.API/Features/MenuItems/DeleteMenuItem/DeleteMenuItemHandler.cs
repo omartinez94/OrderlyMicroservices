@@ -22,7 +22,7 @@ internal class DeleteMenuItemCommandHandler(
 {
     public async Task<DeleteMenuItemResult> Handle(DeleteMenuItemCommand command, CancellationToken cancellationToken)
     {
-        var menuItem = await dbContext.MenuItems
+        MenuItem? menuItem = await dbContext.MenuItems
             .FirstOrDefaultAsync(m => m.Id == command.Id, cancellationToken);
 
         if (menuItem is null)

@@ -16,7 +16,7 @@ public class GetOrderActivities : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Orders");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapGet("/orders/{id:guid}/activities", async (
             Guid id,
@@ -27,18 +27,18 @@ public class GetOrderActivities : ICarterModule
             ISender sender,
             CancellationToken cancellationToken) =>
         {
-            var fromInstant = ParseInstantOrNull(from, nameof(from));
-            var toInstant = ParseInstantOrNull(to, nameof(to));
+            Instant? fromInstant = ParseInstantOrNull(from, nameof(from));
+            Instant? toInstant = ParseInstantOrNull(to, nameof(to));
 
-            var query = new GetOrderActivitiesQuery(
+            GetOrderActivitiesQuery? query = new GetOrderActivitiesQuery(
                 OrderId: id,
                 Type: type,
                 From: fromInstant,
                 To: toInstant,
                 Pagination: pagination);
 
-            var result = await sender.Send(query, cancellationToken);
-            var response = result.Adapt<GetOrderActivitiesResponse>();
+            GetOrderActivitiesResult? result = await sender.Send(query, cancellationToken);
+            GetOrderActivitiesResponse? response = result.Adapt<GetOrderActivitiesResponse>();
             return Results.Ok(response);
         })
         .WithDescription("Gets the paged activity feed for an order.")
@@ -61,7 +61,7 @@ public class GetOrderActivities : ICarterModule
             return null;
         }
 
-        var parseResult = InstantPattern.ExtendedIso.Parse(raw);
+        ParseResult<Instant>? parseResult = InstantPattern.ExtendedIso.Parse(raw);
         if (!parseResult.Success)
         {
             throw new ArgumentException(

@@ -156,11 +156,11 @@ public static class DevJwtBearerFallbackExtensions
                 "Unset the env var or run with ASPNETCORE_ENVIRONMENT=Development.");
         }
 
-        var secret = configuration[JwtSecretEnvVar];
+        string? secret = configuration[JwtSecretEnvVar];
 
         // OpenIddict / production JWKS scheme — same shape as the
         // non-fallback extension's AddJwtBearer. Always registered.
-        var authBuilder = services.AddAuthentication(options =>
+        Microsoft.AspNetCore.Authentication.AuthenticationBuilder? authBuilder = services.AddAuthentication(options =>
         {
             options.DefaultScheme = PolicyScheme;
             options.DefaultAuthenticateScheme = PolicyScheme;
@@ -249,24 +249,24 @@ internal static class PolicySchemeHandler
             return DevJwtBearerFallbackExtensions.OpenIddictScheme;
         }
 
-        var headerValue = authHeader.ToString();
+        string? headerValue = authHeader.ToString();
         const string bearerPrefix = "Bearer ";
         if (!headerValue.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
             return DevJwtBearerFallbackExtensions.OpenIddictScheme;
         }
 
-        var token = headerValue.Substring(bearerPrefix.Length).Trim();
-        var dotIndex = token.IndexOf('.');
+        string? token = headerValue.Substring(bearerPrefix.Length).Trim();
+        int dotIndex = token.IndexOf('.');
         if (dotIndex <= 0)
         {
             return DevJwtBearerFallbackExtensions.OpenIddictScheme;
         }
 
-        var headerSegment = token.Substring(0, dotIndex);
+        string? headerSegment = token.Substring(0, dotIndex);
         try
         {
-            var headerJson = Base64UrlDecode(headerSegment);
+            string? headerJson = Base64UrlDecode(headerSegment);
             using var doc = JsonDocument.Parse(headerJson);
             if (doc.RootElement.TryGetProperty("alg", out var algElement)
                 && algElement.ValueKind == JsonValueKind.String
@@ -286,13 +286,13 @@ internal static class PolicySchemeHandler
 
     private static string Base64UrlDecode(string segment)
     {
-        var s = segment.Replace('-', '+').Replace('_', '/');
+        string? s = segment.Replace('-', '+').Replace('_', '/');
         switch (s.Length % 4)
         {
             case 2: s += "=="; break;
             case 3: s += "="; break;
         }
-        var bytes = Convert.FromBase64String(s);
+        byte[]? bytes = Convert.FromBase64String(s);
         return Encoding.UTF8.GetString(bytes);
     }
 }

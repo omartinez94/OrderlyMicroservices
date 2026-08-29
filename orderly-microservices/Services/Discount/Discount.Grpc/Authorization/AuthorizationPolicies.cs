@@ -35,7 +35,7 @@ public static class AuthorizationPolicies
     public static IServiceCollection AddDiscountPolicies(this IServiceCollection services)
     {
         // Build the method-path → permission map at startup so the interceptor stays O(1) per call.
-        var methodMap = BuildMethodPermissionMap();
+        IReadOnlyDictionary<string, string>? methodMap = BuildMethodPermissionMap();
 
         services.AddSingleton(new MethodPermissionMap(methodMap));
         services.AddSingleton<DiscountAuthorizationInterceptor>();
@@ -58,13 +58,13 @@ public static class AuthorizationPolicies
                         // silent deny. Default-deny: when the claim is absent
                         // or doesn't include the required permission on either
                         // shape, the policy fails.
-                        foreach (var claim in ctx.User.FindAll("permissions"))
+                        foreach (System.Security.Claims.Claim? claim in ctx.User.FindAll("permissions"))
                         {
                             if (string.Equals(claim.Value, permission, StringComparison.Ordinal))
                             {
                                 return true; // Shape A: whole-claim equality.
                             }
-                            foreach (var held in claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            foreach (string? held in claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries))
                             {
                                 if (string.Equals(held.Trim(), permission, StringComparison.Ordinal))
                                 {
@@ -101,20 +101,20 @@ public static class AuthorizationPolicies
     /// </remarks>
     private static IReadOnlyDictionary<string, string> BuildMethodPermissionMap()
     {
-        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string>? result = new Dictionary<string, string>(StringComparer.Ordinal);
 
         foreach (var serviceType in GrpcServiceTypes)
         {
-            var wireServiceName = ResolveWireServiceName(serviceType);
+            string? wireServiceName = ResolveWireServiceName(serviceType);
 
-            var methods = serviceType
+            IEnumerable<MethodInfo>? methods = serviceType
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
                 .Where(m => m.GetCustomAttribute<PermissionAttribute>() is not null);
 
-            foreach (var method in methods)
+            foreach (MethodInfo? method in methods)
             {
-                var permission = method.GetCustomAttribute<PermissionAttribute>()!.Permission;
-                var methodPath = $"/{wireServiceName}/{method.Name}";
+                string? permission = method.GetCustomAttribute<PermissionAttribute>()!.Permission;
+                string? methodPath = $"/{wireServiceName}/{method.Name}";
                 if (result.TryGetValue(methodPath, out var existing) && existing != permission)
                 {
                     throw new InvalidOperationException(
@@ -138,16 +138,16 @@ public static class AuthorizationPolicies
     /// </summary>
     private static string ResolveWireServiceName(Type concreteServiceType)
     {
-        var baseType = concreteServiceType.BaseType
+        Type? baseType = concreteServiceType.BaseType
             ?? throw new InvalidOperationException(
                 $"{concreteServiceType.Name} must inherit a gRPC service base class.");
 
-        var serviceContainer = baseType.DeclaringType
+        Type? serviceContainer = baseType.DeclaringType
             ?? throw new InvalidOperationException(
                 $"The gRPC base for {concreteServiceType.Name} ({baseType.FullName}) has no declaring type — " +
                 "is the partial class layout still the protobuf-generated one?");
 
-        var serviceNameField = serviceContainer.GetField("__ServiceName",
+        FieldInfo? serviceNameField = serviceContainer.GetField("__ServiceName",
             BindingFlags.NonPublic | BindingFlags.Static)
             ?? throw new InvalidOperationException(
                 $"The gRPC container class {serviceContainer.FullName} does not expose a __ServiceName " +

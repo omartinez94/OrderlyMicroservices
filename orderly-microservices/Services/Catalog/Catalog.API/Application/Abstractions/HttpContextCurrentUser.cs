@@ -13,13 +13,13 @@ public sealed class HttpContextCurrentUser(IHttpContextAccessor httpContextAcces
     {
         get
         {
-            var user = httpContextAccessor.HttpContext?.User;
+            ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
             if (user?.Identity is null || !user.Identity.IsAuthenticated)
             {
                 return null;
             }
 
-            var id = user.GetUserId();
+            Guid id = user.GetUserId();
             return id == Guid.Empty ? null : id;
         }
     }

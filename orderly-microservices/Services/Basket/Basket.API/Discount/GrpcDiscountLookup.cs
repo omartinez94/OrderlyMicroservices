@@ -24,7 +24,7 @@ internal sealed class GrpcDiscountLookup(
 {
     public async Task<DiscountSnapshot> GetCouponAsync(Guid restaurantId, string code, CancellationToken cancellationToken)
     {
-        var response = await client.GetDiscountAsync(
+        GetDiscountResponse? response = await client.GetDiscountAsync(
             new GetDiscountRequest
             {
                 RestaurantId = restaurantId.ToString(),
@@ -32,12 +32,12 @@ internal sealed class GrpcDiscountLookup(
             },
             cancellationToken: cancellationToken);
 
-        var coupon = response.Coupon;
+        CouponModel? coupon = response.Coupon;
 
         Instant? expiration = null;
         if (!string.IsNullOrEmpty(coupon.ExpirationDate))
         {
-            var parse = InstantPattern.ExtendedIso.Parse(coupon.ExpirationDate);
+            ParseResult<Instant>? parse = InstantPattern.ExtendedIso.Parse(coupon.ExpirationDate);
             if (!parse.Success)
             {
                 logger.LogError(

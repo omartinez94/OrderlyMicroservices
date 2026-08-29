@@ -40,9 +40,9 @@ public abstract class OutboxPublisher<TContext> : IOutboxPublisher
     {
         ArgumentNullException.ThrowIfNull(message);
 
-        var payload = JsonSerializer.Serialize(message, SerializerOptions);
-        var schemaVersion = (message as IntegrationEvent)?.MessageVersion ?? 1;
-        var row = new OutboxMessage
+        string? payload = JsonSerializer.Serialize(message, SerializerOptions);
+        int schemaVersion = (message as IntegrationEvent)?.MessageVersion ?? 1;
+        OutboxMessage? row = new OutboxMessage
         {
             Id = Guid.NewGuid(),
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),

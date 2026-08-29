@@ -10,7 +10,7 @@ public class GetMenuItemByIdEndpoint : ICarterModule
     {
         app.MapGet("/v1/menu-items/{id:guid}", async (Guid id, ISender sender) =>
         {
-            var result = await sender.Send(new GetMenuItemByIdQuery(id));
+            GetMenuItemByIdResult? result = await sender.Send(new GetMenuItemByIdQuery(id));
             return Results.Ok(result.Adapt<GetMenuItemByIdResponse>());
         })
         .WithTags("MenuItems")

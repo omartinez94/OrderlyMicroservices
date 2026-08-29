@@ -66,7 +66,7 @@ public class RewardCodeService(
 
         // UK guard — surface as FailedPrecondition with code-already-exists
         // before the DB constraint fires, mirroring the DiscountRule pattern.
-        var existing = await dbContext.RewardCodes
+        RewardCode? existing = await dbContext.RewardCodes
             .FirstOrDefaultAsync(r =>
                 r.RestaurantId == rid &&
                 r.Code == request.RewardCode.Code);
@@ -79,7 +79,7 @@ public class RewardCodeService(
                 "code-already-exists=true"));
         }
 
-        var row = RewardCodeValidator.ValidateAndBuild(
+        RewardCode? row = RewardCodeValidator.ValidateAndBuild(
             restaurantId: rid,
             code: request.RewardCode.Code,
             kind: (RewardKind)request.RewardCode.Kind,
@@ -140,7 +140,7 @@ public class RewardCodeService(
             return new GetRewardCodeResponse(); // empty
         }
 
-        var row = await dbContext.RewardCodes
+        RewardCode? row = await dbContext.RewardCodes
             .AsNoTracking()
             .FirstOrDefaultAsync(r =>
                 r.Id == request.RewardCodeId &&
@@ -157,8 +157,8 @@ public class RewardCodeService(
         ListRewardCodesRequest request,
         ServerCallContext context)
     {
-        var page = request.Page <= 0 ? 1 : request.Page;
-        var pageSize = request.PageSize switch
+        int page = request.Page <= 0 ? 1 : request.Page;
+        int pageSize = request.PageSize switch
         {
             <= 0 => DefaultPageSize,
             > MaxPageSize => MaxPageSize,
@@ -166,17 +166,17 @@ public class RewardCodeService(
         };
 
         // Global tenant filter scopes to alive rows for the calling tenant.
-        var baseQuery = dbContext.RewardCodes.AsNoTracking()
+        IQueryable<RewardCode>? baseQuery = dbContext.RewardCodes.AsNoTracking()
             .Where(r => r.DeletedAt == null);
-        var totalCount = await baseQuery.CountAsync();
+        int totalCount = await baseQuery.CountAsync();
 
-        var rows = await baseQuery
+        List<RewardCode>? rows = await baseQuery
             .OrderBy(r => r.Code)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        var response = new ListRewardCodesResponse { TotalCount = totalCount };
+        ListRewardCodesResponse? response = new ListRewardCodesResponse { TotalCount = totalCount };
         response.RewardCodes.AddRange(rows.Select(ToProtoModel));
         return response;
     }
@@ -191,7 +191,7 @@ public class RewardCodeService(
             return new UpdateRewardCodeResponse { Success = false };
         }
 
-        var existing = await dbContext.RewardCodes
+        RewardCode? existing = await dbContext.RewardCodes
             .FirstOrDefaultAsync(r => r.Id == request.RewardCode.Id);
 
         if (existing is null)
@@ -201,7 +201,7 @@ public class RewardCodeService(
 
         // Capture OldValues before mutation so the history publish
         // (Phase 3 row in §7) can serialize the pre-image.
-        var oldValues = SerializeNewValues(existing);
+        string? oldValues = SerializeNewValues(existing);
 
         RewardCodeValidator.ValidateAndBuild(
             restaurantId: rid,
@@ -244,7 +244,7 @@ public class RewardCodeService(
             return new DeleteRewardCodeResponse { Success = false };
         }
 
-        var row = await dbContext.RewardCodes
+        RewardCode? row = await dbContext.RewardCodes
             .FirstOrDefaultAsync(r => r.Id == request.RewardCodeId && r.RestaurantId == rid);
 
         if (row is null)
@@ -252,10 +252,10 @@ public class RewardCodeService(
             return new DeleteRewardCodeResponse { Success = false };
         }
 
-        var oldValues = SerializeNewValues(row);
+        string? oldValues = SerializeNewValues(row);
 
         // Soft-delete (mirrors Coupon's soft-delete + DiscountRuleService.DeleteDiscountRule).
-        var now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
+        Instant now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
         row.DeletedAt = now;
         row.DeletedBy = DiscountActors.System;
 
@@ -296,7 +296,7 @@ public class RewardCodeService(
         // Defense-in-depth tenant check — the global query filter already
         // restricts, but a missing-claim scenario returns Guid.Empty from
         // ICurrentRestaurantProvider and we want to fail loud here.
-        var tenantRid = tenantProvider.RestaurantId;
+        Guid tenantRid = tenantProvider.RestaurantId;
         if (tenantRid != Guid.Empty && tenantRid != rid)
         {
             throw new RpcException(new Status(
@@ -306,7 +306,7 @@ public class RewardCodeService(
         }
 
         // Pre-fetch for kind-aware validation + post-update response shape.
-        var row = await dbContext.RewardCodes
+        RewardCode? row = await dbContext.RewardCodes
             .AsNoTracking()
             .FirstOrDefaultAsync(r =>
                 r.Id == request.RewardCodeId &&
@@ -337,9 +337,9 @@ public class RewardCodeService(
         // AuditableEntityInterceptor, so LastModifiedAt + LastModifiedBy
         // are set explicitly (plan v1.1 L11). Actor = DiscountActors.System
         // (mirrors RedeemDiscount).
-        var now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
-        var quantity = request.Quantity <= 0 ? 1 : request.Quantity;
-        var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
+        Instant now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
+        int quantity = request.Quantity <= 0 ? 1 : request.Quantity;
+        int rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
             UPDATE ""RewardCodes""
             SET ""RedeemAmount""       = ""RedeemAmount"" + {quantity},
                 ""RedeemedInOrderId""  = {orderId},
@@ -363,7 +363,7 @@ public class RewardCodeService(
         }
 
         // Re-fetch for the post-redemption proto model in the response.
-        var updated = await dbContext.RewardCodes
+        RewardCode? updated = await dbContext.RewardCodes
             .AsNoTracking()
             .FirstAsync(r => r.Id == row.Id);
 
@@ -425,7 +425,7 @@ public class RewardCodeService(
     /// <c>JsonObject</c> on insert via <c>JsonNode.Parse</c>.</summary>
     private static string SerializeNewValues(RewardCode row)
     {
-        var model = ToProtoModel(row);
+        RewardCodeModel? model = ToProtoModel(row);
         return System.Text.Json.JsonSerializer.Serialize(model);
     }
 }

@@ -18,12 +18,12 @@ internal class GetMenuItemIngredientsQueryHandler(CatalogDbContext dbContext) : 
 {
     public async Task<GetMenuItemIngredientsResult> Handle(GetMenuItemIngredientsQuery query, CancellationToken cancellationToken)
     {
-        var ingredients = await dbContext.MenuItemIngredients
+        List<MenuItemIngredient>? ingredients = await dbContext.MenuItemIngredients
             .AsNoTracking()
             .Where(x => x.MenuItemId == query.MenuItemId)
             .ToListAsync(cancellationToken);
 
-        var dtos = ingredients.Adapt<IEnumerable<MenuItemIngredientDto>>();
+        IEnumerable<MenuItemIngredientDto>? dtos = ingredients.Adapt<IEnumerable<MenuItemIngredientDto>>();
 
         return new GetMenuItemIngredientsResult(dtos);
     }

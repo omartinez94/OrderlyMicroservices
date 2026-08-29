@@ -15,13 +15,13 @@ public class HttpContextCurrentUser(IHttpContextAccessor accessor) : ICurrentUse
     {
         get
         {
-            var user = accessor.HttpContext?.User;
+            ClaimsPrincipal? user = accessor.HttpContext?.User;
             if (user?.Identity?.IsAuthenticated != true)
             {
                 return null;
             }
 
-            var sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            string? sub = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return Guid.TryParse(sub, out var id) ? id : null;
         }
     }

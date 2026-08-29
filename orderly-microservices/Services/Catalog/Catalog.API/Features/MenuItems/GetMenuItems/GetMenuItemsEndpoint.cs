@@ -10,7 +10,7 @@ public class GetMenuItemsEndpoint : ICarterModule
     {
         app.MapGet("/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, [AsParameters] GetMenuItemsRequest request, ISender sender) =>
         {
-            var query = new GetMenuItemsQuery
+            GetMenuItemsQuery? query = new GetMenuItemsQuery
             {
                 RestaurantId = restaurantId,
                 SubCategoryId = request.SubCategoryId,
@@ -19,7 +19,7 @@ public class GetMenuItemsEndpoint : ICarterModule
                 PageSize = request.PageSize
             };
 
-            var result = await sender.Send(query);
+            GetMenuItemsResult? result = await sender.Send(query);
             return Results.Ok(result.Adapt<GetMenuItemsResponse>());
         })
         .WithTags("MenuItems")

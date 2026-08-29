@@ -25,7 +25,7 @@ internal class UpdateMenuCategoryCommandHandler(
 {
     public async Task<UpdateMenuCategoryResult> Handle(UpdateMenuCategoryCommand command, CancellationToken cancellationToken)
     {
-        var category = await dbContext.MenuCategories
+        MenuCategory? category = await dbContext.MenuCategories
             .FirstOrDefaultAsync(c => c.Id == command.Id, cancellationToken);
 
         if (category is null)

@@ -91,7 +91,7 @@ public sealed class CheckoutBasketOutboxDispatcher(
                 dispatched = 0;
             }
 
-            var delay = dispatched > 0
+            TimeSpan delay = dispatched > 0
                 ? _options.ActivePollInterval
                 : _options.IdlePollInterval;
             try
@@ -116,8 +116,8 @@ public sealed class CheckoutBasketOutboxDispatcher(
     public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = services.CreateScope();
-        var session = scope.ServiceProvider.GetRequiredService<IDocumentSession>();
-        var publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
+        IDocumentSession? session = scope.ServiceProvider.GetRequiredService<IDocumentSession>();
+        IPublishEndpoint? publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();
 
         return await DispatchBatchAsync(session, publishEndpoint, cancellationToken).ConfigureAwait(false);
     }
@@ -133,7 +133,7 @@ public sealed class CheckoutBasketOutboxDispatcher(
         IPublishEndpoint publishEndpoint,
         CancellationToken cancellationToken)
     {
-        var pending = await session.Query<CheckoutBasketOutboxMessage>()
+        IReadOnlyList<CheckoutBasketOutboxMessage>? pending = await session.Query<CheckoutBasketOutboxMessage>()
             .Where(m => m.DispatchedAt == null)
             .OrderBy(m => m.OccurredOn)
             .Take(_options.BatchSize)
@@ -145,8 +145,8 @@ public sealed class CheckoutBasketOutboxDispatcher(
             return 0;
         }
 
-        var now = SystemClock.Instance.GetCurrentInstant();
-        foreach (var row in pending)
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        foreach (CheckoutBasketOutboxMessage? row in pending)
         {
             // Schema-version gate: a future-version row wasn't yet
             // known when this dispatcher rolled out. Phase 2 v1 simply
@@ -171,11 +171,11 @@ public sealed class CheckoutBasketOutboxDispatcher(
 
             try
             {
-                var messageType = Type.GetType(row.Type)
+                Type? messageType = Type.GetType(row.Type)
                     ?? throw new InvalidOperationException(
                         $"Outbox row {row.Id} references unknown type '{row.Type}'.");
 
-                var message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
+                object? message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
                     ?? throw new InvalidOperationException(
                         $"Outbox row {row.Id} payload deserialized to null.");
 

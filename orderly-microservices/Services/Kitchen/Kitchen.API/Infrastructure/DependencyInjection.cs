@@ -49,7 +49,7 @@ public static class DependencyInjection
         services.AddScoped<IOutboxPublisher, KitchenOutboxPublisher>();
         services.AddScoped<KitchenOutboxPublisher>();
 
-        var outboxEnabled = configuration.GetValue(
+        bool outboxEnabled = configuration.GetValue(
             $"{OutboxOptions.SectionName}:Enabled", true);
         if (outboxEnabled)
         {

@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -133,7 +133,7 @@ builder.Services.AddHangfire(cfg => cfg
 
 builder.Services.AddHangfireServer(opts =>
 {
-    var hfOptions = builder.Configuration.GetSection(HangfireOptions.SectionName).Get<HangfireOptions>() ?? new HangfireOptions();
+    HangfireOptions? hfOptions = builder.Configuration.GetSection(HangfireOptions.SectionName).Get<HangfireOptions>() ?? new HangfireOptions();
     opts.WorkerCount = hfOptions.WorkerCount;
 });
 
@@ -160,9 +160,9 @@ builder.Services.AddMarten(opt =>
     opt.Schema.For<NotificationLog>();
 }).UseLightweightSessions();
 
-var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("CatalogDB")!);
+NpgsqlDataSourceBuilder? dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(builder.Configuration.GetConnectionString("CatalogDB")!);
 dataSourceBuilder.UseNodaTime();
-var dataSource = dataSourceBuilder.Build();
+NpgsqlDataSource? dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
 
@@ -207,7 +207,7 @@ builder.Services.AddHealthChecks()
         tags: new[] { "ready", "broker" })
     .AddCheck<OutboxDeadLetterProbe>("outbox_dlq", tags: new[] { "ready" });
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // Schema application is now owned by CatalogMigratorHostedService
 // (registered above). It runs at IHostedService.StartAsync before any HTTP
@@ -237,11 +237,11 @@ app.MapOpenApi();
 // `IRecurringJobManager` from the application services and call
 // `.AddOrUpdate<T>(...)` on the manager — same scheduling semantics, no
 // static JobStorage dependency.
-var hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
+bool hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
 if (hangfireEnabled)
 {
-    var hfOptions = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
-    var recurringJobManager = app.Services.GetRequiredService<IRecurringJobManager>();
+    HangfireOptions? hfOptions = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
+    IRecurringJobManager? recurringJobManager = app.Services.GetRequiredService<IRecurringJobManager>();
 
     recurringJobManager.AddOrUpdate<ReservationReminderJob>(
         "reservation-reminder",

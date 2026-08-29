@@ -54,7 +54,7 @@ public sealed class IngredientAvailabilityChangedDomainEventHandler(
 
         // Find the affected menu-item ids once per inbound event. The
         // switch picks the right loader per event type.
-        var affectedMenuItemIds = domainEvent switch
+        Guid[]? affectedMenuItemIds = domainEvent switch
         {
             IngredientChangedDomainEvent ev => await GetMenuItemIdsForIngredientAsync(ev.IngredientId, cancellationToken).ConfigureAwait(false),
             IngredientAlternativeChangedDomainEvent ev => await GetMenuItemIdsForIngredientAsync(ev.OriginalIngredientId, cancellationToken).ConfigureAwait(false),
@@ -67,7 +67,7 @@ public sealed class IngredientAvailabilityChangedDomainEventHandler(
             return;
         }
 
-        foreach (var menuItemId in affectedMenuItemIds)
+        foreach (Guid menuItemId in affectedMenuItemIds)
         {
             await RecomputeAndPublishAsync(menuItemId, cancellationToken).ConfigureAwait(false);
         }
@@ -88,7 +88,7 @@ public sealed class IngredientAvailabilityChangedDomainEventHandler(
     private async Task RecomputeAndPublishAsync(Guid menuItemId, CancellationToken cancellationToken)
     {
         // 1. Load the menu item's required ingredients (one row per ingredient).
-        var requiredIngredients = await dbContext.MenuItemIngredients
+        List<IngredientAvailabilityEngine.MenuItemIngredientRow>? requiredIngredients = await dbContext.MenuItemIngredients
             .AsNoTracking()
             .Where(link => link.MenuItemId == menuItemId)
             .Select(link => new IngredientAvailabilityEngine.MenuItemIngredientRow(link.IngredientId, link.IsOptional))
@@ -105,29 +105,29 @@ public sealed class IngredientAvailabilityChangedDomainEventHandler(
         // 2. Load availability for every referenced ingredient. The engine's
         // `ingredientAvailability` dict also needs each alternative target's
         // IsAvailable, so include those too.
-        var referencedIds = requiredIngredients.Select(r => r.IngredientId).ToHashSet();
+        HashSet<int>? referencedIds = requiredIngredients.Select(r => r.IngredientId).ToHashSet();
 
         // Pull alternatives for any of the referenced originals.
-        var alternativeOriginalIds = await dbContext.IngredientAlternatives
+        List<int>? alternativeOriginalIds = await dbContext.IngredientAlternatives
             .AsNoTracking()
             .Where(a => referencedIds.Contains(a.OriginalIngredientId))
             .Select(a => a.OriginalIngredientId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var alternatives = await dbContext.IngredientAlternatives
+        List<IngredientAvailabilityEngine.AlternativeEdge>? alternatives = await dbContext.IngredientAlternatives
             .AsNoTracking()
             .Where(a => referencedIds.Contains(a.OriginalIngredientId))
             .Select(a => new IngredientAvailabilityEngine.AlternativeEdge(a.OriginalIngredientId, a.AlternativeIngredientId, a.AutoSubstitute))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        foreach (var altOriginalId in alternativeOriginalIds)
+        foreach (int altOriginalId in alternativeOriginalIds)
         {
             referencedIds.Add(altOriginalId);
         }
 
-        var ingredientAvailability = await dbContext.Ingredients
+        Dictionary<int, IngredientAvailabilityEngine.IngredientRow>? ingredientAvailability = await dbContext.Ingredients
             .AsNoTracking()
             .Where(i => referencedIds.Contains(i.Id))
             .Select(i => new IngredientAvailabilityEngine.IngredientRow(i.Id, i.IsAvailable))
@@ -153,14 +153,14 @@ public sealed class IngredientAvailabilityChangedDomainEventHandler(
         }
 
         // 4. Run the pure engine.
-        var newProfile = IngredientAvailabilityEngine.AvailabilityProfileFor(
+        IngredientAvailabilityProfile? newProfile = IngredientAvailabilityEngine.AvailabilityProfileFor(
             requiredIngredients,
             ingredientAvailability,
             alternatives,
             menuItemInfo.AllowAutoSubstitute);
 
         // 5. Compare with current MenuItem.AvailabilityStatus. Skip if no flip.
-        var menuItem = await dbContext.MenuItems.IgnoreQueryFilters()
+        MenuItem? menuItem = await dbContext.MenuItems.IgnoreQueryFilters()
             .FirstOrDefaultAsync(m => m.Id == menuItemId, cancellationToken)
             .ConfigureAwait(false);
 

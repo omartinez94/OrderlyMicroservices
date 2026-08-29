@@ -6,12 +6,12 @@ public class DeleteMenuItemVariationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemVariations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemVariations");
 
         group.MapDelete("/menu-item-variations/{id:int}", async (int id, ISender sender) =>
         {
-            var result = await sender.Send(new DeleteMenuItemVariationCommand(id));
-            var response = result.Adapt<DeleteMenuItemVariationResponse>();
+            DeleteMenuItemVariationResult? result = await sender.Send(new DeleteMenuItemVariationCommand(id));
+            DeleteMenuItemVariationResponse? response = result.Adapt<DeleteMenuItemVariationResponse>();
 
             return Results.Ok(response);
         })

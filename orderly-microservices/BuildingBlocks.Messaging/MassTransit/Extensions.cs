@@ -13,10 +13,10 @@ public static class Extensions
         // threw ArgumentNullException with no diagnostic about which key
         // was missing — operators had to guess. BrokerConfigurationException
         // enumerates every absent key in one message.
-        var missing = new List<string>();
-        var host = configuration["MessageBroker:Host"];
-        var userName = configuration["MessageBroker:UserName"];
-        var password = configuration["MessageBroker:Password"];
+        List<string>? missing = new List<string>();
+        string? host = configuration["MessageBroker:Host"];
+        string? userName = configuration["MessageBroker:UserName"];
+        string? password = configuration["MessageBroker:Password"];
         if (string.IsNullOrWhiteSpace(host))
         {
             missing.Add("MessageBroker:Host");

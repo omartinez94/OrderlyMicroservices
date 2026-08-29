@@ -41,7 +41,7 @@ internal class CreateMenuItemCommandHandler(
 {
     public async Task<CreateMenuItemResult> Handle(CreateMenuItemCommand command, CancellationToken cancellationToken)
     {
-        var menuItem = new MenuItem
+        MenuItem? menuItem = new MenuItem
         {
             Id = Guid.NewGuid(),
             RestaurantId = command.RestaurantId,

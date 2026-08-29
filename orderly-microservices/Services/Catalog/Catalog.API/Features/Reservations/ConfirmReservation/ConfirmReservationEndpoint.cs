@@ -6,13 +6,13 @@ public class ConfirmReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Reservations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPut("/restaurants/{restaurantId}/reservations/{id}/confirm", async (Guid id, ISender sender) =>
         {
-            var command = new ConfirmReservationCommand(id);
-            var result = await sender.Send(command);
-            var response = result.Adapt<ConfirmReservationResponse>();
+            ConfirmReservationCommand? command = new ConfirmReservationCommand(id);
+            ConfirmReservationResult? result = await sender.Send(command);
+            ConfirmReservationResponse? response = result.Adapt<ConfirmReservationResponse>();
 
             return Results.Ok(response);
         })

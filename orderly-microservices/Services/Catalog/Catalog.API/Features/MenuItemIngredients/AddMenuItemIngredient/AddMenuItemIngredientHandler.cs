@@ -28,7 +28,7 @@ internal class AddMenuItemIngredientCommandHandler(
 {
     public async Task<AddMenuItemIngredientResult> Handle(AddMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
-        var menuRestaurantId = await dbContext.MenuItems
+        Guid? menuRestaurantId = await dbContext.MenuItems
             .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -37,12 +37,12 @@ internal class AddMenuItemIngredientCommandHandler(
             throw new NotFoundException("MenuItem", command.MenuItemId);
         }
 
-        var ingredientRestaurantId = await dbContext.Ingredients
+        Guid? ingredientRestaurantId = await dbContext.Ingredients
             .Where(i => i.Id == command.IngredientId)
             .Select(i => (Guid?)i.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var link = new MenuItemIngredient
+        MenuItemIngredient? link = new MenuItemIngredient
         {
             MenuItemId = command.MenuItemId,
             IngredientId = command.IngredientId,

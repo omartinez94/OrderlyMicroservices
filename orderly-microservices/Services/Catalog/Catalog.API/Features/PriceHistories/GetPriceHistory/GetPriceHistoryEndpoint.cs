@@ -26,22 +26,22 @@ public class GetPriceHistoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("PriceHistories");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("PriceHistories");
 
         group.MapGet("/restaurants/{restaurantId}/price-history", async (
             Guid restaurantId,
             [AsParameters] GetPriceHistoryRequest request,
             ISender sender) =>
         {
-            var query = new GetPriceHistoryQuery(
+            GetPriceHistoryQuery? query = new GetPriceHistoryQuery(
                 restaurantId,
                 request.MenuItemId,
                 request.PriceType,
                 request.From,
                 request.To);
 
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetPriceHistoryResponse>();
+            GetPriceHistoryResult? result = await sender.Send(query);
+            GetPriceHistoryResponse? response = result.Adapt<GetPriceHistoryResponse>();
 
             return Results.Ok(response);
         })

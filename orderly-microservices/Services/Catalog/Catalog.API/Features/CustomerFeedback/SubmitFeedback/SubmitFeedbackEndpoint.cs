@@ -19,14 +19,14 @@ public class SubmitFeedbackEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("CustomerFeedback");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("CustomerFeedback");
 
         group.MapPost("/restaurants/{restaurantId}/feedback", async (
             Guid restaurantId,
             SubmitFeedbackRequest request,
             ISender sender) =>
         {
-            var command = new SubmitFeedbackCommand(
+            SubmitFeedbackCommand? command = new SubmitFeedbackCommand(
                 restaurantId,
                 request.OrderId,
                 request.OverallRating,
@@ -34,7 +34,7 @@ public class SubmitFeedbackEndpoint : ICarterModule
                 request.ServiceSpeedRating,
                 request.WaiterFriendlinessRating,
                 request.Comments);
-            var result = await sender.Send(command);
+            SubmitFeedbackResult? result = await sender.Send(command);
             return Results.Created($"/v1/restaurants/{restaurantId}/feedback/{result.Id}", result.Adapt<SubmitFeedbackResponse>());
         })
         .WithDescription("Submits a customer's post-visit feedback. Issues a reward and queues FeedbackSubmittedIntegrationEvent on OverallRating ≥ 4.")

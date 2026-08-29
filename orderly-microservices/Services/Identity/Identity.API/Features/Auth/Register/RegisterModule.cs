@@ -4,15 +4,15 @@ public class RegisterModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/auth");
+        RouteGroupBuilder? group = app.MapGroup("/v1/auth");
 
         group.MapPost("/register", async (
                 ISender sender,
                 RegisterRequest request,
                 CancellationToken ct) =>
             {
-                var command = new RegisterCommand(request);
-                var response = await sender.Send(command, ct);
+                RegisterCommand? command = new RegisterCommand(request);
+                RegisterResponse response = await sender.Send(command, ct);
 
                 return Results.Created($"/v1/users/{response.UserId}", response);
             })

@@ -32,7 +32,7 @@ internal class RejectBulkOrderUploadCommandHandler(
 {
     public async Task<RejectBulkOrderUploadResult> Handle(RejectBulkOrderUploadCommand command, CancellationToken cancellationToken)
     {
-        var upload = await dbContext.BulkOrderUploads
+        BulkOrderUpload? upload = await dbContext.BulkOrderUploads
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken)
             ?? throw new BulkOrderUploadNotFoundException(command.Id);
 
@@ -47,7 +47,7 @@ internal class RejectBulkOrderUploadCommandHandler(
 
         if (!string.IsNullOrWhiteSpace(command.Reason))
         {
-            var existing = upload.ErrorLog ?? string.Empty;
+            string? existing = upload.ErrorLog ?? string.Empty;
             upload.ErrorLog = string.IsNullOrEmpty(existing)
                 ? $"Rejection: {command.Reason}"
                 : $"{existing}\nRejection: {command.Reason}";

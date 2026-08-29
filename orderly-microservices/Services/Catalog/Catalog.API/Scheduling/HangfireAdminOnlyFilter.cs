@@ -10,8 +10,8 @@ public sealed class HangfireAdminOnlyFilter : IDashboardAuthorizationFilter
 {
     public bool Authorize(DashboardContext context)
     {
-        var http = context.GetHttpContext();
-        var user = http.User;
+        HttpContext? http = context.GetHttpContext();
+        ClaimsPrincipal? user = http.User;
         if (user?.Identity?.IsAuthenticated != true)
         {
             return false;

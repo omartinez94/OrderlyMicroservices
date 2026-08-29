@@ -35,7 +35,7 @@ public static class OpenIddictServerExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        var jwtSettings = new JwtSettings();
+        JwtSettings? jwtSettings = new JwtSettings();
         configuration.GetSection(JwtSettings.SectionName).Bind(jwtSettings);
 
         services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
@@ -140,9 +140,9 @@ public static class OpenIddictServerExtensions
         string passwordKey,
         bool isEncryption)
     {
-        var certLabel = isEncryption ? "encryption" : "signing";
+        string? certLabel = isEncryption ? "encryption" : "signing";
 
-        var path = configuration[pathKey];
+        string? path = configuration[pathKey];
         if (string.IsNullOrWhiteSpace(path))
         {
             throw new OpenIddictCertificateLoadException(
@@ -158,17 +158,17 @@ public static class OpenIddictServerExtensions
                 $"Verify {pathKey} points to an existing PEM or PFX file readable by the host process.");
         }
 
-        var password = configuration[passwordKey];
+        string? password = configuration[passwordKey];
 
         try
         {
             // OpenIddict 7.5's Stream-based loader only accepts PFX/PKCS#12.
             // For PEM we load via X509Certificate2.CreateFromPemFile and pass
             // the cert through the X509Certificate2-based overload.
-            var ext = Path.GetExtension(path).ToLowerInvariant();
+            string? ext = Path.GetExtension(path).ToLowerInvariant();
             if (ext is ".pem" or ".crt" or ".cer" or ".key")
             {
-                var cert = X509Certificate2.CreateFromPemFile(path, ReadKeyFileOrNull(path));
+                X509Certificate2? cert = X509Certificate2.CreateFromPemFile(path, ReadKeyFileOrNull(path));
                 if (isEncryption)
                 {
                     options.AddEncryptionCertificate(cert);
@@ -214,16 +214,16 @@ public static class OpenIddictServerExtensions
     /// </summary>
     private static string? ReadKeyFileOrNull(string certPath)
     {
-        var dir = Path.GetDirectoryName(certPath);
-        var name = Path.GetFileNameWithoutExtension(certPath);
+        string? dir = Path.GetDirectoryName(certPath);
+        string? name = Path.GetFileNameWithoutExtension(certPath);
         if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(name))
         {
             return null;
         }
 
-        foreach (var keyExt in new[] { ".key", "-key.pem", ".key.pem" })
+        foreach (string? keyExt in new[] { ".key", "-key.pem", ".key.pem" })
         {
-            var keyPath = Path.Combine(dir, name + keyExt);
+            string? keyPath = Path.Combine(dir, name + keyExt);
             if (File.Exists(keyPath))
             {
                 return keyPath;

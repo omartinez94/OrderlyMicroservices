@@ -36,7 +36,7 @@ internal class UpdateBrandCommandHandler(CatalogDbContext dbContext) : ICommandH
 {
     public async Task<UpdateBrandResult> Handle(UpdateBrandCommand command, CancellationToken cancellationToken)
     {
-        var brand = await dbContext.Brands.FindAsync([command.Id], cancellationToken)
+        Brand? brand = await dbContext.Brands.FindAsync([command.Id], cancellationToken)
             ?? throw new BrandNotFoundException(command.Id);
 
         brand.Name = command.Name;

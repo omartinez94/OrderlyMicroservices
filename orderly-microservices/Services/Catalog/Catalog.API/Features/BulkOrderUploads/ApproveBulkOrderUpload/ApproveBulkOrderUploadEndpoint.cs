@@ -6,14 +6,14 @@ public class ApproveBulkOrderUploadEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
 
         group.MapPost("/restaurants/{restaurantId}/bulk-order-uploads/{id:int}/approve", async (
             Guid restaurantId,
             int id,
             ISender sender) =>
         {
-            var result = await sender.Send(new ApproveBulkOrderUploadCommand(restaurantId, id));
+            ApproveBulkOrderUploadResult? result = await sender.Send(new ApproveBulkOrderUploadCommand(restaurantId, id));
             return Results.Ok(result.Adapt<ApproveBulkOrderUploadResponse>());
         })
         .RequirePermission("catalog:menu_update")

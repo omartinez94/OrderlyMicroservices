@@ -8,7 +8,7 @@ public class UpdateComboItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("ComboItems");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("ComboItems");
 
         group.MapPut("/combo-items/{id:int}", async (int id, UpdateComboItemRequest request, ISender sender) =>
         {

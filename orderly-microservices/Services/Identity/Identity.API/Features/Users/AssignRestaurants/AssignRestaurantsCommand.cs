@@ -16,16 +16,16 @@ public class AssignRestaurantsCommandHandler(
 {
     public async Task<AssignRestaurantsResponse> Handle(AssignRestaurantsCommand command, CancellationToken cancellationToken)
     {
-        var user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
+        ApplicationUser? user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
         if (user is null)
         {
             throw new NotFoundException("User", command.UserId);
         }
 
-        var existingRestaurants = dbContext.UserRestaurants.Where(ur => ur.UserId == command.UserId);
+        IQueryable<UserRestaurant>? existingRestaurants = dbContext.UserRestaurants.Where(ur => ur.UserId == command.UserId);
         dbContext.UserRestaurants.RemoveRange(existingRestaurants);
 
-        var userRestaurants = command.Restaurants.Select(r => new UserRestaurant
+        List<UserRestaurant>? userRestaurants = command.Restaurants.Select(r => new UserRestaurant
         {
             UserId = command.UserId,
             User = user,

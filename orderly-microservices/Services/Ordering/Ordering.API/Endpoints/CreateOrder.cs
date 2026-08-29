@@ -10,13 +10,13 @@ public class CreateOrder : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Orders");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapPost("/orders", async (CreateOrderRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateOrderCommand>();
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateOrderResponse>();
+            CreateOrderCommand? command = request.Adapt<CreateOrderCommand>();
+            CreateOrderResult? result = await sender.Send(command);
+            CreateOrderResponse? response = result.Adapt<CreateOrderResponse>();
 
             return Results.Created($"/v1/orders/{response.Id}", response);
         })

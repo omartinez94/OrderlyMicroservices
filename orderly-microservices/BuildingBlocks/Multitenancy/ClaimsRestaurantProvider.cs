@@ -36,23 +36,23 @@ public sealed class ClaimsRestaurantProvider(IHttpContextAccessor accessor) : IC
         get
         {
             // Attached principal wins (Pattern 2 / bus-triggered consumer scope).
-            var attached = _attached.Value;
+            ClaimsPrincipal? attached = _attached.Value;
             if (attached?.Identity?.IsAuthenticated == true)
             {
-                var raw = attached.FindFirstValue("restaurantId");
+                string? raw = attached.FindFirstValue("restaurantId");
                 if (Guid.TryParse(raw, out var attachedId))
                 {
                     return attachedId;
                 }
             }
 
-            var context = accessor.HttpContext;
+            HttpContext? context = accessor.HttpContext;
             if (context?.User?.Identity?.IsAuthenticated != true)
             {
                 return Guid.Empty;
             }
 
-            var httpRaw = context.User.FindFirstValue("restaurantId");
+            string? httpRaw = context.User.FindFirstValue("restaurantId");
             return Guid.TryParse(httpRaw, out var httpId) ? httpId : Guid.Empty;
         }
     }
@@ -62,7 +62,7 @@ public sealed class ClaimsRestaurantProvider(IHttpContextAccessor accessor) : IC
     {
         ArgumentNullException.ThrowIfNull(principal);
 
-        var prior = _attached.Value;
+        ClaimsPrincipal? prior = _attached.Value;
         _attached.Value = principal;
         return new Scope(prior);
     }

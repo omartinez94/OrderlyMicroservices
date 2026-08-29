@@ -10,7 +10,7 @@ internal class GetRestaurantByIdQueryHandler(CatalogDbContext dbContext) : IQuer
 {
     public async Task<GetRestaurantByIdResult> Handle(GetRestaurantByIdQuery query, CancellationToken cancellationToken)
     {
-        var restaurant = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+        Restaurant? restaurant = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             dbContext.Restaurants
                 .AsNoTracking(),
             r => r.Id == query.Id,

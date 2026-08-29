@@ -19,7 +19,7 @@ public class GetAuditLogQueryHandler(IdentityDbContext dbContext)
 {
     public async Task<GetAuditLogResponse> Handle(GetAuditLogQuery query, CancellationToken cancellationToken)
     {
-        var logsQuery = dbContext.LoginAuditLogs.AsQueryable();
+        IQueryable<LoginAuditLog>? logsQuery = dbContext.LoginAuditLogs.AsQueryable();
 
         if (query.UserId.HasValue)
         {
@@ -31,9 +31,9 @@ public class GetAuditLogQueryHandler(IdentityDbContext dbContext)
             logsQuery = logsQuery.Where(l => l.EventType == query.EventType);
         }
 
-        var totalCount = await logsQuery.CountAsync(cancellationToken);
+        int totalCount = await logsQuery.CountAsync(cancellationToken);
 
-        var logs = await logsQuery
+        List<AuditLogEntry>? logs = await logsQuery
             .OrderByDescending(l => l.Timestamp)
             .Skip((query.Page - 1) * query.PageSize)
             .Take(query.PageSize)

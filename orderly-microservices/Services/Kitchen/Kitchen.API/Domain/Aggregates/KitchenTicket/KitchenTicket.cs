@@ -78,7 +78,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         ArgumentException.ThrowIfNullOrWhiteSpace(orderNumber);
         ArgumentNullException.ThrowIfNull(itemSeeds);
 
-        var ticket = new KitchenTicket(
+        KitchenTicket? ticket = new KitchenTicket(
             KitchenTicketId.Of(orderId),
             restaurantId,
             customerId,
@@ -88,7 +88,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
             Notes = notes ?? string.Empty,
         };
 
-        foreach (var seed in itemSeeds)
+        foreach (OrderItemSeed? seed in itemSeeds)
         {
             ticket._items.Add(new KitchenTicketItem(
                 id: KitchenItemId.Of(seed.OrderItemId),
@@ -142,7 +142,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(StartItemPrep));
         }
 
-        var item = FindItem(itemId);
+        KitchenTicketItem? item = FindItem(itemId);
         item.Start(now);
 
         if (StartedAt is null)
@@ -168,7 +168,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(MarkItemReady));
         }
 
-        var item = FindItem(itemId);
+        KitchenTicketItem? item = FindItem(itemId);
         item.MarkReady(now);
 
         AddDomainEvent(new KitchenTicketItemReadyEvent(this, itemId, now));
@@ -258,7 +258,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
 
     private KitchenTicketItem FindItem(KitchenItemId itemId)
     {
-        var item = _items.FirstOrDefault(i => i.Id == itemId);
+        KitchenTicketItem? item = _items.FirstOrDefault(i => i.Id == itemId);
         if (item is null)
         {
             throw new KitchenDomainException(

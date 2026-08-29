@@ -26,11 +26,11 @@ public class UpdateMenuItemEndpoint : ICarterModule
     {
         app.MapPut("/v1/menu-items/{id:guid}", async (Guid id, UpdateMenuItemRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateMenuItemCommand>();
+            UpdateMenuItemCommand? command = request.Adapt<UpdateMenuItemCommand>();
             command.Id = id;
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateMenuItemResponse>();
+            UpdateMenuItemResult? result = await sender.Send(command);
+            UpdateMenuItemResponse? response = result.Adapt<UpdateMenuItemResponse>();
 
             return Results.Ok(response);
         })

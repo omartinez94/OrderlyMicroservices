@@ -14,14 +14,14 @@ public class GetIngredientAlternativesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapGet("/restaurants/{restaurantId:guid}/ingredient-alternatives", async (Guid restaurantId, ISender sender) =>
         {
-            var query = new GetIngredientAlternativesQuery(restaurantId);
+            GetIngredientAlternativesQuery? query = new GetIngredientAlternativesQuery(restaurantId);
 
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetIngredientAlternativesResponse>();
+            GetIngredientAlternativesResult? result = await sender.Send(query);
+            GetIngredientAlternativesResponse? response = result.Adapt<GetIngredientAlternativesResponse>();
 
             return Results.Ok(response);
         })

@@ -42,7 +42,7 @@ public static class DependencyInjection
         // Outbox dispatcher hosted service — gated so tests flip
         // `Outbox:Enabled=false` to skip the relay loop (mirrors
         // Ordering.Infrastructure/DependencyInjection.cs lines 24-30).
-        var outboxEnabled = configuration.GetValue(
+        bool outboxEnabled = configuration.GetValue(
             $"{OutboxOptions.SectionName}:Enabled", true);
         if (outboxEnabled)
         {

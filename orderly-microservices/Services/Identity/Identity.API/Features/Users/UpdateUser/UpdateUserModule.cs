@@ -4,7 +4,7 @@ public class UpdateUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/users");
+        RouteGroupBuilder? group = app.MapGroup("/v1/users");
 
         group.MapPut("{id:guid}", async (
                 Guid id,
@@ -12,14 +12,14 @@ public class UpdateUserModule : ICarterModule
                 UpdateUserRequest request,
                 CancellationToken ct) =>
             {
-                var command = new UpdateUserCommand(
+                UpdateUserCommand? command = new UpdateUserCommand(
                     id,
                     request.FirstName,
                     request.LastName,
                     request.PhoneNumber,
                     request.IsActive);
 
-                var response = await sender.Send(command, ct);
+                UpdateUserResponse? response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("users:edit").Accepts<UpdateUserRequest>("application/json")

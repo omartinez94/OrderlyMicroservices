@@ -30,7 +30,7 @@ internal class CreateMenuItemVariationCommandHandler(
 {
     public async Task<CreateMenuItemVariationResult> Handle(CreateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
-        var menuItemRestaurantId = await dbContext.MenuItems
+        Guid? menuItemRestaurantId = await dbContext.MenuItems
             .Where(m => m.Id == command.MenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -39,7 +39,7 @@ internal class CreateMenuItemVariationCommandHandler(
             throw new NotFoundException("MenuItem", command.MenuItemId);
         }
 
-        var variation = new MenuItemVariation
+        MenuItemVariation? variation = new MenuItemVariation
         {
             Id = 0,
             MenuItemId = command.MenuItemId,

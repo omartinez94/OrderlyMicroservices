@@ -7,7 +7,7 @@ using Kitchen.API.Persistence;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.FeatureManagement;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -65,7 +65,7 @@ builder.Services.AddFeatureManagement();
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<KitchenDbContext>(name: "kitchendb", tags: new[] { "db", "ready" });
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // Phase 2: schema application is now owned by KitchenMigratorHostedService
 // (registered above). The dev-only inline `await MigrateAsync()` block

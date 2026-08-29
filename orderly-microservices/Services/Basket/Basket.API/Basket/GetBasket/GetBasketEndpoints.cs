@@ -6,7 +6,7 @@ public class GetBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapBasketGroup();
+        RouteGroupBuilder? group = app.MapBasketGroup();
 
         // `[DEPRECATED]`
         // `/v1/baskets/{userId}/{restaurantId}` shim is removed.
@@ -15,9 +15,9 @@ public class GetBasketEndpoints : ICarterModule
         // (never 404).
         group.MapGet("/cart", async (HttpContext httpContext, ISender sender, CancellationToken cancellationToken) =>
         {
-            var userId = httpContext.User.GetUserId();
-            var restaurantId = httpContext.User.GetRestaurantId();
-            var result = await sender.Send(new GetBasketQuery(userId, restaurantId), cancellationToken);
+            Guid userId = httpContext.User.GetUserId();
+            Guid restaurantId = httpContext.User.GetRestaurantId();
+            GetBasketResult? result = await sender.Send(new GetBasketQuery(userId, restaurantId), cancellationToken);
 
             // Cache-Control: no-store — the cart
             // contains PII and must not be cached by intermediaries.
@@ -30,10 +30,10 @@ public class GetBasketEndpoints : ICarterModule
             // conditional GET — a client sending
             // If-None-Match / If-Modified-Since that matches sees
             // 304 Not Modified with no body.
-            var basket = result.Basket;
-            var etag = global::Basket.API.Caching.ETag.Compute(basket);
+            Models.Basket? basket = result.Basket;
+            string? etag = global::Basket.API.Caching.ETag.Compute(basket);
             httpContext.Response.Headers.ETag = $"\"{etag}\"";
-            var lastModified = basket.LastModifiedAt == default
+            Instant lastModified = basket.LastModifiedAt == default
                 ? basket.CreatedAt
                 : basket.LastModifiedAt;
             // RFC 1123 / 7231 `Last-Modified` format. NodaTime

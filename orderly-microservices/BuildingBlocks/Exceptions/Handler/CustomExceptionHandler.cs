@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
@@ -63,7 +63,7 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
             )
         };
 
-        var problemDetails = new ProblemDetails
+        ProblemDetails? problemDetails = new ProblemDetails
         {
             Title = Title,
             Status = StatusCode,
@@ -82,8 +82,8 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
             // Reflect the optional FromStatus / AttemptedTransition
             // properties without a hard reference to the Domain assemblies
             // (BuildingBlocks must stay Domain-agnostic).
-            var fromStatus = TryGetProperty(exception, "FromStatus");
-            var attempted = TryGetProperty(exception, "AttemptedTransition");
+            object? fromStatus = TryGetProperty(exception, "FromStatus");
+            object? attempted = TryGetProperty(exception, "AttemptedTransition");
             if (fromStatus is not null)
             {
                 problemDetails.Extensions["fromStatus"] = fromStatus;

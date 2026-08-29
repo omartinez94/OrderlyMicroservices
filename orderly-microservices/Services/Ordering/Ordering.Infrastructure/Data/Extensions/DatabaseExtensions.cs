@@ -15,7 +15,7 @@ public static class DatabaseExtensions
     public static async Task InitializeDatabaseAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
+        ApplicationDBContext? context = scope.ServiceProvider.GetRequiredService<ApplicationDBContext>();
 
         await SeedAsync(context);
     }

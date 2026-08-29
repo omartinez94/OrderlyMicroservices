@@ -15,13 +15,13 @@ public class UpdateTableEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Tables");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Tables");
 
         group.MapPut("/restaurants/{restaurantId}/tables/{id}", async (Guid id, UpdateTableRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateTableCommand>() with { Id = id };
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateTableResponse>();
+            UpdateTableCommand? command = request.Adapt<UpdateTableCommand>() with { Id = id };
+            UpdateTableResult? result = await sender.Send(command);
+            UpdateTableResponse? response = result.Adapt<UpdateTableResponse>();
 
             return Results.Ok(response);
         })

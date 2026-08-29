@@ -12,13 +12,13 @@ public class AddToWalkInQueueEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapPost("/restaurants/{restaurantId}/walk-in-queue", async (Guid restaurantId, AddToWalkInQueueRequest request, ISender sender) =>
         {
-            var command = request.Adapt<AddToWalkInQueueCommand>() with { RestaurantId = restaurantId };
-            var result = await sender.Send(command);
-            var response = result.Adapt<AddToWalkInQueueResponse>();
+            AddToWalkInQueueCommand? command = request.Adapt<AddToWalkInQueueCommand>() with { RestaurantId = restaurantId };
+            AddToWalkInQueueResult? result = await sender.Send(command);
+            AddToWalkInQueueResponse? response = result.Adapt<AddToWalkInQueueResponse>();
 
             return Results.Created($"/v1/restaurants/{restaurantId}/walk-in-queue/{response.Id}", response);
         })

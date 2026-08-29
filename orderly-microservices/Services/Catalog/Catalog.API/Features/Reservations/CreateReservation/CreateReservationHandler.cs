@@ -40,7 +40,7 @@ internal class CreateReservationCommandHandler(CatalogDbContext dbContext) : ICo
 {
     public async Task<CreateReservationResult> Handle(CreateReservationCommand command, CancellationToken cancellationToken)
     {
-        var reservation = new Reservation
+        Reservation? reservation = new Reservation
         {
             Id = Guid.NewGuid(),
             RestaurantId = command.RestaurantId,

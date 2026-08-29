@@ -7,26 +7,26 @@ public class UpdateOrderHandler(IApplicationDbContext dbContext)
         UpdateOrderCommand command,
         CancellationToken cancellationToken)
     {
-        var dto = command.Order;
+        OrderDto? dto = command.Order;
 
-        var order = await dbContext.Orders
+        Order? order = await dbContext.Orders
             .FindAsync([OrderId.Of(dto.Id)], cancellationToken) ?? throw new OrderNotFoundException(nameof(Order), dto.Id);
 
-        var billingAddress = Address.Of(
+        Address? billingAddress = Address.Of(
             dto.BillingAddress.Street,
             dto.BillingAddress.City,
             dto.BillingAddress.State,
             dto.BillingAddress.ZipCode,
             dto.BillingAddress.Country);
 
-        var deliveryAddress = Address.Of(
+        Address? deliveryAddress = Address.Of(
             dto.DeliveryAddress.Street,
             dto.DeliveryAddress.City,
             dto.DeliveryAddress.State,
             dto.DeliveryAddress.ZipCode,
             dto.DeliveryAddress.Country);
 
-        var payment = Payment.Of(
+        Payment? payment = Payment.Of(
             dto.Payment.Method,
             dto.Payment.Brand,
             dto.Payment.LastFour);

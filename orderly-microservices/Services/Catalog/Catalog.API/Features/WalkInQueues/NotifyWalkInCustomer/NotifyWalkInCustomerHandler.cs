@@ -8,7 +8,7 @@ internal class NotifyWalkInCustomerCommandHandler(CatalogDbContext dbContext) : 
 {
     public async Task<NotifyWalkInCustomerResult> Handle(NotifyWalkInCustomerCommand command, CancellationToken cancellationToken)
     {
-        var walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
+        WalkInQueue? walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
             ?? throw new WalkInQueueNotFoundException(command.Id);
 
         walkIn.Status = WalkInQueueStatus.Notified;

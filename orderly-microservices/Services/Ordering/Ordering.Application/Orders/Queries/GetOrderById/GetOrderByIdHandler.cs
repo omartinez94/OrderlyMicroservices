@@ -5,7 +5,7 @@ public class GetOrderByIdHandler(IApplicationDbContext dbContext)
 {
     public async Task<GetOrderByIdResult> Handle(GetOrderByIdQuery query, CancellationToken cancellationToken)
     {
-        var order = await dbContext.Orders
+        Order? order = await dbContext.Orders
             .Include(o => o.OrderItems)
             .Include(o => o.Activities)
             .AsNoTracking()

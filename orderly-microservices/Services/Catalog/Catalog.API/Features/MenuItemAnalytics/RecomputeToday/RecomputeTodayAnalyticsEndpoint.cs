@@ -6,13 +6,13 @@ public class RecomputeTodayAnalyticsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
 
         group.MapPost("/restaurants/{restaurantId}/analytics/menu-items/recompute-today", async (
             Guid restaurantId,
             ISender sender) =>
         {
-            var result = await sender.Send(new RecomputeTodayAnalyticsCommand(restaurantId));
+            RecomputeTodayAnalyticsResult? result = await sender.Send(new RecomputeTodayAnalyticsCommand(restaurantId));
             return Results.Ok(result.Adapt<RecomputeTodayAnalyticsResponse>());
         })
         .WithDescription("Admin action that recomputes today's MenuItemAnalytics rows for drift repair.")

@@ -5,12 +5,12 @@ public class GetOrdersHandler(IApplicationDbContext dbContext)
 {
     public async Task<GetOrdersResult> Handle(GetOrdersQuery query, CancellationToken cancellationToken)
     {
-        var pageIndex = query.PaginationRequest.PageIndex;
-        var pageSize = query.PaginationRequest.PageSize;
+        int pageIndex = query.PaginationRequest.PageIndex;
+        int pageSize = query.PaginationRequest.PageSize;
 
-        var totalCount = await dbContext.Orders.LongCountAsync(cancellationToken);
+        long totalCount = await dbContext.Orders.LongCountAsync(cancellationToken);
 
-        var orders = await dbContext.Orders
+        List<Order>? orders = await dbContext.Orders
             .Include(o => o.OrderItems)
             .Include(o => o.Activities)
             .AsNoTracking()

@@ -10,7 +10,7 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
-        var userPermissions = context.User.Claims
+        List<string>? userPermissions = context.User.Claims
             .Where(c => c.Type == "permissions")
             .Select(c => c.Value)
             .ToList();

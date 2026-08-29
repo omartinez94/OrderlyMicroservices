@@ -60,7 +60,7 @@ internal class UpdateRestaurantCommandHandler(
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken) ?? throw new RestaurantNotFoundException(command.Id);
+        Restaurant? restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken) ?? throw new RestaurantNotFoundException(command.Id);
 
         // Track which configuration columns actually changed so the
         // RestaurantConfigurationChangedIntegrationEvent carries only the
@@ -68,7 +68,7 @@ internal class UpdateRestaurantCommandHandler(
         // role-bound config flips; Discount deactivates coupons whose
         // currency no longer matches; Notification refreshes receipt
         // templates for tax/currency placeholders).
-        var changedFields = new List<string>(capacity: 6);
+        List<string>? changedFields = new List<string>(capacity: 6);
         if (restaurant.TaxRate != command.TaxRate)
         {
             changedFields.Add(nameof(restaurant.TaxRate));
@@ -94,8 +94,8 @@ internal class UpdateRestaurantCommandHandler(
             changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
         }
 
-        var oldTaxRate = restaurant.TaxRate;
-        var oldEstimatedTurnoverMinutes = restaurant.EstimatedTurnoverMinutes;
+        decimal oldTaxRate = restaurant.TaxRate;
+        int oldEstimatedTurnoverMinutes = restaurant.EstimatedTurnoverMinutes;
 
         restaurant.BrandId = command.BrandId;
         restaurant.Name = command.Name;

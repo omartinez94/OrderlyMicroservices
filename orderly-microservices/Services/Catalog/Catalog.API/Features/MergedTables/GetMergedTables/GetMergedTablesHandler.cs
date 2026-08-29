@@ -23,11 +23,11 @@ internal class GetMergedTablesQueryHandler(CatalogDbContext dbContext) : IQueryH
         // Assuming we are just returning all active for now or filtering based on Tables.
         // As a fallback, we fetch all. In a real scenario, this requires a join with Table.
 
-        var mergedTables = await dbContext.MergedTables
+        List<MergedTable>? mergedTables = await dbContext.MergedTables
             .Where(mt => mt.IsActive)
             .ToListAsync(cancellationToken);
 
-        var dtos = mergedTables.Adapt<IEnumerable<MergedTableDto>>();
+        IEnumerable<MergedTableDto>? dtos = mergedTables.Adapt<IEnumerable<MergedTableDto>>();
 
         return new GetMergedTablesResult(dtos);
     }

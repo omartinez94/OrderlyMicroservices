@@ -73,7 +73,7 @@ public class TokenModule : ICarterModule
                     await auditLogger.LogAsync(userId, "TokenRefreshed", ipAddress, userAgent, "Refresh token grant", ct);
 
                     ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
-                    var identity = principal.Identity as ClaimsIdentity;
+                    ClaimsIdentity? identity = principal.Identity as ClaimsIdentity;
                     if (identity is not null)
                     {
                         List<Claim> existingClaims = [.. identity.Claims];

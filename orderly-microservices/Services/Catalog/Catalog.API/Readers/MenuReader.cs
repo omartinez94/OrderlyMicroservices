@@ -23,7 +23,7 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
     /// <inheritdoc/>
     public async Task<MenuSnapshot?> GetByRestaurantAsync(Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var categories = await dbContext.MenuCategories
+        List<MenuCategory>? categories = await dbContext.MenuCategories
             .AsNoTracking()
             .Where(c => c.RestaurantId == restaurantId)
             .OrderBy(c => c.DisplayOrder)
@@ -36,9 +36,9 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
             return null;
         }
 
-        var categoryIds = categories.Select(c => c.Id).ToList();
+        List<int>? categoryIds = categories.Select(c => c.Id).ToList();
 
-        var subCategories = await dbContext.MenuSubCategories
+        List<MenuSubCategory>? subCategories = await dbContext.MenuSubCategories
             .AsNoTracking()
             .Where(msc => categoryIds.Contains(msc.CategoryId))
             .OrderBy(msc => msc.DisplayOrder)
@@ -46,9 +46,9 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var subCategoryIds = subCategories.Select(msc => msc.Id).ToList();
+        List<int>? subCategoryIds = subCategories.Select(msc => msc.Id).ToList();
 
-        var items = subCategoryIds.Count == 0
+        List<MenuItem>? items = subCategoryIds.Count == 0
             ? new List<Models.MenuItem>()
             : await dbContext.MenuItems
                 .AsNoTracking()
@@ -58,11 +58,11 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-        var itemIds = items.Select(i => i.Id).ToList();
+        List<Guid>? itemIds = items.Select(i => i.Id).ToList();
 
         // Variations and ingredients are joined in via separate queries because
         // MenuItem has no navigation properties configured in the DbContext.
-        var variations = itemIds.Count == 0
+        List<MenuItemVariation>? variations = itemIds.Count == 0
             ? new List<Models.MenuItemVariation>()
             : await dbContext.MenuItemVariations
                 .AsNoTracking()
@@ -72,7 +72,7 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-        var ingredientLinks = itemIds.Count == 0
+        List<MenuItemIngredient>? ingredientLinks = itemIds.Count == 0
             ? new List<Models.MenuItemIngredient>()
             : await dbContext.MenuItemIngredients
                 .AsNoTracking()
@@ -81,7 +81,7 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-        var categoryNodes = categories.Select(c => new MenuCategoryNode(
+        List<MenuCategoryNode>? categoryNodes = categories.Select(c => new MenuCategoryNode(
             Id: c.Id,
             Name: c.Name,
             Description: c.Description,

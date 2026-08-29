@@ -10,7 +10,7 @@ public class AuditLogger(IdentityDbContext dbContext)
         string? details = null,
         CancellationToken ct = default)
     {
-        var log = new LoginAuditLog
+        LoginAuditLog? log = new LoginAuditLog
         {
             Id = Guid.NewGuid(),
             UserId = userId,

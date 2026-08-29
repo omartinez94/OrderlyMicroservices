@@ -30,9 +30,9 @@ internal class RecomputeTodayAnalyticsCommandHandler(
 {
     public async Task<RecomputeTodayAnalyticsResult> Handle(RecomputeTodayAnalyticsCommand command, CancellationToken cancellationToken)
     {
-        var today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        LocalDate today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
 
-        var todayRows = await dbContext.MenuItemAnalytics
+        List<Models.MenuItemAnalytics>? todayRows = await dbContext.MenuItemAnalytics
             .Where(x => x.RestaurantId == command.RestaurantId && x.AnalysisDate == today)
             .ToListAsync(cancellationToken);
 
@@ -45,10 +45,10 @@ internal class RecomputeTodayAnalyticsCommandHandler(
         //     writes those per insert; we just round-trip to catch any
         //     clock-skew drift between inserts).
         //   - clamp TimesOrdered, TotalRevenue, TimesOutOfStock to non-negative.
-        var itemsTouched = 0;
-        foreach (var row in todayRows)
+        int itemsTouched = 0;
+        foreach (Models.MenuItemAnalytics? row in todayRows)
         {
-            var total = row.MorningOrders + row.AfternoonOrders + row.EveningOrders + row.NightOrders;
+            int total = row.MorningOrders + row.AfternoonOrders + row.EveningOrders + row.NightOrders;
             if (total != row.TimesOrdered)
             {
                 // Re-derive TimesOrdered from the time-of-day buckets if

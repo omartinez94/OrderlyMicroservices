@@ -45,7 +45,7 @@ internal class UpdateMenuItemCommandHandler(
 {
     public async Task<UpdateMenuItemResult> Handle(UpdateMenuItemCommand command, CancellationToken cancellationToken)
     {
-        var menuItem = await dbContext.MenuItems
+        MenuItem? menuItem = await dbContext.MenuItems
             .FirstOrDefaultAsync(m => m.Id == command.Id, cancellationToken);
 
         if (menuItem is null)
@@ -55,7 +55,7 @@ internal class UpdateMenuItemCommandHandler(
 
         // Capture the old base price BEFORE the mutation so the audit row
         // can be recorded against the current persisted value.
-        var oldBasePrice = menuItem.BasePrice;
+        decimal oldBasePrice = menuItem.BasePrice;
 
         menuItem.SubCategoryId = command.SubCategoryId;
         menuItem.Name = command.Name;

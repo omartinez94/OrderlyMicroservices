@@ -29,7 +29,7 @@ public class AdminCartEndpoints : ICarterModule
         // Commit-0 migration). Group registered under /admin so
         // route conventions stay uniform — `MapBasketGroup()`
         // is the parent; `MapGroup("/admin")` is the sub-group.
-        var admin = app.MapBasketGroup().MapGroup("/admin")
+        RouteGroupBuilder? admin = app.MapBasketGroup().MapGroup("/admin")
             .WithTags("AdminCarts")
             .RequireAuthorization("Default")
             .RequirePermission("orders:admin");
@@ -40,10 +40,10 @@ public class AdminCartEndpoints : ICarterModule
         // `ICurrentRestaurantProvider` filter.
         admin.MapGet("/carts", async (HttpContext httpContext, ISender sender, CancellationToken cancellationToken) =>
         {
-            var query = new ListCartsQuery(
+            ListCartsQuery? query = new ListCartsQuery(
                 Page: 0,
                 PageSize: 50);
-            var result = await sender.Send(new ListCartsQueryRequest(
+            ListCartsResponse? result = await sender.Send(new ListCartsQueryRequest(
                 httpContext.User.GetRestaurantId(),
                 query.Page,
                 query.PageSize), cancellationToken);
@@ -68,8 +68,8 @@ public class AdminCartEndpoints : ICarterModule
             ISender sender,
             CancellationToken cancellationToken) =>
         {
-            var restaurantId = httpContext.User.GetRestaurantId();
-            var actorSub = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            Guid restaurantId = httpContext.User.GetRestaurantId();
+            string? actorSub = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
             // Body UserId/RestaurantId MUST be Guid.Empty — the
             // URL + JWT are authoritative (the same spoofing-footgun
@@ -77,7 +77,7 @@ public class AdminCartEndpoints : ICarterModule
             basket.UserId = userId;
             basket.RestaurantId = restaurantId;
 
-            var result = await sender.Send(new UpsertCartAdminCommand(
+            StoreBasket.StoreBasketResponse? result = await sender.Send(new UpsertCartAdminCommand(
                 basket,
                 actorSub,
                 restaurantId), cancellationToken);
@@ -105,8 +105,8 @@ public class AdminCartEndpoints : ICarterModule
             ISender sender,
             CancellationToken cancellationToken) =>
         {
-            var restaurantId = httpContext.User.GetRestaurantId();
-            var actorSub = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+            Guid restaurantId = httpContext.User.GetRestaurantId();
+            string? actorSub = httpContext.User.Claims.FirstOrDefault(c => c.Type == System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
 
             await sender.Send(new DeleteCartAdminCommand(
                 userId,
@@ -162,7 +162,7 @@ public class UpsertCartAdminHandler(
         // pair. Failure to write the audit row is logged but
         // does NOT block the upsert — the audit is a
         // compliance record, not a transactional lock.
-        var auditEntry = new Models.BasketAuditLogEntry
+        BasketAuditLogEntry? auditEntry = new Models.BasketAuditLogEntry
         {
             RestaurantId = command.RestaurantId,
             ActorSub = command.ActorSub,
@@ -192,7 +192,7 @@ public class DeleteCartAdminHandler(
 {
     public async Task<MediatR.Unit> Handle(DeleteCartAdminCommand command, CancellationToken cancellationToken)
     {
-        var auditEntry = new Models.BasketAuditLogEntry
+        BasketAuditLogEntry? auditEntry = new Models.BasketAuditLogEntry
         {
             RestaurantId = command.RestaurantId,
             ActorSub = command.ActorSub,

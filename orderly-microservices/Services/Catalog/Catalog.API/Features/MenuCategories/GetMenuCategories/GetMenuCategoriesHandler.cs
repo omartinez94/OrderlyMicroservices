@@ -10,14 +10,14 @@ internal class GetMenuCategoriesQueryHandler(CatalogDbContext dbContext) : IQuer
 {
     public async Task<GetMenuCategoriesResult> Handle(GetMenuCategoriesQuery query, CancellationToken cancellationToken)
     {
-        var categories = await EntityFrameworkQueryableExtensions.ToListAsync(
+        List<MenuCategory>? categories = await EntityFrameworkQueryableExtensions.ToListAsync(
             dbContext.MenuCategories
                 .AsNoTracking()
                 .Where(c => c.RestaurantId == query.RestaurantId)
                 .OrderBy(c => c.DisplayOrder),
             cancellationToken);
 
-        var dtos = categories.Adapt<IEnumerable<MenuCategoryDto>>();
+        IEnumerable<MenuCategoryDto>? dtos = categories.Adapt<IEnumerable<MenuCategoryDto>>();
 
         return new GetMenuCategoriesResult(dtos);
     }

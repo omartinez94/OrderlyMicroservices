@@ -52,7 +52,7 @@ internal class CreateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
 {
     public async Task<CreateRestaurantResult> Handle(CreateRestaurantCommand command, CancellationToken cancellationToken)
     {
-        var restaurant = new Restaurant
+        Restaurant? restaurant = new Restaurant
         {
             Id = Guid.NewGuid(),
             BrandId = command.BrandId,

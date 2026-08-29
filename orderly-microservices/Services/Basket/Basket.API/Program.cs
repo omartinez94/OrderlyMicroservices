@@ -8,7 +8,7 @@ using Microsoft.OpenApi;
 using NodaTime.Serialization.SystemTextJson;
 using Npgsql;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -67,7 +67,7 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
-var connectionString = builder.Configuration.GetConnectionString("BasketDB")!;
+string? connectionString = builder.Configuration.GetConnectionString("BasketDB")!;
 builder.Services.AddMarten(opt =>
 {
     // NodaTime plugin (from the `Marten.NodaTime` 8.37.4 package).
@@ -83,7 +83,7 @@ builder.Services.AddMarten(opt =>
     opt.Connection(connectionString);
     opt.CreateDatabasesForTenants(c =>
     {
-        var maintenanceDbStr = new Npgsql.NpgsqlConnectionStringBuilder(connectionString)
+        string? maintenanceDbStr = new Npgsql.NpgsqlConnectionStringBuilder(connectionString)
         {
             Database = "postgres"
         }.ConnectionString;
@@ -133,7 +133,7 @@ builder.Services.AddMarten(opt =>
 // ConnectionMultiplexerFactory (the factory is a Func<Task<...>> with
 // no DI access, so capturing the multiplexer at registration time is
 // the idiomatic pattern).
-var redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(
+StackExchange.Redis.ConnectionMultiplexer? redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(
     StackExchange.Redis.ConfigurationOptions.Parse(
         builder.Configuration.GetConnectionString("Redis")!));
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(redisMultiplexer);
@@ -319,7 +319,7 @@ builder.Services
 // the pipeline still builds (so the host can boot in tests) but
 // emits no spans.
 
-var grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
+IHttpClientBuilder? grpcClientBuilder = builder.Services.AddGrpcClient<Discount.Grpc.DiscountProtoService.DiscountProtoServiceClient>(options =>
 {
     options.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
 });
@@ -394,7 +394,7 @@ builder.Services.AddHealthChecks()
 
 // Broker reachability under entries.messagebroker (tags ["broker",
 // "ready"])
-var rabbitConnectionString =
+string? rabbitConnectionString =
     builder.Configuration.GetValue<string>("MessageBroker:ConnectionString")
     ?? builder.Configuration.GetValue<string>("MessageBroker:Host");
 if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
@@ -422,7 +422,7 @@ if (!string.IsNullOrWhiteSpace(rabbitConnectionString))
 // `UIResponseWriter.WriteHealthCheckUIResponse` renders the full
 // JSON shape on both routes for human debugging.
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // Pre-resolve the cache-lock registry and register an
 // ApplicationStopping callback that disposes it. The host's
@@ -431,8 +431,8 @@ var app = builder.Build();
 // AcquireAsync raises OperationCanceledException immediately so
 // the waiters don't block the shutdown.
 {
-    var registry = app.Services.GetRequiredService<Basket.API.Caching.IBasketCacheLockRegistry>();
-    var lifetime = app.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
+    IBasketCacheLockRegistry? registry = app.Services.GetRequiredService<Basket.API.Caching.IBasketCacheLockRegistry>();
+    IHostApplicationLifetime? lifetime = app.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
     lifetime.ApplicationStopping.Register(() =>
     {
         // Fire-and-forget: DisposeAsync returns a ValueTask that
@@ -442,7 +442,7 @@ var app = builder.Build();
         // rather than crashing the host.
         try
         {
-            var valueTask = registry switch
+            ValueTask valueTask = registry switch
             {
                 IAsyncDisposable asyncDisposable => asyncDisposable.DisposeAsync(),
                 _ => ValueTask.CompletedTask,
@@ -565,7 +565,7 @@ if (app.Environment.IsDevelopment())
             {
                 return Results.Empty;
             }
-            var deleted = await runner.SweepOnceAsync(ctx.RequestAborted);
+            int deleted = await runner.SweepOnceAsync(ctx.RequestAborted);
             return Results.Ok(new { deletedCount = deleted });
         });
 }

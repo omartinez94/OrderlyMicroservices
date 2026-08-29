@@ -39,23 +39,23 @@ public sealed class SeasonalAvailabilityJob(
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
-        var now = clock.GetUtcNow();
-        var nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
-        var today = LocalDate.FromDateTime(now.UtcDateTime);
+        DateTimeOffset now = clock.GetUtcNow();
+        Instant nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
+        LocalDate today = LocalDate.FromDateTime(now.UtcDateTime);
 
         // Pre-load candidate items so the actual loop is allocation-free.
-        var candidates = await dbContext.MenuItems
+        List<MenuItem>? candidates = await dbContext.MenuItems
             .Where(m => !m.IsDeleted && (m.ItemType == ItemType.Seasonal || m.ItemType == ItemType.Promo))
             .OrderBy(m => m.Id)
             .Take(_options.MaxRowsPerTick)
             .ToListAsync(cancellationToken);
 
-        var flipped = 0;
-        foreach (var item in candidates)
+        int flipped = 0;
+        foreach (MenuItem? item in candidates)
         {
-            var shouldBeAvailable = item.ItemType switch
+            bool shouldBeAvailable = item.ItemType switch
             {
                 ItemType.Seasonal => IsWithinSeasonalWindow(item, today),
                 ItemType.Promo => IsWithinPromoWindow(item, nowInstant),

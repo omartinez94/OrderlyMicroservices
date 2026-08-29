@@ -10,7 +10,7 @@ internal class GetReservationByIdQueryHandler(CatalogDbContext dbContext) : IQue
 {
     public async Task<GetReservationByIdResult> Handle(GetReservationByIdQuery query, CancellationToken cancellationToken)
     {
-        var reservation = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+        Reservation? reservation = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             dbContext.Reservations.AsNoTracking(),
             r => r.Id == query.Id,
             cancellationToken)

@@ -71,7 +71,7 @@ public sealed class DispatchDomainEventsInterceptor(IMediator mediator) : SaveCh
         // `Entries<IAggregate>()` filter picks up every tracked aggregate
         // in the current DbContext (Entity Framework's tracker is the
         // single source of truth for "what changed in this SaveChanges").
-        var aggregates = context.ChangeTracker
+        List<IAggregate>? aggregates = context.ChangeTracker
             .Entries<IAggregate>()
             .Where(e => e.Entity.DomainEvents.Count > 0)
             .Select(e => e.Entity)
@@ -86,13 +86,13 @@ public sealed class DispatchDomainEventsInterceptor(IMediator mediator) : SaveCh
         // (e.g. cascading MenuItem updates from an Ingredient event) don't
         // re-publish the same event when they themselves call SaveChanges.
         // The snapshot is taken AFTER clear so we publish the original list.
-        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
-        foreach (var aggregate in aggregates)
+        List<IDomainEvent>? events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+        foreach (IAggregate? aggregate in aggregates)
         {
             aggregate.ClearDomainEvents();
         }
 
-        foreach (var domainEvent in events)
+        foreach (IDomainEvent? domainEvent in events)
         {
             await mediator.Publish(domainEvent, cancellationToken).ConfigureAwait(false);
         }

@@ -13,13 +13,13 @@ public class UpdateIngredientEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Ingredients");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Ingredients");
 
         group.MapPut("/restaurants/{restaurantId:guid}/ingredients/{id:int}", async (Guid restaurantId, int id, UpdateIngredientRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateIngredientCommand>() with { RestaurantId = restaurantId, Id = id };
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateIngredientResponse>();
+            UpdateIngredientCommand? command = request.Adapt<UpdateIngredientCommand>() with { RestaurantId = restaurantId, Id = id };
+            UpdateIngredientResult? result = await sender.Send(command);
+            UpdateIngredientResponse? response = result.Adapt<UpdateIngredientResponse>();
 
             return Results.Ok(response);
         })

@@ -45,7 +45,7 @@ public sealed class CorrelationIdActivityMiddleware(RequestDelegate next)
         // correlate), the OTel Activity tag (the trace can
         // correlate), and CorrelationContext.Current (the log line
         // can correlate).
-        var correlationId = context.Request.Headers.TryGetValue(HeaderName, out var inbound) && !string.IsNullOrWhiteSpace(inbound)
+        string? correlationId = context.Request.Headers.TryGetValue(HeaderName, out var inbound) && !string.IsNullOrWhiteSpace(inbound)
             ? inbound.ToString()
             : Guid.NewGuid().ToString();
 

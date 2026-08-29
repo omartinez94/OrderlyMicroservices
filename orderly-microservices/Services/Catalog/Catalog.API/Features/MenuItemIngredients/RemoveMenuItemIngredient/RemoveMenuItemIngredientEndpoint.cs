@@ -4,11 +4,11 @@ public class RemoveMenuItemIngredientEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemIngredients");
 
         group.MapDelete("/menu-items/{menuItemId}/ingredients/{id}", async (Guid menuItemId, int id, ISender sender) =>
         {
-            var command = new RemoveMenuItemIngredientCommand(menuItemId, id);
+            RemoveMenuItemIngredientCommand? command = new RemoveMenuItemIngredientCommand(menuItemId, id);
             await sender.Send(command);
 
             return Results.NoContent();

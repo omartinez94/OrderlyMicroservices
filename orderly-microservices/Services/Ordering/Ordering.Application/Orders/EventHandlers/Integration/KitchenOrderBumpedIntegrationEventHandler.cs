@@ -15,7 +15,7 @@ public class KitchenOrderBumpedIntegrationEventHandler(
 {
     public Task Consume(ConsumeContext<KitchenOrderBumpedIntegrationEvent> context)
     {
-        var message = context.Message;
+        KitchenOrderBumpedIntegrationEvent? message = context.Message;
         logger.LogInformation(
             "Integration Event handled: {IntegrationEvent} for Order {OrderId} by Staff {StaffId}",
             nameof(KitchenOrderBumpedIntegrationEvent),

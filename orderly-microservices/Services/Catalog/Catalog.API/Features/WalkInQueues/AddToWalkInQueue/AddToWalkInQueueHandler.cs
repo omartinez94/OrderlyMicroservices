@@ -32,7 +32,7 @@ internal class AddToWalkInQueueCommandHandler(CatalogDbContext dbContext) : ICom
 {
     public async Task<AddToWalkInQueueResult> Handle(AddToWalkInQueueCommand command, CancellationToken cancellationToken)
     {
-        var walkIn = new WalkInQueue
+        WalkInQueue? walkIn = new WalkInQueue
         {
             Id = 0, // auto-increment
             RestaurantId = command.RestaurantId,

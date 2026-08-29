@@ -18,7 +18,7 @@ internal class GetMenuSubCategoryByIdQueryHandler(CatalogDbContext dbContext) : 
 {
     public async Task<GetMenuSubCategoryByIdResult> Handle(GetMenuSubCategoryByIdQuery query, CancellationToken cancellationToken)
     {
-        var subCategory = await dbContext.MenuSubCategories
+        MenuSubCategory? subCategory = await dbContext.MenuSubCategories
             .AsNoTracking()
             .FirstOrDefaultAsync(msc => msc.Id == query.Id, cancellationToken);
 
@@ -27,7 +27,7 @@ internal class GetMenuSubCategoryByIdQueryHandler(CatalogDbContext dbContext) : 
             throw new MenuSubCategoryNotFoundException(query.Id);
         }
 
-        var dto = subCategory.Adapt<MenuSubCategoryDto>();
+        MenuSubCategoryDto? dto = subCategory.Adapt<MenuSubCategoryDto>();
 
         return new GetMenuSubCategoryByIdResult(dto);
     }

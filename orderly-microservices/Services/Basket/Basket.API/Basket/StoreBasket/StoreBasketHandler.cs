@@ -80,7 +80,7 @@ public class StoreBasketHandler(
 
     public async Task<StoreBasketResult> Handle(StoreBasketCommand command, CancellationToken cancellationToken)
     {
-        var basket = command.Basket;
+        Models.Basket? basket = command.Basket;
 
         // Empty-coupon and empty-cart short-circuits: no Discount lookup
         // is needed, no work to do. Skipping the parallel loop also
@@ -98,10 +98,10 @@ public class StoreBasketHandler(
             return new StoreBasketResult(isCreatedEmpty, storedEmpty.UserId, storedEmpty.RestaurantId);
         }
 
-        var subtotal = basket.Subtotal;
-        var now = SystemClock.Instance.GetCurrentInstant();
-        var snapshots = new ConcurrentBag<Models.CouponSnapshot>();
-        var applied = new ConcurrentBag<AppliedDiscount>();
+        decimal subtotal = basket.Subtotal;
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        ConcurrentBag<CouponSnapshot>? snapshots = new ConcurrentBag<Models.CouponSnapshot>();
+        ConcurrentBag<AppliedDiscount>? applied = new ConcurrentBag<AppliedDiscount>();
 
         // Per-coupon resolution — same shape as before, but the
         // per-coupon output now feeds `AppliedDiscountsHelper.Apply(...)`
@@ -118,7 +118,7 @@ public class StoreBasketHandler(
             },
             async (couponCode, innerCt) =>
             {
-                var snapshot = await discountLookup.GetCouponAsync(
+                DiscountSnapshot? snapshot = await discountLookup.GetCouponAsync(
                     basket.RestaurantId, couponCode, innerCt);
 
                 if (!snapshot.IsActive)
@@ -149,14 +149,14 @@ public class StoreBasketHandler(
                 // BuildingBlocks enum's wire values are Percentage=0 /
                 // FixedAmount=1. A direct int cast would mis-classify
                 // every percentage as a fixed amount.
-                var helperType = snapshot.DiscountType switch
+                BuildingBlocks.Discounts.DiscountType helperType = snapshot.DiscountType switch
                 {
                     global::Discount.Grpc.DiscountType.CouponPercentage => BuildingBlocks.Discounts.DiscountType.Percentage,
                     global::Discount.Grpc.DiscountType.CouponFixedAmount => BuildingBlocks.Discounts.DiscountType.FixedAmount,
                     _ => BuildingBlocks.Discounts.DiscountType.FixedAmount, // UNSPECIFIED = treat as fixed amount 0
                 };
 
-                var helperAmount = snapshot.DiscountType switch
+                decimal helperAmount = snapshot.DiscountType switch
                 {
                     global::Discount.Grpc.DiscountType.CouponPercentage => snapshot.Amount,
                     global::Discount.Grpc.DiscountType.CouponFixedAmount => snapshot.Amount,
@@ -182,7 +182,7 @@ public class StoreBasketHandler(
         // Single source of truth for stacking math. Returns the
         // post-clamp effective subtotal + the per-row breakdown that
         // gets persisted as `BasketAppliedDiscount` rows.
-        var result = ApplyDiscountsHelper.Apply(subtotal, [.. applied]);
+        ApplyDiscountsResult? result = ApplyDiscountsHelper.Apply(subtotal, [.. applied]);
 
         basket.AppliedCoupons = snapshots
             .Select(s => s with { DiscountAmount = result.Breakdown.FirstOrDefault(b => b.Code == s.Code)?.RequestedAmount ?? 0m })

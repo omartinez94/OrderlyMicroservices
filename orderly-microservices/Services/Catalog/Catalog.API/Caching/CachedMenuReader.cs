@@ -56,15 +56,15 @@ public sealed class CachedMenuReader : IMenuReader
     /// <inheritdoc/>
     public async Task<MenuSnapshot?> GetByRestaurantAsync(Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var key = CacheKeys.Menu(restaurantId);
+        string? key = CacheKeys.Menu(restaurantId);
 
         // 1. Cache lookup — fail-open on Redis errors.
         try
         {
-            var cached = await cache.GetStringAsync(key, cancellationToken).ConfigureAwait(false);
+            string? cached = await cache.GetStringAsync(key, cancellationToken).ConfigureAwait(false);
             if (!string.IsNullOrEmpty(cached))
             {
-                var hit = JsonSerializer.Deserialize<MenuSnapshot>(cached, SerializerOptions);
+                MenuSnapshot? hit = JsonSerializer.Deserialize<MenuSnapshot>(cached, SerializerOptions);
                 if (hit is not null)
                 {
                     logger.LogDebug("Menu cache hit for restaurant {RestaurantId}", restaurantId);
@@ -81,7 +81,7 @@ public sealed class CachedMenuReader : IMenuReader
         }
 
         // 2. Miss → inner reader.
-        var snapshot = await inner.GetByRestaurantAsync(restaurantId, cancellationToken).ConfigureAwait(false);
+        MenuSnapshot? snapshot = await inner.GetByRestaurantAsync(restaurantId, cancellationToken).ConfigureAwait(false);
         if (snapshot is null)
         {
             return null;
@@ -90,8 +90,8 @@ public sealed class CachedMenuReader : IMenuReader
         // 3. Populate cache — fail-open on Redis errors.
         try
         {
-            var ttl = TimeSpan.FromMinutes(options.CurrentValue.MenuCacheTtlMinutes);
-            var payload = JsonSerializer.Serialize(snapshot, SerializerOptions);
+            TimeSpan ttl = TimeSpan.FromMinutes(options.CurrentValue.MenuCacheTtlMinutes);
+            string? payload = JsonSerializer.Serialize(snapshot, SerializerOptions);
             await cache.SetStringAsync(
                 key,
                 payload,

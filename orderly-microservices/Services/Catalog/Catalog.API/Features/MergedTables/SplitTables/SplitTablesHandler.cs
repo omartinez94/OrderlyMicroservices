@@ -17,7 +17,7 @@ internal class SplitTablesCommandHandler(CatalogDbContext dbContext) : ICommandH
 {
     public async Task<SplitTablesResult> Handle(SplitTablesCommand command, CancellationToken cancellationToken)
     {
-        var mergedTable = await dbContext.MergedTables.FindAsync([command.Id], cancellationToken: cancellationToken);
+        MergedTable? mergedTable = await dbContext.MergedTables.FindAsync([command.Id], cancellationToken: cancellationToken);
 
         if (mergedTable is null)
         {

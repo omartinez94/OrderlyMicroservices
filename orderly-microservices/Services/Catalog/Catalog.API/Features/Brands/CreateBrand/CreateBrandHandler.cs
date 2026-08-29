@@ -43,7 +43,7 @@ public class CreateBrandCommandHandler(CatalogDbContext dbContext) : ICommandHan
 {
     public async Task<CreateBrandResult> Handle(CreateBrandCommand command, CancellationToken cancellationToken)
     {
-        var brand = new Brand
+        Brand? brand = new Brand
         {
             Id = Guid.NewGuid(),
             Name = command.Name,

@@ -8,8 +8,8 @@ public class DeleteMenuItemEndpoint : ICarterModule
     {
         app.MapDelete("/v1/menu-items/{id:guid}", async (Guid id, ISender sender) =>
         {
-            var result = await sender.Send(new DeleteMenuItemCommand(id));
-            var response = result.Adapt<DeleteMenuItemResponse>();
+            DeleteMenuItemResult? result = await sender.Send(new DeleteMenuItemCommand(id));
+            DeleteMenuItemResponse? response = result.Adapt<DeleteMenuItemResponse>();
 
             return Results.Ok(response);
         })

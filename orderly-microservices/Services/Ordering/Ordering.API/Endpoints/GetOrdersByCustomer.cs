@@ -8,13 +8,13 @@ public class GetOrdersByCustomer : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Orders");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapGet("/orders/customer/{customerId}", async (Guid customerId, ISender sender) =>
         {
-            var query = new GetOrdersByCustomerQuery(customerId);
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetOrdersByCustomerResponse>();
+            GetOrdersByCustomerQuery? query = new GetOrdersByCustomerQuery(customerId);
+            GetOrdersByCustomerResult? result = await sender.Send(query);
+            GetOrdersByCustomerResponse? response = result.Adapt<GetOrdersByCustomerResponse>();
 
             return Results.Ok(response);
         })

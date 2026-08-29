@@ -13,7 +13,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("Database");
+        string? connectionString = configuration.GetConnectionString("Database");
 
         services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
 
@@ -55,7 +55,7 @@ public static class DependencyInjection
             configuration.GetSection(MigratorHostedServiceOptions.SectionName));
         services.AddHostedService<OrderingMigratorHostedService>();
 
-        var outboxEnabled = configuration.GetValue(
+        bool outboxEnabled = configuration.GetValue(
             $"{OutboxOptions.SectionName}:Enabled", true);
         if (outboxEnabled)
         {

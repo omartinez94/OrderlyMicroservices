@@ -8,12 +8,12 @@ public class GetMergedTablesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MergedTables");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MergedTables");
 
         group.MapGet("/restaurants/{restaurantId}/merged-tables", async (Guid restaurantId, ISender sender) =>
         {
-            var result = await sender.Send(new GetMergedTablesQuery(restaurantId));
-            var response = result.Adapt<GetMergedTablesResponse>();
+            GetMergedTablesResult? result = await sender.Send(new GetMergedTablesQuery(restaurantId));
+            GetMergedTablesResponse? response = result.Adapt<GetMergedTablesResponse>();
 
             return Results.Ok(response);
         })

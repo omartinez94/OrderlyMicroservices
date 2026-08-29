@@ -32,7 +32,7 @@ public sealed class CatalogOutboxDispatcher(
     /// </summary>
     protected override CatalogDbContext CreateContext(IServiceProvider services)
     {
-        var optionsAccessor = services.GetRequiredService<DbContextOptions<CatalogDbContext>>();
+        DbContextOptions<CatalogDbContext>? optionsAccessor = services.GetRequiredService<DbContextOptions<CatalogDbContext>>();
         return new CatalogDbContext(optionsAccessor);
     }
 

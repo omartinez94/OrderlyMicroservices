@@ -11,15 +11,15 @@ public class GetMenuItemAnalyticsByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
 
         group.MapGet("/restaurants/{restaurantId}/analytics/menu-items/{id:int}", async (
             Guid restaurantId,
             int id,
             ISender sender) =>
         {
-            var query = new GetMenuItemAnalyticsByIdQuery(id, restaurantId);
-            var result = await sender.Send(query);
+            GetMenuItemAnalyticsByIdQuery? query = new GetMenuItemAnalyticsByIdQuery(id, restaurantId);
+            GetMenuItemAnalyticsByIdResult? result = await sender.Send(query);
             return Results.Ok(new GetMenuItemAnalyticsByIdResponse(result.Item));
         })
         .WithDescription("Gets a single menu item analytics record by ID.")

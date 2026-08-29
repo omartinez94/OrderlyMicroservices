@@ -101,7 +101,7 @@ public sealed class ClaimsPrincipalBuilder
     /// </summary>
     public ClaimsPrincipalBuilder WithPermission(params string[] permissions)
     {
-        foreach (var permission in permissions)
+        foreach (string? permission in permissions)
         {
             _claims.Add(new Claim("permissions", permission));
         }
@@ -129,7 +129,7 @@ public sealed class ClaimsPrincipalBuilder
     /// </summary>
     public ClaimsPrincipal Build()
     {
-        var identity = new ClaimsIdentity(_claims, _authType);
+        ClaimsIdentity? identity = new ClaimsIdentity(_claims, _authType);
         return new ClaimsPrincipal(identity);
     }
 }

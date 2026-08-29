@@ -29,7 +29,7 @@ public abstract class Aggregate<TId> : Entity<TId>, IAggregate<TId>
     /// <inheritdoc/>
     public IDomainEvent[] ClearDomainEvents()
     {
-        var events = _domainEvents.ToArray();
+        IDomainEvent[]? events = _domainEvents.ToArray();
         _domainEvents.Clear();
         return events;
     }

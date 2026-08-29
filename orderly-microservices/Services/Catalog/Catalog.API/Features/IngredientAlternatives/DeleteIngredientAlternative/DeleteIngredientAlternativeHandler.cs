@@ -21,7 +21,7 @@ internal class DeleteIngredientAlternativeCommandHandler(
 {
     public async Task<DeleteIngredientAlternativeResult> Handle(DeleteIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
-        var ingredientAlternative = await dbContext.IngredientAlternatives
+        IngredientAlternative? ingredientAlternative = await dbContext.IngredientAlternatives
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken);
 
         if (ingredientAlternative is null)

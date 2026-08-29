@@ -10,7 +10,7 @@ internal class GetBrandByIdQueryHandler(CatalogDbContext dbContext) : IQueryHand
 {
     public async Task<GetBrandByIdResult> Handle(GetBrandByIdQuery query, CancellationToken cancellationToken)
     {
-        var brand = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+        Brand? brand = await EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
             dbContext.Brands.AsNoTracking(),
             b => b.Id == query.Id,
             cancellationToken)

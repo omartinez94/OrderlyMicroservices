@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -90,10 +90,10 @@ builder.Services.AddSingleton<ICurrentRestaurantProvider, ClaimsRestaurantProvid
 // retrying strategy no longer crashes the dispatcher with
 // "The configured execution strategy ... does not support user-initiated
 // transactions" — see plan §10.3.
-var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(
+NpgsqlDataSourceBuilder? dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(
     builder.Configuration.GetConnectionString("Database")!);
 dataSourceBuilder.UseNodaTime();
-var dataSource = dataSourceBuilder.Build();
+NpgsqlDataSource? dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddDbContext<DiscountContext>((sp, options) =>
 {
@@ -127,19 +127,19 @@ builder.Services.Configure<OutboxOptions>(builder.Configuration.GetSection(Outbo
 // (MassTransit's configuration callback fires during service
 // registration, before AddOptions validation — so we read the raw
 // Configuration section directly here.)
-var discountOptionsSection = builder.Configuration.GetSection(DiscountOptions.SectionName);
-var enableMenuItem = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableMenuItemChangedConsumer));
-var enableRestaurantConfig = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableRestaurantConfigChangedConsumer));
+IConfigurationSection? discountOptionsSection = builder.Configuration.GetSection(DiscountOptions.SectionName);
+bool enableMenuItem = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableMenuItemChangedConsumer));
+bool enableRestaurantConfig = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableRestaurantConfigChangedConsumer));
 // Phase 5 — disabled by default. Notification v1 publishes
 // FeedbackSubmittedIntegrationEvent; until that service ships, the consumer
 // endpoint does not materialize (no orphaned queue, no silent consumption).
 // The flag flips on by configuration change only — no recompile.
-var enableFeedbackSubmitted = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableFeedbackSubmittedConsumer));
+bool enableFeedbackSubmitted = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableFeedbackSubmittedConsumer));
 // disabled by default. Ordering publishes OrderCreatedIntegrationEvent
 // when the Ordering plan's `Phase 8 OrderCreatedConsumer stub` is enabled; this
 // consumer wires up automatically when the operator flips the flag. No
 // recompile needed (mirrors FeedbackSubmittedConsumer's conditional registration).
-var enableOrderCreated = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableOrderCreatedConsumer));
+bool enableOrderCreated = discountOptionsSection.GetValue<bool>(nameof(DiscountOptions.EnableOrderCreatedConsumer));
 
 builder.Services.AddMassTransit(o =>
 {
@@ -195,7 +195,7 @@ builder.Services.Configure<DiscountExpirySweepOptions>(
     builder.Configuration.GetSection(DiscountExpirySweepOptions.SectionName));
 builder.Services.AddHostedService<DiscountExpirySweepService>();
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // Configure the HTTP request pipeline.
 

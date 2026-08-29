@@ -6,12 +6,12 @@ public class GetIngredientByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Ingredients");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Ingredients");
 
         group.MapGet("/restaurants/{restaurantId:guid}/ingredients/{id:int}", async (Guid restaurantId, int id, ISender sender) =>
         {
-            var result = await sender.Send(new GetIngredientByIdQuery(restaurantId, id));
-            var response = result.Adapt<GetIngredientByIdResponse>();
+            GetIngredientByIdResult? result = await sender.Send(new GetIngredientByIdQuery(restaurantId, id));
+            GetIngredientByIdResponse? response = result.Adapt<GetIngredientByIdResponse>();
 
             return Results.Ok(response);
         })

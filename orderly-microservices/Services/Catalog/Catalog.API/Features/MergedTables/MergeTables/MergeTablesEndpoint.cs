@@ -8,14 +8,14 @@ public class MergeTablesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MergedTables");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MergedTables");
 
         group.MapPost("/restaurants/{restaurantId}/merged-tables", async (Guid restaurantId, MergeTablesRequest request, ISender sender) =>
         {
-            var command = new MergeTablesCommand(restaurantId, request.ParentTableId, request.ChildTableId);
+            MergeTablesCommand? command = new MergeTablesCommand(restaurantId, request.ParentTableId, request.ChildTableId);
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<MergeTablesResponse>();
+            MergeTablesResult? result = await sender.Send(command);
+            MergeTablesResponse? response = result.Adapt<MergeTablesResponse>();
 
             return Results.Created($"/v1/restaurants/{restaurantId}/merged-tables/{response.Id}", response);
         })

@@ -23,15 +23,15 @@ public class GetUserQueryHandler(
 {
     public async Task<GetUserResponse> Handle(GetUserQuery query, CancellationToken cancellationToken)
     {
-        var user = await dbContext.Users.FindAsync([query.UserId], cancellationToken);
+        ApplicationUser? user = await dbContext.Users.FindAsync([query.UserId], cancellationToken);
         if (user is null)
         {
             throw new NotFoundException("User", query.UserId);
         }
 
-        var roles = await userManager.GetRolesAsync(user);
+        IList<string>? roles = await userManager.GetRolesAsync(user);
 
-        var userRestaurants = await dbContext.UserRestaurants
+        List<UserRestaurantResponse>? userRestaurants = await dbContext.UserRestaurants
             .Where(ur => ur.UserId == query.UserId)
             .Select(ur => new UserRestaurantResponse(ur.RestaurantId, ur.IsDefault))
             .ToListAsync(cancellationToken);

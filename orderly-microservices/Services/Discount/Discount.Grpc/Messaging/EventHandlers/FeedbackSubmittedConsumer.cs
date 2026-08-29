@@ -61,8 +61,8 @@ public sealed class FeedbackSubmittedConsumer(
 
     public async Task Consume(ConsumeContext<FeedbackSubmittedIntegrationEvent> context)
     {
-        var evt = context.Message;
-        var rid = evt.RestaurantId;
+        FeedbackSubmittedIntegrationEvent? evt = context.Message;
+        Guid rid = evt.RestaurantId;
 
         // Stable per-feedback anchor: MD5(feedbackId bytes) → 16-byte Guid.
         // The Code*() helpers render this as a substring; same feedback id
@@ -70,26 +70,26 @@ public sealed class FeedbackSubmittedConsumer(
         // fires (the day-bucket in the Code string is the human-readable
         // prefix; the event-id-derived anchor is the actual idempotency
         // key per v1.2 H-L1).
-        var feedbackAnchor = GuidFromInt(evt.FeedbackId);
+        Guid feedbackAnchor = GuidFromInt(evt.FeedbackId);
 
         // Pattern 2 synthetic principal (plan §0.4 / Q10).
-        var principal = new ClaimsPrincipalBuilder()
+        System.Security.Claims.ClaimsPrincipal? principal = new ClaimsPrincipalBuilder()
             .WithRestaurant(rid)
             .WithActor(DiscountActors.Service)
             .Build();
 
         await using var scope = scopes.CreateAsyncScope();
-        var sp = scope.ServiceProvider;
-        var provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
-        var db = sp.GetRequiredService<DiscountContext>();
-        var outbox = sp.GetRequiredService<IOutboxPublisher>();
-        var clock = sp.GetRequiredService<TimeProvider>();
+        IServiceProvider? sp = scope.ServiceProvider;
+        ICurrentRestaurantProvider? provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
+        DiscountContext? db = sp.GetRequiredService<DiscountContext>();
+        IOutboxPublisher? outbox = sp.GetRequiredService<IOutboxPublisher>();
+        TimeProvider? clock = sp.GetRequiredService<TimeProvider>();
         // Mirror MenuItemChangedConsumer.cs:101 — raw SQL / TimeProvider
         // extensions don't ship `GetCurrentInstant()`; we read the
         // canonical clock from NodaTime.SystemClock instead so the
         // Code*() helper (which takes a TimeProvider) sees the same
         // wall-clock this consumer publishes against.
-        var now = SystemClock.Instance.GetCurrentInstant();
+        Instant now = SystemClock.Instance.GetCurrentInstant();
 
         using (provider.Attach(principal))
         {
@@ -160,7 +160,7 @@ public sealed class FeedbackSubmittedConsumer(
         // §0.3.3 enforces kind-specific Value rules + ExpirationDate > now
         // when set. The validator builds the row in one shot, matching the
         // RewardCodeService.CreateRewardCode UK-guard pattern.
-        var row = RewardCodeValidator.ValidateAndBuild(
+        RewardCode? row = RewardCodeValidator.ValidateAndBuild(
             restaurantId: rid,
             code: code,
             kind: kind,
@@ -172,7 +172,7 @@ public sealed class FeedbackSubmittedConsumer(
         row.ExpirationDate = now + Duration.FromDays(30);
 
         // Pre-check (idempotency sink; mirrors RewardCodeService.CreateRewardCode).
-        var existing = await db.RewardCodes
+        RewardCode? existing = await db.RewardCodes
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 r => r.RestaurantId == rid && r.Code == code,
@@ -257,7 +257,7 @@ public sealed class FeedbackSubmittedConsumer(
             "without a data migration.")]
     internal static Guid GuidFromInt(int feedbackId)
     {
-        var hash = MD5.HashData(BitConverter.GetBytes(feedbackId));
+        byte[]? hash = MD5.HashData(BitConverter.GetBytes(feedbackId));
         return new Guid(hash);
     }
 }

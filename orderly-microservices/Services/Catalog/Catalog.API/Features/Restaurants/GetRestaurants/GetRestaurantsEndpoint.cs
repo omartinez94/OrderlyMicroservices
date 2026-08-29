@@ -8,13 +8,13 @@ public class GetRestaurantsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Restaurants");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Restaurants");
 
         group.MapGet("/restaurants", async ([AsParameters] GetRestaurantsRequest request, ISender sender) =>
         {
-            var query = request.Adapt<GetRestaurantsQuery>();
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetRestaurantsResponse>();
+            GetRestaurantsQuery? query = request.Adapt<GetRestaurantsQuery>();
+            GetRestaurantsResult? result = await sender.Send(query);
+            GetRestaurantsResponse? response = result.Adapt<GetRestaurantsResponse>();
 
             return Results.Ok(response);
         })

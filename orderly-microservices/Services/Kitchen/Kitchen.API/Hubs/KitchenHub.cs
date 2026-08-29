@@ -31,7 +31,7 @@ public class KitchenHub : Hub<IKitchenHubClient>
     {
         await base.OnConnectedAsync();
 
-        var restaurantIds = Context.User?
+        List<Guid>? restaurantIds = Context.User?
             .FindAll("restaurantIds")
             .Select(c => c.Value)
             .Where(s => Guid.TryParse(s, out _))
@@ -39,7 +39,7 @@ public class KitchenHub : Hub<IKitchenHubClient>
             .Distinct()
             .ToList() ?? new List<Guid>();
 
-        foreach (var id in restaurantIds)
+        foreach (Guid id in restaurantIds)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, $"restaurant:{id}");
         }

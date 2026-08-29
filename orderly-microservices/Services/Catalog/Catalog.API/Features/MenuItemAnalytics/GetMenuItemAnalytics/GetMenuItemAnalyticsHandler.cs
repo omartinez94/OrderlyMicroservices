@@ -43,7 +43,7 @@ internal class GetMenuItemAnalyticsQueryHandler(CatalogDbContext dbContext)
         GetMenuItemAnalyticsQuery query,
         CancellationToken cancellationToken)
     {
-        var dbQuery = dbContext.MenuItemAnalytics
+        IQueryable<Models.MenuItemAnalytics>? dbQuery = dbContext.MenuItemAnalytics
             .AsNoTracking()
             .Where(x => x.RestaurantId == query.RestaurantId);
 
@@ -62,15 +62,15 @@ internal class GetMenuItemAnalyticsQueryHandler(CatalogDbContext dbContext)
             dbQuery = dbQuery.Where(x => x.AnalysisDate <= query.To.Value);
         }
 
-        var totalCount = await dbQuery.CountAsync(cancellationToken);
+        int totalCount = await dbQuery.CountAsync(cancellationToken);
 
-        var items = await dbQuery
+        List<Models.MenuItemAnalytics>? items = await dbQuery
             .OrderByDescending(x => x.AnalysisDate)
             .Skip(query.PageIndex * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = items.Adapt<IEnumerable<MenuItemAnalyticsDto>>();
+        IEnumerable<MenuItemAnalyticsDto>? dtos = items.Adapt<IEnumerable<MenuItemAnalyticsDto>>();
 
         return new GetMenuItemAnalyticsResult(dtos, totalCount, query.PageIndex, query.PageSize);
     }

@@ -4,7 +4,7 @@ public class SplitTablesEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MergedTables");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MergedTables");
 
         group.MapDelete("/restaurants/{restaurantId}/merged-tables/{id}", async (Guid restaurantId, Guid id, ISender sender) =>
         {

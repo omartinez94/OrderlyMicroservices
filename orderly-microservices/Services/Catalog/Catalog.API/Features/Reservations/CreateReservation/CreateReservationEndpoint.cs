@@ -17,13 +17,13 @@ public class CreateReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Reservations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPost("/restaurants/{restaurantId}/reservations", async (Guid restaurantId, CreateReservationRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateReservationCommand>() with { RestaurantId = restaurantId };
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateReservationResponse>();
+            CreateReservationCommand? command = request.Adapt<CreateReservationCommand>() with { RestaurantId = restaurantId };
+            CreateReservationResult? result = await sender.Send(command);
+            CreateReservationResponse? response = result.Adapt<CreateReservationResponse>();
 
             return Results.Created($"/v1/restaurants/{restaurantId}/reservations/{response.Id}", response);
         })

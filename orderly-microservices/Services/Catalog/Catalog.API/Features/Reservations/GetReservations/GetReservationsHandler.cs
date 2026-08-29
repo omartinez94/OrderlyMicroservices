@@ -15,14 +15,14 @@ internal class GetReservationsQueryHandler(CatalogDbContext dbContext) : IQueryH
 {
     public async Task<GetReservationsResult> Handle(GetReservationsQuery query, CancellationToken cancellationToken)
     {
-        var pageNumber = query.PageNumber ?? 1;
-        var pageSize = query.PageSize ?? 10;
+        int pageNumber = query.PageNumber ?? 1;
+        int pageSize = query.PageSize ?? 10;
         if (pageSize > 50)
         {
             pageSize = 50;
         }
 
-        var baseQuery = dbContext.Reservations
+        IQueryable<Reservation>? baseQuery = dbContext.Reservations
             .AsNoTracking()
             .Where(r => r.RestaurantId == query.RestaurantId);
 
@@ -36,9 +36,9 @@ internal class GetReservationsQueryHandler(CatalogDbContext dbContext) : IQueryH
             baseQuery = baseQuery.Where(r => r.Status == query.Status.Value);
         }
 
-        var totalCount = await EntityFrameworkQueryableExtensions.CountAsync(baseQuery, cancellationToken);
+        int totalCount = await EntityFrameworkQueryableExtensions.CountAsync(baseQuery, cancellationToken);
 
-        var reservations = await EntityFrameworkQueryableExtensions.ToListAsync(
+        List<Reservation>? reservations = await EntityFrameworkQueryableExtensions.ToListAsync(
             baseQuery
                 .OrderBy(r => r.ReservationDate)
                 .ThenBy(r => r.ReservationTime)

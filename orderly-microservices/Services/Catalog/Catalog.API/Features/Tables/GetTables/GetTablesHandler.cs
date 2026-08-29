@@ -10,14 +10,14 @@ internal class GetTablesQueryHandler(CatalogDbContext dbContext) : IQueryHandler
 {
     public async Task<GetTablesResult> Handle(GetTablesQuery query, CancellationToken cancellationToken)
     {
-        var pageNumber = query.PageNumber ?? 1;
-        var pageSize = query.PageSize ?? 10;
+        int pageNumber = query.PageNumber ?? 1;
+        int pageSize = query.PageSize ?? 10;
         if (pageSize > 50)
         {
             pageSize = 50;
         }
 
-        var baseQuery = dbContext.Tables
+        IQueryable<Table>? baseQuery = dbContext.Tables
             .AsNoTracking()
             .Where(t => t.RestaurantId == query.RestaurantId);
 
@@ -26,9 +26,9 @@ internal class GetTablesQueryHandler(CatalogDbContext dbContext) : IQueryHandler
             baseQuery = baseQuery.Where(t => t.Status == query.Status.Value);
         }
 
-        var totalCount = await EntityFrameworkQueryableExtensions.CountAsync(baseQuery, cancellationToken);
+        int totalCount = await EntityFrameworkQueryableExtensions.CountAsync(baseQuery, cancellationToken);
 
-        var tables = await EntityFrameworkQueryableExtensions.ToListAsync(
+        List<Table>? tables = await EntityFrameworkQueryableExtensions.ToListAsync(
             baseQuery
                 .OrderBy(t => t.TableNumber)
                 .Skip((pageNumber - 1) * pageSize)

@@ -6,13 +6,13 @@ public class GetTableByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Tables");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Tables");
 
         group.MapGet("/restaurants/{restaurantId}/tables/{id}", async (Guid id, ISender sender) =>
         {
-            var query = new GetTableByIdQuery(id);
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetTableByIdResponse>();
+            GetTableByIdQuery? query = new GetTableByIdQuery(id);
+            GetTableByIdResult? result = await sender.Send(query);
+            GetTableByIdResponse? response = result.Adapt<GetTableByIdResponse>();
 
             return Results.Ok(response);
         })

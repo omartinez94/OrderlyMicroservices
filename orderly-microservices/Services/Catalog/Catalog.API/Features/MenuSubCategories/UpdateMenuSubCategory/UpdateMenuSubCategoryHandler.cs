@@ -30,13 +30,13 @@ internal class UpdateMenuSubCategoryCommandHandler(
 {
     public async Task<UpdateMenuSubCategoryResult> Handle(UpdateMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
-        var subCategory = await dbContext.MenuSubCategories.FindAsync([command.Id], cancellationToken);
+        MenuSubCategory? subCategory = await dbContext.MenuSubCategories.FindAsync([command.Id], cancellationToken);
         if (subCategory is null)
         {
             throw new MenuSubCategoryNotFoundException(command.Id);
         }
 
-        var newCategoryRestaurantId = (await dbContext.MenuCategories
+        Guid newCategoryRestaurantId = (await dbContext.MenuCategories
             .Where(c => c.Id == command.CategoryId)
             .Select(c => (Guid?)c.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken))

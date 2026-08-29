@@ -1,4 +1,4 @@
-﻿namespace Catalog.API.Features.Restaurants.CreateRestaurant;
+namespace Catalog.API.Features.Restaurants.CreateRestaurant;
 
 public record CreateRestaurantRequest(
     Guid BrandId,
@@ -20,14 +20,14 @@ public class CreateRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Restaurants");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Restaurants");
 
         group.MapPost("/restaurants", async (CreateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            var command = request.Adapt<CreateRestaurantCommand>();
+            CreateRestaurantCommand? command = request.Adapt<CreateRestaurantCommand>();
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateRestaurantResponse>();
+            CreateRestaurantResult? result = await sender.Send(command);
+            CreateRestaurantResponse? response = result.Adapt<CreateRestaurantResponse>();
 
             return Results.Created($"/v1/restaurants/{response.Id}", response);
         })

@@ -4,14 +4,14 @@ public class DeleteUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/users");
+        RouteGroupBuilder? group = app.MapGroup("/v1/users");
 
         group.MapDelete("{id:guid}", async (
                 Guid id,
                 ISender sender,
                 CancellationToken ct) =>
             {
-                var command = new DeleteUserCommand(id);
+                DeleteUserCommand? command = new DeleteUserCommand(id);
                 await sender.Send(command, ct);
 
                 return Results.NoContent();

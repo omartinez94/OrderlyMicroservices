@@ -27,7 +27,7 @@ public static class CardSummaryDerivation
             return "Unknown";
         }
 
-        var firstChar = cardNumber.TrimStart()[0];
+        char firstChar = cardNumber.TrimStart()[0];
         return firstChar switch
         {
             '4' => "Visa",
@@ -51,7 +51,7 @@ public static class CardSummaryDerivation
             return "0000";
         }
 
-        var digitsOnly = new string(cardNumber.Where(char.IsDigit).ToArray());
+        string? digitsOnly = new string(cardNumber.Where(char.IsDigit).ToArray());
         if (digitsOnly.Length < 4)
         {
             return "0000";

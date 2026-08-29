@@ -18,19 +18,19 @@ internal class GetMenuSubCategoriesQueryHandler(CatalogDbContext dbContext) : IQ
 {
     public async Task<GetMenuSubCategoriesResult> Handle(GetMenuSubCategoriesQuery query, CancellationToken cancellationToken)
     {
-        var categoryExists = await dbContext.MenuCategories.AnyAsync(c => c.Id == query.CategoryId, cancellationToken);
+        bool categoryExists = await dbContext.MenuCategories.AnyAsync(c => c.Id == query.CategoryId, cancellationToken);
         if (!categoryExists)
         {
             throw new MenuCategoryNotFoundException(query.CategoryId);
         }
 
-        var subCategories = await dbContext.MenuSubCategories
+        List<MenuSubCategory>? subCategories = await dbContext.MenuSubCategories
             .AsNoTracking()
             .Where(msc => msc.CategoryId == query.CategoryId)
             .OrderBy(msc => msc.DisplayOrder)
             .ToListAsync(cancellationToken);
 
-        var dtos = subCategories.Adapt<IEnumerable<MenuSubCategoryDto>>();
+        IEnumerable<MenuSubCategoryDto>? dtos = subCategories.Adapt<IEnumerable<MenuSubCategoryDto>>();
 
         return new GetMenuSubCategoriesResult(dtos);
     }

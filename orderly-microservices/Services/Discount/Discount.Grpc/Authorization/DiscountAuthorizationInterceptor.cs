@@ -27,18 +27,18 @@ public sealed class DiscountAuthorizationInterceptor(MethodPermissionMap methodM
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(continuation);
 
-        var permission = methodMap.FindPermission(context.Method);
+        string? permission = methodMap.FindPermission(context.Method);
         if (permission is not null)
         {
-            var httpContext = context.GetHttpContext()
+            HttpContext? httpContext = context.GetHttpContext()
                 ?? throw new InvalidOperationException(
                     "HttpContext unavailable on gRPC call; AddJwtBearer must be wired in Program.cs.");
 
-            var authz = httpContext.RequestServices.GetRequiredService<IAuthorizationService>();
-            var result = await authz.AuthorizeAsync(httpContext.User, resource: null, policyName: permission);
+            IAuthorizationService? authz = httpContext.RequestServices.GetRequiredService<IAuthorizationService>();
+            AuthorizationResult? result = await authz.AuthorizeAsync(httpContext.User, resource: null, policyName: permission);
             if (!result.Succeeded)
             {
-                var trailers = new Metadata
+                Metadata? trailers = new Metadata
                 {
                     { "required-permission", permission },
                 };

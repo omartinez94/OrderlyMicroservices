@@ -21,7 +21,7 @@ internal class MergeTablesCommandHandler(CatalogDbContext dbContext) : ICommandH
     {
         // Validation of restaurant/tables could go here.
 
-        var mergedTable = new MergedTable
+        MergedTable? mergedTable = new MergedTable
         {
             Id = Guid.NewGuid(),
             ParentTableId = command.ParentTableId,

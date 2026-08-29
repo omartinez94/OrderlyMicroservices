@@ -6,7 +6,7 @@ public class CheckoutBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapBasketGroup();
+        RouteGroupBuilder? group = app.MapBasketGroup();
 
         // `/v1/baskets/checkout` shim is removed. The only route is
         // the token-bound `/v1/cart/checkout`; the
@@ -23,7 +23,7 @@ public class CheckoutBasketEndpoints : ICarterModule
             checkoutDto.UserId = principal.GetUserId();
             checkoutDto.RestaurantId = principal.GetRestaurantId();
 
-            var result = await sender.Send(new CheckoutBasketCommand(checkoutDto), cancellationToken);
+            CheckoutBasketResult? result = await sender.Send(new CheckoutBasketCommand(checkoutDto), cancellationToken);
 
             // Cache-Control: no-store — the checkout
             // response carries the receipt summary (PII-trimmed) and

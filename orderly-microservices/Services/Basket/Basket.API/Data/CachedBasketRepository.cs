@@ -69,7 +69,7 @@ public class CachedBasketRepository(
 
     public async Task<Models.Basket> GetBasketAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var cacheKey = CacheKey(userId, restaurantId);
+        string? cacheKey = CacheKey(userId, restaurantId);
 
         return await GetOrLoadWithSingleFlightAsync(
             cacheKey,
@@ -80,7 +80,7 @@ public class CachedBasketRepository(
 
     public async Task<Models.Basket> GetActiveCartOrEmptyAsync(Guid userId, Guid restaurantId, CancellationToken cancellationToken = default)
     {
-        var cacheKey = CacheKey(userId, restaurantId);
+        string? cacheKey = CacheKey(userId, restaurantId);
 
         // Cache ALL results, including empty carts. Closes
         // the "empty-cart isn't cached" loop hole: skipping the cache
@@ -143,7 +143,7 @@ public class CachedBasketRepository(
     {
         // Outer fast-path — already-warm cache returns without
         // ever touching the gate.
-        var cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
+        string? cachedBasketInfo = await cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedBasketInfo))
         {
             return JsonSerializer.Deserialize<Models.Basket>(cachedBasketInfo, SerializerOptions)!;
@@ -156,7 +156,7 @@ public class CachedBasketRepository(
         // Re-check inside the gate. The previous holder may have
         // populated the cache before releasing — if so, skip the
         // inner round-trip entirely.
-        var cachedRetry = await cache.GetStringAsync(cacheKey, cancellationToken);
+        string? cachedRetry = await cache.GetStringAsync(cacheKey, cancellationToken);
         if (!string.IsNullOrEmpty(cachedRetry))
         {
             return JsonSerializer.Deserialize<Models.Basket>(cachedRetry, SerializerOptions)!;
@@ -166,11 +166,11 @@ public class CachedBasketRepository(
         // genuine cold-cache case). Run the inner query, then write
         // through to the cache WHILE STILL HOLDING THE GATE so the
         // next holder observes the warmed cache.
-        var basket = await innerLookup(cancellationToken);
+        Models.Basket? basket = await innerLookup(cancellationToken);
 
         if (shouldCache(basket))
         {
-            var options = new DistributedCacheEntryOptions
+            DistributedCacheEntryOptions? options = new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes),
             };
@@ -190,7 +190,7 @@ public class CachedBasketRepository(
 
         var (storedBasket, isCreated) = await innerRepository.StoreBasketAsync(basket, cancellationToken);
 
-        var options = new DistributedCacheEntryOptions
+        DistributedCacheEntryOptions? options = new DistributedCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(CacheTtlMinutes)
         };

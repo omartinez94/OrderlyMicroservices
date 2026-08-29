@@ -19,7 +19,7 @@ public sealed class MartenBasketAuditLog(
         // Open a scope per write — singleton services cannot
         // capture scoped Marten sessions across requests.
         using var scope = services.CreateScope();
-        var store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
+        IDocumentStore? store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
         await using var session = store.LightweightSession();
 
         session.Store(entry);
@@ -53,7 +53,7 @@ public sealed class MartenBasketAuditLog(
         // choice for read-only paths. The Marten store exposes
         // both via the same factory.
         using var scope = services.CreateScope();
-        var store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
+        IDocumentStore? store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
         await using var session = store.QuerySession();
 
         return await session.Query<BasketAuditLogEntry>()

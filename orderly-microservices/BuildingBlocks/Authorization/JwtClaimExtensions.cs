@@ -6,13 +6,13 @@ public static class JwtClaimExtensions
 {
     public static Guid GetUserId(this ClaimsPrincipal principal)
     {
-        var userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(userIdString, out var userId) ? userId : Guid.Empty;
     }
 
     public static Guid GetRestaurantId(this ClaimsPrincipal principal)
     {
-        var restaurantIdString = principal.FindFirstValue("restaurantId");
+        string? restaurantIdString = principal.FindFirstValue("restaurantId");
         return Guid.TryParse(restaurantIdString, out var restaurantId) ? restaurantId : Guid.Empty;
     }
 

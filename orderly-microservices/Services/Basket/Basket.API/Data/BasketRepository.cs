@@ -18,7 +18,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
     /// </summary>
     private Guid AssertTenant(Guid restaurantId)
     {
-        var tenantId = currentRestaurantProvider.RestaurantId;
+        Guid tenantId = currentRestaurantProvider.RestaurantId;
         if (tenantId == Guid.Empty || restaurantId != tenantId)
         {
             throw new ForbiddenException(
@@ -31,7 +31,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
     {
         AssertTenant(restaurantId);
 
-        var basket = await session.Query<Models.Basket>()
+        Models.Basket? basket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -42,7 +42,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
     {
         AssertTenant(restaurantId);
 
-        var basket = await session.Query<Models.Basket>()
+        Models.Basket? basket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -54,7 +54,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
         ArgumentNullException.ThrowIfNull(basket);
         AssertTenant(basket.RestaurantId);
 
-        var existingBasket = await session.Query<Models.Basket>()
+        Models.Basket? existingBasket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == basket.UserId && b.RestaurantId == basket.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -77,7 +77,7 @@ public class BasketRepository(IDocumentSession session, ICurrentRestaurantProvid
     {
         AssertTenant(restaurantId);
 
-        var basket = await session.Query<Models.Basket>()
+        Models.Basket? basket = await session.Query<Models.Basket>()
             .Where(b => b.UserId == userId && b.RestaurantId == restaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 

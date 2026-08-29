@@ -1,4 +1,4 @@
-var builder = DistributedApplication.CreateBuilder(args);
+IDistributedApplicationBuilder? builder = DistributedApplication.CreateBuilder(args);
 
 // Phase 4: minimal AppHost that brings up every Orderly service. Each
 // AddProject call wires a service to the AppHost's lifecycle so the

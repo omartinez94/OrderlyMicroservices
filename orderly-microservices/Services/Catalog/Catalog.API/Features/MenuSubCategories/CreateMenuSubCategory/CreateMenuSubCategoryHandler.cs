@@ -38,7 +38,7 @@ internal class CreateMenuSubCategoryCommandHandler(
             throw new MenuCategoryNotFoundException(command.CategoryId);
         }
 
-        var subCategory = new MenuSubCategory
+        MenuSubCategory? subCategory = new MenuSubCategory
         {
             CategoryId = command.CategoryId,
             Name = command.Name,

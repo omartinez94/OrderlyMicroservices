@@ -11,7 +11,7 @@ public class GetOrdersByCustomerHandler(IApplicationDbContext dbContext)
         // expression must stay on the value-object surface. Sorted
         // lexical on the underlying string matches the in-memory
         // OrderNumber.CompareTo contract (used by the unit-test mock).
-        var orders = await dbContext.Orders
+        List<Order>? orders = await dbContext.Orders
             .Include(o => o.OrderItems)
             .Include(o => o.Activities)
             .AsNoTracking()

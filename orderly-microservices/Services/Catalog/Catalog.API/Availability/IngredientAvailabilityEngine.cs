@@ -90,7 +90,7 @@ public static class IngredientAvailabilityEngine
 
         int? autoSubstituteWinner = null;
 
-        foreach (var link in requiredIngredients)
+        foreach (MenuItemIngredientRow? link in requiredIngredients)
         {
             // Optional unavailable ingredients are ignored entirely.
             if (link.IsOptional)
@@ -116,11 +116,11 @@ public static class IngredientAvailabilityEngine
             }
 
             // Filter to candidates whose target ingredient is available.
-            var availableCandidates = 0;
+            int availableCandidates = 0;
             int? firstAvailableCandidateId = null;
             int? autoSubCandidateId = null;
-            var autoSubCandidateCount = 0;
-            foreach (var candidate in candidates)
+            int autoSubCandidateCount = 0;
+            foreach (AlternativeEdge? candidate in candidates)
             {
                 if (!ingredientAvailability.TryGetValue(candidate.AlternativeIngredientId, out var altIngredient)
                     || !altIngredient.IsAvailable)
@@ -172,8 +172,8 @@ public static class IngredientAvailabilityEngine
 
     private static Dictionary<int, List<AlternativeEdge>> BucketAlternatives(IReadOnlyList<AlternativeEdge> alternatives)
     {
-        var bucket = new Dictionary<int, List<AlternativeEdge>>(capacity: alternatives.Count);
-        foreach (var edge in alternatives)
+        Dictionary<int, List<AlternativeEdge>>? bucket = new Dictionary<int, List<AlternativeEdge>>(capacity: alternatives.Count);
+        foreach (AlternativeEdge? edge in alternatives)
         {
             if (!bucket.TryGetValue(edge.OriginalIngredientId, out var list))
             {

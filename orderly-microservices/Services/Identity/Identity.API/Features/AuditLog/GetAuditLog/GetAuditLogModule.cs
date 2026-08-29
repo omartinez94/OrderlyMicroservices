@@ -4,15 +4,15 @@ public class GetAuditLogModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/audit-log");
+        RouteGroupBuilder? group = app.MapGroup("/v1/audit-log");
 
         group.MapGet("", async (
                 [AsParameters] GetAuditLogRequest request,
                 ISender sender,
                 CancellationToken ct) =>
             {
-                var query = new GetAuditLogQuery(request.Page, request.PageSize, request.UserId, request.EventType);
-                var response = await sender.Send(query, ct);
+                GetAuditLogQuery? query = new GetAuditLogQuery(request.Page, request.PageSize, request.UserId, request.EventType);
+                GetAuditLogResponse? response = await sender.Send(query, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("audit:view").Produces<GetAuditLogResponse>(200);

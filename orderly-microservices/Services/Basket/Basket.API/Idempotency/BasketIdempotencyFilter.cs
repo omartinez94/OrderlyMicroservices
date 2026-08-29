@@ -80,7 +80,7 @@ public sealed class BasketIdempotencyFilter(
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next)
     {
-        var http = context.HttpContext;
+        HttpContext? http = context.HttpContext;
 
         // 1. Header presence + UUID v4 format.
         if (!http.Request.Headers.TryGetValue("Idempotency-Key", out var headerValues)
@@ -94,7 +94,7 @@ public sealed class BasketIdempotencyFilter(
                 type: $"{ProblemBaseUrl}missing-idempotency-key");
         }
 
-        var idempotencyKey = headerValues[0]!;
+        string? idempotencyKey = headerValues[0]!;
         if (!UuidV4Regex.IsMatch(idempotencyKey))
         {
             return Results.Problem(
@@ -107,8 +107,8 @@ public sealed class BasketIdempotencyFilter(
         // 2. Resolve tenant identity from the JWT (NOT the request body —
         //    the §2.10 spoofing footgun). The identity guard runs upstream
         //    of this filter, so the principal is already authenticated.
-        var callerUserId = http.User.GetUserId();
-        var callerRestaurantId = http.User.GetRestaurantId();
+        Guid callerUserId = http.User.GetUserId();
+        Guid callerRestaurantId = http.User.GetRestaurantId();
         if (callerUserId == Guid.Empty || callerRestaurantId == Guid.Empty)
         {
             // Belt-and-braces — should never reach here because the
@@ -124,8 +124,8 @@ public sealed class BasketIdempotencyFilter(
         // 3. Read the request body so we can hash it. The body stream
         //    is forward-only; buffer it into a byte array, then rewind
         //    for the downstream handler to re-read.
-        var requestBodyBytes = await ReadAndRewindBodyAsync(http.Request, context.HttpContext.RequestAborted);
-        var rawBodyHash = ComputeSha256Hex(requestBodyBytes);
+        byte[]? requestBodyBytes = await ReadAndRewindBodyAsync(http.Request, context.HttpContext.RequestAborted);
+        string? rawBodyHash = ComputeSha256Hex(requestBodyBytes);
 
         // Body fingerprint = HMAC-SHA-256(serverSecret, "${userId}|${restaurantId}|${rawSha256}")
         // — matches BASKET_SERVICE_PLAN §6 Phase 2 2.3 "HMAC envelope:
@@ -133,14 +133,14 @@ public sealed class BasketIdempotencyFilter(
         // The HMAC binds the (userId, restaurantId, body) triple to the
         // server-side secret; an attacker with Redis read access but no
         // secret cannot forge a cache entry with a substituted bodyHash.
-        var bodyFingerprint = keyProvider.Compute(
+        string? bodyFingerprint = keyProvider.Compute(
             $"{callerUserId}|{callerRestaurantId}|{rawBodyHash}");
 
         // 4. Compose the Redis key. Tenant-scoped so cross-user replay
         //    cannot collide on the same UUID v4.
-        var redisKey = $"basket:idem:{callerUserId}:{callerRestaurantId}:{idempotencyKey}";
+        string? redisKey = $"basket:idem:{callerUserId}:{callerRestaurantId}:{idempotencyKey}";
 
-        var db = redis.GetDatabase();
+        IDatabase? db = redis.GetDatabase();
 
         // 5. GET — replay or 422.
         RedisValue cachedRaw;
@@ -218,7 +218,7 @@ public sealed class BasketIdempotencyFilter(
         // 6. Miss — run the handler, capture the response, cache it.
         //    Swap HttpContext.Response.Body for a MemoryStream so we
         //    can read what the handler AND the IResult write.
-        var originalBody = http.Response.Body;
+        Stream? originalBody = http.Response.Body;
         await using var capture = new MemoryStream();
         http.Response.Body = capture;
 
@@ -264,16 +264,16 @@ public sealed class BasketIdempotencyFilter(
 
         // Drain the captured body and restore the original stream.
         capture.Position = 0;
-        var responseBytes = capture.ToArray();
+        byte[]? responseBytes = capture.ToArray();
         http.Response.Body = originalBody;
 
         // 7. Cache the response. We only cache successful (200/2xx)
         //    responses — a 422 from the underlying validator is
         //    client-error and shouldn't be replayed.
-        var statusCode = http.Response.StatusCode;
+        int statusCode = http.Response.StatusCode;
         if (statusCode >= 200 && statusCode < 300)
         {
-            var entry = new IdempotencyCacheEntry(
+            IdempotencyCacheEntry? entry = new IdempotencyCacheEntry(
                 StatusCode: statusCode,
                 Body: responseBytes,
                 ContentType: http.Response.ContentType ?? "application/json",
@@ -282,7 +282,7 @@ public sealed class BasketIdempotencyFilter(
 
             try
             {
-                var serialised = JsonSerializer.Serialize(entry, CacheSerializerOptions);
+                string? serialised = JsonSerializer.Serialize(entry, CacheSerializerOptions);
                 await db.StringSetAsync(redisKey, serialised, _ttl);
             }
             catch (RedisException ex)

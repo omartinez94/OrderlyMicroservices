@@ -29,7 +29,7 @@ public abstract class AuditableAggregate<TId> : AuditableEntity<TId>, IAggregate
     /// <inheritdoc/>
     public IDomainEvent[] ClearDomainEvents()
     {
-        var events = _domainEvents.ToArray();
+        IDomainEvent[]? events = _domainEvents.ToArray();
         _domainEvents.Clear();
         return events;
     }

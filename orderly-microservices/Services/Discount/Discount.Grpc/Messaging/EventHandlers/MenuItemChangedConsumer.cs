@@ -25,25 +25,25 @@ public sealed class MenuItemChangedConsumer(
 
     public async Task Consume(ConsumeContext<MenuItemChangedIntegrationEvent> context)
     {
-        var evt = context.Message;
+        MenuItemChangedIntegrationEvent? evt = context.Message;
 
         // Pattern 2: synthetic principal for the tenant scope.
-        var principal = new ClaimsPrincipalBuilder()
+        System.Security.Claims.ClaimsPrincipal? principal = new ClaimsPrincipalBuilder()
             .WithRestaurant(evt.RestaurantId)
             .WithActor(DiscountActors.Service)
             .Build();
 
         await using var scope = scopes.CreateAsyncScope();
-        var sp = scope.ServiceProvider;
-        var provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
-        var db = sp.GetRequiredService<DiscountContext>();
-        var dedupEventId = InboundEventDedup.EventId(evt);
+        IServiceProvider? sp = scope.ServiceProvider;
+        ICurrentRestaurantProvider? provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
+        DiscountContext? db = sp.GetRequiredService<DiscountContext>();
+        Guid dedupEventId = InboundEventDedup.EventId(evt);
 
         using (provider.Attach(principal))
         {
             // Idempotency gate first — a redelivered event must not
             // re-evaluate the rule set.
-            var alreadyProcessed = await InboundEventDedup.TryRecordAsync(
+            bool alreadyProcessed = await InboundEventDedup.TryRecordAsync(
                 db, dedupEventId, ConsumerType, context.CancellationToken);
 
             if (alreadyProcessed)
@@ -55,7 +55,7 @@ public sealed class MenuItemChangedConsumer(
             }
 
             // Find affected rules (any active rule that targets this menu item).
-            var affectedRuleIds = await db.DiscountRules
+            List<int>? affectedRuleIds = await db.DiscountRules
                 .Where(r => r.IsActive && r.DeletedAt == null
                     && r.RestaurantId == evt.RestaurantId
                     && r.RuleType == DiscountRuleKind.RequiredMenuItems
@@ -92,10 +92,10 @@ public sealed class MenuItemChangedConsumer(
             //
             // The `now` value is a NodaTime.Instant. Since the Npgsql NodaTime plugin is configured,
             // it natively maps to timestamp with time zone.
-            var now = SystemClock.Instance.GetCurrentInstant();
-            var actor = DiscountActors.Service;
-            var affectedRuleIdsArray = affectedRuleIds.ToArray();
-            var affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
+            Instant now = SystemClock.Instance.GetCurrentInstant();
+            string? actor = DiscountActors.Service;
+            int[]? affectedRuleIdsArray = affectedRuleIds.ToArray();
+            int affected = await db.Database.ExecuteSqlInterpolatedAsync($@"
                 UPDATE ""Coupons""
                 SET ""IsActive"" = {false},
                     ""LastModifiedBy"" = {actor},

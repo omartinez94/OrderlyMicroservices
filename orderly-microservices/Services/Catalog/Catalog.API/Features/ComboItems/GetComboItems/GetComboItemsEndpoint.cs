@@ -8,12 +8,12 @@ public class GetComboItemsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("ComboItems");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("ComboItems");
 
         group.MapGet("/menu-items/{comboMenuItemId}/combo-items", async (Guid comboMenuItemId, ISender sender) =>
         {
-            var result = await sender.Send(new GetComboItemsQuery(comboMenuItemId));
-            var response = result.Adapt<GetComboItemsResponse>();
+            GetComboItemsResult? result = await sender.Send(new GetComboItemsQuery(comboMenuItemId));
+            GetComboItemsResponse? response = result.Adapt<GetComboItemsResponse>();
 
             return Results.Ok(response);
         })

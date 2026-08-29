@@ -99,7 +99,7 @@ public class CheckoutBasketCommandHandler(
 
     public async Task<CheckoutBasketResult> Handle(CheckoutBasketCommand command, CancellationToken cancellationToken)
     {
-        var basket = await basketRepository.GetBasketAsync(
+        Models.Basket? basket = await basketRepository.GetBasketAsync(
             command.BasketCheckoutDto.UserId,
             command.BasketCheckoutDto.RestaurantId,
             cancellationToken);
@@ -109,7 +109,7 @@ public class CheckoutBasketCommandHandler(
             return new CheckoutBasketResult(false, "Basket is empty.");
         }
 
-        var eventMessage = command.BasketCheckoutDto.Adapt<BasketCheckoutEvent>() with
+        BasketCheckoutEvent? eventMessage = command.BasketCheckoutDto.Adapt<BasketCheckoutEvent>() with
         {
             TotalAmount = basket.Subtotal,
             AppliedDiscounts = basket.AppliedDiscounts,
@@ -146,7 +146,7 @@ public class CheckoutBasketCommandHandler(
         // commit either lands both or lands neither. The dispatcher
         // (CheckoutBasketOutboxDispatcher) is the only thing that calls
         // IPublishEndpoint.Publish from here on.
-        var outboxMessage = new CheckoutBasketOutboxMessage
+        CheckoutBasketOutboxMessage? outboxMessage = new CheckoutBasketOutboxMessage
         {
             Id = Guid.NewGuid(),
             OccurredOn = SystemClock.Instance.GetCurrentInstant(),

@@ -35,18 +35,18 @@ public sealed class OutboxDeadLetterProbe(
         try
         {
             await using var scope = scopeFactory.CreateAsyncScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+            CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
             // Fully-qualified EF Core CountAsync — `System.Linq.Async`'s CountAsync
             // shadows the IQueryable<T> overload with a (predicate, cancellationToken)
             // signature when the package is transitively present, which would otherwise
             // make this call ambiguous.
-            var count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+            int count = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
                 .CountAsync(dbContext.OutboxDeadMessages, cancellationToken)
                 .ConfigureAwait(false);
-            var threshold = options.CurrentValue.OutboxDeadLetterThreshold;
+            int threshold = options.CurrentValue.OutboxDeadLetterThreshold;
 
-            var data = new Dictionary<string, object>
+            Dictionary<string, object>? data = new Dictionary<string, object>
             {
                 ["dead_message_count"] = count,
                 ["threshold"] = threshold,

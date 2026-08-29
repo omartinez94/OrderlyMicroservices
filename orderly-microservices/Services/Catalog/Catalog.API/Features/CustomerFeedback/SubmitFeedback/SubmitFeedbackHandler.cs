@@ -56,7 +56,7 @@ internal class SubmitFeedbackCommandHandler(
             ? GenerateReward(command.RestaurantId)
             : (string.Empty, string.Empty, (decimal?)null, string.Empty);
 
-        var feedback = new Catalog.API.Models.CustomerFeedback
+        Models.CustomerFeedback? feedback = new Catalog.API.Models.CustomerFeedback
         {
             RestaurantId = command.RestaurantId,
             OrderId = command.OrderId,
@@ -109,7 +109,7 @@ internal class SubmitFeedbackCommandHandler(
     {
         Span<byte> bytes = stackalloc byte[9];
         RandomNumberGenerator.Fill(bytes);
-        var rewardCode = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        string? rewardCode = Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
         return (
             RewardType: "percentage",

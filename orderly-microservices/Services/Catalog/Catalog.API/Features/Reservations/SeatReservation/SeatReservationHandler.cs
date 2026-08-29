@@ -8,7 +8,7 @@ internal class SeatReservationCommandHandler(CatalogDbContext dbContext) : IComm
 {
     public async Task<SeatReservationResult> Handle(SeatReservationCommand command, CancellationToken cancellationToken)
     {
-        var reservation = await dbContext.Reservations.FindAsync([command.Id], cancellationToken)
+        Reservation? reservation = await dbContext.Reservations.FindAsync([command.Id], cancellationToken)
             ?? throw new ReservationNotFoundException(command.Id);
 
         reservation.Status = ReservationStatus.Seated;
@@ -18,7 +18,7 @@ internal class SeatReservationCommandHandler(CatalogDbContext dbContext) : IComm
             reservation.TableId = command.TableId.Value;
 
             // Also update the table status
-            var table = await dbContext.Tables.FindAsync([command.TableId.Value], cancellationToken);
+            Table? table = await dbContext.Tables.FindAsync([command.TableId.Value], cancellationToken);
             if (table is not null)
             {
                 table.Status = TableStatus.Occupied;

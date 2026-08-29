@@ -10,13 +10,13 @@ public class UpdateOrder : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Orders");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
         group.MapPut("/orders", async (UpdateOrderRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateOrderCommand>();
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateOrderResponse>();
+            UpdateOrderCommand? command = request.Adapt<UpdateOrderCommand>();
+            UpdateOrderResult? result = await sender.Send(command);
+            UpdateOrderResponse? response = result.Adapt<UpdateOrderResponse>();
 
             return Results.Ok(response);
         })

@@ -25,14 +25,14 @@ public class GetBulkOrderUploadEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("BulkOrderUploads");
 
         group.MapGet("/restaurants/{restaurantId}/bulk-order-uploads/{id:int}", async (
             Guid restaurantId,
             int id,
             ISender sender) =>
         {
-            var result = await sender.Send(new GetBulkOrderUploadQuery(restaurantId, id));
+            GetBulkOrderUploadResult? result = await sender.Send(new GetBulkOrderUploadQuery(restaurantId, id));
             return Results.Ok(result.Upload);
         })
         .WithDescription("Gets a single bulk order upload by ID.")
@@ -47,7 +47,7 @@ internal class GetBulkOrderUploadQueryHandler(CatalogDbContext dbContext)
 {
     public async Task<GetBulkOrderUploadResult> Handle(GetBulkOrderUploadQuery query, CancellationToken cancellationToken)
     {
-        var upload = await dbContext.BulkOrderUploads
+        BulkOrderUpload? upload = await dbContext.BulkOrderUploads
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id && x.RestaurantId == query.RestaurantId, cancellationToken)
             ?? throw new BulkOrderUploadNotFoundException(query.Id);

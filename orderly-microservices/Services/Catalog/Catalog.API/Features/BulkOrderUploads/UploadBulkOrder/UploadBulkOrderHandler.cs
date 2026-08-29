@@ -56,17 +56,17 @@ internal class UploadBulkOrderCommandHandler(
 {
     public async Task<UploadBulkOrderResult> Handle(UploadBulkOrderCommand command, CancellationToken cancellationToken)
     {
-        var menuItemIds = command.Rows.Select(r => r.MenuItemId).Distinct().ToList();
-        var tableIds = command.Rows.Where(r => r.TableId.HasValue).Select(r => r.TableId!.Value).Distinct().ToList();
+        List<Guid>? menuItemIds = command.Rows.Select(r => r.MenuItemId).Distinct().ToList();
+        List<Guid>? tableIds = command.Rows.Where(r => r.TableId.HasValue).Select(r => r.TableId!.Value).Distinct().ToList();
 
         // Batch lookup — one round trip per referenced table.
-        var validMenuItemIds = await dbContext.MenuItems
+        List<Guid>? validMenuItemIds = await dbContext.MenuItems
             .Where(m => menuItemIds.Contains(m.Id) && !m.IsDeleted)
             .Select(m => m.Id)
             .ToListAsync(cancellationToken);
-        var validMenuItemIdSet = validMenuItemIds.ToHashSet();
+        HashSet<Guid>? validMenuItemIdSet = validMenuItemIds.ToHashSet();
 
-        var unavailableTableIds = tableIds.Count == 0
+        HashSet<Guid>? unavailableTableIds = tableIds.Count == 0
             ? new HashSet<Guid>()
             : (await dbContext.Tables
                 .Where(t => tableIds.Contains(t.Id) && t.RestaurantId == command.RestaurantId && t.Status != TableStatus.Available)
@@ -74,11 +74,11 @@ internal class UploadBulkOrderCommandHandler(
                 .ToListAsync(cancellationToken))
                 .ToHashSet();
 
-        var errors = new List<string>();
-        var successfulRows = 0;
+        List<string>? errors = new List<string>();
+        int successfulRows = 0;
         for (var i = 0; i < command.Rows.Count; i++)
         {
-            var row = command.Rows[i];
+            UploadBulkOrderRow? row = command.Rows[i];
             if (!validMenuItemIdSet.Contains(row.MenuItemId))
             {
                 errors.Add($"Row {i + 1}: MenuItem {row.MenuItemId} not found or deleted");
@@ -92,7 +92,7 @@ internal class UploadBulkOrderCommandHandler(
             successfulRows++;
         }
 
-        var upload = new BulkOrderUpload
+        BulkOrderUpload? upload = new BulkOrderUpload
         {
             RestaurantId = command.RestaurantId,
             FileName = command.FileName,

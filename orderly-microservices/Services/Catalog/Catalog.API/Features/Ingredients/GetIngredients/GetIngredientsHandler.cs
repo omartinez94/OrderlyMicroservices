@@ -10,7 +10,7 @@ internal class GetIngredientsQueryHandler(CatalogDbContext dbContext) : IQueryHa
 {
     public async Task<GetIngredientsResult> Handle(GetIngredientsQuery query, CancellationToken cancellationToken)
     {
-        var ingredientsQuery = dbContext.Ingredients
+        IQueryable<Ingredient>? ingredientsQuery = dbContext.Ingredients
             .AsNoTracking()
             .Where(i => i.RestaurantId == query.RestaurantId);
 
@@ -19,7 +19,7 @@ internal class GetIngredientsQueryHandler(CatalogDbContext dbContext) : IQueryHa
             ingredientsQuery = ingredientsQuery.Where(i => i.IsAvailable == query.IsAvailable.Value);
         }
 
-        var ingredients = await ingredientsQuery.ToListAsync(cancellationToken);
+        List<Ingredient>? ingredients = await ingredientsQuery.ToListAsync(cancellationToken);
 
         return new GetIngredientsResult(ingredients);
     }

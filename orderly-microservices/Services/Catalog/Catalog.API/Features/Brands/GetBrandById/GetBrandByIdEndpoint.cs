@@ -6,13 +6,13 @@ public class GetBrandByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Brands");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapGet("/brands/{id}", async (Guid id, ISender sender) =>
         {
-            var query = new GetBrandByIdQuery(id);
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetBrandByIdResponse>();
+            GetBrandByIdQuery? query = new GetBrandByIdQuery(id);
+            GetBrandByIdResult? result = await sender.Send(query);
+            GetBrandByIdResponse? response = result.Adapt<GetBrandByIdResponse>();
 
             return Results.Ok(response);
         })

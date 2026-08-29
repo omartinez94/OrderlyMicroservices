@@ -28,7 +28,7 @@ internal static class InboundEventDedup
         string consumerType,
         CancellationToken cancellationToken = default)
     {
-        var entry = await db.ProcessedInboundevents.AddAsync(
+        Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<ProcessedInboundevent>? entry = await db.ProcessedInboundevents.AddAsync(
             new ProcessedInboundevent
             {
                 EventId = eventId,

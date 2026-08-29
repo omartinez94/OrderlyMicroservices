@@ -13,13 +13,13 @@ public class GetRoleQueryHandler(
 {
     public async Task<GetRoleResponse> Handle(GetRoleQuery query, CancellationToken cancellationToken)
     {
-        var role = await dbContext.Roles.FindAsync([query.RoleId], cancellationToken);
+        ApplicationRole? role = await dbContext.Roles.FindAsync([query.RoleId], cancellationToken);
         if (role is null)
         {
             throw new NotFoundException("Role", query.RoleId);
         }
 
-        var permissions = await dbContext.RolePermissions
+        List<PermissionDto>? permissions = await dbContext.RolePermissions
             .Where(rp => rp.RoleId == query.RoleId)
             .Join(dbContext.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => new PermissionDto(
                 p.Id,

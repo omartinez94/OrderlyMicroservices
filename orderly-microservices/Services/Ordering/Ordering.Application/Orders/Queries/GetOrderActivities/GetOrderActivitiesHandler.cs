@@ -30,7 +30,7 @@ public class GetOrderActivitiesHandler(IApplicationDbContext dbContext)
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var order = await dbContext.Orders
+        Order? order = await dbContext.Orders
             .Include(o => o.Activities)
             .AsNoTracking()
             .SingleOrDefaultAsync(o => o.Id == OrderId.Of(query.OrderId), cancellationToken)
@@ -42,19 +42,19 @@ public class GetOrderActivitiesHandler(IApplicationDbContext dbContext)
         // AFTER the filter; totalCount is captured BEFORE Skip/Take so the
         // PaginatedResult.TotalCount reflects all matching rows, not just
         // the page slice.
-        var filtered = order.Activities.AsEnumerable()
+        IOrderedEnumerable<OrderActivity>? filtered = order.Activities.AsEnumerable()
             .Where(a => query.Type is null || a.ActivityType == query.Type)
             .Where(a => query.From is null || a.OccurredAt >= query.From.Value)
             .Where(a => query.To is null || a.OccurredAt <= query.To.Value)
             .OrderBy(a => a.OccurredAt)
             .ThenBy(a => a.Id.Value);
 
-        var totalCount = filtered.Count();
+        int totalCount = filtered.Count();
 
-        var pageIndex = query.Pagination.PageIndex;
-        var pageSize = query.Pagination.PageSize;
+        int pageIndex = query.Pagination.PageIndex;
+        int pageSize = query.Pagination.PageSize;
 
-        var data = filtered
+        List<OrderActivityDto>? data = filtered
             .Skip(pageIndex * pageSize)
             .Take(pageSize)
             .Select(a => new OrderActivityDto(

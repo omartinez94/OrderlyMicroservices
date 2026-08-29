@@ -13,8 +13,8 @@ public class KitchenOrderReadyIntegrationEventHandler(
 {
     public async Task Consume(ConsumeContext<KitchenOrderReadyIntegrationEvent> context)
     {
-        var message = context.Message;
-        var correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        KitchenOrderReadyIntegrationEvent? message = context.Message;
+        string? correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
         CorrelationContext.Set(correlationId);
 
         try
@@ -25,7 +25,7 @@ public class KitchenOrderReadyIntegrationEventHandler(
                 message.OrderId,
                 correlationId);
 
-            var order = await dbContext.Orders.FindAsync(
+            Order? order = await dbContext.Orders.FindAsync(
                 [OrderId.Of(message.OrderId)], context.CancellationToken);
 
             if (order is null)

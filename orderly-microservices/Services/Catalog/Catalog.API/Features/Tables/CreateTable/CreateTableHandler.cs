@@ -34,7 +34,7 @@ internal class CreateTableCommandHandler(CatalogDbContext dbContext) : ICommandH
 {
     public async Task<CreateTableResult> Handle(CreateTableCommand command, CancellationToken cancellationToken)
     {
-        var table = new Table
+        Table? table = new Table
         {
             Id = Guid.NewGuid(),
             RestaurantId = command.RestaurantId,

@@ -38,12 +38,12 @@ public class DiscountRuleService(
             "CreateDiscountRule called for RestaurantId: {RestaurantId}, CouponId: {CouponId}",
             request.Rule.RestaurantId, request.Rule.CouponId);
 
-        var rule = ToEntity(request.Rule);
+        DiscountRule? rule = ToEntity(request.Rule);
 
         // UK check (RestaurantId, CouponId) — surfaces as
         // FailedPrecondition with rule-already-exists metadata
         // when a duplicate slips past the DB constraint.
-        var existing = await dbContext.DiscountRules
+        DiscountRule? existing = await dbContext.DiscountRules
             .FirstOrDefaultAsync(r => r.RestaurantId == rule.RestaurantId && r.CouponId == rule.CouponId);
 
         if (existing is not null)
@@ -84,7 +84,7 @@ public class DiscountRuleService(
             return new GetDiscountRuleResponse(); // empty
         }
 
-        var rule = await dbContext.DiscountRules
+        DiscountRule? rule = await dbContext.DiscountRules
             .AsNoTracking()
             .FirstOrDefaultAsync(r =>
                 r.Id == request.RuleId &&
@@ -101,8 +101,8 @@ public class DiscountRuleService(
         ListDiscountRulesRequest request,
         ServerCallContext context)
     {
-        var page = request.Page <= 0 ? 1 : request.Page;
-        var pageSize = request.PageSize switch
+        int page = request.Page <= 0 ? 1 : request.Page;
+        int pageSize = request.PageSize switch
         {
             <= 0 => DefaultPageSize,
             > MaxPageSize => MaxPageSize,
@@ -110,17 +110,17 @@ public class DiscountRuleService(
         };
 
         // Global tenant filter scopes to active rules for the calling tenant.
-        var baseQuery = dbContext.DiscountRules.AsNoTracking()
+        IQueryable<DiscountRule>? baseQuery = dbContext.DiscountRules.AsNoTracking()
             .Where(r => r.DeletedAt == null);
-        var totalCount = await baseQuery.CountAsync();
+        int totalCount = await baseQuery.CountAsync();
 
-        var rows = await baseQuery
+        List<DiscountRule>? rows = await baseQuery
             .OrderBy(r => r.CouponId)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        var response = new ListDiscountRulesResponse { TotalCount = totalCount };
+        ListDiscountRulesResponse? response = new ListDiscountRulesResponse { TotalCount = totalCount };
         response.Rules.AddRange(rows.Select(ToProtoModel));
         return response;
     }
@@ -130,7 +130,7 @@ public class DiscountRuleService(
         UpdateDiscountRuleRequest request,
         ServerCallContext context)
     {
-        var rule = await dbContext.DiscountRules
+        DiscountRule? rule = await dbContext.DiscountRules
             .FirstOrDefaultAsync(r => r.Id == request.Rule.Id);
 
         if (rule is null)
@@ -140,7 +140,7 @@ public class DiscountRuleService(
 
         // Capture OldValues before mutation so the history publish
         // (Phase 4) can serialize the pre-image.
-        var oldValues = SerializeNewValues(rule);
+        string? oldValues = SerializeNewValues(rule);
 
         rule.RuleType = (DiscountRuleKind)request.Rule.RuleType;
         rule.RuleDataJson = request.Rule.RuleDataJson;
@@ -173,7 +173,7 @@ public class DiscountRuleService(
             return new DeleteDiscountRuleResponse { Success = false };
         }
 
-        var rule = await dbContext.DiscountRules
+        DiscountRule? rule = await dbContext.DiscountRules
             .FirstOrDefaultAsync(r => r.Id == request.RuleId && r.RestaurantId == rid);
 
         if (rule is null)
@@ -182,9 +182,9 @@ public class DiscountRuleService(
         }
 
         // Soft-delete (mirrors Coupon's soft-delete).
-        var oldValues = SerializeNewValues(rule);
+        string? oldValues = SerializeNewValues(rule);
 
-        var now = NodaTime.SystemClock.Instance.GetCurrentInstant();
+        NodaTime.Instant now = NodaTime.SystemClock.Instance.GetCurrentInstant();
         rule.DeletedAt = now;
         rule.DeletedBy = DiscountActors.Service;
 
@@ -211,18 +211,18 @@ public class DiscountRuleService(
             return new EvaluateDiscountRulesResponse();
         }
 
-        var rules = await dbContext.DiscountRules
+        List<DiscountRule>? rules = await dbContext.DiscountRules
             .AsNoTracking()
             .Where(r => r.RestaurantId == rid && r.IsActive && r.DeletedAt == null)
             .ToListAsync();
 
-        var menuItemIds = new List<string>(request.MenuItemIds)
+        HashSet<Guid>? menuItemIds = new List<string>(request.MenuItemIds)
             .Select(s => Guid.TryParse(s, out var g) ? g : Guid.Empty)
             .Where(g => g != Guid.Empty)
             .ToHashSet();
 
-        var response = new EvaluateDiscountRulesResponse();
-        foreach (var rule in rules)
+        EvaluateDiscountRulesResponse? response = new EvaluateDiscountRulesResponse();
+        foreach (DiscountRule? rule in rules)
         {
             if (Matches(rule, request.OrderTotal, menuItemIds))
             {
@@ -248,7 +248,7 @@ public class DiscountRuleService(
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(rule.RuleDataJson);
-            var root = doc.RootElement;
+            System.Text.Json.JsonElement root = doc.RootElement;
 
             return rule.RuleType switch
             {
@@ -287,7 +287,7 @@ public class DiscountRuleService(
         System.Text.Json.JsonElement arrayElement,
         HashSet<Guid> haystack)
     {
-        foreach (var item in arrayElement.EnumerateArray())
+        foreach (System.Text.Json.JsonElement item in arrayElement.EnumerateArray())
         {
             if (item.ValueKind == System.Text.Json.JsonValueKind.String &&
                 Guid.TryParse(item.GetString(), out var g) &&
@@ -303,7 +303,7 @@ public class DiscountRuleService(
 
     private static DiscountRule ToEntity(DiscountRuleModel model)
     {
-        var rule = new DiscountRule
+        DiscountRule? rule = new DiscountRule
         {
             RestaurantId = Guid.Parse(model.RestaurantId),
             CouponId = model.CouponId,
@@ -323,7 +323,7 @@ public class DiscountRuleService(
 
     private static DiscountRuleModel ToProtoModel(DiscountRule rule)
     {
-        var model = new DiscountRuleModel
+        DiscountRuleModel? model = new DiscountRuleModel
         {
             Id = rule.Id,
             RestaurantId = rule.RestaurantId.ToString(),
@@ -342,7 +342,7 @@ public class DiscountRuleService(
     /// <c>JsonObject</c> on insert via <c>JsonNode.Parse</c>.</summary>
     private static string SerializeNewValues(DiscountRule rule)
     {
-        var model = ToProtoModel(rule);
+        DiscountRuleModel? model = ToProtoModel(rule);
         return System.Text.Json.JsonSerializer.Serialize(model);
     }
 }

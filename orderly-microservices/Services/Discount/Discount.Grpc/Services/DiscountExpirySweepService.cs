@@ -91,14 +91,14 @@ public sealed class DiscountExpirySweepService(
         // tenants; Coupon.RestaurantId / RewardCode.RestaurantId scoping is not
         // relevant for soft-delete.
         using var scope = services.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+        DiscountContext? dbContext = scope.ServiceProvider.GetRequiredService<DiscountContext>();
 
-        var now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
+        Instant now = Instant.FromDateTimeUtc(clock.GetUtcNow().UtcDateTime);
 
         // Coupon sweep — unchanged from Phase 1. Keeps the audit trail
         // (DeletedAt column) and lets admin tooling re-activate by clearing
         // DeletedAt if needed.
-        var couponCandidates = await dbContext.Coupons
+        List<Models.Coupon>? couponCandidates = await dbContext.Coupons
             .IgnoreQueryFilters()
             .Where(c => c.DeletedAt == null && c.ExpirationDate != null && c.ExpirationDate <= now)
             .ToListAsync(cancellationToken)
@@ -106,7 +106,7 @@ public sealed class DiscountExpirySweepService(
 
         // RewardCode sweep — mirrors the Coupon path. Phase 3 adds this
         // aggregate; Phase 1's sweep needed an update.
-        var rewardCodeCandidates = await dbContext.RewardCodes
+        List<Models.RewardCode>? rewardCodeCandidates = await dbContext.RewardCodes
             .IgnoreQueryFilters()
             .Where(r => r.DeletedAt == null && r.ExpirationDate != null && r.ExpirationDate <= now)
             .ToListAsync(cancellationToken)
@@ -118,12 +118,12 @@ public sealed class DiscountExpirySweepService(
         }
 
         const string actor = DiscountActors.Sweep;
-        foreach (var coupon in couponCandidates)
+        foreach (Models.Coupon? coupon in couponCandidates)
         {
             coupon.DeletedAt = now;
             coupon.DeletedBy = actor;
         }
-        foreach (var rewardCode in rewardCodeCandidates)
+        foreach (Models.RewardCode? rewardCode in rewardCodeCandidates)
         {
             rewardCode.DeletedAt = now;
             rewardCode.DeletedBy = actor;

@@ -12,14 +12,14 @@ public class CreateMenuSubCategoryEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuSubCategories");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuSubCategories");
 
         group.MapPost("/menu-categories/{categoryId}/sub-categories", async (int categoryId, CreateMenuSubCategoryRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateMenuSubCategoryCommand>() with { CategoryId = categoryId };
+            CreateMenuSubCategoryCommand? command = request.Adapt<CreateMenuSubCategoryCommand>() with { CategoryId = categoryId };
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateMenuSubCategoryResponse>();
+            CreateMenuSubCategoryResult? result = await sender.Send(command);
+            CreateMenuSubCategoryResponse? response = result.Adapt<CreateMenuSubCategoryResponse>();
 
             return Results.Created($"/v1/menu-sub-categories/{response.Id}", response);
         })

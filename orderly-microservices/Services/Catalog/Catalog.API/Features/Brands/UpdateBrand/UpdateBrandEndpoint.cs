@@ -15,13 +15,13 @@ public class UpdateBrandEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Brands");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapPut("/brands/{id}", async (Guid id, UpdateBrandRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateBrandCommand>() with { Id = id };
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateBrandResponse>();
+            UpdateBrandCommand? command = request.Adapt<UpdateBrandCommand>() with { Id = id };
+            UpdateBrandResult? result = await sender.Send(command);
+            UpdateBrandResponse? response = result.Adapt<UpdateBrandResponse>();
 
             return Results.Ok(response);
         })

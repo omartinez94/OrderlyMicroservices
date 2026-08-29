@@ -19,7 +19,7 @@ public class ClaimsTransformer(IdentityDbContext dbContext)
             return [];
         }
 
-        var claims = new List<Claim>
+        List<Claim>? claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             // OpenIddict requires the `sub` claim by that exact type for

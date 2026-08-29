@@ -24,7 +24,7 @@ public class DiscountService(
     {
         logger.LogInformation("GetDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
 
-        var coupon = await dbContext.Coupons
+        Coupon? coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
         if (coupon is null)
@@ -60,7 +60,7 @@ public class DiscountService(
             };
         }
 
-        var coupon = ToEntity(request.Coupon);
+        Coupon? coupon = ToEntity(request.Coupon);
 
         dbContext.Coupons.Add(coupon);
         await dbContext.SaveChangesAsync();
@@ -89,7 +89,7 @@ public class DiscountService(
     {
         logger.LogInformation("UpdateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
 
-        var coupon = await dbContext.Coupons.FindAsync(request.Coupon.Id);
+        Coupon? coupon = await dbContext.Coupons.FindAsync(request.Coupon.Id);
         if (coupon is null)
         {
             return new UpdateDiscountResponse
@@ -101,7 +101,7 @@ public class DiscountService(
 
         // Capture OldValues before mutation so the history publish
         // (Phase 4) can serialize the pre-image.
-        var oldValues = SerializeNewValues(coupon);
+        string? oldValues = SerializeNewValues(coupon);
 
         coupon.RestaurantId = Guid.Parse(request.Coupon.RestaurantId);
         coupon.Code = request.Coupon.Code;
@@ -141,7 +141,7 @@ public class DiscountService(
     {
         logger.LogInformation("DeleteDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
 
-        var coupon = await dbContext.Coupons
+        Coupon? coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
         if (coupon is null)
@@ -153,7 +153,7 @@ public class DiscountService(
         // (Phase 4) can serialize the pre-image. Hard-delete is the
         // Coupon path; DiscountRule + RewardCode soft-delete via
         // DeletedAt and serialize the post-image with DeletedAt set.
-        var oldValues = SerializeNewValues(coupon);
+        string? oldValues = SerializeNewValues(coupon);
 
         dbContext.Coupons.Remove(coupon);
         await dbContext.SaveChangesAsync();
@@ -182,7 +182,7 @@ public class DiscountService(
         // (tenant + DeletedAt == null) keeps us inside the caller's tenant and
         // excludes soft-deleted rows. A second pass won't be needed — the
         // conditional UPDATE below is the atomic gate.
-        var coupon = await dbContext.Coupons
+        Coupon? coupon = await dbContext.Coupons
             .FirstOrDefaultAsync(c => c.RestaurantId == Guid.Parse(request.RestaurantId) && c.Code == request.Code);
 
         if (coupon is null)
@@ -211,10 +211,10 @@ public class DiscountService(
         // is re-fetched below — raw ExecuteSqlInterpolatedAsync bypasses
         // the EF tracker, so the in-memory `coupon` doesn't reflect the
         // RedeemAmount increment.
-        var oldValues = SerializeNewValues(coupon);
+        string? oldValues = SerializeNewValues(coupon);
 
-        var now = SystemClock.Instance.GetCurrentInstant();
-        var rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        int rowsAffected = await dbContext.Database.ExecuteSqlInterpolatedAsync($@"
             UPDATE ""Coupons""
             SET ""RedeemAmount""    = ""RedeemAmount"" + 1,
                 ""LastModifiedAt""  = {now},
@@ -236,7 +236,7 @@ public class DiscountService(
         }
 
         // Re-fetch for the post-redemption NewValues payload.
-        var updated = await dbContext.Coupons
+        Coupon? updated = await dbContext.Coupons
             .AsNoTracking()
             .FirstAsync(c => c.Id == coupon.Id);
 
@@ -258,7 +258,7 @@ public class DiscountService(
         // `Guid.Empty`. The auto-apply stub (`OrderCreatedConsumer) populates OrderId from the inbound `OrderCreatedIntegrationEvent.Id`.
         if (options.Value.EnableDiscountAppliedPublishing)
         {
-            var orderId = string.IsNullOrEmpty(request.OrderId)
+            Guid orderId = string.IsNullOrEmpty(request.OrderId)
                 ? Guid.Empty
                 : Guid.Parse(request.OrderId);
 
@@ -296,8 +296,8 @@ public class DiscountService(
             "ListDiscounts called for RestaurantId: {RestaurantId}, page: {Page}, pageSize: {PageSize}.",
             request.RestaurantId, request.Page, request.PageSize);
 
-        var page = request.Page <= 0 ? 1 : request.Page;
-        var pageSize = request.PageSize switch
+        int page = request.Page <= 0 ? 1 : request.Page;
+        int pageSize = request.PageSize switch
         {
             <= 0 => 50,                                       // default
             > 200 => 200,                                     // plan §0.4.1 cap
@@ -308,16 +308,16 @@ public class DiscountService(
         // tenant scoping without an explicit WHERE here. Total count
         // reflects the same filter so the paged total matches what the
         // caller can navigate to.
-        var baseQuery = dbContext.Coupons.AsNoTracking();
-        var totalCount = await baseQuery.CountAsync();
+        IQueryable<Coupon>? baseQuery = dbContext.Coupons.AsNoTracking();
+        int totalCount = await baseQuery.CountAsync();
 
-        var pageRows = await baseQuery
+        List<Coupon>? pageRows = await baseQuery
             .OrderBy(c => c.Code)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        var response = new ListDiscountsResponse
+        ListDiscountsResponse? response = new ListDiscountsResponse
         {
             TotalCount = totalCount,
         };
@@ -376,7 +376,7 @@ public class DiscountService(
     /// <c>JsonObject</c> on insert via <c>JsonNode.Parse</c>.</summary>
     private static string SerializeNewValues(Coupon coupon)
     {
-        var model = ToProtoModel(coupon);
+        CouponModel? model = ToProtoModel(coupon);
         return System.Text.Json.JsonSerializer.Serialize(model);
     }
 }

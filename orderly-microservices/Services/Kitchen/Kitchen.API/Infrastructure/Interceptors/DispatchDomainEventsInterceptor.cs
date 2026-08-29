@@ -35,19 +35,19 @@ public class DispatchDomainEventsInterceptor(IMediator mediator) : SaveChangesIn
             return;
         }
 
-        var aggregates = context.ChangeTracker
+        List<IAggregate>? aggregates = context.ChangeTracker
             .Entries<IAggregate>()
             .Where(e => e.Entity.DomainEvents.Any())
             .Select(e => e.Entity)
             .ToList();
 
-        var domainEvents = aggregates
+        List<IDomainEvent>? domainEvents = aggregates
             .SelectMany(a => a.DomainEvents)
             .ToList();
 
         aggregates.ForEach(a => a.ClearDomainEvents());
 
-        foreach (var domainEvent in domainEvents)
+        foreach (IDomainEvent? domainEvent in domainEvents)
         {
             await mediator.Publish(domainEvent, cancellationToken);
         }

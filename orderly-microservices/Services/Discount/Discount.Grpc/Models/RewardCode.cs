@@ -128,8 +128,8 @@ public class RewardCode : AuditableEntity<int>, ITenantEntity
         // required: the day-prefix makes codes match in admin UIs, the
         // event-id makes them collide on the same UK row across day
         // boundaries.
-        var day = clock.GetUtcNow().ToString("yyyyMMdd");
-        var raw = $"RWD-{rid:N}-{tag}-{day}-{feedbackEventId:N}";
+        string? day = clock.GetUtcNow().ToString("yyyyMMdd");
+        string? raw = $"RWD-{rid:N}-{tag}-{day}-{feedbackEventId:N}";
         // Validator caps Code at 120 chars; substring clamp is a
         // defense-in-depth guard so a future prefix-widening change
         // can't accidentally violate the schema.

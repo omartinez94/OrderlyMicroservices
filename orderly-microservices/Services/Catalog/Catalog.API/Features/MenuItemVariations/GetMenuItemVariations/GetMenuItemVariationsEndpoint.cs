@@ -15,12 +15,12 @@ public class GetMenuItemVariationsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemVariations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemVariations");
 
         group.MapGet("/menu-items/{menuItemId:guid}/variations", async (Guid menuItemId, ISender sender) =>
         {
-            var result = await sender.Send(new GetMenuItemVariationsQuery(menuItemId));
-            var response = result.Adapt<GetMenuItemVariationsResponse>();
+            GetMenuItemVariationsResult? result = await sender.Send(new GetMenuItemVariationsQuery(menuItemId));
+            GetMenuItemVariationsResponse? response = result.Adapt<GetMenuItemVariationsResponse>();
 
             return Results.Ok(response);
         })

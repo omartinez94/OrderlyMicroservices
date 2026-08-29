@@ -13,13 +13,13 @@ public class GetReservationsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Reservations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapGet("/restaurants/{restaurantId}/reservations", async ([AsParameters] GetReservationsRequest request, ISender sender) =>
         {
-            var query = request.Adapt<GetReservationsQuery>();
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetReservationsResponse>();
+            GetReservationsQuery? query = request.Adapt<GetReservationsQuery>();
+            GetReservationsResult? result = await sender.Send(query);
+            GetReservationsResponse? response = result.Adapt<GetReservationsResponse>();
 
             return Results.Ok(response);
         })

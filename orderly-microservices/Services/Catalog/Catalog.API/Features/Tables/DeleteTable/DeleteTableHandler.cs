@@ -8,7 +8,7 @@ internal class DeleteTableCommandHandler(CatalogDbContext dbContext) : ICommandH
 {
     public async Task<DeleteTableResult> Handle(DeleteTableCommand command, CancellationToken cancellationToken)
     {
-        var table = await dbContext.Tables.FindAsync([command.Id], cancellationToken)
+        Table? table = await dbContext.Tables.FindAsync([command.Id], cancellationToken)
             ?? throw new TableNotFoundException(command.Id);
 
         dbContext.Tables.Remove(table);

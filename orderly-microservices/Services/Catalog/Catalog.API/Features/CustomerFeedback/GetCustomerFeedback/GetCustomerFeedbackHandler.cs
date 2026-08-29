@@ -61,7 +61,7 @@ internal class GetCustomerFeedbackQueryHandler(CatalogDbContext dbContext)
         GetCustomerFeedbackQuery query,
         CancellationToken cancellationToken)
     {
-        var dbQuery = dbContext.CustomerFeedbacks
+        IQueryable<Models.CustomerFeedback>? dbQuery = dbContext.CustomerFeedbacks
             .AsNoTracking()
             .Where(x => x.RestaurantId == query.RestaurantId);
 
@@ -82,13 +82,13 @@ internal class GetCustomerFeedbackQueryHandler(CatalogDbContext dbContext)
 
         if (query.From.HasValue)
         {
-            var fromInstant = query.From.Value.AtStartOfDayInZone(DateTimeZone.Utc).ToInstant();
+            Instant fromInstant = query.From.Value.AtStartOfDayInZone(DateTimeZone.Utc).ToInstant();
             dbQuery = dbQuery.Where(x => x.SubmittedAt >= fromInstant);
         }
 
         if (query.To.HasValue)
         {
-            var toInstant = query.To.Value.PlusDays(1).AtStartOfDayInZone(DateTimeZone.Utc).ToInstant();
+            Instant toInstant = query.To.Value.PlusDays(1).AtStartOfDayInZone(DateTimeZone.Utc).ToInstant();
             dbQuery = dbQuery.Where(x => x.SubmittedAt < toInstant);
         }
 
@@ -97,15 +97,15 @@ internal class GetCustomerFeedbackQueryHandler(CatalogDbContext dbContext)
             dbQuery = dbQuery.Where(x => x.RewardRedeemed == query.RewardRedeemed.Value);
         }
 
-        var totalCount = await dbQuery.CountAsync(cancellationToken);
+        int totalCount = await dbQuery.CountAsync(cancellationToken);
 
-        var items = await dbQuery
+        List<Models.CustomerFeedback>? items = await dbQuery
             .OrderByDescending(x => x.SubmittedAt)
             .Skip(query.PageIndex * query.PageSize)
             .Take(query.PageSize)
             .ToListAsync(cancellationToken);
 
-        var dtos = items.Adapt<IEnumerable<CustomerFeedbackDto>>();
+        IEnumerable<CustomerFeedbackDto>? dtos = items.Adapt<IEnumerable<CustomerFeedbackDto>>();
 
         return new GetCustomerFeedbackResult(dtos, totalCount, query.PageIndex, query.PageSize);
     }

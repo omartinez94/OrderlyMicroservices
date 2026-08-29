@@ -8,13 +8,13 @@ public class CancelReservationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Reservations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Reservations");
 
         group.MapPut("/restaurants/{restaurantId}/reservations/{id}/cancel", async (Guid id, CancelReservationRequest request, ISender sender) =>
         {
-            var command = new CancelReservationCommand(id, request.Reason);
-            var result = await sender.Send(command);
-            var response = result.Adapt<CancelReservationResponse>();
+            CancelReservationCommand? command = new CancelReservationCommand(id, request.Reason);
+            CancelReservationResult? result = await sender.Send(command);
+            CancelReservationResponse? response = result.Adapt<CancelReservationResponse>();
 
             return Results.Ok(response);
         })

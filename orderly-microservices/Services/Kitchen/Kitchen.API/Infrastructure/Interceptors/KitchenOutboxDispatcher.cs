@@ -28,7 +28,7 @@ public class KitchenOutboxDispatcher(
 {
     protected override KitchenDbContext CreateContext(IServiceProvider services)
     {
-        var optionsAccessor = services.GetRequiredService<
+        DbContextOptions<KitchenDbContext>? optionsAccessor = services.GetRequiredService<
             Microsoft.EntityFrameworkCore.DbContextOptions<KitchenDbContext>>();
         return new KitchenDbContext(optionsAccessor);
     }

@@ -19,7 +19,7 @@ internal class GetMenuItemByIdQueryHandler(CatalogDbContext dbContext) : IQueryH
 {
     public async Task<GetMenuItemByIdResult> Handle(GetMenuItemByIdQuery query, CancellationToken cancellationToken)
     {
-        var menuItem = await dbContext.MenuItems
+        MenuItem? menuItem = await dbContext.MenuItems
             .AsNoTracking()
             .FirstOrDefaultAsync(m => m.Id == query.Id, cancellationToken);
 
@@ -28,7 +28,7 @@ internal class GetMenuItemByIdQueryHandler(CatalogDbContext dbContext) : IQueryH
             throw new NotFoundException(nameof(MenuItem), query.Id);
         }
 
-        var dto = menuItem.Adapt<MenuItemDto>();
+        MenuItemDto? dto = menuItem.Adapt<MenuItemDto>();
         return new GetMenuItemByIdResult(dto);
     }
 }

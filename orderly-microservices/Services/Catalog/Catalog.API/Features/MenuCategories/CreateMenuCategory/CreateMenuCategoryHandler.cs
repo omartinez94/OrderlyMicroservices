@@ -23,7 +23,7 @@ internal class CreateMenuCategoryCommandHandler(
 {
     public async Task<CreateMenuCategoryResult> Handle(CreateMenuCategoryCommand command, CancellationToken cancellationToken)
     {
-        var category = new MenuCategory
+        MenuCategory? category = new MenuCategory
         {
             RestaurantId = command.RestaurantId,
             Name = command.Name,

@@ -23,7 +23,7 @@ public sealed class BasketIdentityGuardBehavior<TRequest, TResponse>(IHttpContex
     {
         if (request is IBasketIdentityRequest identity)
         {
-            var user = httpContextAccessor.HttpContext?.User;
+            System.Security.Claims.ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
 
             // Default authorization policy rejects unauthenticated callers,
             // but we belt-and-braces here in case the endpoint group is
@@ -34,8 +34,8 @@ public sealed class BasketIdentityGuardBehavior<TRequest, TResponse>(IHttpContex
                 throw new ForbiddenException("Authenticated user required for basket operations.");
             }
 
-            var callerUserId = user.GetUserId();
-            var callerRestaurantId = user.GetRestaurantId();
+            Guid callerUserId = user.GetUserId();
+            Guid callerRestaurantId = user.GetRestaurantId();
 
             if (callerUserId != identity.UserId || callerRestaurantId != identity.RestaurantId)
             {

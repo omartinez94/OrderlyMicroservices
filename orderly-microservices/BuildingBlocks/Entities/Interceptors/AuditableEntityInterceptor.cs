@@ -1,4 +1,4 @@
-﻿using BuildingBlocks.Entities.Interfaces;
+using BuildingBlocks.Entities.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -29,10 +29,10 @@ public class AuditableEntityInterceptor : SaveChangesInterceptor
             return;
         }
 
-        var userId = GetUserId(context);
-        var timestamp = SystemClock.Instance.GetCurrentInstant();
+        string? userId = GetUserId(context);
+        Instant timestamp = SystemClock.Instance.GetCurrentInstant();
 
-        foreach (var entry in context.ChangeTracker.Entries<IAuditableEntity>())
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<IAuditableEntity>? entry in context.ChangeTracker.Entries<IAuditableEntity>())
         {
             if (entry.State == EntityState.Added)
             {
@@ -48,8 +48,8 @@ public class AuditableEntityInterceptor : SaveChangesInterceptor
 
     private static string GetUserId(DbContext context)
     {
-        var httpContextAccessor = context.GetService<IHttpContextAccessor>();
-        var httpContext = httpContextAccessor?.HttpContext;
+        IHttpContextAccessor? httpContextAccessor = context.GetService<IHttpContextAccessor>();
+        HttpContext? httpContext = httpContextAccessor?.HttpContext;
 
         return httpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "system";
     }

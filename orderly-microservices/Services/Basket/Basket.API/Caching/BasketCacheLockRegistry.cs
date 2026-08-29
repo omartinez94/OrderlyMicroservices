@@ -36,7 +36,7 @@ public sealed class BasketCacheLockRegistry : IBasketCacheLockRegistry, IAsyncDi
         // the same key collapse onto one inner-repository query. The
         // semaphore stays cached for the lifetime of the host, so the
         // 2nd-and-later acquisitions reuse it (no per-key setup cost).
-        var semaphore = _locks.GetOrAdd(cacheKey, static _ => new SemaphoreSlim(1, 1));
+        SemaphoreSlim? semaphore = _locks.GetOrAdd(cacheKey, static _ => new SemaphoreSlim(1, 1));
 
         // Race cancellation: caller-supplied token + host-shutdown.
         // Either fires → the WaitAsync throws → the awaited using
@@ -115,7 +115,7 @@ public sealed class BasketCacheLockRegistry : IBasketCacheLockRegistry, IAsyncDi
         // time, the .NET 6+ implementation tolerates this; older
         // runtimes may produce undefined behaviour, but the policy
         // here accepts that race rather than block shutdown.
-        foreach (var semaphore in _locks.Values)
+        foreach (SemaphoreSlim? semaphore in _locks.Values)
         {
             try
             {

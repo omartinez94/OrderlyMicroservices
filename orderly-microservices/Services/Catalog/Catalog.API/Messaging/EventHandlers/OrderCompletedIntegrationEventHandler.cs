@@ -32,8 +32,8 @@ public sealed class OrderCompletedIntegrationEventHandler(
     /// <inheritdoc/>
     public async Task Consume(ConsumeContext<OrderCompletedIntegrationEvent> context)
     {
-        var message = context.Message;
-        var analysisDate = LocalDate.FromDateTime(message.CompletedAt.ToDateTimeUtc());
+        OrderCompletedIntegrationEvent? message = context.Message;
+        LocalDate analysisDate = LocalDate.FromDateTime(message.CompletedAt.ToDateTimeUtc());
 
         // Wrap the BeginTransactionAsync + commit cycle in
         // Database.CreateExecutionStrategy().ExecuteAsync(...) so
@@ -42,12 +42,12 @@ public sealed class OrderCompletedIntegrationEventHandler(
         // execution strategy ... does not support user-initiated
         // transactions". This is the consumer-side
         // mirror of the OutboxDispatcher.DispatchBatchAsync wrapping.
-        var strategy = dbContext.Database.CreateExecutionStrategy();
+        Microsoft.EntityFrameworkCore.Storage.IExecutionStrategy? strategy = dbContext.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async ct =>
         {
             await using var tx = await dbContext.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
-            foreach (var item in message.Items)
+            foreach (OrderCompletedItem? item in message.Items)
             {
                 // 1. Idempotency gate — composite PK (OrderId, MenuItemId) throws on duplicate.
                 try
@@ -69,7 +69,7 @@ public sealed class OrderCompletedIntegrationEventHandler(
                 }
 
                 // 2. Upsert MenuItemAnalytics row keyed by (MenuItemId, AnalysisDate).
-                var row = await dbContext.MenuItemAnalytics
+                MenuItemAnalytics? row = await dbContext.MenuItemAnalytics
                     .FirstOrDefaultAsync(m =>
                         m.MenuItemId == item.MenuItemId && m.AnalysisDate == analysisDate,
                         ct).ConfigureAwait(false);

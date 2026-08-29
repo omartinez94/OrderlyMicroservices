@@ -26,11 +26,11 @@ public class CreateMenuItemEndpoint : ICarterModule
     {
         app.MapPost("/v1/restaurants/{restaurantId:guid}/menu-items", async (Guid restaurantId, CreateMenuItemRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateMenuItemCommand>();
+            CreateMenuItemCommand? command = request.Adapt<CreateMenuItemCommand>();
             command.RestaurantId = restaurantId;
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateMenuItemResponse>();
+            CreateMenuItemResult? result = await sender.Send(command);
+            CreateMenuItemResponse? response = result.Adapt<CreateMenuItemResponse>();
 
             return Results.Created($"/v1/menu-items/{response.Id}", response);
         })

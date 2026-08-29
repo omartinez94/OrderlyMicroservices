@@ -74,7 +74,7 @@ public static class DevTriggerEndpointExtensions
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(handler);
 
-        var route = endpoints.MapPost(path, handler)
+        RouteHandlerBuilder? route = endpoints.MapPost(path, handler)
             .WithName($"DevTrigger:{path}");
 
         route.WithMetadata(new DevTriggerEndpointAttribute(path));
@@ -97,10 +97,10 @@ public static class DevTriggerEndpointExtensions
         HttpContext ctx,
         CancellationToken cancellationToken)
     {
-        var loggerFactory = ctx.RequestServices.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
-        var logger = loggerFactory?.CreateLogger("BuildingBlocks.Dev");
+        ILoggerFactory? loggerFactory = ctx.RequestServices.GetService(typeof(ILoggerFactory)) as ILoggerFactory;
+        ILogger? logger = loggerFactory?.CreateLogger("BuildingBlocks.Dev");
 
-        var secret = Environment.GetEnvironmentVariable(SecretEnvVar);
+        string? secret = Environment.GetEnvironmentVariable(SecretEnvVar);
         if (string.IsNullOrEmpty(secret))
         {
             logger?.LogWarning(
@@ -123,8 +123,8 @@ public static class DevTriggerEndpointExtensions
             return false;
         }
 
-        var presentedBytes = Encoding.UTF8.GetBytes(presented.ToString());
-        var secretBytes = Encoding.UTF8.GetBytes(secret);
+        byte[]? presentedBytes = Encoding.UTF8.GetBytes(presented.ToString());
+        byte[]? secretBytes = Encoding.UTF8.GetBytes(secret);
         if (!CryptographicOperations.FixedTimeEquals(presentedBytes, secretBytes))
         {
             logger?.LogWarning(
@@ -138,7 +138,7 @@ public static class DevTriggerEndpointExtensions
             return false;
         }
 
-        var source = ctx.Request.Headers.TryGetValue(SourceHeader, out var src)
+        string? source = ctx.Request.Headers.TryGetValue(SourceHeader, out var src)
             ? src.ToString()
             : "(unset)";
         logger?.LogInformation(

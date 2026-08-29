@@ -9,15 +9,15 @@ public class RegisterCommandHandler(
 {
     public async Task<RegisterResponse> Handle(RegisterCommand command, CancellationToken cancellationToken)
     {
-        var request = command.Request;
+        RegisterRequest request = command.Request;
 
-        var existingUser = await userManager.FindByEmailAsync(request.Email);
+        ApplicationUser? existingUser = await userManager.FindByEmailAsync(request.Email);
         if (existingUser is not null)
         {
             throw new BadRequestException("User with this email already exists.");
         }
 
-        var user = new ApplicationUser
+        ApplicationUser? user = new ApplicationUser
         {
             UserName = request.Email,
             Email = request.Email,
@@ -28,10 +28,10 @@ public class RegisterCommandHandler(
             IsActive = true
         };
 
-        var result = await userManager.CreateAsync(user, request.Password);
+        IdentityResult? result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            string? errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new BadRequestException($"Registration failed: {errors}");
         }
 

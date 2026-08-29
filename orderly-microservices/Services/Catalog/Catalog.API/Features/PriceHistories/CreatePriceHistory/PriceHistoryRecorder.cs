@@ -71,9 +71,9 @@ internal sealed class PriceHistoryRecorder(
         // Single "now" from the injected clock so the audit row's timestamps
         // are consistent and controllable under a fake TimeProvider in tests
         // (per §0.3.11 fake-clock rule). Do not read SystemClock statically here.
-        var now = Instant.FromDateTimeOffset(clock.GetUtcNow());
+        Instant now = Instant.FromDateTimeOffset(clock.GetUtcNow());
 
-        var row = new PriceHistory
+        PriceHistory? row = new PriceHistory
         {
             RestaurantId = restaurantId,
             PriceType = priceType,

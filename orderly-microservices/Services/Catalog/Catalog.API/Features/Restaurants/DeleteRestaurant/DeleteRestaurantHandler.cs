@@ -8,7 +8,7 @@ public class DeleteRestaurantCommandHandler(CatalogDbContext dbContext) : IComma
 {
     public async Task<DeleteRestaurantResult> Handle(DeleteRestaurantCommand command, CancellationToken cancellationToken)
     {
-        var restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken);
+        Restaurant? restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken);
         if (restaurant is null)
         {
             throw new RestaurantNotFoundException(command.Id);

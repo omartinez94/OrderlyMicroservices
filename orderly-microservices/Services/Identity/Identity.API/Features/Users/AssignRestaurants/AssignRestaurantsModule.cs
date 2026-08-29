@@ -4,7 +4,7 @@ public class AssignRestaurantsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/users");
+        RouteGroupBuilder? group = app.MapGroup("/v1/users");
 
         group.MapPut("{id:guid}/restaurants", async (
                 Guid id,
@@ -12,8 +12,8 @@ public class AssignRestaurantsModule : ICarterModule
                 AssignRestaurantsRequest request,
                 CancellationToken ct) =>
             {
-                var command = new AssignRestaurantsCommand(id, request.Restaurants);
-                var response = await sender.Send(command, ct);
+                AssignRestaurantsCommand? command = new AssignRestaurantsCommand(id, request.Restaurants);
+                AssignRestaurantsResponse? response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("users:assign_restaurants").Accepts<AssignRestaurantsRequest>("application/json")

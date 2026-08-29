@@ -21,7 +21,7 @@ public class UpdateRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Restaurants");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Restaurants");
 
         group.MapPut("/restaurants/{id}", async (Guid id, UpdateRestaurantRequest request, ClaimsPrincipal user, ISender sender) =>
         {
@@ -30,9 +30,9 @@ public class UpdateRestaurantEndpoint : ICarterModule
                 return Results.BadRequest();
             }
 
-            var command = request.Adapt<UpdateRestaurantCommand>();
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateRestaurantResponse>();
+            UpdateRestaurantCommand? command = request.Adapt<UpdateRestaurantCommand>();
+            UpdateRestaurantResult? result = await sender.Send(command);
+            UpdateRestaurantResponse? response = result.Adapt<UpdateRestaurantResponse>();
 
             return Results.Ok(response);
         })

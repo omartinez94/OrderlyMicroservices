@@ -7,7 +7,7 @@ public class MarkItemReadyHandler(IApplicationDbContext dbContext)
         MarkItemReadyCommand command,
         CancellationToken cancellationToken)
     {
-        var orderId = OrderId.Of(command.OrderId);
+        OrderId? orderId = OrderId.Of(command.OrderId);
 
         // Load the order with OrderItems eagerly — the handler mutates
         // a single item by id, so the items collection must be on the
@@ -15,7 +15,7 @@ public class MarkItemReadyHandler(IApplicationDbContext dbContext)
         // navigations; the previous implementation surfaced 404
         // OrderItemNotFoundException because findAsync returned a
         // tracked entity whose OrderItems collection was empty.
-        var order = await dbContext.Orders
+        Order? order = await dbContext.Orders
             .Include(o => o.OrderItems)
             .SingleOrDefaultAsync(o => o.Id == orderId, cancellationToken)
             ?? throw new OrderNotFoundException(nameof(Order), command.OrderId);
@@ -27,13 +27,13 @@ public class MarkItemReadyHandler(IApplicationDbContext dbContext)
         // Parent.RecordActivity(...) — without this wiring the call
         // NREs. Order.Add sets Parent in the write path; the read
         // path needs to do it explicitly.
-        foreach (var loadedItem in order.OrderItems)
+        foreach (OrderItem? loadedItem in order.OrderItems)
         {
             loadedItem.Parent = order;
         }
 
-        var itemId = OrderItemId.Of(command.OrderItemId);
-        var item = order.OrderItems.SingleOrDefault(oi => oi.Id == itemId)
+        OrderItemId? itemId = OrderItemId.Of(command.OrderItemId);
+        OrderItem? item = order.OrderItems.SingleOrDefault(oi => oi.Id == itemId)
             ?? throw new OrderItemNotFoundException(nameof(OrderItem), command.OrderItemId);
 
         item.MarkItemReady(SystemClock.Instance.GetCurrentInstant());

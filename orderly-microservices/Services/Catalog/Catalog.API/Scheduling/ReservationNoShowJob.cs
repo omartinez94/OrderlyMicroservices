@@ -37,15 +37,15 @@ public sealed class ReservationNoShowJob(
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
-        var now = clock.GetUtcNow();
-        var nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
-        var threshold = nowInstant.Minus(NoShowGrace);
+        DateTimeOffset now = clock.GetUtcNow();
+        Instant nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
+        Instant threshold = nowInstant.Minus(NoShowGrace);
 
         // Load candidate reservations: Confirmed + ReservationTime + 15m <= now
         // + never seated. Anchored on UTC (same simplification as ReservationReminderJob).
-        var candidates = await dbContext.Reservations
+        List<Reservation>? candidates = await dbContext.Reservations
             .Where(r => r.Status == ReservationStatus.Confirmed
                 && r.SeatedAt == null)
             .OrderBy(r => r.ReservationDate)
@@ -53,10 +53,10 @@ public sealed class ReservationNoShowJob(
             .Take(_options.MaxRowsPerTick)
             .ToListAsync(cancellationToken);
 
-        var noShows = 0;
-        foreach (var reservation in candidates)
+        int noShows = 0;
+        foreach (Reservation? reservation in candidates)
         {
-            var reservationInstant = reservation.ReservationDate
+            Instant reservationInstant = reservation.ReservationDate
                 .AtStartOfDayInZone(DateTimeZone.Utc)
                 .Plus(Duration.FromTicks(reservation.ReservationTime.TickOfDay))
                 .ToInstant();
@@ -73,7 +73,7 @@ public sealed class ReservationNoShowJob(
             // Free the held table if one was assigned at booking.
             if (reservation.TableId.HasValue)
             {
-                var table = await dbContext.Tables
+                Table? table = await dbContext.Tables
                     .FirstOrDefaultAsync(t => t.Id == reservation.TableId.Value, cancellationToken);
                 if (table is not null && table.Status == TableStatus.Reserved)
                 {

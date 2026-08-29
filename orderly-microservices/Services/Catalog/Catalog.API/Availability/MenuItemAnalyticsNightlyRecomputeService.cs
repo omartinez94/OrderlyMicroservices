@@ -40,9 +40,9 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var now = clock.GetUtcNow().UtcDateTime;
-            var nextRun = NextRunAt(now, _options.RunAtHour);
-            var delay = nextRun - now;
+            DateTime now = clock.GetUtcNow().UtcDateTime;
+            DateTime nextRun = NextRunAt(now, _options.RunAtHour);
+            TimeSpan delay = nextRun - now;
 
             try
             {
@@ -72,15 +72,15 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
     private async Task SweepAsync(CancellationToken stoppingToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
-        var today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
+        LocalDate today = LocalDate.FromDateTime(clock.GetUtcNow().UtcDateTime);
 
         // For the nightly pass, the simplest drift repair is to ensure every
         // (RestaurantId, MenuItemId) pair that has any analytics row for today
         // is internally consistent. Full reconstruction would require
         // re-reading the order stream, which is not safe to do out of band.
-        var inconsistent = await dbContext.MenuItemAnalytics
+        List<MenuItemAnalytics>? inconsistent = await dbContext.MenuItemAnalytics
             .Where(x => x.AnalysisDate == today)
             .Where(x => x.TimesOrdered < 0 || x.TotalRevenue < 0m || x.TimesOutOfStock < 0)
             .ToListAsync(stoppingToken);
@@ -91,7 +91,7 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
             return;
         }
 
-        foreach (var row in inconsistent)
+        foreach (MenuItemAnalytics? row in inconsistent)
         {
             if (row.TimesOrdered < 0)
             {
@@ -116,7 +116,7 @@ public sealed class MenuItemAnalyticsNightlyRecomputeService(
 
     private static DateTime NextRunAt(DateTime now, int hour)
     {
-        var candidate = new DateTime(now.Year, now.Month, now.Day, hour, 0, 0, DateTimeKind.Utc);
+        DateTime candidate = new DateTime(now.Year, now.Month, now.Day, hour, 0, 0, DateTimeKind.Utc);
         return candidate <= now ? candidate.AddDays(1) : candidate;
     }
 }

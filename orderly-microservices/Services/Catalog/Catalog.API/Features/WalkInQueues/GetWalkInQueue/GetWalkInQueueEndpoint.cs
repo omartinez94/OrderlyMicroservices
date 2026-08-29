@@ -8,13 +8,13 @@ public class GetWalkInQueueEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapGet("/restaurants/{restaurantId}/walk-in-queue", async ([AsParameters] GetWalkInQueueRequest request, ISender sender) =>
         {
-            var query = request.Adapt<GetWalkInQueueQuery>();
-            var result = await sender.Send(query);
-            var response = result.Adapt<GetWalkInQueueResponse>();
+            GetWalkInQueueQuery? query = request.Adapt<GetWalkInQueueQuery>();
+            GetWalkInQueueResult? result = await sender.Send(query);
+            GetWalkInQueueResponse? response = result.Adapt<GetWalkInQueueResponse>();
 
             return Results.Ok(response);
         })

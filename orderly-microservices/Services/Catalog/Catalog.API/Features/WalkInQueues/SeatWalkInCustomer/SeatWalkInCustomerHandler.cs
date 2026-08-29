@@ -8,7 +8,7 @@ internal class SeatWalkInCustomerCommandHandler(CatalogDbContext dbContext) : IC
 {
     public async Task<SeatWalkInCustomerResult> Handle(SeatWalkInCustomerCommand command, CancellationToken cancellationToken)
     {
-        var walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
+        WalkInQueue? walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
             ?? throw new WalkInQueueNotFoundException(command.Id);
 
         walkIn.Status = WalkInQueueStatus.Seated;
@@ -16,7 +16,7 @@ internal class SeatWalkInCustomerCommandHandler(CatalogDbContext dbContext) : IC
         walkIn.TableId = command.TableId;
 
         // Also update the table status
-        var table = await dbContext.Tables.FindAsync([command.TableId], cancellationToken);
+        Table? table = await dbContext.Tables.FindAsync([command.TableId], cancellationToken);
         if (table is not null)
         {
             table.Status = TableStatus.Occupied;

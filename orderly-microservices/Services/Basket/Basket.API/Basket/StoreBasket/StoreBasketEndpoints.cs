@@ -6,7 +6,7 @@ public class StoreBasketEndpoints : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapBasketGroup();
+        RouteGroupBuilder? group = app.MapBasketGroup();
 
         // `[DEPRECATED]`
         // `/v1/baskets/{userId}/{restaurantId}` shim is removed.
@@ -25,7 +25,7 @@ public class StoreBasketEndpoints : ICarterModule
             basket.UserId = principal.GetUserId();
             basket.RestaurantId = principal.GetRestaurantId();
 
-            var result = await sender.Send(new StoreBasketCommand(basket), cancellationToken);
+            StoreBasketResult? result = await sender.Send(new StoreBasketCommand(basket), cancellationToken);
 
             // Cache-Control: no-store — the cart
             // contains PII and must not be cached by intermediaries.

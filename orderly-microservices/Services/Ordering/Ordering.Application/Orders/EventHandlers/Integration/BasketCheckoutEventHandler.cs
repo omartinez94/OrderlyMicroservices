@@ -6,7 +6,7 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
 {
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
     {
-        var correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        string? correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
         CorrelationContext.Set(correlationId);
 
         try
@@ -16,9 +16,9 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                 context.Message.GetType().Name,
                 correlationId);
 
-            var message = context.Message;
+            BasketCheckoutEvent? message = context.Message;
 
-            var orderItems = message.Items.Select(item => new OrderItemDto(
+            List<OrderItemDto>? orderItems = message.Items.Select(item => new OrderItemDto(
                 Id: Guid.Empty,
                 OrderId: Guid.Empty,
                 MenuItemId: Guid.TryParse(item.MenuItemId.ToString(), out var menuItemGuid) ? menuItemGuid : Guid.Empty,
@@ -39,7 +39,7 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                 PrepCompletedAt: null
             )).ToList();
 
-            var address = new AddressDto(message.AddressLine, message.City, message.State, message.ZipCode, message.Country);
+            AddressDto? address = new AddressDto(message.AddressLine, message.City, message.State, message.ZipCode, message.Country);
 
             // BasketCheckoutEvent v2 publishes only
             // PaymentMethodSummary (discriminator + brand + last-four).
@@ -48,8 +48,8 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
             // pre-v2 row slips through (outbox row stamped before the
             // upgrade), the summary is null — fall back to Unspecified +
             // "Unknown" / "0000" so the consumer doesn't crash on null.
-            var summary = message.PaymentMethodSummary;
-            var payment = summary is null
+            PaymentMethodSummary? summary = message.PaymentMethodSummary;
+            PaymentDto? payment = summary is null
                 ? new PaymentDto(
                     Method: PaymentMethod.Unspecified,
                     Brand: "Unknown",
@@ -59,7 +59,7 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                     Brand: summary.Brand,
                     LastFour: summary.LastFour);
 
-            var orderDto = new OrderDto(
+            OrderDto? orderDto = new OrderDto(
                 Id: Guid.Empty,
                 CustomerId: message.UserId,
                 OrderNumber: Guid.NewGuid().ToString()[..8].ToUpperInvariant(),
@@ -101,7 +101,7 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                 Activities: []
             );
 
-            var command = new CreateOrderCommand(orderDto);
+            CreateOrderCommand? command = new CreateOrderCommand(orderDto);
 
             await sender.Send(command, context.CancellationToken);
         }

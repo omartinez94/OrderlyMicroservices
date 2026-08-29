@@ -78,7 +78,7 @@ public sealed class BasketExpirySweepService(
             {
                 try
                 {
-                    var deleted = await SweepOnceAsync(stoppingToken).ConfigureAwait(false);
+                    int deleted = await SweepOnceAsync(stoppingToken).ConfigureAwait(false);
                     if (deleted > 0)
                     {
                         _logger.LogInformation(
@@ -122,8 +122,8 @@ public sealed class BasketExpirySweepService(
     public async Task<int> SweepOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = services.CreateScope();
-        var store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
-        var correlationId = CorrelationContext.Current ?? Guid.NewGuid().ToString();
+        IDocumentStore? store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
+        string? correlationId = CorrelationContext.Current ?? Guid.NewGuid().ToString();
 
         // Open a one-off session — BasketExpirySweepService is a
         // singleton, so it would otherwise capture a session-per-app
@@ -131,7 +131,7 @@ public sealed class BasketExpirySweepService(
         // (mirrors CheckoutBasketOutboxDispatcher.DispatchOnceAsync).
         await using var session = store.LightweightSession();
 
-        var now = SystemClock.Instance.GetCurrentInstant();
+        Instant now = SystemClock.Instance.GetCurrentInstant();
 
         // Project to (UserId, RestaurantId) only — the sweep never
         // touches the inner fields, so we never load the full doc
@@ -164,7 +164,7 @@ public sealed class BasketExpirySweepService(
             // IDocumentSession.Delete<T>(...) stamps the doc for
             // deletion; the SaveChangesAsync at the end commits the
             // batch.
-            var fullDoc = await session.Query<Models.Basket>()
+            Models.Basket? fullDoc = await session.Query<Models.Basket>()
                 .Where(b => b.UserId == candidate.UserId
                             && b.RestaurantId == candidate.RestaurantId)
                 .FirstOrDefaultAsync(cancellationToken)

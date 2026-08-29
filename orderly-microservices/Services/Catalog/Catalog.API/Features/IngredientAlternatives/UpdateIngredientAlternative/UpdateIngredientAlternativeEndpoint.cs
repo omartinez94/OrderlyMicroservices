@@ -12,11 +12,11 @@ public class UpdateIngredientAlternativeEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapPut("/restaurants/{restaurantId:guid}/ingredient-alternatives/{id:int}", async (Guid restaurantId, int id, UpdateIngredientAlternativeRequest request, ISender sender) =>
         {
-            var command = new UpdateIngredientAlternativeCommand(
+            UpdateIngredientAlternativeCommand? command = new UpdateIngredientAlternativeCommand(
                 id,
                 restaurantId,
                 request.OriginalIngredientId,
@@ -24,8 +24,8 @@ public class UpdateIngredientAlternativeEndpoint : ICarterModule
                 request.PriceModifier,
                 request.AutoSubstitute);
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateIngredientAlternativeResponse>();
+            UpdateIngredientAlternativeResult? result = await sender.Send(command);
+            UpdateIngredientAlternativeResponse? response = result.Adapt<UpdateIngredientAlternativeResponse>();
 
             return Results.Ok(response);
         })

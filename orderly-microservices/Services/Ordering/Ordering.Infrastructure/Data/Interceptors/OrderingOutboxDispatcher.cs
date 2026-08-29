@@ -28,7 +28,7 @@ public class OrderingOutboxDispatcher(
     {
         // Each iteration gets a fresh DbContext — keyed by the
         // DbContextOptions the host already registered.
-        var optionsAccessor = services.GetRequiredService<
+        DbContextOptions<ApplicationDBContext>? optionsAccessor = services.GetRequiredService<
             Microsoft.EntityFrameworkCore.DbContextOptions<ApplicationDBContext>>();
         return new ApplicationDBContext(optionsAccessor);
     }

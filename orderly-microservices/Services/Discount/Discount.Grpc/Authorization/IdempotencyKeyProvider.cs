@@ -82,7 +82,7 @@ public sealed class IdempotencyKeyProvider : IIdempotencyKeyProvider
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
 
-        var raw = config["Discount:IdempotencyKey"];
+        string? raw = config["Discount:IdempotencyKey"];
         if (string.IsNullOrWhiteSpace(raw))
         {
             if (isDevelopment)
@@ -124,8 +124,8 @@ public sealed class IdempotencyKeyProvider : IIdempotencyKeyProvider
     public string Compute(string envelope)
     {
         ArgumentException.ThrowIfNullOrEmpty(envelope);
-        var bytes = Encoding.UTF8.GetBytes(envelope);
-        var mac = HMACSHA256.HashData(_key, bytes);
+        byte[]? bytes = Encoding.UTF8.GetBytes(envelope);
+        byte[]? mac = HMACSHA256.HashData(_key, bytes);
         return Convert.ToHexString(mac);
     }
 }

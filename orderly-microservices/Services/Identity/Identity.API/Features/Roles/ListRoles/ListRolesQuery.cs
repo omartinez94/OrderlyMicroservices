@@ -11,7 +11,7 @@ public class ListRolesQueryHandler(RoleManager<ApplicationRole> roleManager)
 {
     public async Task<ListRolesResponse> Handle(ListRolesQuery query, CancellationToken cancellationToken)
     {
-        var roles = await roleManager.Roles
+        List<RoleListItem>? roles = await roleManager.Roles
             .Select(r => new RoleListItem(r.Id, r.Name!, r.Description))
             .ToListAsync(cancellationToken);
 

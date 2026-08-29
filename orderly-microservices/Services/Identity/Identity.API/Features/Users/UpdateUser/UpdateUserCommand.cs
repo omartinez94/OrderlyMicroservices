@@ -16,7 +16,7 @@ public class UpdateUserCommandHandler(
 {
     public async Task<UpdateUserResponse> Handle(UpdateUserCommand command, CancellationToken cancellationToken)
     {
-        var user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
+        ApplicationUser? user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
         if (user is null)
         {
             throw new NotFoundException("User", command.UserId);
@@ -27,10 +27,10 @@ public class UpdateUserCommandHandler(
         user.PhoneNumber = command.PhoneNumber;
         user.IsActive = command.IsActive;
 
-        var result = await userManager.UpdateAsync(user);
+        IdentityResult? result = await userManager.UpdateAsync(user);
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            string? errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new BadRequestException($"User update failed: {errors}");
         }
 

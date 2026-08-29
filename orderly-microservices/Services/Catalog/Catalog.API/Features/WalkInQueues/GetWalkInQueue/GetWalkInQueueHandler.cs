@@ -10,7 +10,7 @@ internal class GetWalkInQueueQueryHandler(CatalogDbContext dbContext) : IQueryHa
 {
     public async Task<GetWalkInQueueResult> Handle(GetWalkInQueueQuery query, CancellationToken cancellationToken)
     {
-        var baseQuery = dbContext.WalkInQueues
+        IQueryable<WalkInQueue>? baseQuery = dbContext.WalkInQueues
             .AsNoTracking()
             .Where(w => w.RestaurantId == query.RestaurantId);
 
@@ -19,7 +19,7 @@ internal class GetWalkInQueueQueryHandler(CatalogDbContext dbContext) : IQueryHa
             baseQuery = baseQuery.Where(w => w.Status == query.Status.Value);
         }
 
-        var entries = await EntityFrameworkQueryableExtensions.ToListAsync(
+        List<WalkInQueue>? entries = await EntityFrameworkQueryableExtensions.ToListAsync(
             baseQuery.OrderBy(w => w.CreatedAt),
             cancellationToken);
 

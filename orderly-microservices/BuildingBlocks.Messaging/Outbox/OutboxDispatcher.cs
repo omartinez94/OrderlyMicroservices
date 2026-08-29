@@ -96,7 +96,7 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
                 dispatched = 0;
             }
 
-            var delay = dispatched > 0
+            TimeSpan delay = dispatched > 0
                 ? _options.ActivePollInterval
                 : _options.IdlePollInterval;
             try
@@ -123,8 +123,8 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
     public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
     {
         using var scope = _services.CreateScope();
-        var dbContext = CreateContext(scope.ServiceProvider);
-        var publishEndpoint = scope.ServiceProvider
+        TContext? dbContext = CreateContext(scope.ServiceProvider);
+        IPublishEndpoint? publishEndpoint = scope.ServiceProvider
             .GetRequiredService<IPublishEndpoint>();
 
         return await DispatchBatchAsync(dbContext, publishEndpoint, cancellationToken);
@@ -153,12 +153,12 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
         // is a no-op for services without EnableRetryOnFailure but is
         // uniformly applied so the contract is identical across
         // adopters.
-        var strategy = dbContext.Database.CreateExecutionStrategy();
+        Microsoft.EntityFrameworkCore.Storage.IExecutionStrategy? strategy = dbContext.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async ct =>
         {
             await using var tx = await dbContext.Database.BeginTransactionAsync(ct);
 
-            var pending = await ClaimPendingAsync(dbContext, ct);
+            List<OutboxMessage>? pending = await ClaimPendingAsync(dbContext, ct);
             if (pending.Count == 0)
             {
                 // Empty claim — commit (no-op transaction) before returning
@@ -167,8 +167,8 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
                 return 0;
             }
 
-            var now = SystemClock.Instance.GetCurrentInstant();
-            foreach (var row in pending)
+            Instant now = SystemClock.Instance.GetCurrentInstant();
+            foreach (OutboxMessage? row in pending)
             {
                 // Schema-version gate:
                 // a future-version row wasn't yet known when this
@@ -199,11 +199,11 @@ public abstract class OutboxDispatcher<TContext> : BackgroundService
 
                 try
                 {
-                    var messageType = Type.GetType(row.Type)
+                    Type? messageType = Type.GetType(row.Type)
                         ?? throw new InvalidOperationException(
                             $"Outbox row {row.Id} references unknown type '{row.Type}'.");
 
-                    var message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
+                    object? message = JsonSerializer.Deserialize(row.Payload, messageType, SerializerOptions)
                         ?? throw new InvalidOperationException(
                             $"Outbox row {row.Id} payload deserialized to null.");
 

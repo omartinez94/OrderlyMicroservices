@@ -109,7 +109,7 @@ public sealed class DiscountOutboxDispatcher(
                 // backoff, then continue. The next iteration's
                 // breaker gate may keep us paused if the count
                 // crossed the threshold this tick.
-                var failures = _brokerHealth.RecordFailure();
+                int failures = _brokerHealth.RecordFailure();
                 _logger.LogError(
                     ex,
                     "Outbox dispatcher iteration failed ({Consecutive}/{Threshold} consecutive).",
@@ -123,7 +123,7 @@ public sealed class DiscountOutboxDispatcher(
             // single-trip fail mark. Use Volatile-friendly writes.
             _brokerHealth.Reset();
 
-            var delay = dispatched > 0
+            TimeSpan delay = dispatched > 0
                 ? _options.ActivePollInterval
                 : _options.IdlePollInterval;
             try

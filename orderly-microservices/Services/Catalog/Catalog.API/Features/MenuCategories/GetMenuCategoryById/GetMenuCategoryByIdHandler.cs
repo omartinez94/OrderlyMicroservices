@@ -10,11 +10,11 @@ internal class GetMenuCategoryByIdQueryHandler(CatalogDbContext dbContext) : IQu
 {
     public async Task<GetMenuCategoryByIdResult> Handle(GetMenuCategoryByIdQuery query, CancellationToken cancellationToken)
     {
-        var category = dbContext.MenuCategories
+        IQueryable<MenuCategory>? category = dbContext.MenuCategories
             .AsNoTracking()
             .AsQueryable();
 
-        var firstCat = await category.FirstOrDefaultAsync(c => c.Id == query.Id, cancellationToken);
+        MenuCategory? firstCat = await category.FirstOrDefaultAsync(c => c.Id == query.Id, cancellationToken);
 
         return category is null
             ? throw new MenuCategoryNotFoundException(query.Id)

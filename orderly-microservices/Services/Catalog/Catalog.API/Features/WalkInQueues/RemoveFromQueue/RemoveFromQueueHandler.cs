@@ -8,7 +8,7 @@ internal class RemoveFromQueueCommandHandler(CatalogDbContext dbContext) : IComm
 {
     public async Task<RemoveFromQueueResult> Handle(RemoveFromQueueCommand command, CancellationToken cancellationToken)
     {
-        var walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
+        WalkInQueue? walkIn = await dbContext.WalkInQueues.FindAsync([command.Id], cancellationToken)
             ?? throw new WalkInQueueNotFoundException(command.Id);
 
         walkIn.Status = WalkInQueueStatus.Cancelled;

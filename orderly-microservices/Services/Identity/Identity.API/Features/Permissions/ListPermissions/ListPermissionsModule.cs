@@ -4,14 +4,14 @@ public class ListPermissionsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/permissions");
+        RouteGroupBuilder? group = app.MapGroup("/v1/permissions");
 
         group.MapGet("", async (
                 ISender sender,
                 CancellationToken ct) =>
             {
-                var query = new ListPermissionsQuery();
-                var response = await sender.Send(query, ct);
+                ListPermissionsQuery? query = new ListPermissionsQuery();
+                ListPermissionsResponse? response = await sender.Send(query, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("permissions:view").Produces<ListPermissionsResponse>(200);

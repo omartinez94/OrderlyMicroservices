@@ -32,14 +32,14 @@ public class GetMenuItemAnalyticsEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemAnalytics");
 
         group.MapGet("/restaurants/{restaurantId}/analytics/menu-items", async (
             Guid restaurantId,
             [AsParameters] GetMenuItemAnalyticsRequest request,
             ISender sender) =>
         {
-            var query = new GetMenuItemAnalyticsQuery(
+            GetMenuItemAnalyticsQuery? query = new GetMenuItemAnalyticsQuery(
                 restaurantId,
                 request.MenuItemId,
                 request.From,
@@ -47,7 +47,7 @@ public class GetMenuItemAnalyticsEndpoint : ICarterModule
                 request.PageIndex,
                 request.PageSize);
 
-            var result = await sender.Send(query);
+            GetMenuItemAnalyticsResult? result = await sender.Send(query);
             return Results.Ok(result.Adapt<GetMenuItemAnalyticsResponse>());
         })
         .WithDescription("Gets aggregated menu item analytics for a restaurant.")

@@ -18,12 +18,12 @@ internal class GetComboItemsQueryHandler(CatalogDbContext dbContext) : IQueryHan
 {
     public async Task<GetComboItemsResult> Handle(GetComboItemsQuery query, CancellationToken cancellationToken)
     {
-        var comboItems = await dbContext.ComboItems
+        List<ComboItem>? comboItems = await dbContext.ComboItems
             .AsNoTracking()
             .Where(c => c.ComboMenuItemId == query.ComboMenuItemId)
             .ToListAsync(cancellationToken);
 
-        var dtos = comboItems.Adapt<IEnumerable<ComboItemDto>>();
+        IEnumerable<ComboItemDto>? dtos = comboItems.Adapt<IEnumerable<ComboItemDto>>();
 
         return new GetComboItemsResult(dtos);
     }

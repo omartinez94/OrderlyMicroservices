@@ -26,7 +26,7 @@ public sealed class RestaurantConfigurationChangedConsumer(
 
     public async Task Consume(ConsumeContext<RestaurantConfigurationChangedIntegrationEvent> context)
     {
-        var evt = context.Message;
+        RestaurantConfigurationChangedIntegrationEvent? evt = context.Message;
 
         // Currency-only deactivation. Other fields in
         // ChangedFields don't surface new discount eligibility
@@ -39,16 +39,16 @@ public sealed class RestaurantConfigurationChangedConsumer(
             return;
         }
 
-        var principal = new ClaimsPrincipalBuilder()
+        System.Security.Claims.ClaimsPrincipal? principal = new ClaimsPrincipalBuilder()
             .WithRestaurant(evt.RestaurantId)
             .WithActor(DiscountActors.Service)
             .Build();
 
         await using var scope = scopes.CreateAsyncScope();
-        var sp = scope.ServiceProvider;
-        var provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
-        var db = sp.GetRequiredService<DiscountContext>();
-        var dedupEventId = InboundEventDedup.EventId(evt);
+        IServiceProvider? sp = scope.ServiceProvider;
+        ICurrentRestaurantProvider? provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
+        DiscountContext? db = sp.GetRequiredService<DiscountContext>();
+        Guid dedupEventId = InboundEventDedup.EventId(evt);
 
         using (provider.Attach(principal))
         {
@@ -71,9 +71,9 @@ public sealed class RestaurantConfigurationChangedConsumer(
             // MenuItemChangedConsumer — `Instant` lacks a raw-SQL
             // parameter mapping, so we pass `long` (UnixTimeTicks) and
             // rely on InstantToLongConverter on the column side.
-            var nowTicks = SystemClock.Instance.GetCurrentInstant().ToUnixTimeTicks();
-            var actor = DiscountActors.Service;
-            var deactivated = await db.Database.ExecuteSqlInterpolatedAsync($@"
+            long nowTicks = SystemClock.Instance.GetCurrentInstant().ToUnixTimeTicks();
+            string? actor = DiscountActors.Service;
+            int deactivated = await db.Database.ExecuteSqlInterpolatedAsync($@"
                 UPDATE ""Coupons""
                 SET ""IsActive"" = {false},
                     ""LastModifiedBy"" = {actor},

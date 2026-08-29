@@ -3,7 +3,7 @@ using BuildingBlocks.Dev;
 using BuildingBlocks.Observability;
 using Microsoft.AspNetCore.HttpOverrides;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. The YARP gateway is the
 // trace parent for every downstream call; this is the entry point
@@ -52,7 +52,7 @@ builder.Services.AddAuthorization();
 // requests are handled implicitly by ASP.NET Core's UseCors.
 builder.Services.AddCors(options =>
 {
-    var allowedOrigins = builder.Configuration
+    string[]? allowedOrigins = builder.Configuration
         .GetSection("Cors:AllowedOrigins")
         .Get<string[]>() ?? Array.Empty<string>();
 
@@ -70,11 +70,11 @@ builder.Services.AddCors(options =>
 // safe but non-functional posture the audit flagged.
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
-    var networks = builder.Configuration
+    string[]? networks = builder.Configuration
         .GetSection("ForwardedHeaders:KnownNetworks")
         .Get<string[]>() ?? Array.Empty<string>();
 
-    foreach (var cidr in networks)
+    foreach (string? cidr in networks)
     {
         if (System.Net.IPNetwork.TryParse(cidr, out var network))
         {
@@ -111,7 +111,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // =====================================================================
 // Middleware pipeline. Order matters:

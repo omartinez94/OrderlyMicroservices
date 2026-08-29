@@ -11,20 +11,20 @@ public class AssignPermissionsCommandHandler(
 {
     public async Task<AssignPermissionsResponse> Handle(AssignPermissionsCommand command, CancellationToken cancellationToken)
     {
-        var applicationRole = await roleManager.FindByIdAsync(command.RoleId.ToString());
+        ApplicationRole? applicationRole = await roleManager.FindByIdAsync(command.RoleId.ToString());
         if (applicationRole is null)
         {
             throw new NotFoundException("Role", command.RoleId);
         }
 
-        var existingPermissions = dbContext.RolePermissions.Where(rp => rp.RoleId == command.RoleId);
+        IQueryable<RolePermission>? existingPermissions = dbContext.RolePermissions.Where(rp => rp.RoleId == command.RoleId);
         dbContext.RolePermissions.RemoveRange(existingPermissions);
 
-        var permissions = await dbContext.Permissions
+        List<Permission>? permissions = await dbContext.Permissions
             .Where(p => command.PermissionIds.Contains(p.Id))
             .ToListAsync(cancellationToken);
 
-        var rolePermissions = permissions.Select(p => new RolePermission
+        List<RolePermission>? rolePermissions = permissions.Select(p => new RolePermission
         {
             RoleId = command.RoleId,
             Role = applicationRole,

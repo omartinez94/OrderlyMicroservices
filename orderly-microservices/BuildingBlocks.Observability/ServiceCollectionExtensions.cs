@@ -66,20 +66,20 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentException.ThrowIfNullOrWhiteSpace(serviceName);
 
-        var section = configuration.GetSection(ObservabilityOptions.SectionName);
+        IConfigurationSection? section = configuration.GetSection(ObservabilityOptions.SectionName);
         services.AddOptions<ObservabilityOptions>()
             .Bind(section)
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        var options = section.Get<ObservabilityOptions>() ?? new ObservabilityOptions();
-        var version = serviceVersion
+        ObservabilityOptions? options = section.Get<ObservabilityOptions>() ?? new ObservabilityOptions();
+        string? version = serviceVersion
             ?? options.ServiceVersion
             ?? typeof(ServiceCollectionExtensions).Assembly.GetName().Version?.ToString()
             ?? "0.0.0";
-        var resolvedServiceName = options.ServiceName ?? serviceName;
+        string? resolvedServiceName = options.ServiceName ?? serviceName;
 
-        var resource = ResourceBuilder
+        ResourceBuilder? resource = ResourceBuilder
             .CreateEmpty()
             .AddOrderlyService(resolvedServiceName, version);
 
@@ -87,8 +87,8 @@ public static class ServiceCollectionExtensions
         // When false, the in-process Activity pipeline still runs so
         // Activity.Current is populated for any test that wants to assert
         // on spans, but no outbound HTTP/2 traffic is generated.
-        var otlpEndpoint = options.Enabled ? new Uri(options.Endpoint) : null;
-        var otlpProtocol = options.OtlpProtocol == OtlpProtocol.HttpProtobuf
+        Uri? otlpEndpoint = options.Enabled ? new Uri(options.Endpoint) : null;
+        OtlpExportProtocol otlpProtocol = options.OtlpProtocol == OtlpProtocol.HttpProtobuf
             ? OtlpExportProtocol.HttpProtobuf
             : OtlpExportProtocol.Grpc;
 

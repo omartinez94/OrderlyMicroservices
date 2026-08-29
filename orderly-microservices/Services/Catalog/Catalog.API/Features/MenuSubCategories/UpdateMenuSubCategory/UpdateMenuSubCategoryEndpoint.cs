@@ -15,10 +15,10 @@ public class UpdateMenuSubCategoryEndpoint : ICarterModule
     {
         app.MapPut("/v1/menu-sub-categories/{id}", async (int id, UpdateMenuSubCategoryRequest request, ISender sender) =>
         {
-            var command = request.Adapt<UpdateMenuSubCategoryCommand>() with { Id = id };
+            UpdateMenuSubCategoryCommand? command = request.Adapt<UpdateMenuSubCategoryCommand>() with { Id = id };
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<UpdateMenuSubCategoryResponse>();
+            UpdateMenuSubCategoryResult? result = await sender.Send(command);
+            UpdateMenuSubCategoryResponse? response = result.Adapt<UpdateMenuSubCategoryResponse>();
 
             return Results.Ok(response);
         })

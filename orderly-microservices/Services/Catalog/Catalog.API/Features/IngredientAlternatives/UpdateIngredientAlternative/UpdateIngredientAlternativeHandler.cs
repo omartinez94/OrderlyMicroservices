@@ -33,7 +33,7 @@ internal class UpdateIngredientAlternativeCommandHandler(
 {
     public async Task<UpdateIngredientAlternativeResult> Handle(UpdateIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
-        var ingredientAlternative = await dbContext.IngredientAlternatives
+        IngredientAlternative? ingredientAlternative = await dbContext.IngredientAlternatives
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken);
 
         if (ingredientAlternative is null)
@@ -41,7 +41,7 @@ internal class UpdateIngredientAlternativeCommandHandler(
             throw new NotFoundException(nameof(IngredientAlternative), command.Id);
         }
 
-        var oldPriceModifier = ingredientAlternative.PriceModifier;
+        decimal oldPriceModifier = ingredientAlternative.PriceModifier;
 
         ingredientAlternative.OriginalIngredientId = command.OriginalIngredientId;
         ingredientAlternative.AlternativeIngredientId = command.AlternativeIngredientId;

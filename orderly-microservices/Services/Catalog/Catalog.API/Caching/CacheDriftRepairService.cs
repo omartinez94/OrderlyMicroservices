@@ -76,7 +76,7 @@ public sealed class CacheDriftRepairService(
 
             try
             {
-                var interval = TimeSpan.FromMinutes(options.CurrentValue.CacheRepairIntervalMinutes);
+                TimeSpan interval = TimeSpan.FromMinutes(options.CurrentValue.CacheRepairIntervalMinutes);
                 await Task.Delay(interval, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
@@ -97,11 +97,11 @@ public sealed class CacheDriftRepairService(
         // Scope per tick so we don't capture a Scoped DbContext on the Singleton
         // background service (see plan §0.3.3 captive dependencies).
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        var reader = scope.ServiceProvider.GetRequiredService<IMenuReader>();
-        var cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        IMenuReader? reader = scope.ServiceProvider.GetRequiredService<IMenuReader>();
+        IDistributedCache? cache = scope.ServiceProvider.GetRequiredService<IDistributedCache>();
 
-        var restaurantIds = await dbContext.MenuCategories
+        List<Guid>? restaurantIds = await dbContext.MenuCategories
             .AsNoTracking()
             .Select(c => c.RestaurantId)
             .Distinct()
@@ -114,11 +114,11 @@ public sealed class CacheDriftRepairService(
             return;
         }
 
-        var ttl = TimeSpan.FromMinutes(options.CurrentValue.MenuCacheTtlMinutes);
-        var repaired = 0;
-        var inspected = 0;
+        TimeSpan ttl = TimeSpan.FromMinutes(options.CurrentValue.MenuCacheTtlMinutes);
+        int repaired = 0;
+        int inspected = 0;
 
-        foreach (var restaurantId in restaurantIds)
+        foreach (Guid restaurantId in restaurantIds)
         {
             if (cancellationToken.IsCancellationRequested)
             {
@@ -149,14 +149,14 @@ public sealed class CacheDriftRepairService(
 
             try
             {
-                var snapshot = await reader.GetByRestaurantAsync(restaurantId, cancellationToken)
+                MenuSnapshot? snapshot = await reader.GetByRestaurantAsync(restaurantId, cancellationToken)
                     .ConfigureAwait(false);
                 if (snapshot is null)
                 {
                     continue;
                 }
 
-                var payload = System.Text.Json.JsonSerializer.Serialize(snapshot);
+                string? payload = System.Text.Json.JsonSerializer.Serialize(snapshot);
                 await cache.SetStringAsync(
                     CacheKeys.Menu(restaurantId),
                     payload,

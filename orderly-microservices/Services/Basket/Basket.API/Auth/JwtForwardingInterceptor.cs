@@ -90,7 +90,7 @@ public sealed class JwtForwardingInterceptor(
 
     private void AttachJwt(CallOptions options)
     {
-        var http = httpContextAccessor.HttpContext;
+        HttpContext? http = httpContextAccessor.HttpContext;
         if (http is null)
         {
             logger.LogWarning(
@@ -98,7 +98,7 @@ public sealed class JwtForwardingInterceptor(
             return;
         }
 
-        var authHeader = http.Request.Headers.Authorization.ToString();
+        string? authHeader = http.Request.Headers.Authorization.ToString();
         if (string.IsNullOrEmpty(authHeader))
         {
             logger.LogWarning(
@@ -110,10 +110,10 @@ public sealed class JwtForwardingInterceptor(
         // options with the original metadata + the new authorization
         // entry. Mutating the metadata directly is not safe — it
         // would race with other interceptors in the chain.
-        var newMetadata = new Metadata();
+        Metadata? newMetadata = new Metadata();
         if (options.Headers is not null)
         {
-            foreach (var entry in options.Headers)
+            foreach (Metadata.Entry? entry in options.Headers)
             {
                 newMetadata.Add(entry);
             }
@@ -123,7 +123,7 @@ public sealed class JwtForwardingInterceptor(
         // CallOptions is a struct; we mutate it via the field
         // assignment on the context.Options. The gRPC client library
         // reads the new options for the outbound call.
-        var field = typeof(CallOptions).GetField("Headers");
+        System.Reflection.FieldInfo? field = typeof(CallOptions).GetField("Headers");
         if (field is null)
         {
             // Future-proof: if gRPC drops the public Headers setter,

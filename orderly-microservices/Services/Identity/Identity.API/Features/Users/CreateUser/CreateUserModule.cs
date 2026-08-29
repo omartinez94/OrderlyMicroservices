@@ -4,14 +4,14 @@ public class CreateUserModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/users");
+        RouteGroupBuilder? group = app.MapGroup("/v1/users");
 
         group.MapPost("", async (
                 ISender sender,
                 CreateUserRequest request,
                 CancellationToken ct) =>
             {
-                var command = new CreateUserCommand(
+                CreateUserCommand? command = new CreateUserCommand(
                     request.Email,
                     request.Password,
                     request.FirstName,
@@ -21,7 +21,7 @@ public class CreateUserModule : ICarterModule
                     request.RestaurantIds,
                     request.DefaultRestaurantId);
 
-                var response = await sender.Send(command, ct);
+                CreateUserResponse? response = await sender.Send(command, ct);
 
                 return Results.Created($"/v1/users/{response.UserId}", response);
             }).RequirePermission("users:create").Accepts<CreateUserRequest>("application/json")

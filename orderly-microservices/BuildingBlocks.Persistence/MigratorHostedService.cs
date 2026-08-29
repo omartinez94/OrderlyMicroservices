@@ -61,10 +61,10 @@ public abstract class MigratorHostedService<TContext> : IHostedService
             return;
         }
 
-        var startedAt = DateTimeOffset.UtcNow;
-        var timeout = TimeSpan.FromSeconds(_options.MigrationTimeoutSeconds);
-        var attempt = 0;
-        var currentBackoff = TimeSpan.FromSeconds(_options.InitialBackoffSeconds);
+        DateTimeOffset startedAt = DateTimeOffset.UtcNow;
+        TimeSpan timeout = TimeSpan.FromSeconds(_options.MigrationTimeoutSeconds);
+        int attempt = 0;
+        TimeSpan currentBackoff = TimeSpan.FromSeconds(_options.InitialBackoffSeconds);
 
         while (true)
         {
@@ -73,7 +73,7 @@ public abstract class MigratorHostedService<TContext> : IHostedService
             try
             {
                 await using var scope = _services.CreateAsyncScope();
-                var ctx = CreateContext(scope.ServiceProvider);
+                TContext? ctx = CreateContext(scope.ServiceProvider);
                 await ctx.Database.MigrateAsync(cancellationToken).ConfigureAwait(false);
 
                 _logger.LogInformation(
@@ -89,7 +89,7 @@ public abstract class MigratorHostedService<TContext> : IHostedService
             }
             catch (Exception ex) when (IsTransient(ex))
             {
-                var elapsed = DateTimeOffset.UtcNow - startedAt;
+                TimeSpan elapsed = DateTimeOffset.UtcNow - startedAt;
 
                 if (attempt >= _options.MaxAttempts)
                 {
@@ -115,9 +115,9 @@ public abstract class MigratorHostedService<TContext> : IHostedService
                 // retry timing across replicas. It is not a token, key, nonce
                 // or identifier, and predicting it grants an attacker nothing.
 #pragma warning disable CA5394 // Do not use insecure randomness
-                var jitter = TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * 1000);
+                TimeSpan jitter = TimeSpan.FromMilliseconds(Random.Shared.NextDouble() * 1000);
 #pragma warning restore CA5394
-                var delay = currentBackoff + jitter;
+                TimeSpan delay = currentBackoff + jitter;
 
                 _logger.LogWarning(ex,
                     "Migrator: attempt {Attempt} failed ({Exception}); retrying in {Delay}.",
@@ -126,7 +126,7 @@ public abstract class MigratorHostedService<TContext> : IHostedService
                 await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
 
                 // Exponential growth, capped.
-                var nextSeconds = Math.Min(
+                double nextSeconds = Math.Min(
                     currentBackoff.TotalSeconds * _options.BackoffMultiplier,
                     _options.MaxBackoffSeconds);
                 currentBackoff = TimeSpan.FromSeconds(nextSeconds);

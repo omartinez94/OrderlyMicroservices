@@ -44,23 +44,23 @@ public static class RateLimitPolicies
     /// </remarks>
     public static string ClientPartitionKey(HttpContext context)
     {
-        var peer = context.Connection.RemoteIpAddress;
+        IPAddress? peer = context.Connection.RemoteIpAddress;
 
         if (peer is not null && IsTrustedProxy(peer))
         {
-            var forwardedFor = context.Request.Headers["X-Forwarded-For"];
+            Microsoft.Extensions.Primitives.StringValues forwardedFor = context.Request.Headers["X-Forwarded-For"];
 
             // Enumerate in reverse: the last hop appended by our own proxy.
             for (var i = forwardedFor.Count - 1; i >= 0; i--)
             {
-                var header = forwardedFor[i];
+                string? header = forwardedFor[i];
                 if (string.IsNullOrWhiteSpace(header))
                 {
                     continue;
                 }
 
-                var lastComma = header.LastIndexOf(',');
-                var candidate = lastComma >= 0
+                int lastComma = header.LastIndexOf(',');
+                ReadOnlySpan<char> candidate = lastComma >= 0
                     ? header.AsSpan(lastComma + 1)
                     : header.AsSpan();
 
@@ -136,7 +136,7 @@ public static class RateLimitPolicies
         // is bracketed ("[::1]:443") or it is IPv4-shaped with one colon.
         if (candidate.Length > 0 && candidate[0] == '[')
         {
-            var close = candidate.IndexOf(']');
+            int close = candidate.IndexOf(']');
             if (close > 0)
             {
                 candidate = candidate[1..close];
@@ -144,7 +144,7 @@ public static class RateLimitPolicies
         }
         else
         {
-            var colon = candidate.IndexOf(':');
+            int colon = candidate.IndexOf(':');
             if (colon >= 0 && candidate[(colon + 1)..].IndexOf(':') < 0)
             {
                 candidate = candidate[..colon];

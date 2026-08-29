@@ -9,23 +9,23 @@ public class CreateRoleCommandHandler(RoleManager<ApplicationRole> roleManager)
 {
     public async Task<CreateRoleResponse> Handle(CreateRoleCommand command, CancellationToken cancellationToken)
     {
-        var existingRole = await roleManager.FindByNameAsync(command.Name);
+        ApplicationRole? existingRole = await roleManager.FindByNameAsync(command.Name);
         if (existingRole is not null)
         {
             throw new BadRequestException("Role with this name already exists.");
         }
 
-        var role = new ApplicationRole
+        ApplicationRole? role = new ApplicationRole
         {
             Name = command.Name,
             NormalizedName = command.Name.ToUpperInvariant(),
             Description = command.Description
         };
 
-        var result = await roleManager.CreateAsync(role);
+        IdentityResult? result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
         {
-            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            string? errors = string.Join(", ", result.Errors.Select(e => e.Description));
             throw new BadRequestException($"Role creation failed: {errors}");
         }
 

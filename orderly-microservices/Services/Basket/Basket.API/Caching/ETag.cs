@@ -31,8 +31,8 @@ public static class ETag
         // uses (PascalCase + NodaTime). We don't round-trip the
         // result — the ETag is the projection's hash, not a parsed
         // object.
-        var json = System.Text.Json.JsonSerializer.Serialize(basket, SerializerOptions);
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
+        string? json = System.Text.Json.JsonSerializer.Serialize(basket, SerializerOptions);
+        byte[]? bytes = SHA256.HashData(Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
@@ -54,7 +54,7 @@ public static class ETag
             // (per RFC 9110 §13.1.2). Strip the W/ prefix only if
             // the client signals a weak comparison (it doesn't in
             // our case — clients send bare etag or "*").
-            var supplied = ifNoneMatch.ToString();
+            string? supplied = ifNoneMatch.ToString();
             if (supplied == "*" || supplied == $"\"{etag}\"")
             {
                 return true;
@@ -82,7 +82,7 @@ public static class ETag
                 // because the HTTP-date format has 1-second
                 // precision and a strict == would mismatch on
                 // sub-second changes.
-                var basketLastModified = lastModified.ToDateTimeOffset();
+                DateTimeOffset basketLastModified = lastModified.ToDateTimeOffset();
                 if (basketLastModified.ToUniversalTime() <= clientCutoff)
                 {
                     return true;

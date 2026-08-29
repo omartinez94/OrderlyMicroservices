@@ -74,7 +74,7 @@ public class Order : Aggregate<OrderId>
         ArgumentNullException.ThrowIfNull(deliveryAddress);
         ArgumentNullException.ThrowIfNull(payment);
 
-        var order = new Order
+        Order? order = new Order
         {
             Id = id,
             CustomerId = customerId,
@@ -133,7 +133,7 @@ public class Order : Aggregate<OrderId>
             throw new ArgumentException("confirmedByUserId cannot be empty.", nameof(confirmedByUserId));
         }
 
-        var previousStatus = Status;
+        OrderStatus previousStatus = Status;
         Status = OrderStatus.Confirmed;
         ConfirmedAt = now;
         ConfirmedByUserId = confirmedByUserId;
@@ -166,7 +166,7 @@ public class Order : Aggregate<OrderId>
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkReady));
         }
 
-        var previousStatus = Status;
+        OrderStatus previousStatus = Status;
         Status = OrderStatus.Ready;
         ReadyAt = now;
 
@@ -200,7 +200,7 @@ public class Order : Aggregate<OrderId>
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkPreparing));
         }
 
-        var previousStatus = Status;
+        OrderStatus previousStatus = Status;
         Status = OrderStatus.Preparing;
         PreparingStartedAt = now;
 
@@ -234,8 +234,8 @@ public class Order : Aggregate<OrderId>
             throw new InvalidOrderStateTransitionException(Status, nameof(StartDelivery));
         }
 
-        var previousDeliveryStatus = DeliveryStatus;
-        var occurredAt = SystemClock.Instance.GetCurrentInstant();
+        DeliveryStatus? previousDeliveryStatus = DeliveryStatus;
+        Instant occurredAt = SystemClock.Instance.GetCurrentInstant();
         DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Dispatched;
         AddDomainEvent(new OrderDeliveryStartedEvent(this));
         RecordActivity(
@@ -268,8 +268,8 @@ public class Order : Aggregate<OrderId>
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkDelivered));
         }
 
-        var previousStatus = Status;
-        var previousDeliveryStatus = DeliveryStatus;
+        OrderStatus previousStatus = Status;
+        DeliveryStatus? previousDeliveryStatus = DeliveryStatus;
         Status = OrderStatus.Delivered;
         DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Delivered;
         DeliveredAt = now;
@@ -302,7 +302,7 @@ public class Order : Aggregate<OrderId>
             throw new InvalidOrderStateTransitionException(Status, nameof(Complete));
         }
 
-        var previousStatus = Status;
+        OrderStatus previousStatus = Status;
         Status = OrderStatus.Completed;
         CompletedAt = now;
 
@@ -342,7 +342,7 @@ public class Order : Aggregate<OrderId>
             throw new ArgumentException("cancelledByUserId cannot be empty.", nameof(cancelledByUserId));
         }
 
-        var previousStatus = Status;
+        OrderStatus previousStatus = Status;
         Status = OrderStatus.Cancelled;
         CancelledAt = now;
         CancelledByUserId = cancelledByUserId;
@@ -370,7 +370,7 @@ public class Order : Aggregate<OrderId>
     {
         ArgumentNullException.ThrowIfNull(menuItemId);
 
-        var orderItem = new OrderItem(Id, menuItemId, quantity, price);
+        OrderItem? orderItem = new OrderItem(Id, menuItemId, quantity, price);
         orderItem.Parent = this;
 
         _orderItems.Add(orderItem);
@@ -380,7 +380,7 @@ public class Order : Aggregate<OrderId>
     {
         ArgumentNullException.ThrowIfNull(menuItemId);
 
-        var orderItem = _orderItems.FirstOrDefault(x => x.MenuItemId == menuItemId);
+        OrderItem? orderItem = _orderItems.FirstOrDefault(x => x.MenuItemId == menuItemId);
 
         if (orderItem is not null)
         {
@@ -418,9 +418,9 @@ public class Order : Aggregate<OrderId>
         string? notes = null,
         OrderActivityMetadata? metadata = null)
     {
-        var correlationId = CorrelationContext.Current;
+        string? correlationId = CorrelationContext.Current;
 
-        var activity = OrderActivity.Create(
+        OrderActivity? activity = OrderActivity.Create(
             orderId: Id,
             activityType: type,
             actorUserId: actorUserId,

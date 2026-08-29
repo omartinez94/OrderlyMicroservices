@@ -6,13 +6,13 @@ public class DeleteRestaurantEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Restaurants");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Restaurants");
 
         group.MapDelete("/restaurants/{id}", async (Guid id, ISender sender) =>
         {
-            var command = new DeleteRestaurantCommand(id);
-            var result = await sender.Send(command);
-            var response = result.Adapt<DeleteRestaurantResponse>();
+            DeleteRestaurantCommand? command = new DeleteRestaurantCommand(id);
+            DeleteRestaurantResult? result = await sender.Send(command);
+            DeleteRestaurantResponse? response = result.Adapt<DeleteRestaurantResponse>();
 
             return Results.Ok(response);
         })

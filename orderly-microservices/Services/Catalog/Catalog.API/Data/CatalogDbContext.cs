@@ -174,7 +174,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.HasIndex(r => r.IsActive);
 
             // Seed
-            var acmeRestaurant = new Restaurant
+            Restaurant? acmeRestaurant = new Restaurant
             {
                 Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
                 BrandId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
@@ -232,7 +232,7 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.HasIndex(b => b.IsActive);
 
             // Seed
-            var acmeBrand = new Brand
+            Brand? acmeBrand = new Brand
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Name = "Acme",
@@ -800,10 +800,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// </summary>
     private void UpdateTimestamps()
     {
-        var entries = ChangeTracker.Entries()
+        IEnumerable<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>? entries = ChangeTracker.Entries()
             .Where(e => e.State == EntityState.Modified);
 
-        foreach (var entry in entries)
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? entry in entries)
         {
             // Update UpdatedAt if property exists
             if (entry.Entity.GetType().GetProperty("UpdatedAt") is not null)

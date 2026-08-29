@@ -32,7 +32,7 @@ internal class UpdateMenuItemVariationCommandHandler(
 {
     public async Task<UpdateMenuItemVariationResult> Handle(UpdateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
-        var variation = await dbContext.MenuItemVariations
+        MenuItemVariation? variation = await dbContext.MenuItemVariations
             .FirstOrDefaultAsync(v => v.Id == command.Id && !v.IsDeleted, cancellationToken);
 
         if (variation is null)
@@ -40,12 +40,12 @@ internal class UpdateMenuItemVariationCommandHandler(
             throw new NotFoundException("MenuItemVariation", command.Id);
         }
 
-        var restaurantId = await dbContext.MenuItems
+        Guid restaurantId = await dbContext.MenuItems
             .Where(m => m.Id == variation.MenuItemId && !m.IsDeleted)
             .Select(m => m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        var oldPriceModifier = variation.PriceModifier;
+        decimal oldPriceModifier = variation.PriceModifier;
 
         variation.Name = command.Name;
         variation.VariationValue = command.VariationValue;

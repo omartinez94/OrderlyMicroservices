@@ -28,7 +28,7 @@ internal class CreateComboItemCommandHandler(
 {
     public async Task<CreateComboItemResult> Handle(CreateComboItemCommand command, CancellationToken cancellationToken)
     {
-        var restaurantId = await dbContext.MenuItems
+        Guid? restaurantId = await dbContext.MenuItems
             .Where(m => m.Id == command.ComboMenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
@@ -37,7 +37,7 @@ internal class CreateComboItemCommandHandler(
             throw new NotFoundException("MenuItem", command.ComboMenuItemId);
         }
 
-        var comboItem = new ComboItem
+        ComboItem? comboItem = new ComboItem
         {
             ComboMenuItemId = command.ComboMenuItemId,
             IncludedMenuItemId = command.IncludedMenuItemId,

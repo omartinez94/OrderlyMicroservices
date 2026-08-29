@@ -22,7 +22,7 @@ internal class DeleteComboItemCommandHandler(
 {
     public async Task<DeleteComboItemResult> Handle(DeleteComboItemCommand command, CancellationToken cancellationToken)
     {
-        var comboItem = await dbContext.ComboItems
+        ComboItem? comboItem = await dbContext.ComboItems
             .FindAsync([command.Id], cancellationToken);
 
         if (comboItem is null)
@@ -30,7 +30,7 @@ internal class DeleteComboItemCommandHandler(
             throw new NotFoundException(nameof(ComboItem), command.Id);
         }
 
-        var restaurantId = await dbContext.MenuItems
+        Guid? restaurantId = await dbContext.MenuItems
             .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
             .Select(m => (Guid?)m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);

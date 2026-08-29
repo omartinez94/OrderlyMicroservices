@@ -21,7 +21,7 @@ internal class DeleteIngredientCommandHandler(
 {
     public async Task<DeleteIngredientResult> Handle(DeleteIngredientCommand command, CancellationToken cancellationToken)
     {
-        var ingredient = await dbContext.Ingredients.FirstOrDefaultAsync(i => i.RestaurantId == command.RestaurantId && i.Id == command.Id, cancellationToken)
+        Ingredient? ingredient = await dbContext.Ingredients.FirstOrDefaultAsync(i => i.RestaurantId == command.RestaurantId && i.Id == command.Id, cancellationToken)
             ?? throw new IngredientNotFoundException(command.Id);
 
         dbContext.Ingredients.Remove(ingredient);

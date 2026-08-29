@@ -36,13 +36,13 @@ public sealed class WalkInNoShowJob(
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
 
-        var now = clock.GetUtcNow();
-        var nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
-        var threshold = nowInstant.Minus(WalkInResponseWindow);
+        DateTimeOffset now = clock.GetUtcNow();
+        Instant nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
+        Instant threshold = nowInstant.Minus(WalkInResponseWindow);
 
-        var candidates = await dbContext.WalkInQueues
+        List<WalkInQueue>? candidates = await dbContext.WalkInQueues
             .Where(w => w.Status == WalkInQueueStatus.Notified
                 && w.SeatedAt == null
                 && w.NotifiedAt != null)
@@ -50,8 +50,8 @@ public sealed class WalkInNoShowJob(
             .Take(_options.MaxRowsPerTick)
             .ToListAsync(cancellationToken);
 
-        var noShows = 0;
-        foreach (var walkIn in candidates)
+        int noShows = 0;
+        foreach (WalkInQueue? walkIn in candidates)
         {
             if (walkIn.NotifiedAt is null || walkIn.NotifiedAt.Value > threshold)
             {
@@ -63,7 +63,7 @@ public sealed class WalkInNoShowJob(
             // Free the held table (same pattern as ReservationNoShowJob).
             if (walkIn.TableId.HasValue)
             {
-                var table = await dbContext.Tables
+                Table? table = await dbContext.Tables
                     .FirstOrDefaultAsync(t => t.Id == walkIn.TableId.Value, cancellationToken);
                 if (table is not null && table.Status == TableStatus.Reserved)
                 {

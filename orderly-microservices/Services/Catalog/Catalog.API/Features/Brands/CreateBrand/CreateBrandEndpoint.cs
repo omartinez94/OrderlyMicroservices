@@ -16,13 +16,13 @@ public class CreateBrandEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("Brands");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
         group.MapPost("/brands", async (CreateBrandRequest request, ISender sender) =>
         {
-            var command = request.Adapt<CreateBrandCommand>();
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateBrandResponse>();
+            CreateBrandCommand? command = request.Adapt<CreateBrandCommand>();
+            CreateBrandResult? result = await sender.Send(command);
+            CreateBrandResponse? response = result.Adapt<CreateBrandResponse>();
 
             return Results.Created($"/v1/brands/{response.Id}", response);
         })

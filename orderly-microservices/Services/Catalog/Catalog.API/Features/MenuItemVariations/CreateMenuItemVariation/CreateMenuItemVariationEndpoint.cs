@@ -13,11 +13,11 @@ public class CreateMenuItemVariationEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuItemVariations");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuItemVariations");
 
         group.MapPost("/menu-items/{menuItemId:guid}/variations", async (Guid menuItemId, CreateMenuItemVariationRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            var command = new CreateMenuItemVariationCommand(
+            CreateMenuItemVariationCommand? command = new CreateMenuItemVariationCommand(
                 menuItemId,
                 request.Name,
                 request.VariationValue,
@@ -25,8 +25,8 @@ public class CreateMenuItemVariationEndpoint : ICarterModule
                 request.IsDefault,
                 request.DisplayOrder);
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<CreateMenuItemVariationResponse>();
+            CreateMenuItemVariationResult? result = await sender.Send(command);
+            CreateMenuItemVariationResponse? response = result.Adapt<CreateMenuItemVariationResponse>();
 
             return Results.Created($"/v1/menu-items/{menuItemId}/variations", response);
         })

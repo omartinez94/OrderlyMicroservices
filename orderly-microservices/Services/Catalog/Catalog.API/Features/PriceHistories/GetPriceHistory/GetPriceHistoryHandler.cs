@@ -29,7 +29,7 @@ internal class GetPriceHistoryQueryHandler(CatalogDbContext dbContext) : IQueryH
 {
     public async Task<GetPriceHistoryResult> Handle(GetPriceHistoryQuery query, CancellationToken cancellationToken)
     {
-        var dbQuery = dbContext.PriceHistories
+        IQueryable<PriceHistory>? dbQuery = dbContext.PriceHistories
             .AsNoTracking()
             .Where(x => x.RestaurantId == query.RestaurantId);
 
@@ -55,9 +55,9 @@ internal class GetPriceHistoryQueryHandler(CatalogDbContext dbContext) : IQueryH
 
         dbQuery = dbQuery.OrderByDescending(x => x.EffectiveDate);
 
-        var priceHistories = await dbQuery.ToListAsync(cancellationToken);
+        List<PriceHistory>? priceHistories = await dbQuery.ToListAsync(cancellationToken);
 
-        var dtos = priceHistories.Adapt<IEnumerable<PriceHistoryDto>>();
+        IEnumerable<PriceHistoryDto>? dtos = priceHistories.Adapt<IEnumerable<PriceHistoryDto>>();
 
         return new GetPriceHistoryResult(dtos);
     }

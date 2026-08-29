@@ -39,12 +39,12 @@ public static class ApplyDiscountsHelper
     {
         ArgumentNullException.ThrowIfNull(applied);
 
-        var originalSubtotal = subtotal;
-        var running = subtotal;
-        var breakdown = new List<AppliedDiscountBreakdown>(applied.Count);
+        decimal originalSubtotal = subtotal;
+        decimal running = subtotal;
+        List<AppliedDiscountBreakdown>? breakdown = new List<AppliedDiscountBreakdown>(applied.Count);
         decimal totalReduction = 0m;
 
-        foreach (var d in applied)
+        foreach (AppliedDiscount? d in applied)
         {
             // Inactive coupons: record zero applied, do not reduce the running total.
             if (!d.IsActive)
@@ -58,7 +58,7 @@ public static class ApplyDiscountsHelper
                 continue;
             }
 
-            var requested = d.Amount;
+            decimal requested = d.Amount;
             decimal rawReduction = d.Type switch
             {
                 // Per-line rounding (banker's rounding) applies to the
@@ -76,7 +76,7 @@ public static class ApplyDiscountsHelper
 
             // Floor at zero: never let running go below 0; the candidate's
             // applied contribution is the lesser of (rawReduction, running).
-            var appliedReduction = rawReduction > running ? running : rawReduction;
+            decimal appliedReduction = rawReduction > running ? running : rawReduction;
             running -= appliedReduction;
             if (running < 0m)
             {
@@ -95,7 +95,7 @@ public static class ApplyDiscountsHelper
         // Effective subtotal = clamp(raw running, 0, +∞). The running is already
         // floored per-iteration, but the caller may have passed a negative
         // subtotal which we round back to zero here.
-        var effective = running < 0m ? 0m : running;
+        decimal effective = running < 0m ? 0m : running;
 
         return new ApplyDiscountsResult(
             OriginalSubtotal: originalSubtotal,

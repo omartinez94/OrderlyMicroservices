@@ -44,7 +44,7 @@ public sealed class BrokerHealthState
     {
         get
         {
-            var ticks = Interlocked.Read(ref _trippedAtTicks);
+            long ticks = Interlocked.Read(ref _trippedAtTicks);
             return ticks == 0
                 ? null
                 : DateTimeOffset.FromUnixTimeMilliseconds(ticks);
@@ -57,7 +57,7 @@ public sealed class BrokerHealthState
     /// </summary>
     public int RecordFailure()
     {
-        var next = Interlocked.Increment(ref _consecutiveBrokerFailures);
+        int next = Interlocked.Increment(ref _consecutiveBrokerFailures);
         // Stamp the tripped-at timestamp the first time the counter
         // crosses 0; subsequent failures don't overwrite the original
         // trip clock. The dispatcher's IsHealthy(threshold) check

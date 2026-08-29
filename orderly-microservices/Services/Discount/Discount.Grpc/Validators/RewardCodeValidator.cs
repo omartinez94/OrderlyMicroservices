@@ -103,7 +103,7 @@ public static class RewardCodeValidator
         Instant? expirationDate = null;
         if (!string.IsNullOrWhiteSpace(expirationDateIso))
         {
-            var parseResult = InstantPattern.ExtendedIso.Parse(expirationDateIso);
+            ParseResult<Instant>? parseResult = InstantPattern.ExtendedIso.Parse(expirationDateIso);
             if (!parseResult.Success)
             {
                 throw new BusinessRuleException(
@@ -124,7 +124,7 @@ public static class RewardCodeValidator
                 "RewardCode.MaxRedeemAmount, when set, must be > 0.");
         }
 
-        var row = existing ?? new RewardCode
+        RewardCode? row = existing ?? new RewardCode
         {
             // C# 11 required modifier (v1.1 M7) — Code + Kind must be set
             // at construction time. The validator is the single point of

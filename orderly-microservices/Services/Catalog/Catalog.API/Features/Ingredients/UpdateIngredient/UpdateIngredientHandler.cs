@@ -32,7 +32,7 @@ internal class UpdateIngredientCommandHandler(
 {
     public async Task<UpdateIngredientResult> Handle(UpdateIngredientCommand command, CancellationToken cancellationToken)
     {
-        var ingredient = await dbContext.Ingredients.FirstOrDefaultAsync(i => i.RestaurantId == command.RestaurantId && i.Id == command.Id, cancellationToken)
+        Ingredient? ingredient = await dbContext.Ingredients.FirstOrDefaultAsync(i => i.RestaurantId == command.RestaurantId && i.Id == command.Id, cancellationToken)
             ?? throw new IngredientNotFoundException(command.Id);
 
         ingredient.Name = command.Name;

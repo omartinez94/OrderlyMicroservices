@@ -28,7 +28,7 @@ internal class DeleteMenuSubCategoryCommandHandler(
 {
     public async Task<DeleteMenuSubCategoryResult> Handle(DeleteMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
-        var subCategory = await dbContext.MenuSubCategories
+        MenuSubCategory? subCategory = await dbContext.MenuSubCategories
             .FirstOrDefaultAsync(sc => sc.Id == command.Id, cancellationToken);
 
         if (subCategory is null)
@@ -46,7 +46,7 @@ internal class DeleteMenuSubCategoryCommandHandler(
 
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            var restaurantId = await dbContext.MenuCategories
+            Guid? restaurantId = await dbContext.MenuCategories
                 .Where(c => c.Id == subCategory.CategoryId)
                 .Select(c => (Guid?)c.RestaurantId)
                 .FirstOrDefaultAsync(cancellationToken);

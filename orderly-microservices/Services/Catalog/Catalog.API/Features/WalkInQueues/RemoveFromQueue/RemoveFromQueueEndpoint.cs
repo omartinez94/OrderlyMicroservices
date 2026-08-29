@@ -6,13 +6,13 @@ public class RemoveFromQueueEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("WalkInQueues");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("WalkInQueues");
 
         group.MapDelete("/restaurants/{restaurantId}/walk-in-queue/{id}", async (int id, ISender sender) =>
         {
-            var command = new RemoveFromQueueCommand(id);
-            var result = await sender.Send(command);
-            var response = result.Adapt<RemoveFromQueueResponse>();
+            RemoveFromQueueCommand? command = new RemoveFromQueueCommand(id);
+            RemoveFromQueueResult? result = await sender.Send(command);
+            RemoveFromQueueResponse? response = result.Adapt<RemoveFromQueueResponse>();
 
             return Results.Ok(response);
         })

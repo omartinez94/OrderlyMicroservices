@@ -7,30 +7,30 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
         CreateOrderCommand command,
         CancellationToken cancellationToken)
     {
-        var dto = command.Order;
+        OrderDto? dto = command.Order;
 
-        var billingAddress = Address.Of(
+        Address? billingAddress = Address.Of(
             dto.BillingAddress.Street,
             dto.BillingAddress.City,
             dto.BillingAddress.State,
             dto.BillingAddress.ZipCode,
             dto.BillingAddress.Country);
 
-        var deliveryAddress = Address.Of(
+        Address? deliveryAddress = Address.Of(
             dto.DeliveryAddress.Street,
             dto.DeliveryAddress.City,
             dto.DeliveryAddress.State,
             dto.DeliveryAddress.ZipCode,
             dto.DeliveryAddress.Country);
 
-        var payment = Payment.Of(
+        Payment? payment = Payment.Of(
             dto.Payment.Method,
             dto.Payment.Brand,
             dto.Payment.LastFour);
 
-        var orderId = OrderId.Of(Guid.NewGuid());
+        OrderId? orderId = OrderId.Of(Guid.NewGuid());
 
-        var order = Order.Create(
+        Order? order = Order.Create(
             orderId,
             CustomerId.Of(dto.CustomerId),
             OrderNumber.Of(dto.OrderNumber),
@@ -66,7 +66,7 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
         order.TotalAmount = dto.TotalAmount;
 
         // Add order items
-        foreach (var item in dto.OrderItems)
+        foreach (OrderItemDto? item in dto.OrderItems)
         {
             order.Add(MenuItemId.Of(item.MenuItemId), item.Quantity, item.UnitPrice);
         }

@@ -4,7 +4,7 @@ public class UpdateRoleModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/roles");
+        RouteGroupBuilder? group = app.MapGroup("/v1/roles");
 
         group.MapPut("{id:guid}", async (
                 Guid id,
@@ -12,8 +12,8 @@ public class UpdateRoleModule : ICarterModule
                 UpdateRoleRequest request,
                 CancellationToken ct) =>
             {
-                var command = new UpdateRoleCommand(id, request.Name, request.Description);
-                var response = await sender.Send(command, ct);
+                UpdateRoleCommand? command = new UpdateRoleCommand(id, request.Name, request.Description);
+                UpdateRoleResponse? response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("roles:edit").Accepts<UpdateRoleRequest>("application/json")

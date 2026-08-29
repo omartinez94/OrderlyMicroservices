@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Ordering.Domain.Abstractions;
 
@@ -25,18 +25,18 @@ public class DispatchDomainEventsInterceptor(IMediator mediator) : SaveChangesIn
             return;
         }
 
-        var aggregates = context.ChangeTracker
+        IEnumerable<IAggregate>? aggregates = context.ChangeTracker
             .Entries<IAggregate>()
             .Where(e => e.Entity.DomainEvents.Any())
             .Select(e => e.Entity);
 
-        var domainEvents = aggregates
+        List<IDomainEvent>? domainEvents = aggregates
             .SelectMany(e => e.DomainEvents)
             .ToList();
 
         aggregates.ToList().ForEach(e => e.ClearDomainEvents());
 
-        foreach (var domainEvent in domainEvents)
+        foreach (IDomainEvent? domainEvent in domainEvents)
         {
             await mediator.Publish(domainEvent);
         }

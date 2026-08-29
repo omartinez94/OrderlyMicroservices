@@ -28,7 +28,7 @@ internal class CreateIngredientCommandHandler(
 {
     public async Task<CreateIngredientResult> Handle(CreateIngredientCommand command, CancellationToken cancellationToken)
     {
-        var ingredient = new Ingredient
+        Ingredient? ingredient = new Ingredient
         {
             RestaurantId = command.RestaurantId,
             Name = command.Name,

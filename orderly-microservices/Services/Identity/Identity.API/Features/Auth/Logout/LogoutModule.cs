@@ -4,7 +4,7 @@ public class LogoutModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/auth");
+        RouteGroupBuilder? group = app.MapGroup("/v1/auth");
 
         group.MapPost("/logout", async (
                 HttpContext context,
@@ -19,16 +19,16 @@ public class LogoutModule : ICarterModule
                     return Results.NoContent();
                 }
 
-                var userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                string? userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
                 Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
 
-                var ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
-                var userAgent = context.Request.Headers.UserAgent.ToString();
+                string? ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                string? userAgent = context.Request.Headers.UserAgent.ToString();
 
-                var tokenId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
+                string? tokenId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
                 if (tokenId is not null)
                 {
-                    var token = await tokenManager.FindByIdAsync(tokenId, ct);
+                    object? token = await tokenManager.FindByIdAsync(tokenId, ct);
                     if (token is not null)
                     {
                         await tokenManager.TryRevokeAsync(token, ct);

@@ -69,7 +69,7 @@ public static class CheckoutRateLimiter
     /// filters those out before the policy runs.</summary>
     public static RateLimitPartition<string> PartitionFunc(HttpContext httpContext)
     {
-        var key = $"{httpContext.User.GetUserId()}:{httpContext.User.GetRestaurantId()}";
+        string? key = $"{httpContext.User.GetUserId()}:{httpContext.User.GetRestaurantId()}";
         return RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: key,
             factory: _ => new FixedWindowRateLimiterOptions
@@ -95,7 +95,7 @@ public static class CheckoutRateLimiter
             // MetadataName.RetryAfter exposes TimeSpan when present; ASP.NET Core
             // sets it automatically when AutoReplenishment=true. Convert to
             // seconds (integer) per RFC 7231 §7.1.3.
-            var seconds = (int)Math.Ceiling(((TimeSpan)retryAfter).TotalSeconds);
+            int seconds = (int)Math.Ceiling(((TimeSpan)retryAfter).TotalSeconds);
             context.HttpContext.Response.Headers.RetryAfter = seconds.ToString();
         }
 
@@ -112,7 +112,7 @@ public static class CheckoutRateLimiter
         // guarantees the value is present at boot, so we read it
         // directly without a fallback (no silent drift if config
         // somehow disappears at runtime).
-        var baseUrl = _options.CurrentValue.BaseUrl;
+        string? baseUrl = _options.CurrentValue.BaseUrl;
         await context.HttpContext.Response.WriteAsJsonAsync(
             new
             {

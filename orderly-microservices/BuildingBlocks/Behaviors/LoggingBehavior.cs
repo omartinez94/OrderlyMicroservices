@@ -60,8 +60,8 @@ public class LoggingBehavior<TRequest, TResponse>(
 
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        var correlationId = ResolveOrGenerateCorrelationId();
-        var ownsAmbient = correlationId is not null;
+        string? correlationId = ResolveOrGenerateCorrelationId();
+        bool ownsAmbient = correlationId is not null;
 
         if (correlationId is not null)
         {
@@ -70,8 +70,8 @@ public class LoggingBehavior<TRequest, TResponse>(
 
         try
         {
-            var isPci = IsPciSensitive();
-            var requestData = isPci ? (object)RedactedLabel() : request;
+            bool isPci = IsPciSensitive();
+            object? requestData = isPci ? (object)RedactedLabel() : request;
 
             if (logger.IsEnabled(LogLevel.Information))
             {
@@ -80,13 +80,13 @@ public class LoggingBehavior<TRequest, TResponse>(
                     typeof(TRequest).Name, typeof(TResponse).Name, correlationId ?? "<none>", requestData);
             }
 
-            var timer = new Stopwatch();
+            Stopwatch? timer = new Stopwatch();
             timer.Start();
 
-            var response = await next(cancellationToken);
+            TResponse? response = await next(cancellationToken);
 
             timer.Stop();
-            var elapsed = timer.Elapsed;
+            TimeSpan elapsed = timer.Elapsed;
             if (elapsed.TotalSeconds > 3)
             {
                 logger.LogWarning(
@@ -121,7 +121,7 @@ public class LoggingBehavior<TRequest, TResponse>(
     /// </summary>
     private string? ResolveOrGenerateCorrelationId()
     {
-        var httpContext = httpContextAccessor.HttpContext;
+        HttpContext? httpContext = httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
             return null;

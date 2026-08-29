@@ -8,7 +8,7 @@ internal class ConfirmReservationCommandHandler(CatalogDbContext dbContext) : IC
 {
     public async Task<ConfirmReservationResult> Handle(ConfirmReservationCommand command, CancellationToken cancellationToken)
     {
-        var reservation = await dbContext.Reservations.FindAsync([command.Id], cancellationToken)
+        Reservation? reservation = await dbContext.Reservations.FindAsync([command.Id], cancellationToken)
             ?? throw new ReservationNotFoundException(command.Id);
 
         reservation.Status = ReservationStatus.Confirmed;

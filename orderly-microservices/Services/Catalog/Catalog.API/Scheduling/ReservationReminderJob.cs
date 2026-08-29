@@ -36,19 +36,19 @@ public sealed class ReservationReminderJob(
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        var outbox = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();
+        CatalogDbContext? dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        IOutboxPublisher? outbox = scope.ServiceProvider.GetRequiredService<IOutboxPublisher>();
 
-        var now = clock.GetUtcNow();
-        var nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
-        var windowStart = nowInstant.Minus(Duration.FromMinutes(55));
-        var windowEnd = nowInstant.Plus(Duration.FromMinutes(5));
+        DateTimeOffset now = clock.GetUtcNow();
+        Instant nowInstant = Instant.FromDateTimeUtc(now.UtcDateTime);
+        Instant windowStart = nowInstant.Minus(Duration.FromMinutes(55));
+        Instant windowEnd = nowInstant.Plus(Duration.FromMinutes(5));
 
         // The 55–5 minute window is the "is the reservation exactly one hour away"
         // window expressed in UTC instants. Combines ReservationDate + ReservationTime
         // (LocalDate / LocalTime on the row) into an Instant by anchoring on UTC
         // (the plan keeps everything in UTC; per-restaurant TimeZone.
-        var dueReservations = await dbContext.Reservations
+        List<Reservation>? dueReservations = await dbContext.Reservations
             .Where(r => r.Status == ReservationStatus.Confirmed
                 && !r.ReminderSent
                 && r.SeatedAt == null)
@@ -57,10 +57,10 @@ public sealed class ReservationReminderJob(
             .Take(_options.MaxRowsPerTick)
             .ToListAsync(cancellationToken);
 
-        var dispatched = 0;
-        foreach (var reservation in dueReservations)
+        int dispatched = 0;
+        foreach (Reservation? reservation in dueReservations)
         {
-            var reservationInstant = reservation.ReservationDate
+            Instant reservationInstant = reservation.ReservationDate
                 .AtStartOfDayInZone(DateTimeZone.Utc)
                 .Plus(Duration.FromTicks(reservation.ReservationTime.TickOfDay))
                 .ToInstant();

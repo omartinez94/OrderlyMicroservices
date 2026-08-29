@@ -77,7 +77,7 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
             throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemPreparing));
         }
 
-        var previousPrepStatus = PrepStatus;
+        PrepStatus previousPrepStatus = PrepStatus;
         PrepStatus = PrepStatus.Preparing;
         PrepStartedAt = now;
 
@@ -110,7 +110,7 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
             throw new InvalidOrderItemStateTransitionException(PrepStatus, nameof(MarkItemReady));
         }
 
-        var previousPrepStatus = PrepStatus;
+        PrepStatus previousPrepStatus = PrepStatus;
         PrepStatus = PrepStatus.Ready;
         PrepCompletedAt = now;
 

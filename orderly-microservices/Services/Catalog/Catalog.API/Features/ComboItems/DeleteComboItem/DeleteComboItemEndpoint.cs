@@ -6,12 +6,12 @@ public class DeleteComboItemEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("ComboItems");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("ComboItems");
 
         group.MapDelete("/combo-items/{id}", async (int id, ISender sender) =>
         {
-            var result = await sender.Send(new DeleteComboItemCommand(id));
-            var response = result.Adapt<DeleteComboItemResponse>();
+            DeleteComboItemResult? result = await sender.Send(new DeleteComboItemCommand(id));
+            DeleteComboItemResponse? response = result.Adapt<DeleteComboItemResponse>();
 
             return Results.Ok(response);
         })

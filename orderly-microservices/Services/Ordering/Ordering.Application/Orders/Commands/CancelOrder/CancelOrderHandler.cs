@@ -9,13 +9,13 @@ public class CancelOrderHandler(
         CancelOrderCommand command,
         CancellationToken cancellationToken)
     {
-        var orderId = OrderId.Of(command.OrderId);
+        OrderId? orderId = OrderId.Of(command.OrderId);
 
-        var order = await dbContext.Orders
+        Order? order = await dbContext.Orders
             .FindAsync([orderId], cancellationToken)
             ?? throw new OrderNotFoundException(nameof(Order), command.OrderId);
 
-        var staffUserId = ResolveStaffUserId();
+        Guid staffUserId = ResolveStaffUserId();
         if (staffUserId == Guid.Empty)
         {
             throw new UnauthorizedAccessException(
@@ -31,13 +31,13 @@ public class CancelOrderHandler(
 
     private Guid ResolveStaffUserId()
     {
-        var user = httpContextAccessor.HttpContext?.User;
+        ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
         if (user is null)
         {
             return Guid.Empty;
         }
 
-        var sub = user.FindFirstValue(ClaimTypes.NameIdentifier)
+        string? sub = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? user.FindFirstValue("sub");
         return Guid.TryParse(sub, out var id) ? id : Guid.Empty;
     }

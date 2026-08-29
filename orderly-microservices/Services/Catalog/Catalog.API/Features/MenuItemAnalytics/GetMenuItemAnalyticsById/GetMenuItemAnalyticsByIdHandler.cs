@@ -14,7 +14,7 @@ internal class GetMenuItemAnalyticsByIdQueryHandler(CatalogDbContext dbContext)
         GetMenuItemAnalyticsByIdQuery query,
         CancellationToken cancellationToken)
     {
-        var item = await dbContext.MenuItemAnalytics
+        Models.MenuItemAnalytics? item = await dbContext.MenuItemAnalytics
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == query.Id && x.RestaurantId == query.RestaurantId, cancellationToken)
             ?? throw new MenuItemAnalyticsNotFoundException(query.Id);

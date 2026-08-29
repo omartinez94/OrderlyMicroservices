@@ -6,14 +6,14 @@ public class DeleteIngredientAlternativeEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("IngredientAlternatives");
 
         group.MapDelete("/restaurants/{restaurantId:guid}/ingredient-alternatives/{id:int}", async (Guid restaurantId, int id, ISender sender) =>
         {
-            var command = new DeleteIngredientAlternativeCommand(id, restaurantId);
+            DeleteIngredientAlternativeCommand? command = new DeleteIngredientAlternativeCommand(id, restaurantId);
 
-            var result = await sender.Send(command);
-            var response = result.Adapt<DeleteIngredientAlternativeResponse>();
+            DeleteIngredientAlternativeResult? result = await sender.Send(command);
+            DeleteIngredientAlternativeResponse? response = result.Adapt<DeleteIngredientAlternativeResponse>();
 
             return Results.Ok(response);
         })

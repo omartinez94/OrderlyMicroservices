@@ -19,11 +19,11 @@ internal class GetIngredientAlternativesQueryHandler(CatalogDbContext dbContext)
 {
     public async Task<GetIngredientAlternativesResult> Handle(GetIngredientAlternativesQuery query, CancellationToken cancellationToken)
     {
-        var alternatives = await dbContext.IngredientAlternatives
+        List<IngredientAlternative>? alternatives = await dbContext.IngredientAlternatives
             .Where(x => x.RestaurantId == query.RestaurantId)
             .ToListAsync(cancellationToken);
 
-        var dtos = alternatives.Adapt<IEnumerable<IngredientAlternativeDto>>();
+        IEnumerable<IngredientAlternativeDto>? dtos = alternatives.Adapt<IEnumerable<IngredientAlternativeDto>>();
 
         return new GetIngredientAlternativesResult(dtos);
     }

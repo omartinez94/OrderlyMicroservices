@@ -8,7 +8,7 @@ internal class DeleteBrandCommandHandler(CatalogDbContext dbContext) : ICommandH
 {
     public async Task<DeleteBrandResult> Handle(DeleteBrandCommand command, CancellationToken cancellationToken)
     {
-        var brand = await dbContext.Brands.FindAsync([command.Id], cancellationToken)
+        Brand? brand = await dbContext.Brands.FindAsync([command.Id], cancellationToken)
             ?? throw new BrandNotFoundException(command.Id);
 
         dbContext.Brands.Remove(brand);

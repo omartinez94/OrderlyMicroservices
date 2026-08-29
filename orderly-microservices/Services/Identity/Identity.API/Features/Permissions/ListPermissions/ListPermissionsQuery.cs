@@ -11,7 +11,7 @@ public class ListPermissionsQueryHandler(IdentityDbContext dbContext)
 {
     public async Task<ListPermissionsResponse> Handle(ListPermissionsQuery query, CancellationToken cancellationToken)
     {
-        var permissions = await dbContext.Permissions
+        List<PermissionDto>? permissions = await dbContext.Permissions
             .Select(p => new PermissionDto(p.Id, p.Name, p.Description, p.Resource, p.Action))
             .ToListAsync(cancellationToken);
 

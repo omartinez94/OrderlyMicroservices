@@ -39,13 +39,13 @@ internal class UpdateTableCommandHandler(
 {
     public async Task<UpdateTableResult> Handle(UpdateTableCommand command, CancellationToken cancellationToken)
     {
-        var table = await dbContext.Tables.FindAsync([command.Id], cancellationToken)
+        Table? table = await dbContext.Tables.FindAsync([command.Id], cancellationToken)
             ?? throw new TableNotFoundException(command.Id);
 
         // Capture the prior status so we only emit TableStatusChanged when the
         // status actually flipped — the consumer (Ordering reservation/order
         // placement) only cares about the transition, not table renumbering.
-        var previousStatus = table.Status;
+        TableStatus previousStatus = table.Status;
 
         table.TableNumber = command.TableNumber;
         table.Capacity = command.Capacity;

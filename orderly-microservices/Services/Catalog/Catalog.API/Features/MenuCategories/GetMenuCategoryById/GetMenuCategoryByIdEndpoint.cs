@@ -6,12 +6,12 @@ public class GetMenuCategoryByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("MenuCategories");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("MenuCategories");
 
         group.MapGet("/menu-categories/{id:int}", async (int id, ISender sender) =>
         {
-            var result = await sender.Send(new GetMenuCategoryByIdQuery(id));
-            var response = result.Adapt<GetMenuCategoryByIdResponse>();
+            GetMenuCategoryByIdResult? result = await sender.Send(new GetMenuCategoryByIdQuery(id));
+            GetMenuCategoryByIdResponse? response = result.Adapt<GetMenuCategoryByIdResponse>();
 
             return Results.Ok(response);
         })

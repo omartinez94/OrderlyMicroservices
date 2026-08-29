@@ -48,16 +48,16 @@ public sealed class OrderCreatedConsumer(
 
     public async Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
     {
-        var evt = context.Message;
-        var rid = evt.RestaurantId;
+        OrderCreatedIntegrationEvent? evt = context.Message;
+        Guid rid = evt.RestaurantId;
 
         await using var scope = scopes.CreateAsyncScope();
-        var sp = scope.ServiceProvider;
-        var provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
-        var db = sp.GetRequiredService<DiscountContext>();
-        var outbox = sp.GetRequiredService<IOutboxPublisher>();
-        var clock = sp.GetRequiredService<TimeProvider>();
-        var options = sp.GetRequiredService<IOptions<DiscountOptions>>();
+        IServiceProvider? sp = scope.ServiceProvider;
+        ICurrentRestaurantProvider? provider = sp.GetRequiredService<ICurrentRestaurantProvider>();
+        DiscountContext? db = sp.GetRequiredService<DiscountContext>();
+        IOutboxPublisher? outbox = sp.GetRequiredService<IOutboxPublisher>();
+        TimeProvider? clock = sp.GetRequiredService<TimeProvider>();
+        IOptions<DiscountOptions>? options = sp.GetRequiredService<IOptions<DiscountOptions>>();
 
         // the master switch. When the flag is false the
         // consumer acks the message without action — keeping the
@@ -72,12 +72,12 @@ public sealed class OrderCreatedConsumer(
         }
 
         // Pattern 2 synthetic principal.
-        var principal = new ClaimsPrincipalBuilder()
+        System.Security.Claims.ClaimsPrincipal? principal = new ClaimsPrincipalBuilder()
             .WithRestaurant(rid)
             .WithActor(DiscountActors.Service)
             .Build();
 
-        var now = SystemClock.Instance.GetCurrentInstant();
+        Instant now = SystemClock.Instance.GetCurrentInstant();
 
         using (provider.Attach(principal))
         {
@@ -89,7 +89,7 @@ public sealed class OrderCreatedConsumer(
             // redemption lands with the future ordering-scheduler plan.
             // The stub proves the wiring + the v2 publish shape; the
             // rule-eval surface is delegated to that future plan.
-            var candidates = await db.Coupons
+            List<Models.Coupon>? candidates = await db.Coupons
                 .Where(c => c.RestaurantId == rid
                             && c.IsActive
                             && c.DeletedAt == null
@@ -109,9 +109,9 @@ public sealed class OrderCreatedConsumer(
             // Apply the first eligible coupon (one-per-order). Real stacking lands with
             // the future implementation; the stub demonstrates the
             // publish shape + the conditional UPDATE pattern.
-            var coupon = candidates[0];
+            Models.Coupon? coupon = candidates[0];
 
-            var rowsAffected = await db.Database.ExecuteSqlInterpolatedAsync($@"
+            int rowsAffected = await db.Database.ExecuteSqlInterpolatedAsync($@"
                 UPDATE ""Coupons""
                 SET ""RedeemAmount""    = ""RedeemAmount"" + 1,
                     ""LastModifiedAt""  = {now},

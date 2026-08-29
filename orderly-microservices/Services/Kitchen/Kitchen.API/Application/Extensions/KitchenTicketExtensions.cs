@@ -96,8 +96,8 @@ public static class KitchenTicketExtensions
             return [];
         }
 
-        var result = new List<string>(variations.Count);
-        foreach (var v in variations)
+        List<string>? result = new List<string>(variations.Count);
+        foreach (KitchenOrderItemVariation? v in variations)
         {
             if (string.IsNullOrWhiteSpace(v.Name))
             {
@@ -124,8 +124,8 @@ public static class KitchenTicketExtensions
             return [];
         }
 
-        var result = new List<string>(customizations.Count);
-        foreach (var c in customizations)
+        List<string>? result = new List<string>(customizations.Count);
+        foreach (KitchenOrderItemCustomization? c in customizations)
         {
             if (string.IsNullOrWhiteSpace(c.Label))
             {

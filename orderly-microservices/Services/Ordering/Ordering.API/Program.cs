@@ -5,7 +5,7 @@ using Ordering.Application;
 using Ordering.Infrastructure;
 using Ordering.Infrastructure.Data.Extensions;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 
 // OpenTelemetry: traces + metrics + logs. Wired through the shared
 // `BuildingBlocks.Observability.AddOrderlyOpenTelemetry` extension so
@@ -26,7 +26,7 @@ builder.Services
 
 builder.Services.AddHostedService<OrderingDataSeederHostedService>();
 
-var app = builder.Build();
+WebApplication? app = builder.Build();
 
 // Configure the HTTP request pipeline.
 app.UseApiServices();
@@ -45,7 +45,7 @@ if (app.Environment.IsDevelopment())
             {
                 return Results.Empty;
             }
-            var reconciled = await runner.RunAsync(ctx.RequestAborted);
+            int reconciled = await runner.RunAsync(ctx.RequestAborted);
             return Results.Ok(new { reconciledCount = reconciled });
         });
 
@@ -57,7 +57,7 @@ if (app.Environment.IsDevelopment())
             {
                 return Results.Empty;
             }
-            var dispatched = await runner.DispatchOnceAsync(ctx.RequestAborted);
+            int dispatched = await runner.DispatchOnceAsync(ctx.RequestAborted);
             return Results.Ok(new { dispatchedCount = dispatched });
         });
 }

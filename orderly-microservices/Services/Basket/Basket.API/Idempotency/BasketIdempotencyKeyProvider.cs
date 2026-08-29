@@ -28,7 +28,7 @@ public sealed class BasketIdempotencyKeyProvider : IBasketIdempotencyKeyProvider
         ArgumentNullException.ThrowIfNull(env);
         _logger = logger;
 
-        var raw = options.Value.SecretHex;
+        string? raw = options.Value.SecretHex;
         if (string.IsNullOrWhiteSpace(raw))
         {
             if (env.IsDevelopment())
@@ -70,8 +70,8 @@ public sealed class BasketIdempotencyKeyProvider : IBasketIdempotencyKeyProvider
     public string Compute(string envelope)
     {
         ArgumentException.ThrowIfNullOrEmpty(envelope);
-        var bytes = Encoding.UTF8.GetBytes(envelope);
-        var mac = HMACSHA256.HashData(_key, bytes);
+        byte[]? bytes = Encoding.UTF8.GetBytes(envelope);
+        byte[]? mac = HMACSHA256.HashData(_key, bytes);
         return Convert.ToHexString(mac);
     }
 }

@@ -4,7 +4,7 @@ public class AssignPermissionsModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1/roles");
+        RouteGroupBuilder? group = app.MapGroup("/v1/roles");
 
         group.MapPut("{id:guid}/permissions", async (
                 Guid id,
@@ -12,8 +12,8 @@ public class AssignPermissionsModule : ICarterModule
                 AssignPermissionsRequest request,
                 CancellationToken ct) =>
             {
-                var command = new AssignPermissionsCommand(id, request.PermissionIds);
-                var response = await sender.Send(command, ct);
+                AssignPermissionsCommand? command = new AssignPermissionsCommand(id, request.PermissionIds);
+                AssignPermissionsResponse? response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("roles:edit_permissions").Accepts<AssignPermissionsRequest>("application/json")

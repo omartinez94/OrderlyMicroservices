@@ -99,15 +99,15 @@ public sealed class BrokerHealthCheck(
         // DiscountOptions carries the threshold for the dead-letter probe;
         // the circuit breaker reads OutboxOptions.MaxConsecutiveBrokerFailures
         // directly. Both fields share the default of 3.
-        var threshold = options.Value.OutboxDeadLetterThreshold > 0
+        int threshold = options.Value.OutboxDeadLetterThreshold > 0
             ? options.Value.OutboxDeadLetterThreshold
             : 3; // safe default matches OutboxOptions default.
 
-        var failures = state.ConsecutiveBrokerFailures;
+        int failures = state.ConsecutiveBrokerFailures;
         if (failures >= threshold)
         {
-            var trippedAt = state.TrippedAt;
-            var data = new Dictionary<string, object>
+            DateTimeOffset? trippedAt = state.TrippedAt;
+            Dictionary<string, object>? data = new Dictionary<string, object>
             {
                 ["consecutive_failures"] = failures,
                 ["threshold"] = threshold,
@@ -151,13 +151,13 @@ public sealed class OutboxDeadLetterCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
-        var threshold = options.Value.OutboxDeadLetterThreshold;
+        int threshold = options.Value.OutboxDeadLetterThreshold;
         try
         {
             await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
-            var deadCount = await db.OutboxDeadMessages.CountAsync(cancellationToken).ConfigureAwait(false);
-            var data = new Dictionary<string, object>
+            DiscountContext? db = scope.ServiceProvider.GetRequiredService<DiscountContext>();
+            int deadCount = await db.OutboxDeadMessages.CountAsync(cancellationToken).ConfigureAwait(false);
+            Dictionary<string, object>? data = new Dictionary<string, object>
             {
                 ["dead_count"] = deadCount,
                 ["threshold"] = threshold,
@@ -204,7 +204,7 @@ public sealed class RabbitMqBrokerCheck(
             return HealthCheckResult.Healthy("Outbox disabled; broker probe skipped.");
         }
 
-        var host = configuration["MessageBroker:Host"] ?? configuration["MessageBroker__Host"];
+        string? host = configuration["MessageBroker:Host"] ?? configuration["MessageBroker__Host"];
         if (string.IsNullOrWhiteSpace(host))
         {
             // Production posture but no host configured: that's an
@@ -218,8 +218,8 @@ public sealed class RabbitMqBrokerCheck(
         try
         {
             using var tcp = new System.Net.Sockets.TcpClient();
-            var connectTask = tcp.ConnectAsync(host, 5672);
-            var completed = await Task.WhenAny(
+            Task? connectTask = tcp.ConnectAsync(host, 5672);
+            Task? completed = await Task.WhenAny(
                 connectTask,
                 Task.Delay(TimeSpan.FromSeconds(2), cancellationToken)).ConfigureAwait(false);
             if (completed != connectTask || !tcp.Connected)

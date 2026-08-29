@@ -11,15 +11,15 @@ public class GetCustomerFeedbackByIdEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/v1").WithTags("CustomerFeedback");
+        RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("CustomerFeedback");
 
         group.MapGet("/restaurants/{restaurantId}/feedback/{id:int}", async (
             Guid restaurantId,
             int id,
             ISender sender) =>
         {
-            var query = new GetCustomerFeedbackByIdQuery(id, restaurantId);
-            var result = await sender.Send(query);
+            GetCustomerFeedbackByIdQuery? query = new GetCustomerFeedbackByIdQuery(id, restaurantId);
+            GetCustomerFeedbackByIdResult? result = await sender.Send(query);
             return Results.Ok(new GetCustomerFeedbackByIdResponse(result.Item));
         })
         .WithDescription("Gets a single customer feedback entry by ID.")

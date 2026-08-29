@@ -379,6 +379,25 @@ pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-github-actions.ps1"
 if ($LASTEXITCODE) { throw "❌ GitHub Actions workflow lint failed" }
 
 # ----------------------------------------------------------------
+# 2️⃣2️⃣ Code style (AGENTS.md — null checks, braces, string handling)
+#
+#    Local mirror of the style-gate CI grep (.github/workflows/style-gate.yml).
+#    Enforces rules that IDE analyzers cannot cover:
+#    == null / != null (no IDE rule, only IDE0041 covers ReferenceEquals),
+#    empty-string comparisons, braceless control flow. Companion PowerShell
+#    script in scripts/quality-helpers/check-code-style.ps1.
+# ----------------------------------------------------------------
+if ($PreCommit) {
+    Write-Skipped "🎨 Code style (AGENTS.md)"
+}
+else {
+    Write-Section "🎨 Code style (AGENTS.md)"
+
+    pwsh -NoProfile -File "$PSScriptRoot/quality-helpers/check-code-style.ps1"
+    if ($LASTEXITCODE) { throw "❌ Code style violations found" }
+}
+
+# ----------------------------------------------------------------
 # 2️⃣1️⃣ Suggested Git commit message
 # ----------------------------------------------------------------
 if ($PreCommit) {

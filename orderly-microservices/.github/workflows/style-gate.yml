@@ -1,0 +1,150 @@
+name: style gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'orderly-microservices/**'
+      - 'orderly-microservices/.editorconfig'
+      - 'orderly-microservices/Directory.Build.props'
+      - 'orderly-microservices/.github/workflows/style-gate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'orderly-microservices/**'
+      - 'orderly-microservices/.editorconfig'
+      - 'orderly-microservices/Directory.Build.props'
+      - 'orderly-microservices/.github/workflows/style-gate.yml'
+
+jobs:
+  whitespace:
+    name: whitespace gate (dotnet format whitespace)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Whitespace + indent + line-ending gate
+        working-directory: orderly-microservices
+        run: dotnet format whitespace orderly-microservices.slnx --verify-no-changes --no-restore
+
+  analyzers:
+    name: style analyzers (IDE0008 / IDE0011 / SA1503)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        working-directory: orderly-microservices
+        run: dotnet restore orderly-microservices.slnx
+
+      # IDE0008 = var → explicit type (Phase 3 rule)
+      # IDE0011 = braces required (Phase 1 rule)
+      # SA1503  = braces must not be omitted (StyleCop equivalent of IDE0011)
+      #
+      # NOT included and why:
+      # - IDE0041: only covers ReferenceEquals → is null, NOT == null → is null
+      # - IDE0021: "expression body for constructors" — not an AGENTS.md rule
+      - name: Analyzers as errors
+        working-directory: orderly-microservices
+        run: dotnet build orderly-microservices.slnx -warnaserror:IDE0008,IDE0011,SA1503 --no-restore
+
+  null-check:
+    name: null-check / string / brace grep gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The analyzer can't enforce == null → is null or != null → is not null
+      # (IDE0041 only covers ReferenceEquals → is null). The CI grep is the
+      # enforcement. Filters out generated code, comments, and EF Core LINQ
+      # expression trees (CS8122 forbids pattern-matching in expression trees
+      # — those sites are documented in the plan and intentionally keep == null).
+      - name: No == null / != null outside expression trees
+        # CS8122 carve-outs — the plan §Phase 2 explicitly documents these
+        # as MUST-KEEP-==-NULL sites (EF Core / Marten LINQ, FluentValidation
+        # .Must / RuleFor). The exclusions mirror check-code-style.ps1.
+        # Add new expression-tree carriers here AND in the local script.
+        run: |
+          EXCLUDES='
+            /Tests/|/Migrations/|\.Designer\.cs$|\.g\.cs$|
+            OrderActivityConfiguration\.cs|OrderConfiguration\.cs|
+            OrderItemConfiguration\.cs|KitchenTicketConfiguration\.cs|
+            DiscountContext\.cs|MenuItemChangedConsumer\.cs|
+            OrderCreatedConsumer\.cs|FeedbackSubmittedConsumer\.cs|
+            DiscountRuleService\.cs|DiscountExpirySweepService\.cs|
+            RewardCodeService\.cs|CheckoutBasketOutboxDispatcher\.cs|
+            StoreBasketHandler\.cs|ClaimsTransformer\.cs|
+            ValidationBehavior\.cs|MenuReader\.cs|
+            ReservationNoShowJob\.cs|ReservationReminderJob\.cs|
+            WalkInNoShowJob\.cs|StyleRegressionMarker\.cs'
+          HITS=$(grep -rnE '(\!\=|\=\=)\s*null' \
+            --include='*.cs' orderly-microservices/ \
+            --exclude-dir=obj --exclude-dir=bin \
+            | grep -v '^\s*//' \
+            | grep -vE "$EXCLUDES" \
+            | wc -l)
+          if [ "$HITS" -gt 0 ]; then
+            echo "❌ Found $HITS == null / != null sites outside expression trees:"
+            grep -rnE '(\!\=|\=\=)\s*null' \
+              --include='*.cs' orderly-microservices/ \
+              --exclude-dir=obj --exclude-dir=bin \
+              | grep -v '^\s*//' \
+              | grep -vE "$EXCLUDES"
+            exit 1
+          fi
+
+      - name: No empty-string comparisons
+        run: |
+          EXCLUDES='/Tests/|\.Designer\.cs$|StyleRegressionMarker\.cs'
+          HITS=$(grep -rnE '(\=\=|\!\=)\s*""' \
+            --include='*.cs' orderly-microservices/ \
+            --exclude-dir=obj --exclude-dir=bin \
+            | grep -v '^\s*//' \
+            | grep -vE "$EXCLUDES" \
+            | wc -l)
+          if [ "$HITS" -gt 0 ]; then
+            echo "� Found $HITS == \"\" / != \"\" sites:"
+            grep -rnE '(\=\=|\!\=)\s*""' \
+              --include='*.cs' orderly-microservices/ \
+              --exclude-dir=obj --exclude-dir=bin \
+              | grep -v '^\s*//' \
+              | grep -vE "$EXCLUDES"
+            exit 1
+          fi
+
+      - name: No braceless if / else / for / foreach / while
+        # Pattern matches single-line braceless only (line ends with `;`,
+        # no `{` between `)` and `;`). Multi-line `if (cond)` followed by
+        # `{` on the next line does NOT match — that's already braced.
+        run: |
+          EXCLUDES='/Tests/|StyleRegressionMarker\.cs'
+          HITS=$(grep -rnE '^\s*(if|else if|for|foreach|while)\s*\(.*\)[^{]*;\s*$' \
+            --include='*.cs' orderly-microservices/ \
+            --exclude-dir=obj --exclude-dir=bin \
+            | grep -v '^\s*//' \
+            | grep -vE "$EXCLUDES" \
+            | wc -l)
+          if [ "$HITS" -gt 0 ]; then
+            echo "❌ Found $HITS braceless control-flow sites:"
+            grep -rnE '^\s*(if|else if|for|foreach|while)\s*\(.*\)[^{]*;\s*$' \
+              --include='*.cs' orderly-microservices/ \
+              --exclude-dir=obj --exclude-dir=bin \
+              | grep -v '^\s*//' \
+              | grep -vE "$EXCLUDES"
+            exit 1
+          fi

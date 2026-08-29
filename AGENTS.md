@@ -15,7 +15,8 @@
 - **CQRS**: Use **MediatR** for Commands and Queries. Handle validation via **FluentValidation** pipeline behaviors.
 - **Date & Time**: Always use **NodaTime** (e.g., `Instant`, `LocalDate`) from `BuildingBlocks` instead of standard .NET `DateTime`.
 - **Variables**: Use explicit typed variables instead of `var` when possible. Exceptions: `using var`, `out var`, anonymous types, tuple deconstruction, and LINQ queries are permitted to use `var`.
-- **Null Checks**: Prefer `is not null` over `!= null`.
+- **Null Checks**: Prefer `is null` over `== null`, and `is not null` over `!= null`.
+  - **Carve-out**: LINQ expression trees (`.Where(...)`, `HasQueryFilter(...)`, `ValueComparer(...)`, `HasConversion(...)` when Roslyn picks the `Expression<Func<>>` overload, `FluentValidation.RuleBuilder.Must(...)`, `FluentAssertions.IEnumerableAssertions.OnlyContain(...)` and similar) **must keep `== null` / `!= null`** because the C# compiler rejects `is null` / `is not null` inside expression trees with `CS8122`. Apply the pattern only in regular C# code (`if`, `return`, ternary, in-memory `Func<>` delegates).
 - **Pattern Matching**: Prefer using C# pattern matching when possible.
   - *Example*: Use switch expressions (`obj switch { Type t => ... }`) or property patterns (`if (obj is { Property: value })`).
 - **Guard Clauses**: Use early returns/guard clauses to avoid deep nesting of `if` statements.

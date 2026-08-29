@@ -63,6 +63,11 @@ public sealed class DiscountOutboxDispatcher(
     /// </remarks>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(brokerHealth);
+
         if (!_options.Enabled)
         {
             _logger.LogInformation("Outbox dispatcher disabled via OutboxOptions.Enabled = false.");

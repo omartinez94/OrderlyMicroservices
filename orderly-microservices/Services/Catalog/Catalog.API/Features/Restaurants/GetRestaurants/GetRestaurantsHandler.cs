@@ -11,11 +11,7 @@ internal class GetRestaurantsQueryHandler(CatalogDbContext dbContext) : IQueryHa
     public async Task<GetRestaurantsResult> Handle(GetRestaurantsQuery query, CancellationToken cancellationToken)
     {
         int pageNumber = query.PageNumber ?? 1;
-        int pageSize = query.PageSize ?? 10;
-        if (pageSize > 50)
-        {
-            pageSize = 50;
-        }
+        int pageSize = Math.Clamp(query.PageSize ?? 10, 1, 50);
 
         List<Restaurant>? restaurants = await EntityFrameworkQueryableExtensions.ToListAsync(
             dbContext.Restaurants

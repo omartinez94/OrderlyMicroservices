@@ -50,7 +50,7 @@ public class KitchenTicketItem : Entity<KitchenItemId>
 
     internal void Start(Instant now)
     {
-        if (Status != KitchenItemStatus.Pending)
+        if (Status is not KitchenItemStatus.Pending)
         {
             throw new InvalidKitchenItemStateTransitionException(Status, nameof(Start));
         }
@@ -61,7 +61,7 @@ public class KitchenTicketItem : Entity<KitchenItemId>
 
     internal void MarkReady(Instant now)
     {
-        if (Status != KitchenItemStatus.Preparing)
+        if (Status is not KitchenItemStatus.Preparing)
         {
             throw new InvalidKitchenItemStateTransitionException(Status, nameof(MarkReady));
         }

@@ -80,6 +80,10 @@ public class StoreBasketHandler(
 
     public async Task<StoreBasketResult> Handle(StoreBasketCommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+        ArgumentNullException.ThrowIfNull(discountLookup);
+        ArgumentNullException.ThrowIfNull(logger);
+
         Models.Basket? basket = command.Basket;
 
         // Empty-coupon and empty-cart short-circuits: no Discount lookup

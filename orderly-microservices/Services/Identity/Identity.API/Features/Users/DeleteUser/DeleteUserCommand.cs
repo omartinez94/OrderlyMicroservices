@@ -9,11 +9,8 @@ public class DeleteUserCommandHandler(
 {
     public async Task<Unit> Handle(DeleteUserCommand command, CancellationToken cancellationToken)
     {
-        ApplicationUser? user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
-        if (user is null)
-        {
-            throw new NotFoundException("User", command.UserId);
-        }
+        ApplicationUser user = (await dbContext.Users.FindAsync([command.UserId], cancellationToken))
+            .MustExist("User", command.UserId);
 
         IdentityResult? result = await userManager.DeleteAsync(user);
         if (!result.Succeeded)

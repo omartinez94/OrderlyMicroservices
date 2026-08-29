@@ -25,6 +25,8 @@ public class DeleteBasketHandler(IBasketRepository basketRepository) : ICommandH
     /// </summary>
     public async Task<Unit> Handle(DeleteBasketCommand request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+
         await basketRepository.DeleteBasketAsync(request.UserId, request.RestaurantId, cancellationToken);
 
         return Unit.Value;

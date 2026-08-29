@@ -14,5 +14,9 @@ namespace Discount.Grpc.Messaging.Outbox;
 /// </summary>
 public sealed class DiscountOutboxPublisher(DiscountContext dbContext) : OutboxPublisher<DiscountContext>
 {
-    protected override DiscountContext ResolveContext() => dbContext;
+    protected override DiscountContext ResolveContext()
+    {
+        ArgumentNullException.ThrowIfNull(dbContext);
+        return dbContext;
+    }
 }

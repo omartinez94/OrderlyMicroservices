@@ -48,6 +48,9 @@ public sealed class OrderCreatedConsumer(
 
     public async Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
     {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(logger);
+
         OrderCreatedIntegrationEvent? evt = context.Message;
         Guid rid = evt.RestaurantId;
 

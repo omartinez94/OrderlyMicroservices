@@ -7,6 +7,8 @@ public class GetBasketHandler(IBasketRepository basketRepository) : IQueryHandle
 {
     public async Task<GetBasketResult> Handle(GetBasketQuery query, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+
         Models.Basket? basket = await basketRepository.GetActiveCartOrEmptyAsync(query.UserId, query.RestaurantId, cancellationToken);
 
         return new GetBasketResult(basket);

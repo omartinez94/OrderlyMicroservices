@@ -14,6 +14,11 @@ public sealed class DiscountMigratorHostedService(
     Microsoft.Extensions.Logging.ILogger<DiscountMigratorHostedService> logger)
     : MigratorHostedService<DiscountContext>(services, options, logger)
 {
-    protected override DiscountContext CreateContext(IServiceProvider services) =>
-        services.GetRequiredService<DiscountContext>();
+    protected override DiscountContext CreateContext(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+        return services.GetRequiredService<DiscountContext>();
+    }
 }

@@ -21,18 +21,19 @@ public class GetKitchenQueueHandler(
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        if (query.Page < 1)
+        // Clamp page-size into [1, 200] with a switch expression on the
+        // relational pattern; record's `with` re-applies the immutable
+        // copy. Same shape as the catalog list handlers' Math.Clamp.
+        query = query with
         {
-            query = query with { Page = 1 };
-        }
-        if (query.PageSize < 1)
-        {
-            query = query with { PageSize = 50 };
-        }
-        if (query.PageSize > 200)
-        {
-            query = query with { PageSize = 200 };
-        }
+            Page = query.Page < 1 ? 1 : query.Page,
+            PageSize = query.PageSize switch
+            {
+                < 1 => 50,
+                > 200 => 200,
+                _ => query.PageSize,
+            },
+        };
 
         int skip = (query.Page - 1) * query.PageSize;
         IReadOnlyList<KitchenTicket> rows = await repository.GetQueueAsync(

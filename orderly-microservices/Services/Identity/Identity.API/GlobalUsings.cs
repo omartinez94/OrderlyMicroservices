@@ -12,6 +12,7 @@ global using Identity.API.Extensions;
 global using Identity.API.Models;
 global using Identity.API.RateLimiting;
 global using Identity.API.Services;
+global using Identity.API.Common;
 global using MediatR;
 global using Microsoft.AspNetCore;
 global using Microsoft.AspNetCore.Authentication;

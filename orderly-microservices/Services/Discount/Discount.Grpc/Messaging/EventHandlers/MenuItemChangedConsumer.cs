@@ -25,6 +25,9 @@ public sealed class MenuItemChangedConsumer(
 
     public async Task Consume(ConsumeContext<MenuItemChangedIntegrationEvent> context)
     {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(logger);
+
         MenuItemChangedIntegrationEvent? evt = context.Message;
 
         // Pattern 2: synthetic principal for the tenant scope.

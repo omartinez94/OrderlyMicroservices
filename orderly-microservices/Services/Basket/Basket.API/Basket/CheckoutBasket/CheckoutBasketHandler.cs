@@ -99,6 +99,10 @@ public class CheckoutBasketCommandHandler(
 
     public async Task<CheckoutBasketResult> Handle(CheckoutBasketCommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(logger);
+
         Models.Basket? basket = await basketRepository.GetBasketAsync(
             command.BasketCheckoutDto.UserId,
             command.BasketCheckoutDto.RestaurantId,

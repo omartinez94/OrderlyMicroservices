@@ -23,11 +23,8 @@ public class GetUserQueryHandler(
 {
     public async Task<GetUserResponse> Handle(GetUserQuery query, CancellationToken cancellationToken)
     {
-        ApplicationUser? user = await dbContext.Users.FindAsync([query.UserId], cancellationToken);
-        if (user is null)
-        {
-            throw new NotFoundException("User", query.UserId);
-        }
+        ApplicationUser user = (await dbContext.Users.FindAsync([query.UserId], cancellationToken))
+            .MustExist("User", query.UserId);
 
         IList<string>? roles = await userManager.GetRolesAsync(user);
 

@@ -22,6 +22,11 @@ public class DiscountService(
     [Permission(DiscountPermissions.CouponRead)]
     public override async Task<GetDiscountResponse> GetDiscount(GetDiscountRequest request, ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation("GetDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
 
         Coupon? coupon = await dbContext.Coupons
@@ -49,6 +54,11 @@ public class DiscountService(
     [Permission(DiscountPermissions.CouponCreate)]
     public override async Task<CreateDiscountResponse> CreateDiscount(CreateDiscountRequest request, ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation("CreateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
 
         if (string.IsNullOrEmpty(request.Coupon.RestaurantId) || string.IsNullOrEmpty(request.Coupon.Code))
@@ -87,6 +97,11 @@ public class DiscountService(
     [Permission(DiscountPermissions.CouponEdit)]
     public override async Task<UpdateDiscountResponse> UpdateDiscount(UpdateDiscountRequest request, ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation("UpdateDiscount called for RestaurantId: {RestaurantId}, Coupon Code: {Code}", request.Coupon.RestaurantId, request.Coupon.Code);
 
         Coupon? coupon = await dbContext.Coupons.FindAsync(request.Coupon.Id);
@@ -109,14 +124,9 @@ public class DiscountService(
         coupon.Amount = (decimal)request.Coupon.Amount;
         coupon.MaxRedeemAmount = request.Coupon.MaxRedeemAmount == 0 ? null : request.Coupon.MaxRedeemAmount;
 
-        if (!string.IsNullOrEmpty(request.Coupon.ExpirationDate))
-        {
-            coupon.ExpirationDate = InstantPattern.ExtendedIso.Parse(request.Coupon.ExpirationDate).Value;
-        }
-        else
-        {
-            coupon.ExpirationDate = null;
-        }
+        coupon.ExpirationDate = string.IsNullOrEmpty(request.Coupon.ExpirationDate)
+            ? null
+            : InstantPattern.ExtendedIso.Parse(request.Coupon.ExpirationDate).Value;
 
         dbContext.Coupons.Update(coupon);
         await dbContext.SaveChangesAsync();
@@ -139,6 +149,11 @@ public class DiscountService(
     [Permission(DiscountPermissions.CouponDelete)]
     public override async Task<DeleteDiscountResponse> DeleteDiscount(DeleteDiscountRequest request, ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation("DeleteDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
 
         Coupon? coupon = await dbContext.Coupons
@@ -176,6 +191,11 @@ public class DiscountService(
     [Permission(DiscountPermissions.CouponRedeem)]
     public override async Task<RedeemDiscountResponse> RedeemDiscount(RedeemDiscountRequest request, ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation("RedeemDiscount called for RestaurantId: {RestaurantId}, Code: {Code}", request.RestaurantId, request.Code);
 
         // First pass: resolve the coupon to its Id. The global query filter

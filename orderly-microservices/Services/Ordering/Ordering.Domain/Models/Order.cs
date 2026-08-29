@@ -143,16 +143,7 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderConfirmed,
             actorUserId: confirmedByUserId,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
     /// <summary>
@@ -175,16 +166,7 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderReady,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
     /// <summary>
@@ -209,16 +191,7 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderPreparingStarted,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
     /// <summary>
@@ -242,16 +215,7 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderDeliveryStarted,
             actorUserId: null,
             occurredAt: occurredAt,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: null,
-                NewOrderStatus: null,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: previousDeliveryStatus,
-                NewDeliveryStatus: DeliveryStatus));
+            metadata: DeliveryStatusMetadata(previousDeliveryStatus, DeliveryStatus));
     }
 
     /// <summary>
@@ -279,16 +243,8 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderDelivered,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: previousDeliveryStatus,
-                NewDeliveryStatus: DeliveryStatus));
+            metadata: CombinedOrderAndDeliveryMetadata(
+                previousStatus, Status, previousDeliveryStatus, DeliveryStatus));
     }
 
     /// <summary>
@@ -311,16 +267,7 @@ public class Order : Aggregate<OrderId>
             OrderActivityType.OrderCompleted,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
     /// <summary>
@@ -329,9 +276,7 @@ public class Order : Aggregate<OrderId>
     /// </summary>
     public void Cancel(string reason, Guid cancelledByUserId, Instant now)
     {
-        if (Status == OrderStatus.Cancelled
-            || Status == OrderStatus.Completed
-            || Status == OrderStatus.Delivered)
+        if (Status is OrderStatus.Cancelled or OrderStatus.Completed or OrderStatus.Delivered)
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(Cancel));
         }
@@ -354,16 +299,7 @@ public class Order : Aggregate<OrderId>
             actorUserId: cancelledByUserId,
             occurredAt: now,
             notes: reason,
-            metadata: new OrderActivityMetadata(
-                Reason: reason,
-                OrderItemId: null,
-                OrderItemName: null,
-                PreviousOrderStatus: previousStatus,
-                NewOrderStatus: Status,
-                PreviousPrepStatus: null,
-                NewPrepStatus: null,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: CancelMetadata(reason, previousStatus));
     }
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)
@@ -431,4 +367,38 @@ public class Order : Aggregate<OrderId>
 
         _activities.Add(activity);
     }
+
+    // ----- OrderActivityMetadata factories (Phase 4 dedupe) -----
+    //
+    // Each transition method used to inline a 9-field `new OrderActivityMetadata(...)`
+    // with most fields null. The factory shape here is per-transition (not
+    // a generic builder) — the wire shape of OrderActivityMetadata is locked
+    // (see OrderActivityMetadata.cs), so the constructor signature must
+    // stay verbatim and only the call sites collapse.
+
+    private static OrderActivityMetadata OrderStatusMetadata(OrderStatus previous, OrderStatus @new) =>
+        new(Reason: null, OrderItemId: null, OrderItemName: null,
+            PreviousOrderStatus: previous, NewOrderStatus: @new,
+            PreviousPrepStatus: null, NewPrepStatus: null,
+            PreviousDeliveryStatus: null, NewDeliveryStatus: null);
+
+    private static OrderActivityMetadata DeliveryStatusMetadata(DeliveryStatus? previous, DeliveryStatus? @new) =>
+        new(Reason: null, OrderItemId: null, OrderItemName: null,
+            PreviousOrderStatus: null, NewOrderStatus: null,
+            PreviousPrepStatus: null, NewPrepStatus: null,
+            PreviousDeliveryStatus: previous, NewDeliveryStatus: @new);
+
+    private static OrderActivityMetadata CombinedOrderAndDeliveryMetadata(
+        OrderStatus previousOrder, OrderStatus @new,
+        DeliveryStatus? previousDelivery, DeliveryStatus? newDelivery) =>
+        new(Reason: null, OrderItemId: null, OrderItemName: null,
+            PreviousOrderStatus: previousOrder, NewOrderStatus: @new,
+            PreviousPrepStatus: null, NewPrepStatus: null,
+            PreviousDeliveryStatus: previousDelivery, NewDeliveryStatus: newDelivery);
+
+    private static OrderActivityMetadata CancelMetadata(string reason, OrderStatus previous) =>
+        new(Reason: reason, OrderItemId: null, OrderItemName: null,
+            PreviousOrderStatus: previous, NewOrderStatus: OrderStatus.Cancelled,
+            PreviousPrepStatus: null, NewPrepStatus: null,
+            PreviousDeliveryStatus: null, NewDeliveryStatus: null);
 }

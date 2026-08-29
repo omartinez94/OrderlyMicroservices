@@ -11,11 +11,8 @@ public class AssignRolesCommandHandler(
 {
     public async Task<AssignRolesResponse> Handle(AssignRolesCommand command, CancellationToken cancellationToken)
     {
-        ApplicationUser? user = await dbContext.Users.FindAsync([command.UserId], cancellationToken);
-        if (user is null)
-        {
-            throw new NotFoundException("User", command.UserId);
-        }
+        ApplicationUser user = (await dbContext.Users.FindAsync([command.UserId], cancellationToken))
+            .MustExist("User", command.UserId);
 
         IList<string>? currentRoles = await userManager.GetRolesAsync(user);
         await userManager.RemoveFromRolesAsync(user, currentRoles);

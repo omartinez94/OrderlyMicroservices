@@ -61,6 +61,9 @@ public sealed class FeedbackSubmittedConsumer(
 
     public async Task Consume(ConsumeContext<FeedbackSubmittedIntegrationEvent> context)
     {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(logger);
+
         FeedbackSubmittedIntegrationEvent? evt = context.Message;
         Guid rid = evt.RestaurantId;
 
@@ -93,55 +96,56 @@ public sealed class FeedbackSubmittedConsumer(
 
         using (provider.Attach(principal))
         {
-            // 4★ < r < 5  →  10% off
-            if (evt.OverallRating >= 4 && evt.OverallRating < 5)
+            switch (evt.OverallRating)
             {
-                await CreateAndPublishAsync(
-                    db, outbox, clock, now,
-                    rid: rid,
-                    code: RewardCode.Code4StarPct10(rid, feedbackAnchor, clock),
-                    kind: RewardKind.Percentage,
-                    value: 10m,
-                    description: "10% off for 4★ feedback",
-                    ct: context.CancellationToken);
-                logger.LogInformation(
-                    "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: 4★ reward issued.",
-                    evt.FeedbackId, rid, evt.OverallRating);
-                return;
-            }
+                // 4★ < r < 5  →  10% off
+                case >= 4 and < 5:
+                    await CreateAndPublishAsync(
+                        db, outbox, clock, now,
+                        rid: rid,
+                        code: RewardCode.Code4StarPct10(rid, feedbackAnchor, clock),
+                        kind: RewardKind.Percentage,
+                        value: 10m,
+                        description: "10% off for 4★ feedback",
+                        ct: context.CancellationToken);
+                    logger.LogInformation(
+                        "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: 4★ reward issued.",
+                        evt.FeedbackId, rid, evt.OverallRating);
+                    break;
 
-            // 5★  →  15% off  +  free appetizer
-            if (evt.OverallRating >= 5)
-            {
-                await CreateAndPublishAsync(
-                    db, outbox, clock, now,
-                    rid: rid,
-                    code: RewardCode.Code5StarPct15(rid, feedbackAnchor, clock),
-                    kind: RewardKind.Percentage,
-                    value: 15m,
-                    description: "15% off for 5★ feedback",
-                    ct: context.CancellationToken);
-                await CreateAndPublishAsync(
-                    db, outbox, clock, now,
-                    rid: rid,
-                    code: RewardCode.Code5StarAppetizer(rid, feedbackAnchor, clock),
-                    kind: RewardKind.FreeItem,
-                    value: 0m,
-                    description: "Free appetizer for 5★ feedback",
-                    ct: context.CancellationToken);
-                logger.LogInformation(
-                    "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: 5★ rewards issued.",
-                    evt.FeedbackId, rid, evt.OverallRating);
-                return;
-            }
+                // 5★  →  15% off  +  free appetizer
+                case >= 5:
+                    await CreateAndPublishAsync(
+                        db, outbox, clock, now,
+                        rid: rid,
+                        code: RewardCode.Code5StarPct15(rid, feedbackAnchor, clock),
+                        kind: RewardKind.Percentage,
+                        value: 15m,
+                        description: "15% off for 5★ feedback",
+                        ct: context.CancellationToken);
+                    await CreateAndPublishAsync(
+                        db, outbox, clock, now,
+                        rid: rid,
+                        code: RewardCode.Code5StarAppetizer(rid, feedbackAnchor, clock),
+                        kind: RewardKind.FreeItem,
+                        value: 0m,
+                        description: "Free appetizer for 5★ feedback",
+                        ct: context.CancellationToken);
+                    logger.LogInformation(
+                        "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: 5★ rewards issued.",
+                        evt.FeedbackId, rid, evt.OverallRating);
+                    break;
 
-            // Below threshold — consume the message but no row written.
-            // Notification v1 may still want the message processed for
-            // its own bookkeeping; this consumer simply chooses not to
-            // mint a reward.
-            logger.LogInformation(
-                "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: below reward threshold; ack-only.",
-                evt.FeedbackId, rid, evt.OverallRating);
+                // Below threshold — consume the message but no row written.
+                // Notification v1 may still want the message processed for
+                // its own bookkeeping; this consumer simply chooses not to
+                // mint a reward.
+                default:
+                    logger.LogInformation(
+                        "FeedbackSubmitted {FeedbackId} for {RestaurantId} rating={Rating}: below reward threshold; ack-only.",
+                        evt.FeedbackId, rid, evt.OverallRating);
+                    break;
+            }
         }
     }
 

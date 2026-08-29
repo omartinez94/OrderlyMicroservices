@@ -115,6 +115,10 @@ public sealed class CheckoutBasketOutboxDispatcher(
     /// </summary>
     public async Task<int> DispatchOnceAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         using var scope = services.CreateScope();
         IDocumentSession? session = scope.ServiceProvider.GetRequiredService<IDocumentSession>();
         IPublishEndpoint? publishEndpoint = scope.ServiceProvider.GetRequiredService<IPublishEndpoint>();

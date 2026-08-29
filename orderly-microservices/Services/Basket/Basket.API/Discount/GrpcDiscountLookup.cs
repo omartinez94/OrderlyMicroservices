@@ -24,6 +24,9 @@ internal sealed class GrpcDiscountLookup(
 {
     public async Task<DiscountSnapshot> GetCouponAsync(Guid restaurantId, string code, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(client);
+        ArgumentNullException.ThrowIfNull(logger);
+
         GetDiscountResponse? response = await client.GetDiscountAsync(
             new GetDiscountRequest
             {

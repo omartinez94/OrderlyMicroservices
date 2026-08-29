@@ -85,16 +85,7 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
             Enums.OrderActivityType.OrderItemPrepStarted,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: Id.Value,
-                OrderItemName: MenuItemName,
-                PreviousOrderStatus: null,
-                NewOrderStatus: null,
-                PreviousPrepStatus: previousPrepStatus,
-                NewPrepStatus: PrepStatus,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderItemPrepMetadata(Id.Value, MenuItemName, previousPrepStatus, PrepStatus));
     }
 
     /// <summary>
@@ -118,15 +109,13 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
             Enums.OrderActivityType.OrderItemPrepCompleted,
             actorUserId: null,
             occurredAt: now,
-            metadata: new OrderActivityMetadata(
-                Reason: null,
-                OrderItemId: Id.Value,
-                OrderItemName: MenuItemName,
-                PreviousOrderStatus: null,
-                NewOrderStatus: null,
-                PreviousPrepStatus: previousPrepStatus,
-                NewPrepStatus: PrepStatus,
-                PreviousDeliveryStatus: null,
-                NewDeliveryStatus: null));
+            metadata: OrderItemPrepMetadata(Id.Value, MenuItemName, previousPrepStatus, PrepStatus));
     }
+
+    private static OrderActivityMetadata OrderItemPrepMetadata(
+        Guid itemId, string itemName, PrepStatus previous, PrepStatus @new) =>
+        new(Reason: null, OrderItemId: itemId, OrderItemName: itemName,
+            PreviousOrderStatus: null, NewOrderStatus: null,
+            PreviousPrepStatus: previous, NewPrepStatus: @new,
+            PreviousDeliveryStatus: null, NewDeliveryStatus: null);
 }

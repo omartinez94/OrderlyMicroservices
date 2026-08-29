@@ -121,6 +121,10 @@ public sealed class BasketExpirySweepService(
     /// </returns>
     public async Task<int> SweepOnceAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         using var scope = services.CreateScope();
         IDocumentStore? store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
         string? correlationId = CorrelationContext.Current ?? Guid.NewGuid().ToString();

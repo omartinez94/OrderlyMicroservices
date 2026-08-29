@@ -9,11 +9,8 @@ public class UpdateRoleCommandHandler(RoleManager<ApplicationRole> roleManager)
 {
     public async Task<UpdateRoleResponse> Handle(UpdateRoleCommand command, CancellationToken cancellationToken)
     {
-        ApplicationRole? role = await roleManager.FindByIdAsync(command.RoleId.ToString());
-        if (role is null)
-        {
-            throw new NotFoundException("Role", command.RoleId);
-        }
+        ApplicationRole role = (await roleManager.FindByIdAsync(command.RoleId.ToString()))
+            .MustExist("Role", command.RoleId);
 
         role.Name = command.Name;
         role.NormalizedName = command.Name.ToUpperInvariant();

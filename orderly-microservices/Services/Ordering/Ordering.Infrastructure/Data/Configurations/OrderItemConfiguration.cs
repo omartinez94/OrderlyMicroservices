@@ -60,7 +60,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasConversion(
                 new ValueConverter<IReadOnlyList<KitchenOrderItemVariation>, string>(
                     v => JsonSerializer.Serialize(v ?? Array.Empty<KitchenOrderItemVariation>()),
-                    v => DeserializeVariations(v)),
+                    v => DeserializeJsonList<KitchenOrderItemVariation>(v)),
                 new ValueComparer<IReadOnlyList<KitchenOrderItemVariation>>(
                     (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
                     v => v.Aggregate(0, (acc, x) => HashCode.Combine(acc, x.GetHashCode())),
@@ -72,46 +72,27 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasConversion(
                 new ValueConverter<IReadOnlyList<KitchenOrderItemCustomization>, string>(
                     v => JsonSerializer.Serialize(v ?? Array.Empty<KitchenOrderItemCustomization>()),
-                    v => DeserializeCustomizations(v)),
+                    v => DeserializeJsonList<KitchenOrderItemCustomization>(v)),
                 new ValueComparer<IReadOnlyList<KitchenOrderItemCustomization>>(
                     (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
                     v => v.Aggregate(0, (acc, x) => HashCode.Combine(acc, x.GetHashCode())),
                     v => v.ToList()));
     }
 
-    private static IReadOnlyList<KitchenOrderItemVariation> DeserializeVariations(string? json)
+    private static IReadOnlyList<T> DeserializeJsonList<T>(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
-            return Array.Empty<KitchenOrderItemVariation>();
+            return Array.Empty<T>();
         }
 
         try
         {
-            return JsonSerializer.Deserialize<List<KitchenOrderItemVariation>>(json)
-                ?? new List<KitchenOrderItemVariation>();
+            return JsonSerializer.Deserialize<List<T>>(json) ?? new List<T>();
         }
         catch (JsonException)
         {
-            return Array.Empty<KitchenOrderItemVariation>();
-        }
-    }
-
-    private static IReadOnlyList<KitchenOrderItemCustomization> DeserializeCustomizations(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return Array.Empty<KitchenOrderItemCustomization>();
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<KitchenOrderItemCustomization>>(json)
-                ?? new List<KitchenOrderItemCustomization>();
-        }
-        catch (JsonException)
-        {
-            return Array.Empty<KitchenOrderItemCustomization>();
+            return Array.Empty<T>();
         }
     }
 }

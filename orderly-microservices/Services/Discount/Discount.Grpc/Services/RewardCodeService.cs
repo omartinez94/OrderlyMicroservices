@@ -54,6 +54,13 @@ public class RewardCodeService(
         CreateRewardCodeRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation(
             "CreateRewardCode called for RestaurantId: {RestaurantId}, Code: {Code}",
             request.RewardCode.RestaurantId, request.RewardCode.Code);
@@ -135,6 +142,13 @@ public class RewardCodeService(
         GetRewardCodeRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         if (!Guid.TryParse(request.RestaurantId, out var rid))
         {
             return new GetRewardCodeResponse(); // empty
@@ -157,6 +171,13 @@ public class RewardCodeService(
         ListRewardCodesRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         int page = request.Page <= 0 ? 1 : request.Page;
         int pageSize = request.PageSize switch
         {
@@ -186,6 +207,13 @@ public class RewardCodeService(
         UpdateRewardCodeRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         if (!Guid.TryParse(request.RewardCode.RestaurantId, out var rid))
         {
             return new UpdateRewardCodeResponse { Success = false };
@@ -239,6 +267,13 @@ public class RewardCodeService(
         DeleteRewardCodeRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         if (!Guid.TryParse(request.RestaurantId, out var rid))
         {
             return new DeleteRewardCodeResponse { Success = false };
@@ -278,6 +313,13 @@ public class RewardCodeService(
         RedeemRewardCodeRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+        ArgumentNullException.ThrowIfNull(tenantProvider);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+
         logger.LogInformation(
             "RedeemRewardCode called for RestaurantId: {RestaurantId}, RewardCodeId: {Id}",
             request.RestaurantId, request.RewardCodeId);

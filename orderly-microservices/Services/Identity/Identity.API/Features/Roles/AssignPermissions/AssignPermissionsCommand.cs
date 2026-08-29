@@ -11,11 +11,8 @@ public class AssignPermissionsCommandHandler(
 {
     public async Task<AssignPermissionsResponse> Handle(AssignPermissionsCommand command, CancellationToken cancellationToken)
     {
-        ApplicationRole? applicationRole = await roleManager.FindByIdAsync(command.RoleId.ToString());
-        if (applicationRole is null)
-        {
-            throw new NotFoundException("Role", command.RoleId);
-        }
+        ApplicationRole applicationRole = (await roleManager.FindByIdAsync(command.RoleId.ToString()))
+            .MustExist("Role", command.RoleId);
 
         IQueryable<RolePermission>? existingPermissions = dbContext.RolePermissions.Where(rp => rp.RoleId == command.RoleId);
         dbContext.RolePermissions.RemoveRange(existingPermissions);

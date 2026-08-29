@@ -34,6 +34,10 @@ public class DiscountRuleService(
         CreateDiscountRuleRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         logger.LogInformation(
             "CreateDiscountRule called for RestaurantId: {RestaurantId}, CouponId: {CouponId}",
             request.Rule.RestaurantId, request.Rule.CouponId);
@@ -79,6 +83,10 @@ public class DiscountRuleService(
         GetDiscountRuleRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         if (!Guid.TryParse(request.RestaurantId, out var rid))
         {
             return new GetDiscountRuleResponse(); // empty
@@ -101,6 +109,10 @@ public class DiscountRuleService(
         ListDiscountRulesRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         int page = request.Page <= 0 ? 1 : request.Page;
         int pageSize = request.PageSize switch
         {
@@ -130,6 +142,10 @@ public class DiscountRuleService(
         UpdateDiscountRuleRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         DiscountRule? rule = await dbContext.DiscountRules
             .FirstOrDefaultAsync(r => r.Id == request.Rule.Id);
 
@@ -168,6 +184,10 @@ public class DiscountRuleService(
         DeleteDiscountRuleRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         if (!Guid.TryParse(request.RestaurantId, out var rid))
         {
             return new DeleteDiscountRuleResponse { Success = false };
@@ -206,6 +226,10 @@ public class DiscountRuleService(
         EvaluateDiscountRulesRequest request,
         ServerCallContext context)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(dbContext);
+        ArgumentNullException.ThrowIfNull(outbox);
+
         if (!Guid.TryParse(request.RestaurantId, out var rid))
         {
             return new EvaluateDiscountRulesResponse();

@@ -162,34 +162,32 @@ public static class OpenIddictServerExtensions
 
         try
         {
+            // The encryption vs signing choice is a single branch — both
+            // PEM (X509Certificate2-based) and PKCS#12 (Stream-based)
+            // overloads come in matching pairs, so we factor the choice
+            // into two Action delegates and let the cert-format gate
+            // pick the right one.
+            Action<X509Certificate2> addCert = isEncryption
+                ? cert => options.AddEncryptionCertificate(cert)
+                : cert => options.AddSigningCertificate(cert);
+            Action<Stream, string?> addCertFromStream = isEncryption
+                ? (stream, pwd) => options.AddEncryptionCertificate(stream, pwd)
+                : (stream, pwd) => options.AddSigningCertificate(stream, pwd);
+
             // OpenIddict 7.5's Stream-based loader only accepts PFX/PKCS#12.
             // For PEM we load via X509Certificate2.CreateFromPemFile and pass
             // the cert through the X509Certificate2-based overload.
             string? ext = Path.GetExtension(path).ToLowerInvariant();
             if (ext is ".pem" or ".crt" or ".cer" or ".key")
             {
-                X509Certificate2? cert = X509Certificate2.CreateFromPemFile(path, ReadKeyFileOrNull(path));
-                if (isEncryption)
-                {
-                    options.AddEncryptionCertificate(cert);
-                }
-                else
-                {
-                    options.AddSigningCertificate(cert);
-                }
+                X509Certificate2 cert = X509Certificate2.CreateFromPemFile(path, ReadKeyFileOrNull(path));
+                addCert(cert);
             }
             else
             {
                 // PKCS#12 / PFX path
                 using var stream = File.OpenRead(path);
-                if (isEncryption)
-                {
-                    options.AddEncryptionCertificate(stream, password);
-                }
-                else
-                {
-                    options.AddSigningCertificate(stream, password);
-                }
+                addCertFromStream(stream, password);
             }
         }
         catch (OpenIddictCertificateLoadException)

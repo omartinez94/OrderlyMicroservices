@@ -11,11 +11,7 @@ internal class GetBrandsQueryHandler(CatalogDbContext dbContext) : IQueryHandler
     public async Task<GetBrandsResult> Handle(GetBrandsQuery query, CancellationToken cancellationToken)
     {
         int pageNumber = query.PageNumber ?? 1;
-        int pageSize = query.PageSize ?? 10;
-        if (pageSize > 50)
-        {
-            pageSize = 50;
-        }
+        int pageSize = Math.Clamp(query.PageSize ?? 10, 1, 50);
 
         List<Brand>? brands = await EntityFrameworkQueryableExtensions.ToListAsync(
             dbContext.Brands

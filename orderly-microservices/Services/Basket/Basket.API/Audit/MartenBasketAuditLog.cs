@@ -14,6 +14,8 @@ public sealed class MartenBasketAuditLog(
 {
     public async Task AppendAsync(BasketAuditLogEntry entry, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(publisher);
         ArgumentNullException.ThrowIfNull(entry);
 
         // Open a scope per write — singleton services cannot
@@ -38,6 +40,9 @@ public sealed class MartenBasketAuditLog(
         int pageSize,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(publisher);
+
         if (page < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(page));

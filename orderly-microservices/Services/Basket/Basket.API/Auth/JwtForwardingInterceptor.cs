@@ -90,6 +90,9 @@ public sealed class JwtForwardingInterceptor(
 
     private void AttachJwt(CallOptions options)
     {
+        ArgumentNullException.ThrowIfNull(httpContextAccessor);
+        ArgumentNullException.ThrowIfNull(logger);
+
         HttpContext? http = httpContextAccessor.HttpContext;
         if (http is null)
         {

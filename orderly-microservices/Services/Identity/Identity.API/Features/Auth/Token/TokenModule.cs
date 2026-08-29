@@ -45,15 +45,7 @@ public class TokenModule : ICarterModule
                     ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
                     if (principal.Identity is ClaimsIdentity identity)
                     {
-                        List<Claim> existingClaims = [.. identity.Claims];
-                        foreach (Claim? claim in existingClaims)
-                        {
-                            identity.RemoveClaim(claim);
-                        }
-                        foreach (Claim claim in claims)
-                        {
-                            identity.AddClaim(claim);
-                        }
+                        ReplaceClaims(identity, claims);
                     }
 
                     principal.SetDestinations(GetDestinations);
@@ -76,15 +68,7 @@ public class TokenModule : ICarterModule
                     ClaimsIdentity? identity = principal.Identity as ClaimsIdentity;
                     if (identity is not null)
                     {
-                        List<Claim> existingClaims = [.. identity.Claims];
-                        foreach (Claim? claim in existingClaims)
-                        {
-                            identity.RemoveClaim(claim);
-                        }
-                        foreach (Claim claim in claims)
-                        {
-                            identity.AddClaim(claim);
-                        }
+                        ReplaceClaims(identity, claims);
                     }
 
                     principal.SetDestinations(GetDestinations);
@@ -96,6 +80,26 @@ public class TokenModule : ICarterModule
             })
             .Produces<TokenResponse>()
             .ProducesProblem(400);
+    }
+
+    /// <summary>
+    /// Drops every claim currently on the identity and re-adds the
+    /// supplied set in order. Preserves insertion order — OpenIddict
+    /// serialises claims in document order, and the order produced by
+    /// <see cref="ClaimsTransformer.GenerateClaimsAsync"/> is the
+    /// contract that downstream JWT consumers rely on.
+    /// </summary>
+    private static void ReplaceClaims(ClaimsIdentity identity, ImmutableArray<Claim> claims)
+    {
+        List<Claim> existingClaims = [.. identity.Claims];
+        foreach (Claim? claim in existingClaims)
+        {
+            identity.RemoveClaim(claim);
+        }
+        foreach (Claim claim in claims)
+        {
+            identity.AddClaim(claim);
+        }
     }
 
     private static IEnumerable<string> GetDestinations(Claim claim)

@@ -48,7 +48,7 @@ internal class RejectBulkOrderUploadCommandHandler(
         if (!string.IsNullOrWhiteSpace(command.Reason))
         {
             string? existing = upload.ErrorLog ?? string.Empty;
-            upload.ErrorLog = string.IsNullOrEmpty(existing)
+            upload.ErrorLog = string.IsNullOrWhiteSpace(existing)
                 ? $"Rejection: {command.Reason}"
                 : $"{existing}\nRejection: {command.Reason}";
         }

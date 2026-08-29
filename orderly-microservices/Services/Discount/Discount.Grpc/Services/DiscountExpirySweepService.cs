@@ -85,6 +85,11 @@ public sealed class DiscountExpirySweepService(
 
     private async Task SweepOnceAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(clock);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         // Per-tick scope so a DbContext failure is contained. IgnoreQueryFilters
         // is intentional — we need to see expiring rows even if the calling
         // tenant would otherwise filter them out. The sweep operates across all

@@ -68,31 +68,19 @@ internal class UpdateRestaurantCommandHandler(
         // role-bound config flips; Discount deactivates coupons whose
         // currency no longer matches; Notification refreshes receipt
         // templates for tax/currency placeholders).
-        List<string>? changedFields = new List<string>(capacity: 6);
-        if (restaurant.TaxRate != command.TaxRate)
+        (string Name, bool Changed)[] trackedFields =
         {
-            changedFields.Add(nameof(restaurant.TaxRate));
-        }
-        if (restaurant.Currency != command.Currency)
-        {
-            changedFields.Add(nameof(restaurant.Currency));
-        }
-        if (restaurant.TimeZone != command.TimeZone)
-        {
-            changedFields.Add(nameof(restaurant.TimeZone));
-        }
-        if (restaurant.AutoConfirmReservations != command.AutoConfirmReservations)
-        {
-            changedFields.Add(nameof(restaurant.AutoConfirmReservations));
-        }
-        if (restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute)
-        {
-            changedFields.Add(nameof(restaurant.AllowAutoSubstitute));
-        }
-        if (restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes)
-        {
-            changedFields.Add(nameof(restaurant.EstimatedTurnoverMinutes));
-        }
+            (nameof(restaurant.TaxRate),                  restaurant.TaxRate != command.TaxRate),
+            (nameof(restaurant.Currency),                 restaurant.Currency != command.Currency),
+            (nameof(restaurant.TimeZone),                 restaurant.TimeZone != command.TimeZone),
+            (nameof(restaurant.AutoConfirmReservations),  restaurant.AutoConfirmReservations != command.AutoConfirmReservations),
+            (nameof(restaurant.AllowAutoSubstitute),      restaurant.AllowAutoSubstitute != command.AllowAutoSubstitute),
+            (nameof(restaurant.EstimatedTurnoverMinutes), restaurant.EstimatedTurnoverMinutes != command.EstimatedTurnoverMinutes),
+        };
+        List<string> changedFields = trackedFields
+            .Where(t => t.Changed)
+            .Select(t => t.Name)
+            .ToList();
 
         decimal oldTaxRate = restaurant.TaxRate;
         int oldEstimatedTurnoverMinutes = restaurant.EstimatedTurnoverMinutes;

@@ -103,7 +103,7 @@ public static class OrderExtensions
             TaxAmount = order.TaxAmount,
             DiscountAmount = order.DiscountAmount,
             Currency = order.Currency,
-            DiscountCode = string.IsNullOrEmpty(order.DiscountCode) ? null : order.DiscountCode,
+            DiscountCode = order.DiscountCode.NullIfEmpty(),
             BillingAddress = MapAddress(order.BillingAddress),
             DeliveryAddress = order.OrderType == OrderType.Delivery
                 ? MapAddress(order.DeliveryAddress)
@@ -126,6 +126,17 @@ public static class OrderExtensions
             UnitPrice: oi.UnitPrice,
             SelectedVariations: oi.SelectedVariations,
             Customizations: oi.Customizations,
-            SpecialInstructions: string.IsNullOrEmpty(oi.SpecialInstructions) ? null : oi.SpecialInstructions,
+            SpecialInstructions: oi.SpecialInstructions.NullIfEmpty(),
             SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null);
+
+    /// <summary>
+    /// Coerces <c>null</c> or empty-string to <c>null</c>; otherwise returns
+    /// the original string. Used by the wire DTO projections so an unset
+    /// optional column doesn't ship as <c>""</c> on the wire. <c>""</c> and
+    /// whitespace-only are treated the same today — switch to
+    /// <see cref="string.IsNullOrWhiteSpace"/> deliberately if downstream
+    /// consumers need to distinguish.
+    /// </summary>
+    private static string? NullIfEmpty(this string? s) =>
+        string.IsNullOrEmpty(s) ? null : s;
 }

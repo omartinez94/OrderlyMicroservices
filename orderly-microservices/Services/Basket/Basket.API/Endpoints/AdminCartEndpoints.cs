@@ -157,6 +157,9 @@ public class UpsertCartAdminHandler(
 {
     public async Task<StoreBasket.StoreBasketResponse> Handle(UpsertCartAdminCommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+        ArgumentNullException.ThrowIfNull(auditLog);
+
         // Audit BEFORE the mutation. The actor is the JWT
         // subject; the target is the (userId, restaurantId)
         // pair. Failure to write the audit row is logged but
@@ -192,6 +195,9 @@ public class DeleteCartAdminHandler(
 {
     public async Task<MediatR.Unit> Handle(DeleteCartAdminCommand command, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(basketRepository);
+        ArgumentNullException.ThrowIfNull(auditLog);
+
         BasketAuditLogEntry? auditEntry = new Models.BasketAuditLogEntry
         {
             RestaurantId = command.RestaurantId,

@@ -114,7 +114,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void Accept(Guid staffUserId, Instant now)
     {
-        if (Status != KitchenTicketStatus.New)
+        if (Status is not KitchenTicketStatus.New)
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Accept));
         }
@@ -137,7 +137,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void StartItemPrep(KitchenItemId itemId, Instant now)
     {
-        if (Status != KitchenTicketStatus.New && Status != KitchenTicketStatus.InProgress)
+        if (Status is not (KitchenTicketStatus.New or KitchenTicketStatus.InProgress))
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(StartItemPrep));
         }
@@ -163,7 +163,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         // Per-item ready is allowed while the ticket is still active (New or
         // InProgress). Once the ticket is Ready/Bumped/Cancelled, individual
         // items are frozen.
-        if (Status != KitchenTicketStatus.New && Status != KitchenTicketStatus.InProgress)
+        if (Status is not (KitchenTicketStatus.New or KitchenTicketStatus.InProgress))
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(MarkItemReady));
         }
@@ -180,7 +180,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void MarkReady(Instant now)
     {
-        if (Status != KitchenTicketStatus.InProgress)
+        if (Status is not KitchenTicketStatus.InProgress)
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(MarkReady));
         }
@@ -203,7 +203,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void Bump(Instant now)
     {
-        if (Status != KitchenTicketStatus.Ready)
+        if (Status is not KitchenTicketStatus.Ready)
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Bump));
         }
@@ -220,7 +220,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void Recall(Instant now)
     {
-        if (Status != KitchenTicketStatus.Bumped)
+        if (Status is not KitchenTicketStatus.Bumped)
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Recall));
         }
@@ -237,7 +237,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     /// </summary>
     public void Cancel(string reason, Guid userId, Instant now)
     {
-        if (Status == KitchenTicketStatus.Cancelled)
+        if (Status is KitchenTicketStatus.Cancelled)
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Cancel));
         }

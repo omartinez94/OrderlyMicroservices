@@ -26,6 +26,9 @@ public sealed class RestaurantConfigurationChangedConsumer(
 
     public async Task Consume(ConsumeContext<RestaurantConfigurationChangedIntegrationEvent> context)
     {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(logger);
+
         RestaurantConfigurationChangedIntegrationEvent? evt = context.Message;
 
         // Currency-only deactivation. Other fields in

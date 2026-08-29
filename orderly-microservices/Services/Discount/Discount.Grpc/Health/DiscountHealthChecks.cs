@@ -95,6 +95,10 @@ public sealed class BrokerHealthCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(state);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         // Threshold: the plan's §6.7 v1.2 M-L10 reads it from OutboxOptions.
         // DiscountOptions carries the threshold for the dead-letter probe;
         // the circuit breaker reads OutboxOptions.MaxConsecutiveBrokerFailures
@@ -151,6 +155,10 @@ public sealed class OutboxDeadLetterCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(scopes);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
         int threshold = options.Value.OutboxDeadLetterThreshold;
         try
         {
@@ -198,6 +206,10 @@ public sealed class RabbitMqBrokerCheck(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(outboxOptions);
+        ArgumentNullException.ThrowIfNull(logger);
+
         if (!outboxOptions.Value.Enabled)
         {
             // Outbox dispatcher disabled in dev — skip the probe.

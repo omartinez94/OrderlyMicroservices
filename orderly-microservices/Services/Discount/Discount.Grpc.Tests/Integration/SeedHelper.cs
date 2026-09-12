@@ -78,9 +78,11 @@ public static class SeedHelper
     /// table is sufficient. Order matters: outbox tables first so the
     /// test's prior history-publish rows don't leak across fixtures.
     /// <c>IgnoreQueryFilters()</c> is required on the tenant-scoped
-    /// tables (Coupon, RewardCode) because the global query filter
-    /// scopes ExecuteDeleteAsync to the active caller's tenant — without
-    /// it, prior tests' cross-tenant rows survive and pollute counts.
+    /// tables (Coupon, RewardCode, DiscountRule) because the global query
+    /// filter scopes ExecuteDeleteAsync to the active caller's tenant —
+    /// without it, prior tests' cross-tenant rows survive and pollute counts.
+    /// DiscountRule joined that list in E2E_TEST_COVERAGE_PLAN Phase 5, when
+    /// its missing global filter was added.
     /// </summary>
     public static async Task CleanAllAsync(this DiscountWebApplicationFactory factory)
     {
@@ -89,7 +91,7 @@ public static class SeedHelper
         await db.OutboxMessages.ExecuteDeleteAsync();
         await db.OutboxDeadMessages.ExecuteDeleteAsync();
         await db.RewardCodes.IgnoreQueryFilters().ExecuteDeleteAsync();
-        await db.DiscountRules.ExecuteDeleteAsync();
+        await db.DiscountRules.IgnoreQueryFilters().ExecuteDeleteAsync();
         await db.ProcessedInboundevents.ExecuteDeleteAsync();
         await db.Coupons.IgnoreQueryFilters().ExecuteDeleteAsync();
     }

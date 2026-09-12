@@ -96,6 +96,20 @@ public class DiscountContext(
         // empty Coupons table). Developers seed via gRPC after the stack
         // boots.
 
+        // DiscountRule: same combined global query filter shape as Coupon and
+        // RewardCode — alive + tenant-scoped. Added under E2E_TEST_COVERAGE_PLAN
+        // Phase 5, which found the entity implemented ITenantEntity and carried
+        // a (RestaurantId, CouponId) UK but had no filter, so every
+        // dbContext.DiscountRules query ran unscoped. ListDiscountRules never
+        // used request.RestaurantId and UpdateDiscountRule/GetDiscountRule/
+        // DeleteDiscountRule looked up by Id alone, so any caller holding
+        // discount-rule:read could read — and with discount-rule:edit, mutate —
+        // every other tenant's rules. Scoping here fixes all six RPCs at once
+        // and keeps the fail-secure Guid.Empty default the siblings rely on.
+        modelBuilder.Entity<DiscountRule>().HasQueryFilter(r =>
+            r.DeletedAt == null &&
+            r.RestaurantId == _restaurantProvider.RestaurantId);
+
         modelBuilder.Entity<DiscountRule>(entity =>
         {
             // FK → Coupons. Restrict cascade (cascade-delete policy)

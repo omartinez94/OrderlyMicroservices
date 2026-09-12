@@ -36,7 +36,12 @@ public sealed class DiscountRuleServiceTests(DiscountWebApplicationFactory facto
         });
         await db.SaveChangesAsync();
 
-        var stored = await db.DiscountRules.AsNoTracking()
+        // IgnoreQueryFilters: this scope has no HTTP request and no attached
+        // principal, so ICurrentRestaurantProvider resolves Guid.Empty and the
+        // DiscountRule global tenant filter (added in E2E_TEST_COVERAGE_PLAN
+        // Phase 5) would hide the row. The assertion here is about persistence,
+        // not tenant scoping — EvaluateDiscountRulesTests covers the latter.
+        var stored = await db.DiscountRules.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(r => r.CouponId == coupon.Id);
         stored.Should().NotBeNull();
         stored!.RuleType.Should().Be(DiscountRuleKind.MinOrderAmount);

@@ -158,7 +158,7 @@ public class DiscountRuleService(
         // (Phase 4) can serialize the pre-image.
         string? oldValues = SerializeNewValues(rule);
 
-        rule.RuleType = (DiscountRuleKind)request.Rule.RuleType;
+        rule.RuleType = ToRuleKind(request.Rule.RuleType);
         rule.RuleDataJson = request.Rule.RuleDataJson;
         rule.IsActive = request.Rule.IsActive;
 
@@ -325,13 +325,58 @@ public class DiscountRuleService(
 
     // ---------- proto <-> entity conversion ----------
 
+    /// <summary>
+    /// Maps the proto <see cref="DiscountRuleType"/> onto the CLR
+    /// <see cref="DiscountRuleKind"/>.
+    ///
+    /// <para>These two enums are NOT numerically aligned and must never be
+    /// cast into one another. Proto style requires a zero-valued
+    /// <c>DISCOUNT_RULE_TYPE_UNSPECIFIED</c> sentinel, which shifts every
+    /// real member up by one relative to the CLR enum
+    /// (<c>MIN_ORDER_AMOUNT = 1</c> vs <c>MinOrderAmount = 0</c>). The raw
+    /// cast this replaced silently stored MIN_ORDER_AMOUNT rules as
+    /// <c>RequiredMenuItems</c> — so the evaluator ran the wrong branch — and
+    /// turned BOGO into the undefined CLR value 4. Found by
+    /// <c>UpdateDiscountRpcTests.UpdateDiscountRule_ValidRequest_ReturnsUpdatedRule</c>
+    /// under E2E_TEST_COVERAGE_PLAN Phase 5.</para>
+    /// </summary>
+    /// <exception cref="RpcException">
+    /// <c>InvalidArgument</c> when the caller sends the UNSPECIFIED sentinel or
+    /// a value outside the enum — previously both were cast through silently.
+    /// </exception>
+    private static DiscountRuleKind ToRuleKind(DiscountRuleType protoType) => protoType switch
+    {
+        DiscountRuleType.MinOrderAmount => DiscountRuleKind.MinOrderAmount,
+        DiscountRuleType.RequiredMenuItems => DiscountRuleKind.RequiredMenuItems,
+        DiscountRuleType.TimeWindow => DiscountRuleKind.TimeWindow,
+        DiscountRuleType.Bogo => DiscountRuleKind.Bogo,
+        _ => throw new RpcException(new Status(
+            StatusCode.InvalidArgument,
+            $"rule_type must be a defined DiscountRuleType; got '{protoType}'.")),
+    };
+
+    /// <summary>
+    /// Inverse of <see cref="ToRuleKind"/>. A row carrying a value outside the
+    /// CLR enum (rows written by the pre-Phase-5 cast can hold 4) maps to the
+    /// UNSPECIFIED sentinel rather than throwing, so a corrupted row stays
+    /// readable and visibly wrong instead of faulting every list call.
+    /// </summary>
+    private static DiscountRuleType ToProtoRuleType(DiscountRuleKind kind) => kind switch
+    {
+        DiscountRuleKind.MinOrderAmount => DiscountRuleType.MinOrderAmount,
+        DiscountRuleKind.RequiredMenuItems => DiscountRuleType.RequiredMenuItems,
+        DiscountRuleKind.TimeWindow => DiscountRuleType.TimeWindow,
+        DiscountRuleKind.Bogo => DiscountRuleType.Bogo,
+        _ => DiscountRuleType.Unspecified,
+    };
+
     private static DiscountRule ToEntity(DiscountRuleModel model)
     {
         DiscountRule? rule = new DiscountRule
         {
             RestaurantId = Guid.Parse(model.RestaurantId),
             CouponId = model.CouponId,
-            RuleType = (DiscountRuleKind)model.RuleType,
+            RuleType = ToRuleKind(model.RuleType),
             RuleDataJson = model.RuleDataJson,
             IsActive = model.IsActive,
         };
@@ -352,7 +397,7 @@ public class DiscountRuleService(
             Id = rule.Id,
             RestaurantId = rule.RestaurantId.ToString(),
             CouponId = rule.CouponId,
-            RuleType = (DiscountRuleType)rule.RuleType,
+            RuleType = ToProtoRuleType(rule.RuleType),
             RuleDataJson = rule.RuleDataJson,
             IsActive = rule.IsActive,
         };

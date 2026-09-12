@@ -1,0 +1,58 @@
+# docker-compose.e2e.yml — E2E test stack override
+#
+# Extends orderly-microservices/docker-compose.yml + the dev override with:
+#   - JWT_SECRET propagated to every API service (the dev HS256 fallback
+#     registers when JWT_SECRET is set + ASPNETCORE_ENVIRONMENT=Development).
+#   - Published ports on every API so tests can reach individual
+#     containers directly (5100..5600).
+#   - Healthchecks tightened on the API services to /live (already done in
+#     the base file; the override just asserts the surface area is correct).
+#
+# Usage:
+#   docker-compose -f orderly-microservices/docker-compose.yml \
+#                  -f orderly-microservices/docker-compose.override.dev.yml \
+#                  -f orderly-microservices/E2E.Tests/docker-compose.e2e.yml \
+#                  up -d --build
+
+services:
+  identity.api:
+    ports:
+      - "5600:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  catalog.api:
+    ports:
+      - "5100:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  basket.api:
+    ports:
+      - "5200:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  discount.grpc:
+    ports:
+      - "5300:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  ordering.api:
+    ports:
+      - "5400:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  kitchen.api:
+    ports:
+      - "5500:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+
+  yarpapigateway:
+    ports:
+      - "5000:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}

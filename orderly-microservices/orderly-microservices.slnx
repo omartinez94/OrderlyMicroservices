@@ -48,6 +48,9 @@
     <Project Path="Services/Ordering/Ordering.Domain.Tests/Ordering.Domain.Tests.csproj" Id="a7c1d9e3-4f8b-4c2a-b1d6-9e8f7a6b5c4d" />
     <Project Path="Services/Ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" Id="eb1cf159-499d-4059-b870-43d8cd03f749" />
   </Folder>
+  <Folder Name="/E2E.Tests/">
+    <Project Path="E2E.Tests/E2E.Tests.csproj" />
+  </Folder>
   <Project Path="docker-compose.dcproj">
     <Build />
   </Project>

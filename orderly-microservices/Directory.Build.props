@@ -31,6 +31,30 @@
     <AnalysisLevel>latest-all</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!--
+      Phase 3 of DOCKER_BUILD_PERFORMANCE_PLAN.md — Directory.Packages.props
+      ships at the solution root as a future-state document but CPM is NOT
+      activated here. Reason: under CPM, every <PackageReference> in every
+      csproj must have its version in Directory.Packages.props (else NU1008
+      "version explicitly specified for centrally managed package" errors).
+      Several packages we wanted to centralize are also directly referenced
+      by service csprojs (MassTransit in Catalog.API, MediatR in
+      Ordering.Domain, FeatureManagement in Catalog.API + Kitchen.API, etc.)
+      with their own explicit Version=. Centralizing those packages here
+      would NU1008 the service builds; migrating every service csproj is
+      the scope of a follow-up plan, not this phase.
+
+      Activating CPM in this phase would therefore require:
+        1. Migrating every service + test csproj's Version= attributes
+           for the packages declared in Directory.Packages.props
+        2. Adding NU1008 to BuildingBlocks.Dev's NoWarn (it has
+           TreatWarningsAsErrors=true; NU1008 currently escalates to error)
+        3. A separate decision about version drift (Marten 8.37.0 vs 8.37.4,
+           AspNetCore.HealthChecks.Rabbitmq 8.0.2 vs 9.0.0, etc.)
+
+      Deferred. Directory.Packages.props remains as documentation of the
+      target shape.
+    -->
   </PropertyGroup>
 
   <ItemGroup Condition="'$(MSBuildProjectExtension)' != '.dcproj'">

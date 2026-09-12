@@ -26,6 +26,12 @@
       Ordering, which uses SQL Server; SQL Server instrumentation is deferred
       — see PERSISTENCE_AND_RELIABILITY_PLAN.md §A7).
     -->
+    <!--
+      Phase 3 (DOCKER_BUILD_PERFORMANCE_PLAN): Directory.Packages.props
+      ships as a future-state document but CPM is NOT activated (see
+      Directory.Build.props for the rationale). All Version="..." stay
+      explicit so this csproj is self-contained.
+    -->
     <PackageReference Include="Npgsql.OpenTelemetry" Version="10.0.3" />
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />

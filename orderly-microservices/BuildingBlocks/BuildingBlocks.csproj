@@ -17,6 +17,13 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!--
+      Phase 3 (DOCKER_BUILD_PERFORMANCE_PLAN): Directory.Packages.props
+      ships as a future-state document but CPM is NOT activated (see
+      Directory.Build.props for the rationale — full service + test csproj
+      migration is the scope of a follow-up plan). All Version="..."
+      attributes stay explicit so each csproj is self-contained.
+    -->
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />

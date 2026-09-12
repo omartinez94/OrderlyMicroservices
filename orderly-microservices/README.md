@@ -33,8 +33,14 @@ There are two primary ways to run this solution: locally (via Visual Studio / .N
 Running the project via Docker is the simplest method as it automatically provisions the necessary backing services (PostgreSQL, endpoints, etc.) alongside the APIs.
 
 1. Ensure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
-2. Open a terminal at the root of the project (where the `docker-compose.yml` file is located).
-3. Run the following command to build and attach to the containers:
+2. **Enable BuildKit** (required by Phase 3 of `DOCKER_BUILD_PERFORMANCE_PLAN.md` — every Dockerfile uses `# syntax=docker/dockerfile:1.7` + `--mount=type=cache` for NuGet packages). Set these in your shell before invoking `docker compose`:
+   ```bash
+   export DOCKER_BUILDKIT=1
+   export COMPOSE_DOCKER_CLI_BUILD=1
+   ```
+   Both are no-ops on Docker 23+ (which has BuildKit on by default) but the explicit form documents the requirement for new contributors.
+3. Open a terminal at the root of the project (where the `docker-compose.yml` file is located).
+4. Run the following command to build and attach to the containers:
 
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.override.dev.yml up -d --build

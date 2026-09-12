@@ -7,6 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Phase 3 (DOCKER_BUILD_PERFORMANCE_PLAN): Directory.Packages.props
+      ships as a future-state document but CPM is NOT activated (see
+      Directory.Build.props for the rationale). All Version="..." stay
+      explicit so this csproj is self-contained.
+    -->
     <PackageReference Include="MassTransit" Version="8.5.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.5.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />

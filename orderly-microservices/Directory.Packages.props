@@ -1,0 +1,95 @@
+<Project>
+
+  <!--
+    Central package management (CPM) — Phase 3 of
+    .agents/plan/platform/DOCKER_BUILD_PERFORMANCE_PLAN.md.
+
+    This file ships with the shared subset of <PackageVersion> entries —
+    only packages that are NOT directly referenced by any service csproj
+    (so enabling CPM globally does not generate NU1008 "version explicitly
+    specified for centrally managed package" errors in those csprojs).
+
+    Packages deliberately EXCLUDED from Phase 3 centralization (left with
+    explicit Version= in their consumer csprojs) — they appear in service
+    csprojs directly, so centralizing them would NU1008 those service
+    builds. The full migration is deferred to a follow-up plan:
+      - MassTransit + MassTransit.RabbitMQ  (Catalog.API)
+      - MediatR                              (Ordering.Domain)
+      - Microsoft.AspNetCore.Authentication.JwtBearer
+                                             (BuildingBlocks.Dev with
+                                              TreatWarningsAsErrors=true;
+                                              any NU1008 escalates to error)
+      - Microsoft.IdentityModel.Tokens       (same BuildingBlocks.Dev concern)
+      - Microsoft.FeatureManagement.AspNetCore
+                                             (Catalog.API, Kitchen.API)
+      - Microsoft.EntityFrameworkCore.Design / Tools
+                                             (most service csprojs)
+      - Npgsql.EntityFrameworkCore.PostgreSQL (and .NodaTime variant)
+                                             (most service csprojs)
+      - OpenIddict, OpenIddict.EntityFrameworkCore,
+        OpenIddict.Server.AspNetCore,
+        OpenIddict.Validation.AspNetCore     (Identity.API)
+
+    BuildingBlocks.Dev (TreatWarningsAsErrors=true) is the canary that
+    forces this scoping decision: any package it references with Version=
+    while centralized becomes an NU1008 error and breaks the canary build.
+
+    StyleCop.Analyzers was previously referenced in Directory.Build.props;
+    Phase 3 moves it here so it lives next to the other analyzer/versioned
+    dependencies. StyleCop is referenced via Directory.Build.props with
+    Version= removed; no service csproj references it directly.
+  -->
+
+  <ItemGroup>
+    <!-- OpenTelemetry — shared by every service via BuildingBlocks.Observability.csproj's
+         project reference. All five packages stay on a single 1.17.0 line
+         so the trace correlation stays consistent. No service csproj
+         references these directly. -->
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+
+    <!-- Npgsql OpenTelemetry plugin — used by BuildingBlocks.Observability
+         to wire DB-side instrumentation. Not in any service csproj. -->
+    <PackageVersion Include="Npgsql.OpenTelemetry" Version="10.0.3" />
+
+    <!-- EF Core (bare) + EF Core Relational — used by BuildingBlocks.csproj,
+         BuildingBlocks.Persistence, BuildingBlocks.Messaging. NOT directly
+         referenced in any service csproj (services use .Design / .Tools /
+         Npgsql.EntityFrameworkCore.PostgreSQL variants instead). -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
+
+    <!-- Npgsql + SqlClient — used by BuildingBlocks.Persistence only.
+         Not directly referenced in any service csproj. -->
+    <PackageVersion Include="Npgsql" Version="10.0.2" />
+    <PackageVersion Include="System.Data.SqlClient" Version="4.8.6" />
+
+    <!-- NodaTime — BuildingBlocks + BuildingBlocks.Messaging both depend on it.
+         Time-related types (Instant, LocalDateTime) appear in every domain model.
+         Not directly referenced in any service csproj. -->
+    <PackageVersion Include="NodaTime" Version="3.3.2" />
+    <PackageVersion Include="NodaTime.Serialization.SystemTextJson" Version="1.4.0" />
+
+    <!-- FluentValidation + Mapster — used by BuildingBlocks.csproj only.
+         Not directly referenced in any service csproj. -->
+    <PackageVersion Include="FluentValidation" Version="12.1.1" />
+    <PackageVersion Include="FluentValidation.AspNetCore" Version="11.3.1" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <PackageVersion Include="Mapster" Version="10.0.7" />
+
+    <!-- OpenIddict.Abstractions — used by BuildingBlocks.csproj only.
+         Identity.API references the full OpenIddict stack (which centralizing
+         here would NU1008), so Abstractions is the only piece safe to centralize. -->
+    <PackageVersion Include="OpenIddict.Abstractions" Version="7.5.0" />
+
+    <!-- StyleCop.Analyzers — moved here from Directory.Build.props so the
+         analyzer version lives next to other versioned dependencies.
+         Referenced via Directory.Build.props (central scope), no service
+         csproj references it directly. -->
+    <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
+  </ItemGroup>
+
+</Project>

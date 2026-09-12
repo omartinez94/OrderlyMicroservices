@@ -93,6 +93,8 @@ public sealed class OrderingOutboxPublisherTests
     private sealed class NoOpContext : IOutboxDbContext
     {
         public Microsoft.EntityFrameworkCore.DbSet<OutboxMessage> OutboxMessages => null!;
+        public Microsoft.EntityFrameworkCore.DbSet<OutboxDeadMessage> OutboxDeadMessages => null!;
+        public Microsoft.EntityFrameworkCore.Infrastructure.DatabaseFacade Database => null!;
         public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
     }
 

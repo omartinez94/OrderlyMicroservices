@@ -1,10 +1,12 @@
+using NodaTime.Text;
+
 namespace Catalog.API.Features.PriceHistories.GetPriceHistory;
 
 public record GetPriceHistoryRequest(
-    Guid? MenuItemId,
-    PriceType? PriceType,
-    Instant? From,
-    Instant? To);
+    Guid? MenuItemId = null,
+    PriceType? PriceType = null,
+    string? From = null,
+    string? To = null);
 
 public record PriceHistoryDto(
     int Id,
@@ -33,12 +35,32 @@ public class GetPriceHistoryEndpoint : ICarterModule
             [AsParameters] GetPriceHistoryRequest request,
             ISender sender) =>
         {
-            GetPriceHistoryQuery? query = new GetPriceHistoryQuery(
+            Instant? from = null;
+            if (!string.IsNullOrEmpty(request.From))
+            {
+                ParseResult<Instant> parseFrom = InstantPattern.ExtendedIso.Parse(request.From);
+                if (parseFrom.Success)
+                {
+                    from = parseFrom.Value;
+                }
+            }
+
+            Instant? to = null;
+            if (!string.IsNullOrEmpty(request.To))
+            {
+                ParseResult<Instant> parseTo = InstantPattern.ExtendedIso.Parse(request.To);
+                if (parseTo.Success)
+                {
+                    to = parseTo.Value;
+                }
+            }
+
+            GetPriceHistoryQuery query = new(
                 restaurantId,
                 request.MenuItemId,
                 request.PriceType,
-                request.From,
-                request.To);
+                from,
+                to);
 
             GetPriceHistoryResult? result = await sender.Send(query);
             GetPriceHistoryResponse? response = result.Adapt<GetPriceHistoryResponse>();

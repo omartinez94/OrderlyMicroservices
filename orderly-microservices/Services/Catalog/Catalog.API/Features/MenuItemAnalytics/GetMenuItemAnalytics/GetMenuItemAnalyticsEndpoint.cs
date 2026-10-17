@@ -1,9 +1,11 @@
+using NodaTime.Text;
+
 namespace Catalog.API.Features.MenuItemAnalytics.GetMenuItemAnalytics;
 
 public record GetMenuItemAnalyticsRequest(
-    Guid? MenuItemId,
-    LocalDate? From,
-    LocalDate? To,
+    Guid? MenuItemId = null,
+    string? From = null,
+    string? To = null,
     int PageIndex = 0,
     int PageSize = 20);
 
@@ -39,11 +41,31 @@ public class GetMenuItemAnalyticsEndpoint : ICarterModule
             [AsParameters] GetMenuItemAnalyticsRequest request,
             ISender sender) =>
         {
+            LocalDate? from = null;
+            if (!string.IsNullOrEmpty(request.From))
+            {
+                ParseResult<LocalDate> parseFrom = LocalDatePattern.Iso.Parse(request.From);
+                if (parseFrom.Success)
+                {
+                    from = parseFrom.Value;
+                }
+            }
+
+            LocalDate? to = null;
+            if (!string.IsNullOrEmpty(request.To))
+            {
+                ParseResult<LocalDate> parseTo = LocalDatePattern.Iso.Parse(request.To);
+                if (parseTo.Success)
+                {
+                    to = parseTo.Value;
+                }
+            }
+
             GetMenuItemAnalyticsQuery? query = new GetMenuItemAnalyticsQuery(
                 restaurantId,
                 request.MenuItemId,
-                request.From,
-                request.To,
+                from,
+                to,
                 request.PageIndex,
                 request.PageSize);
 

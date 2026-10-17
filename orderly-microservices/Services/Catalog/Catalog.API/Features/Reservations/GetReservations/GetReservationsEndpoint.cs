@@ -1,8 +1,10 @@
+using NodaTime.Text;
+
 namespace Catalog.API.Features.Reservations.GetReservations;
 
 public record GetReservationsRequest(
     Guid RestaurantId,
-    LocalDate? Date = null,
+    string? Date = null,
     ReservationStatus? Status = null,
     int? PageNumber = 1,
     int? PageSize = 10);
@@ -17,7 +19,23 @@ public class GetReservationsEndpoint : ICarterModule
 
         group.MapGet("/restaurants/{restaurantId}/reservations", async ([AsParameters] GetReservationsRequest request, ISender sender) =>
         {
-            GetReservationsQuery? query = request.Adapt<GetReservationsQuery>();
+            LocalDate? localDate = null;
+            if (!string.IsNullOrEmpty(request.Date))
+            {
+                ParseResult<LocalDate> parseResult = LocalDatePattern.Iso.Parse(request.Date);
+                if (parseResult.Success)
+                {
+                    localDate = parseResult.Value;
+                }
+            }
+
+            GetReservationsQuery query = new(
+                request.RestaurantId,
+                localDate,
+                request.Status,
+                request.PageNumber,
+                request.PageSize);
+
             GetReservationsResult? result = await sender.Send(query);
             GetReservationsResponse? response = result.Adapt<GetReservationsResponse>();
 

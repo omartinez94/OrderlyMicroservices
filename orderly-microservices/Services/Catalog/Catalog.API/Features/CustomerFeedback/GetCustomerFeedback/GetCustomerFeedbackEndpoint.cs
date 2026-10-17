@@ -1,12 +1,14 @@
+using NodaTime.Text;
+
 namespace Catalog.API.Features.CustomerFeedback.GetCustomerFeedback;
 
 public record GetCustomerFeedbackRequest(
-    Guid? OrderId,
-    int? MinRating,
-    int? MaxRating,
-    LocalDate? From,
-    LocalDate? To,
-    bool? RewardRedeemed,
+    Guid? OrderId = null,
+    int? MinRating = null,
+    int? MaxRating = null,
+    string? From = null,
+    string? To = null,
+    bool? RewardRedeemed = null,
     int PageIndex = 0,
     int PageSize = 20);
 
@@ -45,13 +47,33 @@ public class GetCustomerFeedbackEndpoint : ICarterModule
             [AsParameters] GetCustomerFeedbackRequest request,
             ISender sender) =>
         {
+            LocalDate? from = null;
+            if (!string.IsNullOrEmpty(request.From))
+            {
+                ParseResult<LocalDate> parseFrom = LocalDatePattern.Iso.Parse(request.From);
+                if (parseFrom.Success)
+                {
+                    from = parseFrom.Value;
+                }
+            }
+
+            LocalDate? to = null;
+            if (!string.IsNullOrEmpty(request.To))
+            {
+                ParseResult<LocalDate> parseTo = LocalDatePattern.Iso.Parse(request.To);
+                if (parseTo.Success)
+                {
+                    to = parseTo.Value;
+                }
+            }
+
             GetCustomerFeedbackQuery? query = new GetCustomerFeedbackQuery(
                 restaurantId,
                 request.OrderId,
                 request.MinRating,
                 request.MaxRating,
-                request.From,
-                request.To,
+                from,
+                to,
                 request.RewardRedeemed,
                 request.PageIndex,
                 request.PageSize);

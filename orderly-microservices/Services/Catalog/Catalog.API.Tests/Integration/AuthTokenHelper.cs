@@ -37,7 +37,7 @@ public static class AuthTokenHelper
             issuer: DevJwtBearerFallbackExtensions.DevIssuer,
             audience: DevJwtBearerFallbackExtensions.DevAudience,
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(30),
+            expires: DateTime.UtcNow.AddMinutes(30), // allow-datetime (JwtSecurityToken requires System.DateTime)
             signingCredentials: creds
         );
 

@@ -174,7 +174,7 @@ services:
       # /live (not /ready) — always 200 when the process is up; /ready
       # bounces during cold backing-store restarts and would re-create
       # the pod on Kubernetes (the bad behaviour Phase 5's split fixed).
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/live"]
+      test: ["CMD", "curl", "--http2-prior-knowledge", "-fsS", "http://localhost:8080/live"]
       interval: 10s
       timeout: 5s
       retries: 6

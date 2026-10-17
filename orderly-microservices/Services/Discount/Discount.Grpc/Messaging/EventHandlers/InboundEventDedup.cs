@@ -33,7 +33,7 @@ internal static class InboundEventDedup
             {
                 EventId = eventId,
                 ConsumerType = consumerType,
-                ConsumedAt = DateTime.UtcNow,
+                ConsumedAt = NodaTime.SystemClock.Instance.GetCurrentInstant(),
             },
             cancellationToken);
 

@@ -164,7 +164,7 @@ public sealed class ProcessedInboundeventTests(DiscountWebApplicationFactory fac
             {
                 EventId = eventId,
                 ConsumerType = consumerType,
-                ConsumedAt = DateTime.UtcNow,
+                ConsumedAt = NodaTime.SystemClock.Instance.GetCurrentInstant(),
             });
             await db.SaveChangesAsync();
         }
@@ -187,7 +187,7 @@ public sealed class ProcessedInboundeventTests(DiscountWebApplicationFactory fac
             {
                 EventId = eventId,
                 ConsumerType = consumerType,
-                ConsumedAt = DateTime.UtcNow,
+                ConsumedAt = NodaTime.SystemClock.Instance.GetCurrentInstant(),
             });
 
             var act = () => db.SaveChangesAsync();

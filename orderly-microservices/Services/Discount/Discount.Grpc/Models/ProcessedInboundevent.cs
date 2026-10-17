@@ -26,5 +26,5 @@ public class ProcessedInboundevent
 
     /// <summary>UTC wall-clock moment the row was inserted. Diagnostic
     /// only — not part of the dedup contract.</summary>
-    public DateTime ConsumedAt { get; set; } = DateTime.UtcNow;
+    public NodaTime.Instant ConsumedAt { get; set; } = NodaTime.SystemClock.Instance.GetCurrentInstant();
 }

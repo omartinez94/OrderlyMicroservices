@@ -432,3 +432,9 @@ FodyWeavers.xsd
 
 # Agent-generated notes & plans (not for version control)
 .agents/notes/
+
+# Graphify generated knowledge graphs and vaults
+graphify-out/
+.graphify*/
+*.graphify*
+

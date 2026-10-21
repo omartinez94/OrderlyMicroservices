@@ -124,18 +124,22 @@ const transport = new StreamableHTTPServerTransport({
   // DNS-rebinding protection (deprecated by the SDK in favour of external
   // middleware, but still works and is good enough for Phase 2).
   enableDnsRebindingProtection: true,
-  allowedHosts: ['127.0.0.1', 'localhost', `[::1]`, env.HOST].filter(
+  allowedHosts: [
+    '127.0.0.1',
+    'localhost',
+    `[::1]`,
+    `127.0.0.1:${env.PORT}`,
+    `localhost:${env.PORT}`,
+    `[::1]:${env.PORT}`,
+    env.HOST,
+    `${env.HOST}:${env.PORT}`,
+  ].filter(
     (h, i, a) => h !== '0.0.0.0' && a.indexOf(h) === i,
   ),
   allowedOrigins: [`http://127.0.0.1:${env.PORT}`, `http://localhost:${env.PORT}`],
 });
 
-// The StreamableHTTPServerTransport declares its optional callbacks with
-// `undefined` in the union; the SDK's `Transport` interface uses bare `?:`.
-// Cast to bridge the gap under exactOptionalPropertyTypes.
-await mcp.connect(transport as unknown as Transport);
-
-// ─── Step 4: Register Phase 2 tools ──────────────────────────────────────────
+// ─── Step 4: Register tools ──────────────────────────────────────────────────
 
 const { pool: mssqlPool } = await mssqlConn;
 const rabbitHandle = await rabbit;
@@ -153,13 +157,19 @@ registerApiDiscoveryTools(mcp, { logger });
 registerStateInspectionTools(mcp, { ...toolCtx, logger });
 registerSnapshotTools(mcp, { ...toolCtx, logger });
 registerLogTracingTools(mcp, { logger });
-registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg });
+registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql });
 registerEventBusTools(mcp, { logger, rabbit: toolCtx.rabbit });
 registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
 registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
 registerFlowTracingTools(mcp, { logger, ctx: toolCtx });
 
 logger.info({ tools: 20 }, 'phase 4 ready — 20 tools registered');
+
+// Connect transport AFTER registering all capabilities/tools.
+// The StreamableHTTPServerTransport declares its optional callbacks with
+// `undefined` in the union; the SDK's `Transport` interface uses bare `?:`.
+// Cast to bridge the gap under exactOptionalPropertyTypes.
+await mcp.connect(transport as unknown as Transport);
 
 // ─── Step 4: HTTP server ─────────────────────────────────────────────────────
 

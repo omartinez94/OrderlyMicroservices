@@ -27,6 +27,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
+import sql from 'mssql';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { Logger } from '../logger.ts';
@@ -98,11 +99,13 @@ function buildSeedMenuSql(restaurantId: string, seed: CatalogSeed): { sql: strin
     `ON CONFLICT ("Id") DO UPDATE SET "Name" = EXCLUDED."Name", "LastModifiedAt" = CURRENT_TIMESTAMP`,
   );
 
-  // 3. MenuCategories
-  for (const c of seed.categories) {
+  // 3. MenuCategories (Id is integer)
+  for (let idx = 0; idx < seed.categories.length; idx++) {
+    const c = seed.categories[idx]!;
+    const catId = idx + 1;
     sql.push(
       `INSERT INTO "MenuCategories" ("Id", "RestaurantId", "Name", "Description", "DisplayOrder", "IsDeleted", "CreatedBy", "LastModifiedBy", "IsActive") ` +
-      `VALUES ('${c.id}', '${restaurantId}', '${c.name.replace(/'/g, "''")}', '${c.description.replace(/'/g, "''")}', ${c.displayOrder}, false, 'devmcp', 'devmcp', true) ` +
+      `VALUES (${catId}, '${restaurantId}', '${c.name.replace(/'/g, "''")}', '${c.description.replace(/'/g, "''")}', ${c.displayOrder}, false, 'devmcp', 'devmcp', true) ` +
       `ON CONFLICT ("Id") DO UPDATE SET "Name" = EXCLUDED."Name", "LastModifiedAt" = CURRENT_TIMESTAMP`,
     );
   }
@@ -111,29 +114,26 @@ function buildSeedMenuSql(restaurantId: string, seed: CatalogSeed): { sql: strin
   for (const item of seed.items) {
     sql.push(
       `INSERT INTO "MenuItems" ("Id", "RestaurantId", "SubCategoryId", "Name", "Description", "BasePrice", "ImageUrl", "PrepTimeMinutes", "PrepTimeMaxMinutes", "AvailabilityStatus", "ItemType", "DisplayOrder", "IsAvailable", "IsDeleted", "CreatedBy", "LastModifiedBy", "IsActive") ` +
-      `VALUES ('${item.id}', '${restaurantId}', NULL, '${item.name.replace(/'/g, "''")}', '${item.description.replace(/'/g, "''")}', ${item.basePrice}, 'https://placehold.co/500x500/png?text=${encodeURIComponent(item.name)}', ${item.prepTimeMinutes}, ${item.prepTimeMaxMinutes}, 0, 0, 0, true, false, 'devmcp', 'devmcp', true) ` +
+      `VALUES ('${item.id}', '${restaurantId}', NULL, '${item.name.replace(/'/g, "''")}', '${item.description.replace(/'/g, "''")}', ${item.basePrice}, 'https://placehold.co/500x500/png?text=${encodeURIComponent(item.name).replace(/'/g, "''")}', ${item.prepTimeMinutes}, ${item.prepTimeMaxMinutes}, 0, 0, 0, true, false, 'devmcp', 'devmcp', true) ` +
       `ON CONFLICT ("Id") DO UPDATE SET "Name" = EXCLUDED."Name", "BasePrice" = EXCLUDED."BasePrice", "LastModifiedAt" = CURRENT_TIMESTAMP`,
     );
 
     for (const v of item.variations ?? []) {
       sql.push(
-        `INSERT INTO "MenuItemVariations" ("Id", "MenuItemId", "Name", "PriceDelta", "IsDeleted", "CreatedBy", "LastModifiedBy", "IsActive") ` +
-        `VALUES ('${v.id}', '${item.id}', '${v.name.replace(/'/g, "''")}', ${v.priceDelta}, false, 'devmcp', 'devmcp', true) ` +
-        `ON CONFLICT ("Id") DO UPDATE SET "Name" = EXCLUDED."Name", "PriceDelta" = EXCLUDED."PriceDelta"`,
+        `INSERT INTO "MenuItemVariations" ("MenuItemId", "Name", "VariationValue", "PriceModifier", "IsDefault", "DisplayOrder", "IsDeleted") ` +
+        `VALUES ('${item.id}', '${v.name.replace(/'/g, "''")}', '${v.name.replace(/'/g, "''")}', ${v.priceDelta}, false, 0, false)`,
       );
     }
 
     for (const c of item.customizations ?? []) {
-      // Customizations are ingredient toggles. Upsert the ingredient first.
-      const ingId = `i-${c.ingredientName.toLowerCase().replace(/[^a-z0-9]/g, '')}-${bucket}`;
       sql.push(
-        `INSERT INTO "Ingredients" ("Id", "RestaurantId", "Name", "IsAvailable", "IsDeleted", "CreatedBy", "LastModifiedBy", "IsActive") ` +
-        `VALUES ('${ingId}', '${restaurantId}', '${c.ingredientName.replace(/'/g, "''")}', true, false, 'devmcp', 'devmcp', true) ` +
-        `ON CONFLICT ("Id") DO NOTHING`,
+        `INSERT INTO "Ingredients" ("RestaurantId", "Name", "Unit", "CurrentStock", "MinimumStock", "IsAvailable", "CreatedBy", "LastModifiedBy", "CreatedAt", "LastModifiedAt", "IsActive") ` +
+        `VALUES ('${restaurantId}', '${c.ingredientName.replace(/'/g, "''")}', 'portion', 100.00, 10.00, true, 'devmcp', 'devmcp', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, true) ` +
+        `ON CONFLICT ("RestaurantId", "Name") DO NOTHING`,
       );
       sql.push(
-        `INSERT INTO "MenuItemIngredients" ("Id", "MenuItemId", "IngredientId", "Action", "CreatedBy", "LastModifiedBy", "IsActive") ` +
-        `VALUES (gen_random_uuid(), '${item.id}', '${ingId}', '${c.action.replace(/'/g, "''")}', 'devmcp', 'devmcp', true) ` +
+        `INSERT INTO "MenuItemIngredients" ("MenuItemId", "IngredientId", "IsOptional", "QuantityRequired") ` +
+        `SELECT '${item.id}', "Id", true, 1.00 FROM "Ingredients" WHERE "RestaurantId" = '${restaurantId}' AND "Name" = '${c.ingredientName.replace(/'/g, "''")}' ` +
         `ON CONFLICT DO NOTHING`,
       );
     }
@@ -153,6 +153,7 @@ function buildSeedMenuSql(restaurantId: string, seed: CatalogSeed): { sql: strin
 export interface DataSeedingDeps {
   logger: Logger;
   pg: ToolContext['pg'];
+  mssql: ToolContext['mssql'];
 }
 
 export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDeps): void {
@@ -231,11 +232,11 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
       const now = nowMs();
 
       try {
-        const transaction = new mssql.Transaction(await (deps as unknown as { mssql: { pool: import('mssql').ConnectionPool } }).mssql.pool.connect());
+        const transaction = new sql.Transaction(deps.mssql);
         await transaction.begin();
         try {
           // 1. Upsert Customer (idempotent on Id)
-          const customerReq = new mssql.Request(transaction);
+          const customerReq = new sql.Request(transaction);
           customerReq.input('id', seed.customerId);
           customerReq.input('email', 'devmcp@test.local');
           customerReq.input('name', seed.userName);
@@ -245,8 +246,9 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
           customerReq.input('state', seed.deliveryAddress.state);
           customerReq.input('zip', seed.deliveryAddress.zipCode);
           customerReq.input('country', seed.deliveryAddress.country);
-          customerReq.input('createdBy', 'devmcp');
-          customerReq.input('lastModifiedBy', 'devmcp');
+          const devmcpGuid = '00000000-0000-0000-0000-000000000001';
+          customerReq.input('createdBy', devmcpGuid);
+          customerReq.input('lastModifiedBy', devmcpGuid);
           await customerReq.query(
             `IF NOT EXISTS (SELECT 1 FROM Customers WHERE Id = @id) ` +
             `INSERT INTO Customers (Id, Email, Name, Phone, Address_Street, Address_City, Address_State, Address_ZipCode, Address_Country, CreatedBy, CreatedAt, LastModifiedBy, LastModifiedAt, IsActive) ` +
@@ -260,7 +262,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
           const total = subtotal + taxAmount;
           const orderNumber = `ORD-${Date.now()}-${restaurantId.slice(0, 8)}`;
 
-          const orderReq = new mssql.Request(transaction);
+          const orderReq = new sql.Request(transaction);
           orderReq.input('id', orderId);
           orderReq.input('customerId', seed.customerId);
           orderReq.input('restaurantId', restaurantId);
@@ -285,11 +287,9 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
           orderReq.input('baZip', seed.billingAddress.zipCode);
           orderReq.input('baCountry', seed.billingAddress.country);
           // Payment (ComplexProperty)
-          orderReq.input('payCardName', seed.payment.cardName);
-          orderReq.input('payCardNumber', seed.payment.cardNumber);
-          orderReq.input('payExpiration', seed.payment.expiration);
-          orderReq.input('payCcv', seed.payment.ccv);
-          orderReq.input('payMethod', seed.payment.paymentMethod);
+          orderReq.input('payMethod', 1);
+          orderReq.input('payBrand', 'Visa');
+          orderReq.input('payLastFour', '1111');
 
           await orderReq.query(
             `INSERT INTO Orders (` +
@@ -297,23 +297,33 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
               `Subtotal, TaxAmount, TaxRate, TotalAmount, Currency, ` +
               `DeliveryAddress_Street, DeliveryAddress_City, DeliveryAddress_State, DeliveryAddress_ZipCode, DeliveryAddress_Country, ` +
               `BillingAddress_Street, BillingAddress_City, BillingAddress_State, BillingAddress_ZipCode, BillingAddress_Country, ` +
-              `Payment_CardName, Payment_CardNumber, Payment_Expiration, Payment_Ccv, Payment_PaymentMethod, ` +
-              `ActualPrepTimeMinutes, DiscountAmount, DiscountCode, DeliveryNotes, Notes, IsModified, RequiresAdminApproval, ` +
+              `Payment_Method, Payment_Brand, Payment_LastFour, ` +
+              `ActualPrepTimeMinutes, EstimatedPrepTimeMinutes, DiscountAmount, DiscountCode, DeliveryNotes, Notes, IsModified, RequiresAdminApproval, ` +
               `CreatedByUserId, CreatedAt, LastModified, LastModifiedBy` +
             `) VALUES (` +
               `@id, @customerId, @restaurantId, @orderNumber, @status, @orderType, ` +
               `@subtotal, @taxAmount, @taxRate, @total, @currency, ` +
               `@daStreet, @daCity, @daState, @daZip, @daCountry, ` +
               `@baStreet, @baCity, @baState, @baZip, @baCountry, ` +
-              `@payCardName, @payCardNumber, @payExpiration, @payCcv, @payMethod, ` +
-              `0, 0, '', '', '', 0, 0, ` +
-              `@customerId, GETUTCDATE(), GETUTCDATE(), 'devmcp'` +
+              `@payMethod, @payBrand, @payLastFour, ` +
+              `0, 20, 0, '', '', '', 0, 0, ` +
+              `@customerId, GETUTCDATE(), GETUTCDATE(), '${devmcpGuid}'` +
             `)`,
           );
 
-          // 3. Insert OrderItems
+          // 3. Upsert MenuItems & Insert OrderItems
           for (const it of seed.orderItems) {
-            const itemReq = new mssql.Request(transaction);
+            const menuReq = new sql.Request(transaction);
+            menuReq.input('menuItemId', it.menuItemId);
+            menuReq.input('menuItemName', it.menuItemName);
+            menuReq.input('price', it.unitPrice);
+            await menuReq.query(
+              `IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE Id = @menuItemId) ` +
+              `INSERT INTO MenuItems (Id, Name, Price, CreatedAt, CreatedBy, LastModified, LastModifiedBy) ` +
+              `VALUES (@menuItemId, @menuItemName, @price, GETUTCDATE(), '${devmcpGuid}', GETUTCDATE(), '${devmcpGuid}')`,
+            );
+
+            const itemReq = new sql.Request(transaction);
             itemReq.input('id', crypto.randomUUID());
             itemReq.input('orderId', orderId);
             itemReq.input('menuItemId', it.menuItemId);
@@ -329,7 +339,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
             itemReq.input('specialInstructions', '');
             itemReq.input('seatNumber', 0);
             itemReq.input('prepStatus', 'Pending');
-            itemReq.input('createdBy', 'devmcp');
+            itemReq.input('createdBy', devmcpGuid);
             await itemReq.query(
               `INSERT INTO OrderItems (Id, OrderId, MenuItemId, MenuItemName, BasePrice, UnitPrice, TotalPrice, Quantity, SelectedVariations, Customizations, MenuItemDescription, MenuItemImageUrl, SpecialInstructions, SeatNumber, PrepStatus, CreatedAt, CreatedBy, LastModified, LastModifiedBy) ` +
               `VALUES (@id, @orderId, @menuItemId, @menuItemName, @basePrice, @unitPrice, @totalPrice, @quantity, @selectedVariations, @customizations, @menuItemDescription, @menuItemImageUrl, @specialInstructions, @seatNumber, @prepStatus, GETUTCDATE(), @createdBy, GETUTCDATE(), @createdBy)`,
@@ -360,9 +370,3 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
     },
   );
 }
-
-// Late import to avoid a top-level mssql cycle. The mssql types are
-// referenced via dynamic require-equivalent in the create_mock_order
-// handler above; this import only types the symbol.
-import * as mssql from 'mssql';
-void mssql;

@@ -33,6 +33,13 @@ function makeStubCtx(): ToolContext {
 }
 
 test('checkout flow end-to-end (skips if basket.api is unreachable)', async (t) => {
+  // Gate 1: MCP_LIVE_TEST must be set. Operators opt in explicitly so
+  // CI doesn't accidentally run against an incomplete/local stack.
+  if (process.env.MCP_LIVE_TEST !== '1') {
+    t.skip('MCP_LIVE_TEST is not set to "1"; live-backend tests are gated. Set MCP_LIVE_TEST=1 and run with `docker compose up -d` to enable.');
+    return;
+  }
+
   // Pre-check: try to reach the basket API. If it fails, skip cleanly.
   try {
     const ping = await fetch('http://localhost:6001/basket', { signal: AbortSignal.timeout(2_000) });

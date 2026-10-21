@@ -24,8 +24,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import jwt from 'jsonwebtoken';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
+import { getSecret } from '../config/env.ts';
 import type { Logger } from '../logger.ts';
 import type { ToolContext } from './types.ts';
 
@@ -115,41 +117,81 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
     const menuItemId = fc.ids.menuItemId!;
     const { ctx, log } = fc;
 
-    // Step 1: Add item to basket
+    // Mint dev token with orders:create permission for Basket.API
+    const token = jwt.sign(
+      {
+        sub: userId,
+        role: 'Customer',
+        restaurantId,
+        permissions: ['orders:create', 'orders:view_own'],
+        iss: 'orderly-devmcp',
+        aud: 'OrderlyMicroservices',
+      },
+      getSecret('JWT_SECRET'),
+      { algorithm: 'HS256', expiresIn: 3600 },
+    );
+
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+
+    // Step 1: Add item to basket (PUT /v1/cart)
     {
-      const url = 'http://localhost:6001/basket/items';
+      const url = 'http://localhost:6001/v1/cart';
       const { result, elapsedMs } = await withTiming(async () => {
         const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, restaurantId, menuItemId: Number(menuItemId), quantity: 1, unitPrice: 100.00 }),
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({
+            userId: '00000000-0000-0000-0000-000000000000',
+            restaurantId: '00000000-0000-0000-0000-000000000000',
+            items: [
+              {
+                menuItemId: Number(menuItemId) || 1,
+                quantity: 1,
+                unitPrice: 100.0,
+                variations: [],
+                customizations: [],
+              },
+            ],
+            appliedDiscounts: [],
+          }),
           signal: AbortSignal.timeout(10_000),
         });
         return { status: res.status, body: await res.text().catch(() => '') };
       });
-      log({ kind: 'http', step: 'add-item-to-basket', method: 'POST', url, status: result.status, body: result.body, elapsedMs });
+      log({ kind: 'http', step: 'add-item-to-basket', method: 'PUT', url, status: result.status, body: result.body, elapsedMs });
     }
 
-    // Step 2: Checkout
+    // Step 2: Checkout (POST /v1/cart/checkout)
     let orderId = '';
     {
-      const url = 'http://localhost:6001/basket/checkout';
+      const url = 'http://localhost:6001/v1/cart/checkout';
       const { result, elapsedMs } = await withTiming(async () => {
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify({
-            userId, restaurantId,
-            userName: 'flow-trace@orderly.local',
-            firstName: 'Flow', lastName: 'Trace',
+            userId: '00000000-0000-0000-0000-000000000000',
+            restaurantId: '00000000-0000-0000-0000-000000000000',
+            firstName: 'Flow',
+            lastName: 'Trace',
             emailAddress: 'flow-trace@orderly.local',
-            addressLine: '123 Test St', country: 'MX', state: 'NL', city: 'Monterrey', zipCode: '64000',
-            cardName: 'Flow Trace', cardNumber: '4111111111111111', expiration: '12/30', cvv: '123', paymentMethod: 'CreditCard',
+            addressLine: '123 Test St',
+            country: 'MX',
+            state: 'NL',
+            city: 'Monterrey',
+            zipCode: '64000',
+            cardName: 'Flow Trace',
+            cardNumber: '4111111111111111',
+            expiration: '12/30',
+            cvv: '123',
+            paymentMethod: 'Card',
           }),
           signal: AbortSignal.timeout(10_000),
         });
         const body = await res.text().catch(() => '');
-        // Try to extract orderId from response if API returns one
         try { const parsed = JSON.parse(body) as { orderId?: string }; if (parsed.orderId) orderId = parsed.orderId; } catch { /* ignore */ }
         return { status: res.status, body };
       });

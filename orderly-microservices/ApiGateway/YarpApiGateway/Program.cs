@@ -90,18 +90,18 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 // Rate limiter. Per-user partition
-// when authenticated, per-host fallback otherwise. The plan defers
-// tenant-aware rate-limit to a future plan.
+// when authenticated, per-IP fallback otherwise.
 builder.Services.AddRateLimiter(options =>
 {
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("fixed", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.User.Identity?.Name ?? httpContext.Request.Headers.Host.ToString(),
+            partitionKey: httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 10,
-                QueueLimit = 0,
+                PermitLimit = 100,
+                QueueLimit = 10,
                 Window = TimeSpan.FromMinutes(1),
             }));
 });

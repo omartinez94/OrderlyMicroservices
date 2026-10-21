@@ -1,12 +1,12 @@
+using System.Text.Json;
+
 namespace Identity.API.Features.Auth.Token;
 
 public class TokenModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder group = app.MapGroup("/connect");
-
-        group.MapPost("/token", async (
+        Delegate handler = async (
                 HttpContext context,
                 ClaimsTransformer claimsTransformer,
                 AuditLogger auditLogger,
@@ -40,7 +40,6 @@ public class TokenModule : ICarterModule
                     await auditLogger.LogAsync(user.Id, "TokenIssued", ipAddress, userAgent, "Password grant", ct);
 
                     ClaimsPrincipal principal = await signInManager.CreateUserPrincipalAsync(user);
-                    principal.SetScopes(request.GetScopes());
 
                     ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
                     if (principal.Identity is ClaimsIdentity identity)
@@ -48,7 +47,11 @@ public class TokenModule : ICarterModule
                         ReplaceClaims(identity, claims);
                     }
 
+                    principal.SetScopes(request.GetScopes());
+                    principal.SetAudiences("OrderlyMicroservices");
                     principal.SetDestinations(GetDestinations);
+
+                    StoreAuthResponseItems(context, principal);
 
                     return Results.SignIn(principal, properties: null, "OpenIddict.Server.AspNetCore");
                 }
@@ -64,20 +67,38 @@ public class TokenModule : ICarterModule
 
                     await auditLogger.LogAsync(userId, "TokenRefreshed", ipAddress, userAgent, "Refresh token grant", ct);
 
+                    List<string> scopes = [.. principal.GetScopes()];
+
                     ImmutableArray<Claim> claims = await claimsTransformer.GenerateClaimsAsync(principal, ct);
-                    ClaimsIdentity? identity = principal.Identity as ClaimsIdentity;
-                    if (identity is not null)
+                    if (principal.Identity is ClaimsIdentity identity)
                     {
                         ReplaceClaims(identity, claims);
                     }
 
+                    principal.SetScopes(scopes);
+                    principal.SetAudiences("OrderlyMicroservices");
                     principal.SetDestinations(GetDestinations);
+
+                    StoreAuthResponseItems(context, principal);
 
                     return Results.SignIn(principal, properties: null, "OpenIddict.Server.AspNetCore");
                 }
 
                 throw new InvalidOperationException("Unsupported grant type.");
-            })
+            };
+
+        app.MapGroup("/connect")
+            .MapPost("/token", handler)
+            .Produces<TokenResponse>()
+            .ProducesProblem(400);
+
+        app.MapGroup("/v1/auth")
+            .MapPost("/refresh", handler)
+            .Produces<TokenResponse>()
+            .ProducesProblem(400);
+
+        app.MapGroup("/api/auth")
+            .MapPost("/refresh", handler)
             .Produces<TokenResponse>()
             .ProducesProblem(400);
     }
@@ -91,11 +112,15 @@ public class TokenModule : ICarterModule
     /// </summary>
     private static void ReplaceClaims(ClaimsIdentity identity, ImmutableArray<Claim> claims)
     {
-        List<Claim> existingClaims = [.. identity.Claims];
-        foreach (Claim? claim in existingClaims)
+        List<Claim> existingClaims = identity.Claims
+            .Where(c => !c.Type.StartsWith("oi_", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        foreach (Claim claim in existingClaims)
         {
             identity.RemoveClaim(claim);
         }
+
         foreach (Claim claim in claims)
         {
             identity.AddClaim(claim);
@@ -118,6 +143,29 @@ public class TokenModule : ICarterModule
                 => [OpenIddictConstants.Destinations.AccessToken],
             _ => [OpenIddictConstants.Destinations.AccessToken],
         };
+    }
+
+    private static void StoreAuthResponseItems(HttpContext context, ClaimsPrincipal principal)
+    {
+        string userId = principal.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        string name = principal.FindFirstValue(ClaimTypes.Name) ?? string.Empty;
+        string email = principal.FindFirstValue(ClaimTypes.Email) ?? string.Empty;
+        string initials = name.Length >= 2 ? name[..2].ToUpperInvariant() : (name.ToUpperInvariant() ?? "U");
+        string isActive = principal.FindFirstValue("isActive") ?? "True";
+
+        string[] roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct().ToArray();
+        string[] permissions = principal.FindAll("permissions").Select(c => c.Value).Distinct().ToArray();
+
+        context.Items["AuthResponse_User"] = JsonSerializer.SerializeToElement(new
+        {
+            id = userId,
+            name = name,
+            email = email,
+            initials = initials,
+            isActive = !string.Equals(isActive, "False", StringComparison.OrdinalIgnoreCase)
+        });
+        context.Items["AuthResponse_Roles"] = JsonSerializer.SerializeToElement(roles);
+        context.Items["AuthResponse_Permissions"] = JsonSerializer.SerializeToElement(permissions);
     }
 }
 

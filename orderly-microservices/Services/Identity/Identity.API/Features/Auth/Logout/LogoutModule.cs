@@ -38,6 +38,15 @@ public class LogoutModule : ICarterModule
                 await auditLogger.LogAsync(userId, "Logout", ipAddress, userAgent, null, ct);
 
                 await signInManager.SignOutAsync();
+
+                context.Response.Cookies.Delete("refresh_token", new CookieOptions
+                {
+                    HttpOnly = true,
+                    Secure = context.Request.IsHttps,
+                    SameSite = SameSiteMode.Lax,
+                    Path = "/"
+                });
+
                 return Results.NoContent();
             })
             .RequireAuthorization()

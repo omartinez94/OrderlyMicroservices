@@ -113,6 +113,7 @@ public sealed class ClaimsTransformerTests
         claims.Select(c => c.Type).Should().BeEquivalentTo(new[]
         {
             ClaimTypes.NameIdentifier,
+            "sub",
             ClaimTypes.Email,
             ClaimTypes.Name,
             "firstName",

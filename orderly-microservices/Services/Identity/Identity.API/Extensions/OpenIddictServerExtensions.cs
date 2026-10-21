@@ -1,4 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
+using OpenIddict.Server;
+using OpenIddict.Server.AspNetCore;
 
 namespace Identity.API.Extensions;
 
@@ -49,7 +52,7 @@ public static class OpenIddictServerExtensions
             .AddServer(options =>
             {
                 options.SetAuthorizationEndpointUris("/connect/authorize")
-                    .SetTokenEndpointUris("/connect/token");
+                    .SetTokenEndpointUris("/connect/token", "/v1/auth/refresh", "/api/auth/refresh");
 
                 options.RegisterScopes(
                     OpenIddictConstants.Scopes.OpenId,
@@ -63,9 +66,105 @@ public static class OpenIddictServerExtensions
                     .RequireProofKeyForCodeExchange();
 
                 options.AllowRefreshTokenFlow();
+                options.UseReferenceRefreshTokens();
+                options.DisableAccessTokenEncryption();
 
                 options.SetAccessTokenLifetime(TimeSpan.FromMinutes(jwtSettings.AccessTokenLifetimeMinutes));
                 options.SetRefreshTokenLifetime(TimeSpan.FromDays(jwtSettings.RefreshTokenLifetimeDays));
+
+                options.AddEventHandler<OpenIddictServerEvents.ExtractTokenRequestContext>(eventBuilder =>
+                {
+                    eventBuilder.UseInlineHandler(context =>
+                    {
+                        HttpRequest? request = context.Transaction.GetHttpRequest();
+                        if (request is not null && context.Request is not null)
+                        {
+                            if (string.IsNullOrEmpty(context.Request.GrantType))
+                            {
+                                context.Request.GrantType = OpenIddictConstants.GrantTypes.RefreshToken;
+                            }
+
+                            if (string.IsNullOrEmpty(context.Request.RefreshToken) &&
+                                request.Cookies.TryGetValue("refresh_token", out string? refreshToken) &&
+                                !string.IsNullOrEmpty(refreshToken))
+                            {
+                                context.Request.RefreshToken = refreshToken;
+                            }
+                        }
+
+                        return default;
+                    });
+                });
+
+                options.AddEventHandler<OpenIddictServerEvents.ApplyTokenResponseContext>(eventBuilder =>
+                {
+                    eventBuilder.UseInlineHandler(context =>
+                    {
+                        HttpRequest? request = context.Transaction.GetHttpRequest();
+                        HttpResponse? response = request?.HttpContext.Response;
+
+                        if (response is null)
+                        {
+                            return default;
+                        }
+
+                        if (!string.IsNullOrEmpty(context.Response.Error))
+                        {
+                            if (request?.Cookies.ContainsKey("refresh_token") == true)
+                            {
+                                response.Cookies.Delete("refresh_token", new CookieOptions
+                                {
+                                    HttpOnly = true,
+                                    Secure = request.IsHttps,
+                                    SameSite = SameSiteMode.Lax,
+                                    Path = "/"
+                                });
+                            }
+                            return default;
+                        }
+
+                        string? refreshToken = (string?)context.Response[OpenIddictConstants.Parameters.RefreshToken];
+                        if (!string.IsNullOrEmpty(refreshToken))
+                        {
+                            response.Cookies.Append("refresh_token", refreshToken, new CookieOptions
+                            {
+                                HttpOnly = true,
+                                Secure = request!.IsHttps,
+                                SameSite = SameSiteMode.Lax,
+                                Path = "/",
+                                MaxAge = TimeSpan.FromDays(jwtSettings.RefreshTokenLifetimeDays),
+                                Expires = DateTimeOffset.UtcNow.AddDays(jwtSettings.RefreshTokenLifetimeDays)
+                            });
+                        }
+
+                        string? accessToken = (string?)context.Response[OpenIddictConstants.Parameters.AccessToken];
+                        if (!string.IsNullOrEmpty(accessToken))
+                        {
+                            context.Response.SetParameter("accessToken", accessToken);
+
+                            long? expiresIn = (long?)context.Response[OpenIddictConstants.Parameters.ExpiresIn];
+                            long expiresAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + (expiresIn ?? 900) * 1000;
+                            context.Response.SetParameter("expiresAt", expiresAt);
+
+                            if (request?.HttpContext.Items.TryGetValue("AuthResponse_User", out object? userObj) == true && userObj is JsonElement userJson)
+                            {
+                                context.Response.SetParameter("user", userJson);
+                            }
+
+                            if (request?.HttpContext.Items.TryGetValue("AuthResponse_Roles", out object? rolesObj) == true && rolesObj is JsonElement rolesJson)
+                            {
+                                context.Response.SetParameter("roles", rolesJson);
+                            }
+
+                            if (request?.HttpContext.Items.TryGetValue("AuthResponse_Permissions", out object? permsObj) == true && permsObj is JsonElement permsJson)
+                            {
+                                context.Response.SetParameter("permissions", permsJson);
+                            }
+                        }
+
+                        return default;
+                    });
+                });
 
                 if (environment.IsDevelopment())
                 {

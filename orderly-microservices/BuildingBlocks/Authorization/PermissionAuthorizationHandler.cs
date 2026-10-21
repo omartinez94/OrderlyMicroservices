@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 
-using Microsoft.AspNetCore.Authorization;
-
 namespace BuildingBlocks.Authorization;
 
 public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionRequirement>
@@ -15,7 +13,8 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
             .Select(c => c.Value)
             .ToList();
 
-        if (userPermissions.Contains(requirement.Permission))
+        if (userPermissions.Contains(requirement.Permission) ||
+            (requirement.Permission == "orders:view_own" && userPermissions.Contains("orders:view_all")))
         {
             context.Succeed(requirement);
         }

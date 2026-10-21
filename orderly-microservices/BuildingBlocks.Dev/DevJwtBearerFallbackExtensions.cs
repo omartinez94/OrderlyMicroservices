@@ -176,6 +176,21 @@ public static class DevJwtBearerFallbackExtensions
                 NameClaimType = "name",
                 RoleClaimType = "role",
             };
+            options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    string? accessToken = context.Request.Query["access_token"];
+                    PathString path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) &&
+                        (path.StartsWithSegments("/hubs") || path.Value?.Contains("/hubs") == true))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+            };
         });
 
         if (DevJwtEnvironment.IsDevJwtAllowed(environment, configuration))
@@ -198,6 +213,21 @@ public static class DevJwtBearerFallbackExtensions
                     ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                     NameClaimType = "name",
                     RoleClaimType = "role",
+                };
+                options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        string? accessToken = context.Request.Query["access_token"];
+                        PathString path = context.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) &&
+                            (path.StartsWithSegments("/hubs") || path.Value?.Contains("/hubs") == true))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    },
                 };
             });
         }
@@ -243,20 +273,27 @@ internal static class PolicySchemeHandler
     /// </summary>
     public static string SelectScheme(HttpContext context)
     {
-        if (!context.Request.Headers.TryGetValue("Authorization", out var authHeader)
-            || string.IsNullOrEmpty(authHeader))
+        string? token = null;
+        if (context.Request.Headers.TryGetValue("Authorization", out var authHeader)
+            && !string.IsNullOrEmpty(authHeader))
+        {
+            string? headerValue = authHeader.ToString();
+            const string bearerPrefix = "Bearer ";
+            if (headerValue.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                token = headerValue.Substring(bearerPrefix.Length).Trim();
+            }
+        }
+        else if (context.Request.Query.TryGetValue("access_token", out var queryToken)
+            && !string.IsNullOrEmpty(queryToken))
+        {
+            token = queryToken.ToString();
+        }
+
+        if (string.IsNullOrEmpty(token))
         {
             return DevJwtBearerFallbackExtensions.OpenIddictScheme;
         }
-
-        string? headerValue = authHeader.ToString();
-        const string bearerPrefix = "Bearer ";
-        if (!headerValue.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            return DevJwtBearerFallbackExtensions.OpenIddictScheme;
-        }
-
-        string? token = headerValue.Substring(bearerPrefix.Length).Trim();
         int dotIndex = token.IndexOf('.');
         if (dotIndex <= 0)
         {

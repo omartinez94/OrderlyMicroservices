@@ -150,10 +150,13 @@ function buildSeedMenuSql(restaurantId: string, seed: CatalogSeed): { sql: strin
   return { sql, summary, restaurantId, generatedAt: now };
 }
 
+export const ACME_RESTAURANT_ID = '22222222-2222-2222-2222-222222222222';
+
 export interface DataSeedingDeps {
   logger: Logger;
   pg: ToolContext['pg'];
   mssql: ToolContext['mssql'];
+  rabbit?: ToolContext['rabbit'];
 }
 
 export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDeps): void {
@@ -164,7 +167,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
       description:
         'Inserts the canonical test menu (3 categories, 11 items, variations, ingredient customizations) from `resources/seeds/catalog-seed.json` into Catalogdb. Idempotent. When `dryRun: true`, returns the SQL without executing.',
       inputSchema: {
-        restaurantId: z.string().uuid(),
+        restaurantId: z.string().uuid().default(ACME_RESTAURANT_ID).describe('Restaurant ID to seed menu for. Defaults to Acme restaurant (22222222-2222-2222-2222-222222222222).'),
         dryRun: z.boolean().default(false).describe('Return SQL without executing.'),
       },
     },
@@ -218,9 +221,9 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
     {
       title: 'Create mock order',
       description:
-        'Inserts a fake order with the given status into OrderDb Orders + OrderItems tables. Returns the new OrderId. OrderAddress is stored as ComplexProperty columns on the Orders row (DeliveryAddress_*, BillingAddress_*) — there is no OrderAddresses table.',
+        'Inserts a fake order with the given status into OrderDb Orders + OrderItems tables. Publishes OrderCreatedIntegrationEvent so Kitchen generates a ticket and notifies KDS over SignalR. Defaults to Acme restaurant (22222222-2222-2222-2222-222222222222).',
       inputSchema: {
-        restaurantId: z.string().uuid(),
+        restaurantId: z.string().uuid().default(ACME_RESTAURANT_ID).describe('Restaurant ID for the order. Defaults to Acme restaurant (22222222-2222-2222-2222-222222222222).'),
         status: z.enum(ORDER_STATUSES).default('Pending'),
         orderType: z.enum(ORDER_TYPES).default('DineIn'),
       },
@@ -347,12 +350,131 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
           }
 
           await transaction.commit();
-          deps.logger.info({ orderId, restaurantId, status, total }, 'created mock order');
+          deps.logger.info({ orderId, restaurantId, status, total }, 'created mock order in OrderDb');
+
+          // 4. Publish OrderCreatedIntegrationEvent so Kitchen service creates KitchenTicket & notifies KDS via SignalR
+          let eventPublished = false;
+          if (deps.rabbit?.channel) {
+            try {
+              const exchange = 'BuildingBlocks.Messaging.Events:OrderCreatedIntegrationEvent';
+              const envelope = {
+                messageId: crypto.randomUUID(),
+                conversationId: crypto.randomUUID(),
+                sourceAddress: 'loopback://localhost/devmcp',
+                destinationAddress: `loopback://localhost/${exchange}`,
+                messageType: [`urn:message:${exchange}`],
+                message: {
+                  orderId,
+                  orderNumber,
+                  restaurantId,
+                  tableId: null,
+                  orderType: orderType === 'DineIn' ? 0 : orderType === 'Takeout' ? 1 : 2,
+                  customerId: seed.customerId,
+                  subtotal,
+                  totalAmount: total,
+                  taxAmount,
+                  discountAmount: 0,
+                  currency: 'MXN',
+                  discountCode: null,
+                  billingAddress: {
+                    street: seed.billingAddress.street,
+                    city: seed.billingAddress.city,
+                    state: seed.billingAddress.state,
+                    zipCode: seed.billingAddress.zipCode,
+                    country: seed.billingAddress.country,
+                  },
+                  deliveryAddress: seed.deliveryAddress
+                    ? {
+                        street: seed.deliveryAddress.street,
+                        city: seed.deliveryAddress.city,
+                        state: seed.deliveryAddress.state,
+                        zipCode: seed.deliveryAddress.zipCode,
+                        country: seed.deliveryAddress.country,
+                      }
+                    : null,
+                  items: seed.orderItems.map((it) => ({
+                    orderItemId: crypto.randomUUID(),
+                    menuItemId: it.menuItemId,
+                    menuItemName: it.menuItemName,
+                    quantity: it.quantity,
+                    unitPrice: it.unitPrice,
+                    selectedVariations: it.selectedVariations?.map((v) => ({ name: v.name, price: v.price })) ?? [],
+                    customizations: it.customizations?.map((c) => ({ label: c.label, value: c.value, price: c.price })) ?? [],
+                    specialInstructions: '',
+                    seatNumber: 1,
+                  })),
+                  estimatedPrepTimeMinutes: 20,
+                  notes: 'Table 1 · Created via DevMCP',
+                },
+                sentTime: new Date().toISOString(),
+                headers: {},
+              };
+              const body = Buffer.from(JSON.stringify(envelope), 'utf-8');
+              deps.rabbit.channel.publish(exchange, '', body, {
+                contentType: 'application/vnd.masstransit+json',
+                persistent: true,
+              });
+              eventPublished = true;
+              deps.logger.info({ exchange, orderId, restaurantId }, 'published OrderCreatedIntegrationEvent to RabbitMQ');
+            } catch (pubErr) {
+              deps.logger.warn({ err: pubErr }, 'failed to publish OrderCreatedIntegrationEvent to RabbitMQ');
+            }
+          }
+
+          // Fallback: If event was not published to RabbitMQ (e.g. broker offline) and kitchen DB is present, mirror directly
+          if (!eventPublished && deps.pg?.kitchen) {
+            try {
+              await deps.pg.kitchen.query(
+                `INSERT INTO "kitchen_tickets" (
+                  "Id", "RestaurantId", "CustomerId", "OrderNumber", "Status",
+                  "ReceivedAt", "Notes"
+                ) VALUES (
+                  $1, $2, $3, $4, 0,
+                  NOW(), $5
+                ) ON CONFLICT ("Id") DO NOTHING`,
+                [orderId, restaurantId, seed.customerId, orderNumber, 'Table 1 · DevMCP Order'],
+              );
+
+              for (const it of seed.orderItems) {
+                await deps.pg.kitchen.query(
+                  `INSERT INTO "kitchen_ticket_items" (
+                    "Id", "KitchenTicketId", "OrderItemId", "MenuItemId", "MenuItemName",
+                    "Quantity", "UnitPrice", "SelectedVariations", "Customizations",
+                    "SpecialInstructions", "SeatNumber", "Status"
+                  ) VALUES (
+                    $1, $2, $3, $4, $5,
+                    $6, $7, $8, $9,
+                    $10, 1, 0
+                  )`,
+                  [
+                    crypto.randomUUID(),
+                    orderId,
+                    crypto.randomUUID(),
+                    it.menuItemId,
+                    it.menuItemName,
+                    it.quantity,
+                    it.unitPrice,
+                    it.selectedVariations?.map((v) => v.name) ?? [],
+                    it.customizations?.map((c) => `${c.label}: ${c.value}`) ?? [],
+                    'Created via DevMCP fallback',
+                  ],
+                );
+              }
+              deps.logger.info({ orderId }, 'mirrored order directly to kitchen_tickets (fallback)');
+            } catch (mirrorErr) {
+              deps.logger.warn({ err: mirrorErr }, 'failed to mirror order to kitchen_tickets');
+            }
+          }
+
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({ orderId, restaurantId, status, orderType, subtotal, taxAmount, total, currency: 'MXN', orderNumber }, null, 2),
+                text: JSON.stringify(
+                  { orderId, restaurantId, status, orderType, subtotal, taxAmount, total, currency: 'MXN', orderNumber, eventPublished },
+                  null,
+                  2,
+                ),
               },
             ],
           };

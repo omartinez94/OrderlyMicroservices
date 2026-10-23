@@ -101,45 +101,7 @@ try {
 
 logger.info('all backends connected');
 
-// ─── Step 3: MCP server + transport ──────────────────────────────────────────
-
-const mcp = new McpServer(
-  { name: 'orderly-devmcp', version: '0.1.0' },
-  {
-    capabilities: {
-      // Capability map is left empty; tool registration is the source of truth.
-    },
-    instructions:
-      'Local-only MCP server for the Orderly backend. Refuses to run unless NODE_ENV=development. ' +
-      'Phase 3 ships 17 tools across 9 modules: API discovery, auth (HS256 dev tokens), state inspection, ' +
-      'system snapshot + watcher, log tracing, data seeding (catalog menu + mock orders), event bus ' +
-      '(publish + DLQ inspection), infrastructure (DB reset + outage simulation), and jobs ' +
-      '(historical sales + scheduled triggers).',
-  },
-);
-
-const transport = new StreamableHTTPServerTransport({
-  // Stateful mode — sessions get a generated ID returned in the Mcp-Session-Id header.
-  sessionIdGenerator: () => randomUUID(),
-  // DNS-rebinding protection (deprecated by the SDK in favour of external
-  // middleware, but still works and is good enough for Phase 2).
-  enableDnsRebindingProtection: true,
-  allowedHosts: [
-    '127.0.0.1',
-    'localhost',
-    `[::1]`,
-    `127.0.0.1:${env.PORT}`,
-    `localhost:${env.PORT}`,
-    `[::1]:${env.PORT}`,
-    env.HOST,
-    `${env.HOST}:${env.PORT}`,
-  ].filter(
-    (h, i, a) => h !== '0.0.0.0' && a.indexOf(h) === i,
-  ),
-  allowedOrigins: [`http://127.0.0.1:${env.PORT}`, `http://localhost:${env.PORT}`],
-});
-
-// ─── Step 4: Register tools ──────────────────────────────────────────────────
+// ─── Step 3: Register tools context ──────────────────────────────────────────
 
 const { pool: mssqlPool } = await mssqlConn;
 const rabbitHandle = await rabbit;
@@ -152,30 +114,82 @@ const toolCtx = {
   rabbit: rabbitHandle,
 };
 
-registerAuthTools(mcp, { logger });
-registerApiDiscoveryTools(mcp, { logger });
-registerStateInspectionTools(mcp, { ...toolCtx, logger });
-registerSnapshotTools(mcp, { ...toolCtx, logger });
-registerLogTracingTools(mcp, { logger });
-registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql });
-registerEventBusTools(mcp, { logger, rabbit: toolCtx.rabbit });
-registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
-registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
-registerFlowTracingTools(mcp, { logger, ctx: toolCtx });
+// ─── Step 4: Multi-session MCP factory & HTTP transport ──────────────────────
 
-logger.info({ tools: 20 }, 'phase 4 ready — 20 tools registered');
+const sessions = new Map<string, { mcp: McpServer; transport: StreamableHTTPServerTransport }>();
 
-// Connect transport AFTER registering all capabilities/tools.
-// The StreamableHTTPServerTransport declares its optional callbacks with
-// `undefined` in the union; the SDK's `Transport` interface uses bare `?:`.
-// Cast to bridge the gap under exactOptionalPropertyTypes.
-await mcp.connect(transport as unknown as Transport);
+function createMcpInstance(): { mcp: McpServer; transport: StreamableHTTPServerTransport } {
+  const mcp = new McpServer(
+    { name: 'orderly-devmcp', version: '0.1.0' },
+    {
+      capabilities: {},
+      instructions:
+        'Local-only MCP server for the Orderly backend. Refuses to run unless NODE_ENV=development. ' +
+        'Ships 20 tools across 10 modules: API discovery, auth (HS256 dev tokens), state inspection, ' +
+        'system snapshot + watcher, log tracing, data seeding (catalog menu + mock orders), event bus ' +
+        '(publish + DLQ inspection), infrastructure (DB reset + outage simulation), and jobs ' +
+        '(historical sales + scheduled triggers).',
+    },
+  );
 
-// ─── Step 4: HTTP server ─────────────────────────────────────────────────────
+  registerAuthTools(mcp, { logger });
+  registerApiDiscoveryTools(mcp, { logger });
+  registerStateInspectionTools(mcp, { ...toolCtx, logger });
+  registerSnapshotTools(mcp, { ...toolCtx, logger });
+  registerLogTracingTools(mcp, { logger });
+  registerDataSeedingTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, rabbit: toolCtx.rabbit });
+  registerEventBusTools(mcp, { logger, rabbit: toolCtx.rabbit });
+  registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
+  registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
+  registerFlowTracingTools(mcp, { logger, ctx: toolCtx });
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: () => randomUUID(),
+    onsessioninitialized: (id: string) => {
+      sessions.set(id, { mcp, transport });
+      logger.debug({ sessionId: id }, 'MCP session initialized');
+    },
+    enableDnsRebindingProtection: true,
+    allowedHosts: [
+      '127.0.0.1',
+      'localhost',
+      `[::1]`,
+      `127.0.0.1:${env.PORT}`,
+      `localhost:${env.PORT}`,
+      `[::1]:${env.PORT}`,
+      env.HOST,
+      `${env.HOST}:${env.PORT}`,
+    ].filter((h, i, a) => h !== '0.0.0.0' && a.indexOf(h) === i),
+    allowedOrigins: [`http://127.0.0.1:${env.PORT}`, `http://localhost:${env.PORT}`],
+  });
+
+  transport.onclose = () => {
+    if (transport.sessionId) {
+      sessions.delete(transport.sessionId);
+      logger.debug({ sessionId: transport.sessionId }, 'MCP session closed');
+    }
+  };
+
+  mcp.connect(transport as unknown as Transport);
+  return { mcp, transport };
+}
+
+logger.info({ tools: 20 }, 'phase 4 ready — 20 tools registered across modular sessions');
+
+// ─── Step 5: HTTP server ─────────────────────────────────────────────────────
 
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
-  // The MCP transport handles one request at a time; everything else gets 404.
-  transport
+  const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  let activeTransport: StreamableHTTPServerTransport;
+
+  if (sessionId && sessions.has(sessionId)) {
+    activeTransport = sessions.get(sessionId)!.transport;
+  } else {
+    const instance = createMcpInstance();
+    activeTransport = instance.transport;
+  }
+
+  activeTransport
     .handleRequest(req, res)
     .catch((err: unknown) => {
       logger.error({ err, url: req.url, method: req.method }, 'transport.handleRequest failed');
@@ -192,10 +206,10 @@ await new Promise<void>((resolve) => {
 
 logger.info(
   { url: selfUrl(), transport: 'streamable-http' },
-  'MCP server listening — Inspector can connect now',
+  'MCP server listening — Inspector and clients can connect seamlessly',
 );
 
-// ─── Step 5: Graceful shutdown ───────────────────────────────────────────────
+// ─── Step 6: Graceful shutdown ───────────────────────────────────────────────
 
 let isShuttingDown = false;
 
@@ -211,20 +225,17 @@ async function closeAll(): Promise<void> {
     logger.error({ err }, 'http server close failed');
   }
 
-  // Drain in-flight MCP requests.
-  try {
-    await mcp.close();
-    logger.info('mcp server closed');
-  } catch (err) {
-    logger.error({ err }, 'mcp server close failed');
+  // Drain active sessions.
+  for (const session of sessions.values()) {
+    try {
+      await session.mcp.close();
+      await session.transport.close();
+    } catch {
+      // Ignore session errors during teardown
+    }
   }
-
-  try {
-    await transport.close();
-    logger.info('transport closed');
-  } catch (err) {
-    logger.error({ err }, 'transport close failed');
-  }
+  sessions.clear();
+  logger.info('all mcp sessions closed');
 
   // Close backend connections in reverse init order.
   try {

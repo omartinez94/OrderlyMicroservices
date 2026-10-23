@@ -1,7 +1,8 @@
 namespace Catalog.API.Models;
 
-public class MenuItem : AuditableEntity<Guid>
+public class MenuItem : AuditableEntity<Guid>, IShortIdentifiable
 {
+    public string ShortId { get; set; } = string.Empty;
     /// <summary>Current availability: available, limited, unavailable</summary>
     public AvailabilityStatus AvailabilityStatus { get; set; } = AvailabilityStatus.Available;
     public decimal BasePrice { get; set; }

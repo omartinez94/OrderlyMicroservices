@@ -64,6 +64,6 @@ public record OrderDto(
     /// and the per-request <c>CorrelationId</c> so log-trace correlation
     /// works end-to-end.
     /// </summary>
-    IReadOnlyList<OrderActivityDto> Activities
+    IReadOnlyList<OrderActivityDto> Activities,
+    string ShortId = ""
 );
-

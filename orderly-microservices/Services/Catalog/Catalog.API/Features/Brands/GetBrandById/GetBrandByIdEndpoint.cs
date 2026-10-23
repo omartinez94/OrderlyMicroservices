@@ -8,7 +8,7 @@ public class GetBrandByIdEndpoint : ICarterModule
     {
         RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Brands");
 
-        group.MapGet("/brands/{id}", async (Guid id, ISender sender) =>
+        group.MapGet("/brands/{id}", async (string id, ISender sender) =>
         {
             GetBrandByIdQuery? query = new GetBrandByIdQuery(id);
             GetBrandByIdResult? result = await sender.Send(query);
@@ -16,7 +16,7 @@ public class GetBrandByIdEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
-        .WithDescription("Gets a brand by ID.")
+        .WithDescription("Gets a brand by id or short id.")
         .WithName("GetBrandById")
         .Produces<GetBrandByIdResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound);

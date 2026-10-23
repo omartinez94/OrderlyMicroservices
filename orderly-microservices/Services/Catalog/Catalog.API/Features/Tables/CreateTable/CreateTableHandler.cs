@@ -8,7 +8,7 @@ public record CreateTableCommand(
     int PositionX,
     int PositionY) : ICommand<CreateTableResult>;
 
-public record CreateTableResult(Guid Id);
+public record CreateTableResult(Guid Id, string ShortId = "");
 
 public class CreateTableCommandValidator : AbstractValidator<CreateTableCommand>
 {
@@ -37,6 +37,7 @@ internal class CreateTableCommandHandler(CatalogDbContext dbContext) : ICommandH
         Table? table = new Table
         {
             Id = Guid.NewGuid(),
+            ShortId = ShortIdGenerator.Generate(EntityPrefix.Table),
             RestaurantId = command.RestaurantId,
             TableNumber = command.TableNumber,
             Capacity = command.Capacity,
@@ -48,6 +49,6 @@ internal class CreateTableCommandHandler(CatalogDbContext dbContext) : ICommandH
         dbContext.Tables.Add(table);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new CreateTableResult(table.Id);
+        return new CreateTableResult(table.Id, table.ShortId);
     }
 }

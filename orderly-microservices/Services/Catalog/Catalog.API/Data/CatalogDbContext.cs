@@ -135,6 +135,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.ToTable("Restaurants");
             entity.HasKey(r => r.Id);
 
+            entity.Property(r => r.ShortId)
+                .IsRequired()
+                .HasMaxLength(16);
+
             entity.Property(r => r.Name)
                 .IsRequired()
                 .HasMaxLength(255);
@@ -172,11 +176,14 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             // Indexes
             entity.HasIndex(r => r.BrandId);
             entity.HasIndex(r => r.IsActive);
+            entity.HasIndex(r => r.ShortId)
+                .IsUnique();
 
             // Seed
             Restaurant? acmeRestaurant = new Restaurant
             {
                 Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+                ShortId = "rst22222222",
                 BrandId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
                 Name = "Acme",
                 Address = "123 Acme St",
@@ -195,6 +202,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         {
             entity.ToTable("Brands");
             entity.HasKey(b => b.Id);
+
+            entity.Property(b => b.ShortId)
+                .IsRequired()
+                .HasMaxLength(16);
 
             entity.Property(b => b.Name)
                 .IsRequired()
@@ -230,11 +241,14 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
             entity.HasIndex(b => b.Name);
             entity.HasIndex(b => b.IsActive);
+            entity.HasIndex(b => b.ShortId)
+                .IsUnique();
 
             // Seed
             Brand? acmeBrand = new Brand
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                ShortId = "brd11111111",
                 Name = "Acme",
                 LogoUrl = "https://placehold.co/100x100/png?text=Acme"
             };
@@ -249,6 +263,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         {
             entity.ToTable("Tables");
             entity.HasKey(t => t.Id);
+
+            entity.Property(t => t.ShortId)
+                .IsRequired()
+                .HasMaxLength(16);
 
             entity.Property(t => t.TableNumber)
                 .IsRequired()
@@ -288,6 +306,8 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             // Indexes
             entity.HasIndex(t => t.RestaurantId);
             entity.HasIndex(t => t.Status);
+            entity.HasIndex(t => t.ShortId)
+                .IsUnique();
         });
 
         // ═══════════════════════════════════════════════════
@@ -397,6 +417,10 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.ToTable("MenuItems");
             entity.HasKey(mi => mi.Id);
 
+            entity.Property(mi => mi.ShortId)
+                .IsRequired()
+                .HasMaxLength(16);
+
             entity.Property(mi => mi.Name)
                 .IsRequired()
                 .HasMaxLength(255);
@@ -456,6 +480,8 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.HasIndex(mi => mi.IsActive);
             entity.HasIndex(mi => mi.IsDeleted);
             entity.HasIndex(mi => new { mi.RestaurantId, mi.IsAvailable, mi.IsActive });
+            entity.HasIndex(mi => mi.ShortId)
+                .IsUnique();
         });
 
         // ═══════════════════════════════════════════════════
@@ -778,21 +804,52 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
 
     /// <summary>
-    /// Override SaveChanges to automatically update timestamps
+    /// Override SaveChanges to automatically update timestamps and short IDs
     /// </summary>
     public override int SaveChanges()
     {
+        EnsureShortIds();
         UpdateTimestamps();
         return base.SaveChanges();
     }
 
     /// <summary>
-    /// Override SaveChangesAsync to automatically update timestamps
+    /// Override SaveChangesAsync to automatically update timestamps and short IDs
     /// </summary>
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        EnsureShortIds();
         UpdateTimestamps();
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Automatically generates ShortId for entities implementing IShortIdentifiable if missing.
+    /// </summary>
+    private void EnsureShortIds()
+    {
+        IEnumerable<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>? entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added);
+
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? entry in entries)
+        {
+            if (entry.Entity is Restaurant restaurant && string.IsNullOrWhiteSpace(restaurant.ShortId))
+            {
+                restaurant.ShortId = ShortIdGenerator.Generate(EntityPrefix.Restaurant);
+            }
+            else if (entry.Entity is Brand brand && string.IsNullOrWhiteSpace(brand.ShortId))
+            {
+                brand.ShortId = ShortIdGenerator.Generate(EntityPrefix.Brand);
+            }
+            else if (entry.Entity is Table table && string.IsNullOrWhiteSpace(table.ShortId))
+            {
+                table.ShortId = ShortIdGenerator.Generate(EntityPrefix.Table);
+            }
+            else if (entry.Entity is MenuItem menuItem && string.IsNullOrWhiteSpace(menuItem.ShortId))
+            {
+                menuItem.ShortId = ShortIdGenerator.Generate(EntityPrefix.MenuItem);
+            }
+        }
     }
 
     /// <summary>

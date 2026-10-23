@@ -8,7 +8,7 @@ public class GetTableByIdEndpoint : ICarterModule
     {
         RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Tables");
 
-        group.MapGet("/restaurants/{restaurantId}/tables/{id}", async (Guid id, ISender sender) =>
+        group.MapGet("/restaurants/{restaurantId}/tables/{id}", async (string id, ISender sender) =>
         {
             GetTableByIdQuery? query = new GetTableByIdQuery(id);
             GetTableByIdResult? result = await sender.Send(query);
@@ -16,7 +16,7 @@ public class GetTableByIdEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
-        .WithDescription("Gets a table by ID.")
+        .WithDescription("Gets a table by id or short id.")
         .WithName("GetTableById")
         .Produces<GetTableByIdResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status404NotFound);

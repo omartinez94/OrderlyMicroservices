@@ -49,6 +49,26 @@ public sealed class GetOrderByIdHandlerTests
 
         result.Order.Should().NotBeNull();
         result.Order.Id.Should().Be(order.Id.Value);
+        result.Order.ShortId.Should().Be(order.ShortId);
+        result.Order.OrderNumber.Should().Be("ORD-2026-0001");
+        result.Order.OrderItems.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Handle_ExistingOrderByShortId_ReturnsDto()
+    {
+        var order = SeedOrder();
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(new[] { order }));
+
+        var handler = new GetOrderByIdHandler(dbContext);
+        var result = await handler.Handle(
+            new GetOrderByIdQuery(order.ShortId),
+            CancellationToken.None);
+
+        result.Order.Should().NotBeNull();
+        result.Order.Id.Should().Be(order.Id.Value);
+        result.Order.ShortId.Should().Be(order.ShortId);
         result.Order.OrderNumber.Should().Be("ORD-2026-0001");
         result.Order.OrderItems.Should().HaveCount(1);
     }
@@ -63,6 +83,21 @@ public sealed class GetOrderByIdHandlerTests
 
         Func<Task> act = () => handler.Handle(
             new GetOrderByIdQuery(Guid.NewGuid()),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<OrderNotFoundException>();
+    }
+
+    [Fact]
+    public async Task Handle_UnknownOrderByShortId_ThrowsNotFound()
+    {
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(Array.Empty<Order>()));
+
+        var handler = new GetOrderByIdHandler(dbContext);
+
+        Func<Task> act = () => handler.Handle(
+            new GetOrderByIdQuery("ordunknown123"),
             CancellationToken.None);
 
         await act.Should().ThrowAsync<OrderNotFoundException>();

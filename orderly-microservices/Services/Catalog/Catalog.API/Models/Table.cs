@@ -1,7 +1,8 @@
 namespace Catalog.API.Models;
 
-public class Table : AuditableEntity<Guid>
+public class Table : AuditableEntity<Guid>, IShortIdentifiable
 {
+    public string ShortId { get; set; } = string.Empty;
     public int Capacity { get; set; }
     public int PositionX { get; set; }
     public int PositionY { get; set; }

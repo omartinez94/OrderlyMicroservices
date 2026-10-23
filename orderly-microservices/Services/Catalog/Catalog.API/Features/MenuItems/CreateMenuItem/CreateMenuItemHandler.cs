@@ -21,7 +21,7 @@ public class CreateMenuItemCommand : ICommand<CreateMenuItemResult>
     public int DisplayOrder { get; set; }
 }
 
-public record CreateMenuItemResult(Guid Id);
+public record CreateMenuItemResult(Guid Id, string ShortId = "");
 
 public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCommand>
 {
@@ -44,6 +44,7 @@ internal class CreateMenuItemCommandHandler(
         MenuItem? menuItem = new MenuItem
         {
             Id = Guid.NewGuid(),
+            ShortId = ShortIdGenerator.Generate(EntityPrefix.MenuItem),
             RestaurantId = command.RestaurantId,
             SubCategoryId = command.SubCategoryId,
             Name = command.Name,
@@ -83,6 +84,6 @@ internal class CreateMenuItemCommandHandler(
             }, cancellationToken).ConfigureAwait(false);
         }
 
-        return new CreateMenuItemResult(menuItem.Id);
+        return new CreateMenuItemResult(menuItem.Id, menuItem.ShortId);
     }
 }

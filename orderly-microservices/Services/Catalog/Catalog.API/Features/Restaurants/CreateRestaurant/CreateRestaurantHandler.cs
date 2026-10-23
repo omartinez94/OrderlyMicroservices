@@ -14,7 +14,7 @@ public record CreateRestaurantCommand(
     bool AllowAutoSubstitute,
     int EstimatedTurnoverMinutes) : ICommand<CreateRestaurantResult>;
 
-public record CreateRestaurantResult(Guid Id);
+public record CreateRestaurantResult(Guid Id, string ShortId = "");
 
 public class CreateRestaurantCommandValidator : AbstractValidator<CreateRestaurantCommand>
 {
@@ -55,6 +55,7 @@ internal class CreateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
         Restaurant? restaurant = new Restaurant
         {
             Id = Guid.NewGuid(),
+            ShortId = ShortIdGenerator.Generate(EntityPrefix.Restaurant),
             BrandId = command.BrandId,
             Name = command.Name,
             Address = command.Address,
@@ -72,6 +73,6 @@ internal class CreateRestaurantCommandHandler(CatalogDbContext dbContext) : ICom
         dbContext.Restaurants.Add(restaurant);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new CreateRestaurantResult(restaurant.Id);
+        return new CreateRestaurantResult(restaurant.Id, restaurant.ShortId);
     }
 }

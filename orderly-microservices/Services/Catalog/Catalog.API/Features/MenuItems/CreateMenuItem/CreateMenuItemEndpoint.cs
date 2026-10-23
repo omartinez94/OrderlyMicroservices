@@ -18,7 +18,7 @@ public record CreateMenuItemRequest(
     Instant? PromoEndDate,
     int DisplayOrder);
 
-public record CreateMenuItemResponse(Guid Id);
+public record CreateMenuItemResponse(Guid Id, string ShortId = "");
 
 public class CreateMenuItemEndpoint : ICarterModule
 {

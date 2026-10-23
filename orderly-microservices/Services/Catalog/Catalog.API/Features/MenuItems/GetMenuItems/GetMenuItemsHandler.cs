@@ -31,7 +31,8 @@ public record MenuItemDto(
     decimal? PromoPrice,
     Instant? PromoStartDate,
     Instant? PromoEndDate,
-    int DisplayOrder);
+    int DisplayOrder,
+    string ShortId = "");
 
 public class GetMenuItemsQueryValidator : AbstractValidator<GetMenuItemsQuery>
 {

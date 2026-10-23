@@ -1,4 +1,6 @@
 using System.Reflection;
+using BuildingBlocks.Entities.Interfaces;
+using BuildingBlocks.Identifiers;
 using BuildingBlocks.Messaging.Outbox;
 using Ordering.Application.Data;
 
@@ -30,6 +32,32 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
             .HaveConversion<InstantConverter>();
 
         base.ConfigureConventions(configurationBuilder);
+    }
+
+    public override int SaveChanges()
+    {
+        EnsureShortIds();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureShortIds();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void EnsureShortIds()
+    {
+        IEnumerable<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>? entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Added);
+
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry? entry in entries)
+        {
+            if (entry.Entity is IShortIdentifiable identifiable && string.IsNullOrWhiteSpace(identifiable.ShortId))
+            {
+                identifiable.ShortId = ShortIdGenerator.Generate(EntityPrefix.Order);
+            }
+        }
     }
 }
 

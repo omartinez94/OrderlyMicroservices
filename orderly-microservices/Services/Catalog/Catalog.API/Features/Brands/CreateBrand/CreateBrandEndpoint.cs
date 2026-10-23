@@ -10,7 +10,7 @@ public record CreateBrandRequest(
     CuisineType CuisineType,
     bool IsActive);
 
-public record CreateBrandResponse(Guid Id);
+public record CreateBrandResponse(Guid Id, string ShortId = "");
 
 public class CreateBrandEndpoint : ICarterModule
 {

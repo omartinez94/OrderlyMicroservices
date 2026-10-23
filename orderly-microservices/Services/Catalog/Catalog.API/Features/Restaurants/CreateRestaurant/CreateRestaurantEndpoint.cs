@@ -14,7 +14,7 @@ public record CreateRestaurantRequest(
     bool AllowAutoSubstitute,
     int EstimatedTurnoverMinutes);
 
-public record CreateRestaurantResponse(Guid Id);
+public record CreateRestaurantResponse(Guid Id, string ShortId = "");
 
 public class CreateRestaurantEndpoint : ICarterModule
 {

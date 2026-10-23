@@ -10,7 +10,7 @@ public class GetOrderById : ICarterModule
     {
         RouteGroupBuilder? group = app.MapGroup("/v1").WithTags("Orders");
 
-        group.MapGet("/orders/{id}", async (Guid id, ISender sender) =>
+        group.MapGet("/orders/{id}", async (string id, ISender sender) =>
         {
             GetOrderByIdQuery? query = new GetOrderByIdQuery(id);
             GetOrderByIdResult? result = await sender.Send(query);
@@ -19,7 +19,7 @@ public class GetOrderById : ICarterModule
             return Results.Ok(response);
         })
         .RequirePermission("orders:view_own")
-        .WithDescription("Gets an order by Id.")
+        .WithDescription("Gets an order by Id or ShortId.")
         .WithName("GetOrderById")
         .Produces<GetOrderByIdResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)

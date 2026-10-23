@@ -8,7 +8,7 @@ public record CreateTableRequest(
     int PositionX,
     int PositionY);
 
-public record CreateTableResponse(Guid Id);
+public record CreateTableResponse(Guid Id, string ShortId = "");
 
 public class CreateTableEndpoint : ICarterModule
 {

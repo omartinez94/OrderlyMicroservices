@@ -1,7 +1,10 @@
+using BuildingBlocks.Entities.Interfaces;
+
 namespace Catalog.API.Models;
 
-public class Restaurant : AuditableEntity<Guid>
+public class Restaurant : AuditableEntity<Guid>, IShortIdentifiable
 {
+    public string ShortId { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
     public bool AllowAutoSubstitute { get; set; } = false;
     public bool AutoConfirmOrders { get; set; } = false;

@@ -1,9 +1,19 @@
 using BuildingBlocks.Correlation;
+using BuildingBlocks.Entities.Interfaces;
+using BuildingBlocks.Identifiers;
 
 namespace Ordering.Domain.Models;
 
-public class Order : Aggregate<OrderId>
+public class Order : Aggregate<OrderId>, IShortIdentifiable
 {
+    public string ShortId { get; private set; } = string.Empty;
+
+    string IShortIdentifiable.ShortId
+    {
+        get => ShortId;
+        set => ShortId = value;
+    }
+
     public int ActualPrepTimeMinutes { get; set; }
     public Address BillingAddress { get; set; } = default!;
     public string Currency { get; set; } = string.Empty;
@@ -77,6 +87,7 @@ public class Order : Aggregate<OrderId>
         Order? order = new Order
         {
             Id = id,
+            ShortId = ShortIdGenerator.Generate(EntityPrefix.Order),
             CustomerId = customerId,
             OrderNumber = orderNumber,
             RestaurantId = restaurantId,

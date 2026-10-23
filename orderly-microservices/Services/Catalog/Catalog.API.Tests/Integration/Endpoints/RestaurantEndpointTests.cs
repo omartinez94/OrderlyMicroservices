@@ -54,6 +54,23 @@ public class RestaurantEndpointTests : IClassFixture<OrderlyTestFactory<Program>
     }
 
     [Fact]
+    public async Task GetRestaurantById_ByShortId_Returns200()
+    {
+        await AuthenticateAsync();
+        var id = await TestDataSeeder.SeedRestaurantAsync(_factory);
+        var getByIdResponse = await _client.GetAsync($"/v1/restaurants/{id}");
+        getByIdResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var content = await getByIdResponse.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonObject>();
+        var shortId = content?["restaurant"]?["shortId"]?.ToString();
+        shortId.Should().NotBeNullOrWhiteSpace();
+        shortId.Should().StartWith("rst");
+
+        var response = await _client.GetAsync($"/v1/restaurants/{shortId}");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task UpdateRestaurant_ExistingId_Returns200WithUpdatedFields()
     {
         await AuthenticateAsync();

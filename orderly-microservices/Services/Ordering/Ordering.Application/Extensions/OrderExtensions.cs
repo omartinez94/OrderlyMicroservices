@@ -77,7 +77,8 @@ public static class OrderExtensions
                     OccurredAt: a.OccurredAt,
                     CorrelationId: a.CorrelationId,
                     Notes: a.Notes,
-                    Metadata: a.Metadata))]
+                    Metadata: a.Metadata))],
+            ShortId: order.ShortId
         );
     }
 

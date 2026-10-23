@@ -22,6 +22,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasForeignKey(o => o.CustomerId)
             .IsRequired();
 
+        builder.Property(o => o.ShortId)
+            .HasMaxLength(16)
+            .IsRequired();
+
+        builder.HasIndex(o => o.ShortId)
+            .IsUnique();
+
         builder.Property(o => o.OrderNumber)
             .HasMaxLength(100)
             .IsRequired()

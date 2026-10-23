@@ -1,7 +1,8 @@
 namespace Catalog.API.Models;
 
-public class Brand : AuditableEntity<Guid>
+public class Brand : AuditableEntity<Guid>, IShortIdentifiable
 {
+    public string ShortId { get; set; } = string.Empty;
     public string ContactEmail { get; set; } = string.Empty;
     public string ContactPhone { get; set; } = string.Empty;
     public CuisineType CuisineType { get; set; } = CuisineType.Other;

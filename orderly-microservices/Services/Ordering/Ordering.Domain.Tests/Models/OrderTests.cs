@@ -29,6 +29,24 @@ public sealed class OrderTests
     /// writers downstream depend on receiving that event.
     /// </summary>
     [Fact]
+    public void Order_ImplementsIShortIdentifiable_AndGeneratesShortId()
+    {
+        var order = Order.Create(
+            NewOrderId(),
+            NewCustomerId(),
+            ValidOrderNumber(),
+            Guid.NewGuid(),
+            ValidAddress(),
+            ValidAddress(),
+            ValidPayment());
+
+        order.Should().BeAssignableTo<BuildingBlocks.Entities.Interfaces.IShortIdentifiable>();
+        order.ShortId.Should().StartWith(BuildingBlocks.Identifiers.EntityPrefixConstants.Order);
+        order.ShortId.Length.Should().Be(11);
+        BuildingBlocks.Identifiers.ShortIdGenerator.IsValid(order.ShortId, BuildingBlocks.Identifiers.EntityPrefix.Order).Should().BeTrue();
+    }
+
+    [Fact]
     public void Create_WithValidArgs_ReturnsOrderWithPendingStatusAndEvent()
     {
         var orderId = NewOrderId();

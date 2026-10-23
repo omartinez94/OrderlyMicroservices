@@ -10,7 +10,7 @@ public record CreateBrandCommand(
     CuisineType CuisineType,
     bool IsActive) : ICommand<CreateBrandResult>;
 
-public record CreateBrandResult(Guid Id);
+public record CreateBrandResult(Guid Id, string ShortId = "");
 
 public class CreateBrandCommandValidator : AbstractValidator<CreateBrandCommand>
 {
@@ -46,6 +46,7 @@ public class CreateBrandCommandHandler(CatalogDbContext dbContext) : ICommandHan
         Brand? brand = new Brand
         {
             Id = Guid.NewGuid(),
+            ShortId = ShortIdGenerator.Generate(EntityPrefix.Brand),
             Name = command.Name,
             Description = command.Description,
             LogoUrl = command.LogoUrl,
@@ -58,6 +59,6 @@ public class CreateBrandCommandHandler(CatalogDbContext dbContext) : ICommandHan
         dbContext.Brands.Add(brand);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return new CreateBrandResult(brand.Id);
+        return new CreateBrandResult(brand.Id, brand.ShortId);
     }
 }

@@ -18,7 +18,9 @@ public class KitchenTicketRepository(KitchenDbContext dbContext) : IKitchenTicke
     {
         IQueryable<KitchenTicket> query = dbContext.Tickets
             .Include(t => t.Items)
-            .Where(t => t.Status == KitchenTicketStatus.New || t.Status == KitchenTicketStatus.InProgress);
+            .Where(t => t.Status == KitchenTicketStatus.New
+                     || t.Status == KitchenTicketStatus.InProgress
+                     || t.Status == KitchenTicketStatus.Ready);
 
         if (restaurantId.HasValue)
         {

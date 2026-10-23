@@ -76,4 +76,10 @@ public class KitchenHub : Hub<IKitchenHubClient>
 
     /// <summary>Optional server-side method for typing-indicator / ACK flows. Not used today.</summary>
     public Task Acknowledge(string clientRequestId) => Task.CompletedTask;
+
+    /// <summary>
+    /// Returns current UTC server time in epoch milliseconds.
+    /// Consumed by client elapsed timers to calibrate clock synchronization.
+    /// </summary>
+    public long GetServerTime() => SystemClock.Instance.GetCurrentInstant().ToUnixTimeMilliseconds();
 }

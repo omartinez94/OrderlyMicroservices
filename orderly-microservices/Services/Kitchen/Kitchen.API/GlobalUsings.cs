@@ -33,3 +33,4 @@ global using Microsoft.AspNetCore.SignalR;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Diagnostics;
 global using NodaTime;
+global using NodaTime.Serialization.SystemTextJson;

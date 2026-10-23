@@ -15,10 +15,12 @@ WebApplicationBuilder? builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOrderlyOpenTelemetry(builder.Configuration, "Orderly.Kitchen");
 builder.Logging.AddOrderlyOpenTelemetry(builder.Configuration);
 
-// JSON: keep PascalCase (mirrors Catalog).
+// JSON: keep PascalCase (mirrors Catalog) + NodaTime converters + string enums.
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = null;
+    options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
 builder.Services.AddJwtAuthenticationWithDevFallback(

@@ -10,7 +10,7 @@ namespace Kitchen.API.Hubs;
 /// token onto the upgrade request and the same JWT validation middleware
 /// applies.
 ///
-/// On connect, the user's <c>restaurantIds</c> claims (populated by Identity's
+/// On connect, the user's <c>restaurantIds</c> or <c>restaurantId</c> claims (populated by Identity's
 /// <c>ClaimsTransformer</c>) auto-join them to <c>restaurant:{id}</c> groups
 /// so broadcasts from the <see cref="Application.EventHandlers.Domain.KitchenTicketBroadcaster"/>
 /// reach every staff user subscribed to that restaurant. Stations are joined
@@ -31,13 +31,13 @@ public class KitchenHub : Hub<IKitchenHubClient>
     {
         await base.OnConnectedAsync();
 
-        List<Guid>? restaurantIds = Context.User?
-            .FindAll("restaurantIds")
+        List<Guid> restaurantIds = Context.User?
+            .FindAll(c => c.Type is "restaurantIds" or "restaurantId")
             .Select(c => c.Value)
             .Where(s => Guid.TryParse(s, out _))
             .Select(s => Guid.Parse(s))
             .Distinct()
-            .ToList() ?? new List<Guid>();
+            .ToList() ?? [];
 
         foreach (Guid id in restaurantIds)
         {
@@ -49,6 +49,14 @@ public class KitchenHub : Hub<IKitchenHubClient>
             _logger.LogInformation(
                 "KitchenHub connection {ConnectionId} joined {Count} restaurant group(s).",
                 Context.ConnectionId, restaurantIds.Count);
+        }
+        else
+        {
+            Guid defaultRestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"restaurant:{defaultRestaurantId}");
+            _logger.LogInformation(
+                "KitchenHub connection {ConnectionId} has no restaurant claim; joined default restaurant group {DefaultRestaurantId}.",
+                Context.ConnectionId, defaultRestaurantId);
         }
     }
 

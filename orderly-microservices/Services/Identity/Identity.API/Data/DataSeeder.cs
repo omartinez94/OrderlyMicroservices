@@ -280,9 +280,10 @@ public static class DataSeeder
 
         foreach (var u in users)
         {
-            if (await userManager.FindByEmailAsync(u.Email) is null)
+            ApplicationUser? user = await userManager.FindByEmailAsync(u.Email);
+            if (user is null)
             {
-                ApplicationUser? user = new ApplicationUser
+                user = new ApplicationUser
                 {
                     UserName = u.Email,
                     Email = u.Email,
@@ -297,15 +298,18 @@ public static class DataSeeder
                 if (result.Succeeded && await roleManager.RoleExistsAsync(u.Role))
                 {
                     await userManager.AddToRoleAsync(user, u.Role);
-
-                    dbContext.UserRestaurants.Add(new Models.UserRestaurant
-                    {
-                        UserId = user.Id,
-                        User = user,
-                        RestaurantId = restaurantId,
-                        IsDefault = true,
-                    });
                 }
+            }
+
+            if (user is not null && !await dbContext.UserRestaurants.AnyAsync(ur => ur.UserId == user.Id && ur.RestaurantId == restaurantId, ct))
+            {
+                dbContext.UserRestaurants.Add(new Models.UserRestaurant
+                {
+                    UserId = user.Id,
+                    User = user,
+                    RestaurantId = restaurantId,
+                    IsDefault = true,
+                });
             }
         }
 

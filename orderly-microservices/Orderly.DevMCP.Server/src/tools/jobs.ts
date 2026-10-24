@@ -22,6 +22,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { Logger } from '../logger.ts';
 import type { ToolContext } from './types.ts';
+import { generateShortId } from '../util/short-id.ts';
 
 const KNOWN_JOBS = ['clear-abandoned-baskets', 'daily-reconciliation', 'outbox-relay'] as const;
 type KnownJob = (typeof KNOWN_JOBS)[number];
@@ -85,6 +86,7 @@ export function registerJobsTools(server: McpServer, deps: JobsDeps): void {
       // Pre-compute all rows so we can wrap in a single transaction.
       const rows: Array<{
         id: string;
+        shortId: string;
         customerId: string;
         orderNumber: string;
         subtotal: number;
@@ -101,6 +103,7 @@ export function registerJobsTools(server: McpServer, deps: JobsDeps): void {
           const ts = new Date(baseTime - (d * 24 + i) * 60 * 60 * 1000);
           rows.push({
             id: crypto.randomUUID(),
+            shortId: generateShortId('ord'),
             customerId: syntheticCustomerId,
             orderNumber: `HIST-${ts.getTime().toString(36)}-${i.toString(36)}`,
             subtotal,
@@ -130,7 +133,7 @@ export function registerJobsTools(server: McpServer, deps: JobsDeps): void {
         // column list keeps the SQL static (no string interpolation of
         // user data — only $1..$N placeholders).
         const BATCH = 50;
-        const COLUMNS = ['Id', 'CustomerId', 'RestaurantId', 'OrderNumber', 'Status', 'OrderType',
+        const COLUMNS = ['Id', 'ShortId', 'CustomerId', 'RestaurantId', 'OrderNumber', 'Status', 'OrderType',
           'Subtotal', 'TaxAmount', 'TaxRate', 'TotalAmount', 'Currency', 'ActualPrepTimeMinutes',
           'DiscountAmount', 'DiscountCode', 'DeliveryNotes', 'Notes', 'IsModified', 'RequiresAdminApproval',
           'CreatedByUserId', 'CreatedAt', 'LastModified', 'LastModifiedBy'] as const;
@@ -151,7 +154,7 @@ export function registerJobsTools(server: McpServer, deps: JobsDeps): void {
           for (let j = 0; j < batch.length; j++) {
             const r = batch[j]!;
             const placeholders = [
-              r.id, r.customerId, restaurantId, r.orderNumber, STATUS, ORDER_TYPE,
+              r.id, r.shortId, r.customerId, restaurantId, r.orderNumber, STATUS, ORDER_TYPE,
               r.subtotal, r.tax, TAX_RATE, r.total, CURRENCY, 0,
               0, '', '', '', 0, 0,
               r.customerId, r.ts, r.ts, 'devmcp-seed',

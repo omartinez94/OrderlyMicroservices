@@ -33,6 +33,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Logger } from '../logger.ts';
 import type { ToolContext } from './types.ts';
 import { restaurantBucket } from '../util/sanitize.ts';
+import { generateShortId } from '../util/short-id.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SEEDS_DIR = resolve(__dirname, '../../resources/seeds');
@@ -232,6 +233,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
       const { restaurantId, status, orderType } = args as { restaurantId: string; status: typeof ORDER_STATUSES[number]; orderType: typeof ORDER_TYPES[number] };
       const seed = readSeed<OrderSeed>('order-seed.json');
       const orderId = crypto.randomUUID();
+      const shortId = generateShortId('ord');
       const now = nowMs();
 
       try {
@@ -258,15 +260,34 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
             `VALUES (@id, @email, @name, @phone, @street, @city, @state, @zip, @country, @createdBy, GETUTCDATE(), @lastModifiedBy, GETUTCDATE(), 1)`,
           );
 
-          // 2. Insert Order with ComplexProperty address + payment columns
+          // 2. Compute sequence and order number conforming to Ordering domain convention:
+          // {CHANNEL}{YYYYMMDD}-{SEQUENCE:D4} (e.g. DIN20261024-0001)
+          const channel = orderType === 'DineIn' ? 'DIN' : orderType === 'Takeout' ? 'TAK' : 'DEL';
+          const businessDate = now.toISOString().slice(0, 10);
+          const dateCompact = businessDate.replace(/-/g, '');
+
+          const seqReq = new sql.Request(transaction);
+          seqReq.input('restaurantId', restaurantId);
+          seqReq.input('businessDate', businessDate);
+          const seqResult = await seqReq.query<{ CurrentValue: number }>(
+            `MERGE [RestaurantDailySequences] WITH (HOLDLOCK) AS target ` +
+            `USING (SELECT @restaurantId AS RestaurantId, CAST(@businessDate AS DATE) AS BusinessDate) AS source ` +
+            `ON (target.RestaurantId = source.RestaurantId AND target.BusinessDate = source.BusinessDate) ` +
+            `WHEN MATCHED THEN UPDATE SET CurrentValue = target.CurrentValue + 1 ` +
+            `WHEN NOT MATCHED THEN INSERT (RestaurantId, BusinessDate, CurrentValue) VALUES (source.RestaurantId, source.BusinessDate, 1) ` +
+            `OUTPUT inserted.CurrentValue;`,
+          );
+          const sequence = seqResult.recordset[0]?.CurrentValue ?? 1;
+          const orderNumber = `${channel}${dateCompact}-${sequence.toString().padStart(4, '0')}`;
+
           const subtotal = seed.orderItems.reduce((s, it) => s + it.unitPrice * it.quantity, 0);
           const taxRate = 0.16;
           const taxAmount = subtotal * taxRate;
           const total = subtotal + taxAmount;
-          const orderNumber = `ORD-${Date.now()}-${restaurantId.slice(0, 8)}`;
 
           const orderReq = new sql.Request(transaction);
           orderReq.input('id', orderId);
+          orderReq.input('shortId', shortId);
           orderReq.input('customerId', seed.customerId);
           orderReq.input('restaurantId', restaurantId);
           orderReq.input('orderNumber', orderNumber);
@@ -296,7 +317,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
 
           await orderReq.query(
             `INSERT INTO Orders (` +
-              `Id, CustomerId, RestaurantId, OrderNumber, Status, OrderType, ` +
+              `Id, ShortId, CustomerId, RestaurantId, OrderNumber, Status, OrderType, ` +
               `Subtotal, TaxAmount, TaxRate, TotalAmount, Currency, ` +
               `DeliveryAddress_Street, DeliveryAddress_City, DeliveryAddress_State, DeliveryAddress_ZipCode, DeliveryAddress_Country, ` +
               `BillingAddress_Street, BillingAddress_City, BillingAddress_State, BillingAddress_ZipCode, BillingAddress_Country, ` +
@@ -304,7 +325,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
               `ActualPrepTimeMinutes, EstimatedPrepTimeMinutes, DiscountAmount, DiscountCode, DeliveryNotes, Notes, IsModified, RequiresAdminApproval, ` +
               `CreatedByUserId, CreatedAt, LastModified, LastModifiedBy` +
             `) VALUES (` +
-              `@id, @customerId, @restaurantId, @orderNumber, @status, @orderType, ` +
+              `@id, @shortId, @customerId, @restaurantId, @orderNumber, @status, @orderType, ` +
               `@subtotal, @taxAmount, @taxRate, @total, @currency, ` +
               `@daStreet, @daCity, @daState, @daZip, @daCountry, ` +
               `@baStreet, @baCity, @baState, @baZip, @baCountry, ` +
@@ -471,7 +492,7 @@ export function registerDataSeedingTools(server: McpServer, deps: DataSeedingDep
               {
                 type: 'text' as const,
                 text: JSON.stringify(
-                  { orderId, restaurantId, status, orderType, subtotal, taxAmount, total, currency: 'MXN', orderNumber, eventPublished },
+                  { orderId, shortId, restaurantId, status, orderType, subtotal, taxAmount, total, currency: 'MXN', orderNumber, eventPublished },
                   null,
                   2,
                 ),

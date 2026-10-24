@@ -150,6 +150,11 @@ namespace Catalog.API.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("ShortId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("WebsiteUrl")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -160,6 +165,9 @@ namespace Catalog.API.Migrations
                     b.HasIndex("IsActive");
 
                     b.HasIndex("Name");
+
+                    b.HasIndex("ShortId")
+                        .IsUnique();
 
                     b.ToTable("Brands", (string)null);
 
@@ -178,6 +186,7 @@ namespace Catalog.API.Migrations
                             LastModifiedBy = "system",
                             LogoUrl = "https://placehold.co/100x100/png?text=Acme",
                             Name = "Acme",
+                            ShortId = "brd11111111",
                             WebsiteUrl = ""
                         });
                 });
@@ -611,6 +620,11 @@ namespace Catalog.API.Migrations
                     b.Property<LocalDate?>("SeasonStartDate")
                         .HasColumnType("date");
 
+                    b.Property<string>("ShortId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<int?>("SubCategoryId")
                         .HasColumnType("integer");
 
@@ -623,6 +637,9 @@ namespace Catalog.API.Migrations
                     b.HasIndex("IsDeleted");
 
                     b.HasIndex("RestaurantId");
+
+                    b.HasIndex("ShortId")
+                        .IsUnique();
 
                     b.HasIndex("SubCategoryId");
 
@@ -1178,6 +1195,11 @@ namespace Catalog.API.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("ShortId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<decimal>("TaxRate")
                         .HasColumnType("decimal(5,2)");
 
@@ -1193,6 +1215,9 @@ namespace Catalog.API.Migrations
                     b.HasIndex("BrandId");
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("ShortId")
+                        .IsUnique();
 
                     b.ToTable("Restaurants", (string)null);
 
@@ -1215,6 +1240,7 @@ namespace Catalog.API.Migrations
                             LastModifiedBy = "system",
                             Name = "Acme",
                             PhoneNumber = "",
+                            ShortId = "rst22222222",
                             TaxRate = 0.16m,
                             TimeZone = "America/Monterrey"
                         });
@@ -1271,6 +1297,11 @@ namespace Catalog.API.Migrations
                         .HasColumnType("character varying(20)")
                         .HasDefaultValue("rectangle");
 
+                    b.Property<string>("ShortId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<int>("Status")
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
@@ -1285,6 +1316,9 @@ namespace Catalog.API.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("RestaurantId");
+
+                    b.HasIndex("ShortId")
+                        .IsUnique();
 
                     b.HasIndex("Status");
 

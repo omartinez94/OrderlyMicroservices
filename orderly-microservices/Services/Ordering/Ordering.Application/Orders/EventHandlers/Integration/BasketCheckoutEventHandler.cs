@@ -2,7 +2,10 @@ using Ordering.Application.Orders.Commands.CreateOrder;
 
 namespace Ordering.Application.Orders.EventHandlers.Integration;
 
-public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEventHandler> logger) : IConsumer<BasketCheckoutEvent>
+public class BasketCheckoutEventHandler(
+    ISender sender,
+    IOrderNumberGenerator orderNumberGenerator,
+    ILogger<BasketCheckoutEventHandler> logger) : IConsumer<BasketCheckoutEvent>
 {
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
     {
@@ -59,10 +62,15 @@ public class BasketCheckoutEventHandler(ISender sender, ILogger<BasketCheckoutEv
                     Brand: summary.Brand,
                     LastFour: summary.LastFour);
 
+            OrderNumber orderNumber = await orderNumberGenerator.GenerateAsync(
+                message.RestaurantId,
+                OrderType.Delivery,
+                context.CancellationToken);
+
             OrderDto? orderDto = new OrderDto(
                 Id: Guid.Empty,
                 CustomerId: message.UserId,
-                OrderNumber: Guid.NewGuid().ToString()[..8].ToUpperInvariant(),
+                OrderNumber: orderNumber.Value,
                 RestaurantId: message.RestaurantId,
                 Currency: "USD",
                 Subtotal: message.TotalAmount,

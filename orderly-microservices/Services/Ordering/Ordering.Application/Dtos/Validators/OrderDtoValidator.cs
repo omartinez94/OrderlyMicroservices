@@ -11,7 +11,6 @@ public class OrderDtoValidator : AbstractValidator<OrderDto>
             .NotEmpty().WithMessage("RestaurantId is required.");
 
         RuleFor(x => x.OrderNumber)
-            .NotEmpty().WithMessage("OrderNumber is required.")
             .MaximumLength(50).WithMessage("OrderNumber must not exceed 50 characters.");
 
         RuleFor(x => x.Currency)

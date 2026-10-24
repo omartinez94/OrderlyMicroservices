@@ -98,10 +98,12 @@ public sealed class CreateOrderEndpointTests
         decimal taxAmount = 1.60m,
         decimal discountAmount = 0m,
         string discountCode = "",
-        decimal totalAmount = 21.58m) => new(
+        decimal totalAmount = 21.58m,
+        string? orderNumber = null,
+        OrderType orderType = OrderType.DineIn) => new(
             Id: Guid.NewGuid(),
             CustomerId: customerId,
-            OrderNumber: $"ORD-{Guid.NewGuid():N}"[..16],
+            OrderNumber: orderNumber ?? $"ORD-{Guid.NewGuid():N}"[..16],
             RestaurantId: restaurantId,
             Currency: "USD",
             Subtotal: subtotal,
@@ -111,7 +113,7 @@ public sealed class CreateOrderEndpointTests
             DiscountCode: discountCode,
             TotalAmount: totalAmount,
             Status: OrderStatus.Pending,
-            OrderType: OrderType.DineIn,
+            OrderType: orderType,
             BillingAddress: ValidAddressDto(),
             DeliveryAddress: ValidAddressDto(),
             DeliveryNotes: "leave at door",
@@ -279,5 +281,61 @@ public sealed class CreateOrderEndpointTests
         order.GetProperty("discountCode").GetString().Should().Be(discountCode);
         order.GetProperty("totalAmount").GetDecimal().Should().Be(totalAmount);
         order.GetProperty("subtotal").GetDecimal().Should().Be(subtotal);
+    }
+
+    [Fact]
+    public async Task CreateOrder_WithEmptyOrderNumber_GeneratesDailySequenceOrderNumber()
+    {
+        var client = NewWriteClient();
+        var readClient = NewReadClient();
+        var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
+        var restaurantId = Guid.NewGuid();
+
+        var dto1 = NewOrderDto(
+            customerId,
+            restaurantId,
+            ValidItems(menuItemIds),
+            orderNumber: string.Empty,
+            orderType: OrderType.DineIn);
+
+        var response1 = await client.PostAsJsonAsync("/v1/orders", new { order = dto1 }, JsonOptions);
+        response1.StatusCode.Should().Be(HttpStatusCode.Created,
+            $"body: {await response1.Content.ReadAsStringAsync()}");
+
+        var body1 = await response1.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var orderId1 = body1.GetProperty("id").GetGuid();
+
+        var getResponse1 = await readClient.GetAsync($"/v1/orders/{orderId1}");
+        getResponse1.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody1 = await getResponse1.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var orderNumber1 = getBody1.GetProperty("order").GetProperty("orderNumber").GetString();
+
+        orderNumber1.Should().NotBeNullOrWhiteSpace();
+        orderNumber1.Should().StartWith("DIN");
+        orderNumber1.Should().EndWith("-0001");
+
+        // Create second order for same restaurant with Takeout
+        var dto2 = NewOrderDto(
+            customerId,
+            restaurantId,
+            ValidItems(menuItemIds),
+            orderNumber: string.Empty,
+            orderType: OrderType.Takeout);
+
+        var response2 = await client.PostAsJsonAsync("/v1/orders", new { order = dto2 }, JsonOptions);
+        response2.StatusCode.Should().Be(HttpStatusCode.Created,
+            $"body: {await response2.Content.ReadAsStringAsync()}");
+
+        var body2 = await response2.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var orderId2 = body2.GetProperty("id").GetGuid();
+
+        var getResponse2 = await readClient.GetAsync($"/v1/orders/{orderId2}");
+        getResponse2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getBody2 = await getResponse2.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var orderNumber2 = getBody2.GetProperty("order").GetProperty("orderNumber").GetString();
+
+        orderNumber2.Should().NotBeNullOrWhiteSpace();
+        orderNumber2.Should().StartWith("TAK");
+        orderNumber2.Should().EndWith("-0002");
     }
 }

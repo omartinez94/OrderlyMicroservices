@@ -1,3 +1,5 @@
+using Ordering.Domain.Exceptions;
+
 namespace Ordering.Application.Orders.Queries.GetOrderById;
 
 public class GetOrderByIdHandler(IApplicationDbContext dbContext)
@@ -17,11 +19,31 @@ public class GetOrderByIdHandler(IApplicationDbContext dbContext)
         }
         else
         {
-            order = await dbContext.Orders
+            OrderNumber? orderNumber = null;
+            try
+            {
+                orderNumber = OrderNumber.Of(query.Identifier);
+            }
+            catch (DomainException)
+            {
+                // Not a valid OrderNumber format
+            }
+
+            IQueryable<Order> baseQuery = dbContext.Orders
                 .Include(o => o.OrderItems)
                 .Include(o => o.Activities)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(o => o.ShortId == query.Identifier, cancellationToken);
+                .AsNoTracking();
+
+            if (orderNumber is not null)
+            {
+                order = await baseQuery
+                    .SingleOrDefaultAsync(o => o.ShortId == query.Identifier || o.OrderNumber == orderNumber, cancellationToken);
+            }
+            else
+            {
+                order = await baseQuery
+                    .SingleOrDefaultAsync(o => o.ShortId == query.Identifier, cancellationToken);
+            }
         }
 
         if (order is null)

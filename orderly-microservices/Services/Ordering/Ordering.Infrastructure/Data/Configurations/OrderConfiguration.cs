@@ -34,7 +34,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsRequired()
             .HasConversion(on => on.Value, value => OrderNumber.Of(value));
 
-        builder.HasIndex(o => o.OrderNumber)
+        builder.HasIndex(o => new { o.RestaurantId, o.OrderNumber })
             .IsUnique();
 
         builder.ComplexProperty(o => o.BillingAddress, addressBuilder =>

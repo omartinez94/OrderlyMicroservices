@@ -13,6 +13,7 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<MenuItem> MenuItems => Set<MenuItem>();
     public DbSet<OrderBill> OrderBills => Set<OrderBill>();
+    public DbSet<RestaurantDailySequence> RestaurantDailySequences => Set<RestaurantDailySequence>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
     public DbSet<OutboxDeadMessage> OutboxDeadMessages => Set<OutboxDeadMessage>();
 
@@ -30,6 +31,10 @@ public class ApplicationDBContext(DbContextOptions<ApplicationDBContext> options
         configurationBuilder
             .Properties<NodaTime.Instant>()
             .HaveConversion<InstantConverter>();
+
+        configurationBuilder
+            .Properties<NodaTime.LocalDate>()
+            .HaveConversion<LocalDateConverter>();
 
         base.ConfigureConventions(configurationBuilder);
     }
@@ -67,6 +72,16 @@ public class InstantConverter : Microsoft.EntityFrameworkCore.Storage.ValueConve
         : base(
             v => v.ToDateTimeUtc(),
             v => NodaTime.Instant.FromDateTimeUtc(DateTime.SpecifyKind(v, DateTimeKind.Utc)))
+    {
+    }
+}
+
+public class LocalDateConverter : Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<NodaTime.LocalDate, DateOnly>
+{
+    public LocalDateConverter()
+        : base(
+            d => new DateOnly(d.Year, d.Month, d.Day),
+            d => new NodaTime.LocalDate(d.Year, d.Month, d.Day))
     {
     }
 }

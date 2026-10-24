@@ -2,6 +2,9 @@ using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
 using BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using NodaTime;
+using Ordering.Application.Common.Interfaces;
 using Ordering.Application.Data;
 using Ordering.Infrastructure.Data.Interceptors;
 using Ordering.Infrastructure.Persistence;
@@ -44,6 +47,9 @@ public static class DependencyInjection
         });
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<ApplicationDBContext>());
+
+        services.TryAddSingleton<IClock>(SystemClock.Instance);
+        services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
 
         // Replace the dev-only inline MigrateWithRetryAsync
         // (Ordering.Infrastructure/Data/Extensions/DatabaseExtensions.cs)

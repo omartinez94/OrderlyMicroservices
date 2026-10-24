@@ -279,6 +279,11 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.Property<Guid>("RestaurantId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ShortId")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -382,7 +387,10 @@ namespace Ordering.Infrastructure.Data.Migrations
 
                     b.HasIndex("CustomerId");
 
-                    b.HasIndex("OrderNumber")
+                    b.HasIndex("ShortId")
+                        .IsUnique();
+
+                    b.HasIndex("RestaurantId", "OrderNumber")
                         .IsUnique();
 
                     b.ToTable("Orders");
@@ -592,6 +600,22 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("OrderItems");
+                });
+
+            modelBuilder.Entity("Ordering.Domain.Models.RestaurantDailySequence", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("CurrentValue")
+                        .HasColumnType("int");
+
+                    b.HasKey("RestaurantId", "BusinessDate");
+
+                    b.ToTable("RestaurantDailySequences", (string)null);
                 });
 
             modelBuilder.Entity("Ordering.Domain.Models.Customer", b =>

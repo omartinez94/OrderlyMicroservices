@@ -1,6 +1,8 @@
 namespace Ordering.Application.Orders.Commands.CreateOrder;
 
-public class CreateOrderHandler(IApplicationDbContext dbContext)
+public class CreateOrderHandler(
+    IApplicationDbContext dbContext,
+    IOrderNumberGenerator orderNumberGenerator)
     : ICommandHandler<CreateOrderCommand, CreateOrderResult>
 {
     public async Task<CreateOrderResult> Handle(
@@ -30,10 +32,20 @@ public class CreateOrderHandler(IApplicationDbContext dbContext)
 
         OrderId? orderId = OrderId.Of(Guid.NewGuid());
 
+        OrderNumber orderNumber;
+        if (string.IsNullOrWhiteSpace(dto.OrderNumber) || dto.OrderNumber.Equals("default", StringComparison.OrdinalIgnoreCase))
+        {
+            orderNumber = await orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, cancellationToken);
+        }
+        else
+        {
+            orderNumber = OrderNumber.Of(dto.OrderNumber);
+        }
+
         Order? order = Order.Create(
             orderId,
             CustomerId.Of(dto.CustomerId),
-            OrderNumber.Of(dto.OrderNumber),
+            orderNumber,
             dto.RestaurantId,
             billingAddress,
             deliveryAddress,

@@ -74,6 +74,25 @@ public sealed class GetOrderByIdHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ExistingOrderByOrderNumber_ReturnsDto()
+    {
+        var order = SeedOrder();
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(new[] { order }));
+
+        var handler = new GetOrderByIdHandler(dbContext);
+        var result = await handler.Handle(
+            new GetOrderByIdQuery(order.OrderNumber.Value),
+            CancellationToken.None);
+
+        result.Order.Should().NotBeNull();
+        result.Order.Id.Should().Be(order.Id.Value);
+        result.Order.ShortId.Should().Be(order.ShortId);
+        result.Order.OrderNumber.Should().Be("ORD-2026-0001");
+        result.Order.OrderItems.Should().HaveCount(1);
+    }
+
+    [Fact]
     public async Task Handle_UnknownOrder_ThrowsNotFound()
     {
         var dbContext = Substitute.For<IApplicationDbContext>();

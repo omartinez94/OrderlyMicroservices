@@ -5,19 +5,10 @@ namespace Ordering.Application.Tests.Commands;
 
 /// <summary>
 /// Covers <see cref="CreateOrderHandler"/>: builds the <c>Order</c>
-/// aggregate from the inbound <see cref="OrderDto"/>, appends one
+/// aggregate from the inbound <see cref="OrderDto"/>, generates
+/// order number when not provided, appends one
 /// <c>OrderCreated</c> activity, persists, and returns the new id.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Per <c>.agents/plan/testing/E2E_TEST_COVERAGE_PLAN.md</c> §6.3 the
-/// third assertion is "persists all order items" — the handler maps
-/// only <c>MenuItemId</c> / <c>Quantity</c> / <c>UnitPrice</c> from each
-/// <c>OrderItemDto</c> (display fields like <c>MenuItemName</c> are
-/// discarded by <c>Order.Add</c>), so the assertion is on item count,
-/// not on display fields.
-/// </para>
-/// </remarks>
 public sealed class CreateOrderHandlerTests
 {
     private static OrderId NewOrderId() => OrderId.Of(Guid.NewGuid());
@@ -49,10 +40,10 @@ public sealed class CreateOrderHandlerTests
         PrepStartedAt: null,
         PrepCompletedAt: null);
 
-    private static OrderDto NewValidOrderDto(IEnumerable<OrderItemDto> items) => new(
+    private static OrderDto NewValidOrderDto(IEnumerable<OrderItemDto> items, string orderNumber = "ORD-2026-0001") => new(
         Id: Guid.NewGuid(),
         CustomerId: NewCustomerId().Value,
-        OrderNumber: "ORD-2026-0001",
+        OrderNumber: orderNumber,
         RestaurantId: Guid.NewGuid(),
         Currency: "USD",
         Subtotal: 100m,
@@ -95,16 +86,63 @@ public sealed class CreateOrderHandlerTests
     {
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
         var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
         captured.Should().NotBeNull();
         captured!.Id.Value.Should().Be(result.Id);
+        captured.OrderNumber.Value.Should().Be("ORD-2026-0001");
         await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await orderNumberGenerator.DidNotReceive().GenerateAsync(Arg.Any<Guid>(), Arg.Any<OrderType>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithEmptyOrderNumber_GeneratesFromOrderNumberGenerator()
+    {
+        var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) }, orderNumber: string.Empty);
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var generatedNumber = OrderNumber.Create("DIN", new LocalDate(2026, 10, 23), 1);
+        orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
+            .Returns(generatedNumber);
+
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        result.Id.Should().NotBe(Guid.Empty);
+        captured.Should().NotBeNull();
+        captured!.OrderNumber.Value.Should().Be("DIN20261023-0001");
+        await orderNumberGenerator.Received(1).GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WithDefaultOrderNumber_GeneratesFromOrderNumberGenerator()
+    {
+        var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) }, orderNumber: "default");
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var generatedNumber = OrderNumber.Create(OrderType.DineIn, new LocalDate(2026, 10, 23), 5);
+        orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
+            .Returns(generatedNumber);
+
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        result.Id.Should().NotBe(Guid.Empty);
+        captured.Should().NotBeNull();
+        captured!.OrderNumber.Value.Should().Be("DIN20261023-0005");
+        await orderNumberGenerator.Received(1).GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -112,10 +150,11 @@ public sealed class CreateOrderHandlerTests
     {
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
         var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -133,10 +172,11 @@ public sealed class CreateOrderHandlerTests
         };
         var dto = NewValidOrderDto(items);
         var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();

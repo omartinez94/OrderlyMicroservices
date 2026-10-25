@@ -1,5 +1,6 @@
 using BuildingBlocks.Entities.Interceptors;
 using BuildingBlocks.Messaging.Outbox;
+using BuildingBlocks.Multitenancy;
 using BuildingBlocks.Persistence;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -20,8 +21,15 @@ public static class DependencyInjection
 
         services.Configure<OutboxOptions>(configuration.GetSection(OutboxOptions.SectionName));
 
+        services.AddHttpContextAccessor();
+        services.TryAddScoped<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
+
         services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, OrderingEntityAuditInterceptor>();
         services.AddScoped<ISaveChangesInterceptor, DispatchDomainEventsInterceptor>();
+        services.AddScoped<ISaveChangesInterceptor, OrderChangeNotificationInterceptor>();
+
+        services.TryAddScoped<IOrderNotifier, NoOpOrderNotifier>();
 
         // Outbox: the publisher is scoped (one per request), the dispatcher
         // is a singleton hosted service. Tests flip OutboxOptions.Enabled
@@ -50,6 +58,7 @@ public static class DependencyInjection
 
         services.TryAddSingleton<IClock>(SystemClock.Instance);
         services.AddScoped<IOrderNumberGenerator, OrderNumberGenerator>();
+        services.AddScoped<IRestaurantTimeZoneProvider, RestaurantTimeZoneProvider>();
 
         // Replace the dev-only inline MigrateWithRetryAsync
         // (Ordering.Infrastructure/Data/Extensions/DatabaseExtensions.cs)

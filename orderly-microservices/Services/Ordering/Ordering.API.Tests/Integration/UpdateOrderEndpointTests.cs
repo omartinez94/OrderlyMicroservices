@@ -72,7 +72,7 @@ public sealed class UpdateOrderEndpointTests
         Id: orderId,
         CustomerId: customerId,
         OrderNumber: $"ORD-{Guid.NewGuid():N}"[..16],
-        RestaurantId: Guid.NewGuid(),
+        RestaurantId: TestAuthHandler.DefaultRestaurantId,
         Currency: "USD",
         Subtotal: 12.50m,
         TaxRate: 0.08m,
@@ -130,7 +130,7 @@ public sealed class UpdateOrderEndpointTests
             OrderId.Of(Guid.NewGuid()),
             CustomerId.Of(customerId),
             OrderNumber.Of($"ORD-{Guid.NewGuid():N}"[..16]),
-            Guid.NewGuid(),
+            TestAuthHandler.DefaultRestaurantId,
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Payment.Of(PaymentMethod.Card, "Visa", "1111"));

@@ -287,7 +287,7 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(max)")
+                        .HasColumnType("nvarchar(450)")
                         .HasDefaultValue("Pending");
 
                     b.Property<decimal>("Subtotal")
@@ -390,8 +390,14 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.HasIndex("ShortId")
                         .IsUnique();
 
+                    b.HasIndex("RestaurantId", "LastModified")
+                        .HasDatabaseName("IX_Orders_RestaurantId_LastModified");
+
                     b.HasIndex("RestaurantId", "OrderNumber")
                         .IsUnique();
+
+                    b.HasIndex("RestaurantId", "Status", "CreatedAt")
+                        .HasDatabaseName("IX_Orders_RestaurantId_Status_CreatedAt");
 
                     b.ToTable("Orders");
                 });
@@ -616,6 +622,24 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.HasKey("RestaurantId", "BusinessDate");
 
                     b.ToTable("RestaurantDailySequences", (string)null);
+                });
+
+            modelBuilder.Entity("Ordering.Domain.Models.RestaurantSetting", b =>
+                {
+                    b.Property<Guid>("RestaurantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("RestaurantId");
+
+                    b.ToTable("RestaurantSettings", (string)null);
                 });
 
             modelBuilder.Entity("Ordering.Domain.Models.Customer", b =>

@@ -96,6 +96,8 @@ public partial record OrderNumber : IComparable<OrderNumber>
 
     public override string ToString() => Value;
 
+    public static implicit operator string(OrderNumber orderNumber) => orderNumber.Value;
+
     [GeneratedRegex(@"\A([A-Za-z]{3})(\d{4})(\d{2})(\d{2})-(\d+)\z")]
     private static partial Regex OrderNumberRegex();
 }

@@ -51,7 +51,7 @@ public static class DatabaseExtensions
 
     private static async Task SeedOrderIteamsAndBillAsync(ApplicationDBContext context)
     {
-        if (context.Orders.Any())
+        if (context.Orders.IgnoreQueryFilters().Any())
         {
             return;
         }

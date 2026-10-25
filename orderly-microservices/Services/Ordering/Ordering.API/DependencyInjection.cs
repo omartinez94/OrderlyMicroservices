@@ -1,7 +1,12 @@
+using System.Text.Json.Serialization;
 using BuildingBlocks.Dev;
 using BuildingBlocks.Exceptions.Handler;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Ordering.API.Hubs;
+using Ordering.API.Observability;
+using Ordering.API.Serialization;
+using Ordering.Application.Common.Interfaces;
 
 namespace Ordering.API;
 
@@ -20,6 +25,18 @@ public static class DependencyInjection
         services.AddAuthorizationServices();
 
         services.AddHttpContextAccessor();
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.Converters.Add(new LenientInstantJsonConverter());
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+        services.AddSignalR().AddJsonProtocol(options =>
+        {
+            options.PayloadSerializerOptions.Converters.Add(new LenientInstantJsonConverter());
+            options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
+        services.AddSingleton<OrderingLiveMetrics>();
+        services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
         services.AddCarter();
 
         // OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built
@@ -60,6 +77,7 @@ public static class DependencyInjection
         app.UseAuthorization();
 
         app.MapCarter();
+        app.MapHub<OrdersHub>("/hubs/orders");
 
         // OpenAPI document endpoint. The in-box generator scans every endpoint
         // registered via MapCarter() and emits an OpenAPI 3.0 document at the

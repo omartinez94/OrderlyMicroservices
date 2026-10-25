@@ -82,6 +82,107 @@ public static class OrderExtensions
         );
     }
 
+    public static OrderSummaryDto ToOrderSummaryDto(this Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+
+        IReadOnlyCollection<OrderItem> items = order.OrderItems;
+        int itemCount = items.Sum(i => i.Quantity);
+        int itemsReady = items.Count(i => i.PrepStatus == PrepStatus.Ready);
+        int itemsPreparing = items.Count(i => i.PrepStatus == PrepStatus.Preparing);
+        int itemsPending = items.Count(i => i.PrepStatus == PrepStatus.Pending);
+        int itemsTotal = items.Count;
+        bool hasSpecialInstructions = items.Any(i => !string.IsNullOrWhiteSpace(i.SpecialInstructions));
+        bool hasNotes = !string.IsNullOrWhiteSpace(order.Notes);
+
+        IReadOnlyList<OrderSummaryItemPreviewDto> preview =
+        [
+            .. items
+                .Take(3)
+                .Select(i => new OrderSummaryItemPreviewDto(
+                    Name: i.MenuItemName,
+                    Quantity: i.Quantity,
+                    PrepStatus: i.PrepStatus))
+        ];
+
+        string? deliveryStreet = order.OrderType == OrderType.Delivery
+            ? order.DeliveryAddress.Street.NullIfEmpty()
+            : null;
+
+        return new OrderSummaryDto(
+            Id: order.Id.Value,
+            ShortId: order.ShortId,
+            OrderNumber: order.OrderNumber.Value,
+            RestaurantId: order.RestaurantId,
+            CustomerId: order.CustomerId.Value,
+            Status: order.Status,
+            OrderType: order.OrderType,
+            DeliveryStatus: order.DeliveryStatus,
+            CancellationReason: order.CancellationReason.NullIfEmpty(),
+            TableId: order.TableId,
+            DeliveryStreet: deliveryStreet,
+            CreatedAt: order.CreatedAt,
+            ConfirmedAt: order.ConfirmedAt,
+            PreparingStartedAt: order.PreparingStartedAt,
+            ReadyAt: order.ReadyAt,
+            DeliveredAt: order.DeliveredAt,
+            CompletedAt: order.CompletedAt,
+            CancelledAt: order.CancelledAt,
+            LastModifiedAt: order.LastModified,
+            StatusChangedAt: order.ResolveStatusChangedAt(),
+            EstimatedPrepTimeMinutes: order.EstimatedPrepTimeMinutes,
+            ActualPrepTimeMinutes: order.ActualPrepTimeMinutes,
+            Version: order.ResolveVersion(),
+            Currency: order.Currency,
+            Subtotal: order.Subtotal,
+            TaxAmount: order.TaxAmount,
+            DiscountAmount: order.DiscountAmount,
+            TotalAmount: order.TotalAmount,
+            PaymentMethod: order.Payment.Method,
+            PaymentBrand: order.Payment.Brand,
+            PaymentLastFour: order.Payment.LastFour,
+            IsModified: order.IsModified,
+            RequiresAdminApproval: order.RequiresAdminApproval,
+            HasNotes: hasNotes,
+            HasSpecialInstructions: hasSpecialInstructions,
+            Notes: order.Notes.NullIfEmpty(),
+            ItemCount: itemCount,
+            ItemsReady: itemsReady,
+            ItemsPreparing: itemsPreparing,
+            ItemsPending: itemsPending,
+            ItemsTotal: itemsTotal,
+            ItemsPreview: preview,
+            CreatedByUserId: order.CreatedByUserId,
+            ConfirmedByUserId: order.ConfirmedByUserId);
+    }
+
+    public static Instant? ResolveStatusChangedAt(this Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+
+        Instant? specific = ResolveSpecificStatusTimestamp(order);
+        return specific ?? order.LastModified ?? order.CreatedAt;
+    }
+
+    private static Instant? ResolveSpecificStatusTimestamp(Order order) =>
+        order.Status switch
+        {
+            OrderStatus.Confirmed => order.ConfirmedAt,
+            OrderStatus.Preparing => order.PreparingStartedAt ?? order.ConfirmedAt,
+            OrderStatus.Ready => order.ReadyAt ?? order.PreparingStartedAt,
+            OrderStatus.Delivered => order.DeliveredAt ?? order.ReadyAt,
+            OrderStatus.Completed => order.CompletedAt ?? order.DeliveredAt,
+            OrderStatus.Cancelled => order.CancelledAt,
+            _ => null,
+        };
+
+    public static Instant? ResolveVersion(this Order order)
+    {
+        ArgumentNullException.ThrowIfNull(order);
+
+        return order.LastModified ?? order.CreatedAt ?? order.ConfirmedAt;
+    }
+
     /// <summary>
     /// Maps the aggregate to the bus-safe <see cref="OrderCreatedIntegrationEvent"/>.
     /// Carries NO payment data — that field on <c>Order</c> is intentionally

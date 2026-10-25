@@ -5,24 +5,10 @@ using Ordering.Application.Tests.Abstractions;
 namespace Ordering.Application.Tests.Queries;
 
 /// <summary>
-/// Covers <see cref="GetOrdersHandler"/>: long-counts, paginates, orders
-/// by <c>OrderNumber</c>, projects via <see cref="OrderExtensions.ToOrderDtoList"/>.
-/// Negative path: empty store returns empty page + zero count.
+/// Covers <see cref="GetOrdersHandler"/> and <see cref="GetOrdersQueryValidator"/>:
+/// pagination, status/type/activeOnly/date/search filters, filtered total count,
+/// sort options with null <c>CreatedAt</c> sorted last, and validation rules.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Uses <see cref="MockDbSet.From{TEntity}"/> for the first time in this
-/// project — the existing <c>Orders.FindAsync(...)</c> substitute pattern
-/// can't execute the <c>LongCountAsync</c> / <c>ToListAsync</c> /
-/// <c>Skip</c> / <c>Take</c> pipeline.
-/// </para>
-/// <para>
-/// <b>Caller contract reminder</b>: <c>Include</c> is a no-op on the
-/// in-memory provider; aggregates must be seeded with their navigation
-/// collections populated (call <c>Order.Add(menuItemId, qty, price)</c>
-/// before constructing the test list).
-/// </para>
-/// </remarks>
 public sealed class GetOrdersHandlerTests
 {
     private static OrderId NewOrderId() => OrderId.Of(Guid.NewGuid());
@@ -35,7 +21,13 @@ public sealed class GetOrdersHandlerTests
     private static Payment ValidPayment() =>
         Payment.Of(PaymentMethod.Card, "Visa", "1111");
 
-    private static Order SeedOrder(string orderNumber)
+    private static Order SeedOrder(
+        string orderNumber,
+        OrderStatus status = OrderStatus.Pending,
+        OrderType orderType = OrderType.DineIn,
+        Instant? createdAt = null,
+        decimal totalAmount = 9.99m,
+        string menuItemName = "Burger")
     {
         var order = Order.Create(
             NewOrderId(),
@@ -45,7 +37,12 @@ public sealed class GetOrdersHandlerTests
             ValidAddress(),
             ValidAddress(),
             ValidPayment());
-        order.Add(NewMenuItemId(), quantity: 1, price: 9.99m);
+        order.Status = status;
+        order.OrderType = orderType;
+        order.CreatedAt = createdAt;
+        order.TotalAmount = totalAmount;
+        order.Add(NewMenuItemId(), quantity: 1, price: totalAmount);
+        order.OrderItems.Single().MenuItemName = menuItemName;
         order.ClearDomainEvents();
         return order;
     }
@@ -108,5 +105,83 @@ public sealed class GetOrdersHandlerTests
 
         result.Orders.Count.Should().Be(0);
         result.Orders.Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_WithStatusAndOrderTypeFilter_ReturnsFilteredCountAndData()
+    {
+        var orders = new[]
+        {
+            SeedOrder("ORD-2026-0001", OrderStatus.Pending, OrderType.DineIn),
+            SeedOrder("ORD-2026-0002", OrderStatus.Preparing, OrderType.Takeout),
+            SeedOrder("ORD-2026-0003", OrderStatus.Ready, OrderType.Takeout),
+            SeedOrder("ORD-2026-0004", OrderStatus.Cancelled, OrderType.Takeout),
+        };
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(orders));
+
+        var handler = new GetOrdersHandler(dbContext);
+        var result = await handler.Handle(
+            new GetOrdersQuery(
+                new PaginationRequest(0, 10),
+                Status: [OrderStatus.Preparing, OrderStatus.Ready],
+                OrderType: OrderType.Takeout),
+            CancellationToken.None);
+
+        result.Orders.Count.Should().Be(2);
+        result.Orders.Data.Select(d => d.OrderNumber)
+            .Should().BeEquivalentTo(["ORD-2026-0002", "ORD-2026-0003"]);
+    }
+
+    [Fact]
+    public async Task Handle_WithSearchAndSort_PlacesNullCreatedAtLast()
+    {
+        Instant t1 = Instant.FromUtc(2026, 10, 24, 10, 0);
+        Instant t2 = Instant.FromUtc(2026, 10, 24, 12, 0);
+
+        var orders = new[]
+        {
+            SeedOrder("DIN20261024-0001", createdAt: null, menuItemName: "Tacos"),
+            SeedOrder("DIN20261024-0002", createdAt: t1, menuItemName: "Tacos"),
+            SeedOrder("DIN20261024-0003", createdAt: t2, menuItemName: "Tacos"),
+            SeedOrder("TAK20261024-0004", createdAt: t2, menuItemName: "Salad"),
+        };
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From(orders));
+
+        var handler = new GetOrdersHandler(dbContext);
+        var result = await handler.Handle(
+            new GetOrdersQuery(
+                new PaginationRequest(0, 10),
+                Search: "DIN20261024",
+                Sort: "createdAt",
+                Dir: "desc"),
+            CancellationToken.None);
+
+        result.Orders.Count.Should().Be(3);
+        result.Orders.Data.Select(d => d.OrderNumber).Should().ContainInOrder(
+            "DIN20261024-0003",
+            "DIN20261024-0002",
+            "DIN20261024-0001");
+    }
+
+    [Fact]
+    public void Validator_RejectsInvalidRangeAndSearchLength()
+    {
+        var validator = new GetOrdersQueryValidator();
+        Instant from = Instant.FromUtc(2026, 10, 24, 15, 0);
+        Instant to = Instant.FromUtc(2026, 10, 24, 12, 0);
+
+        var badQuery = new GetOrdersQuery(
+            new PaginationRequest(0, 101),
+            Search: new string('a', 65),
+            From: from,
+            To: to,
+            Sort: "invalidSort",
+            Dir: "sideways");
+
+        var validationResult = validator.Validate(badQuery);
+        validationResult.IsValid.Should().BeFalse();
+        validationResult.Errors.Should().HaveCountGreaterThanOrEqualTo(4);
     }
 }

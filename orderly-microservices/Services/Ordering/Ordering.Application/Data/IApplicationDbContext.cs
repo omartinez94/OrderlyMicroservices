@@ -11,4 +11,5 @@ public interface IApplicationDbContext : IOutboxDbContext
     DbSet<MenuItem> MenuItems { get; }
     DbSet<OrderBill> OrderBills { get; }
     DbSet<RestaurantDailySequence> RestaurantDailySequences { get; }
+    DbSet<RestaurantSetting> RestaurantSettings { get; }
 }

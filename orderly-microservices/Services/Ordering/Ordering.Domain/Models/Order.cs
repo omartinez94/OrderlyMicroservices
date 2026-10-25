@@ -1,10 +1,11 @@
 using BuildingBlocks.Correlation;
 using BuildingBlocks.Entities.Interfaces;
 using BuildingBlocks.Identifiers;
+using BuildingBlocks.Multitenancy;
 
 namespace Ordering.Domain.Models;
 
-public class Order : Aggregate<OrderId>, IShortIdentifiable
+public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
 {
     public string ShortId { get; private set; } = string.Empty;
 

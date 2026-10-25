@@ -58,7 +58,7 @@ public sealed class OrderingApiIntegrationTests
             OrderId.Of(Guid.NewGuid()),
             customerId,
             OrderNumber.Of($"ORD-{Guid.NewGuid():N}"[..16]),
-            Guid.NewGuid(),
+            TestAuthHandler.DefaultRestaurantId,
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Payment.Of(BuildingBlocks.Messaging.Events.PaymentMethod.Card, "Visa", "1111"));

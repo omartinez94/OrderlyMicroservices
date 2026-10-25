@@ -250,7 +250,7 @@ public sealed class CreateOrderEndpointTests
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
         var dto = NewOrderDto(
             customerId,
-            Guid.NewGuid(),
+            TestAuthHandler.DefaultRestaurantId,
             ValidItems(menuItemIds),
             subtotal: subtotal,
             taxAmount: taxAmount,
@@ -290,6 +290,8 @@ public sealed class CreateOrderEndpointTests
         var readClient = NewReadClient();
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
         var restaurantId = Guid.NewGuid();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Test-Restaurant", restaurantId.ToString());
+        readClient.DefaultRequestHeaders.TryAddWithoutValidation("X-Test-Restaurant", restaurantId.ToString());
 
         var dto1 = NewOrderDto(
             customerId,

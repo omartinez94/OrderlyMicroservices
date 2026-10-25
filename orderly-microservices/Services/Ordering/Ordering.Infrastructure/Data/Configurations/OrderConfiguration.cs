@@ -37,6 +37,12 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => new { o.RestaurantId, o.OrderNumber })
             .IsUnique();
 
+        builder.HasIndex(o => new { o.RestaurantId, o.Status, o.CreatedAt })
+            .HasDatabaseName("IX_Orders_RestaurantId_Status_CreatedAt");
+
+        builder.HasIndex(o => new { o.RestaurantId, o.LastModified })
+            .HasDatabaseName("IX_Orders_RestaurantId_LastModified");
+
         builder.ComplexProperty(o => o.BillingAddress, addressBuilder =>
         {
             addressBuilder.Property(a => a.Street).HasMaxLength(180).IsRequired();

@@ -34,8 +34,8 @@ verb granularity at seed time).
 | Permission | Domain | Service | Method / endpoint guarded | Notes |
 |---|---|---|---|---|
 | `catalog:menu_update` | Restaurant menu (write) | Catalog.API | `POST/PUT/DELETE /v1/restaurants/*`, `POST/PUT/DELETE /v1/brands/*`, `POST/PUT/DELETE /v1/menu-categories/*`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/approve`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/reject` | Coarse "menu write" permission. Read endpoints (GET /restaurants, GET /brands, GET /menu-categories) remain anonymous. |
-| `orders:write` | Order lifecycle (create / mutate) | Ordering.API | `POST /v1/orders`, `PUT /v1/orders`, `DELETE /v1/orders/{id}` | Mirrors the kitchen `update_prep_status` shape. Granted to Waiter + Manager + RestaurantAdmin via the `RolePermissions` table. |
-| `orders:view_own` | Order read | Ordering.API | `GET /v1/orders`, `GET /v1/orders/{id}`, `GET /v1/orders/customer/{customerId}` | Read endpoints. Tenant-scoped via `ICurrentRestaurantProvider` (the global query filter). |
+| `orders:write` | Order lifecycle (create / mutate) | Ordering.API | `POST /v1/orders`, `PUT /v1/orders`, `DELETE /v1/orders/{id}` | Mirrors the kitchen `update_prep_status` shape. Granted to Waiter + Manager + RestaurantAdmin via the `RolePermissions` table. Tenant-scoped via `ICurrentRestaurantProvider` global query filter on `ApplicationDBContext`. |
+| `orders:view_own` | Order read | Ordering.API | `GET /v1/orders`, `GET /v1/orders/{id}`, `GET /v1/orders/{id}/activities`, `GET /v1/orders/customer/{customerId}` | Read endpoints. Tenant-scoped via `ICurrentRestaurantProvider` (the global query filter on `ApplicationDBContext`). |
 | `orders:create` | Order create | Ordering.API | (legacy seed) | See `orders:write` — kept in seed for back-compat with the v1 role mapping. |
 | `orders:view_all` | Order admin read | Ordering.API | (legacy seed) | Manager-only. |
 | `orders:modify_ordering` | Mutate in `Ordering` status | Ordering.API | (legacy seed) | KitchenManager + Waiter. |

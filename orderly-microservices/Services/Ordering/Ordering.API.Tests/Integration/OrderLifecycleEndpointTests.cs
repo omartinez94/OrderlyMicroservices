@@ -65,7 +65,7 @@ public sealed class OrderLifecycleEndpointTests
             OrderId.Of(Guid.NewGuid()),
             customerId,
             OrderNumber.Of($"ORD-{Guid.NewGuid():N}"[..16]),
-            Guid.NewGuid(),
+            TestAuthHandler.DefaultRestaurantId,
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Address.Of("123 Main St", "Springfield", "IL", "12345", "US"),
             Payment.Of(PaymentMethod.Card, "Visa", "1111"));
@@ -95,7 +95,7 @@ public sealed class OrderLifecycleEndpointTests
 
         using var scope = _factory.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
-        var order = await dbContext.Orders.FindAsync(OrderId.Of(orderId));
+        var order = await dbContext.Orders.IgnoreQueryFilters().SingleOrDefaultAsync(o => o.Id == OrderId.Of(orderId));
         order.Should().NotBeNull();
 
         order.GetType().GetProperty(nameof(Order.Status))!
@@ -142,7 +142,7 @@ public sealed class OrderLifecycleEndpointTests
         using (var scope = _factory.Services.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
-            var order = await dbContext.Orders.FindAsync(OrderId.Of(orderId));
+            var order = await dbContext.Orders.IgnoreQueryFilters().SingleOrDefaultAsync(o => o.Id == OrderId.Of(orderId));
             order.Should().NotBeNull();
             order.GetType().GetProperty(nameof(Order.Status))!
                 .SetValue(order, OrderStatus.Ready);

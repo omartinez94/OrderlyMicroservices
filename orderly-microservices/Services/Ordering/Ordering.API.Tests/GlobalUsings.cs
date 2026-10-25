@@ -1,6 +1,7 @@
 global using BuildingBlocks.Enums;
 global using BuildingBlocks.Messaging.Events;
 global using FluentAssertions;
+global using Microsoft.EntityFrameworkCore;
 global using Microsoft.Extensions.Logging.Abstractions;
 global using Ordering.Application.Data;
 global using Ordering.Domain.Models;

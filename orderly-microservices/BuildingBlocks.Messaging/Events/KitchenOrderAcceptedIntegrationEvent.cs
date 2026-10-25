@@ -9,6 +9,7 @@ namespace BuildingBlocks.Messaging.Events;
 public record KitchenOrderAcceptedIntegrationEvent : IntegrationEvent
 {
     public Guid OrderId { get; init; }
+    public Guid RestaurantId { get; init; }
     public Guid ConfirmedByUserId { get; init; }
     public Instant ConfirmedAt { get; init; }
 }

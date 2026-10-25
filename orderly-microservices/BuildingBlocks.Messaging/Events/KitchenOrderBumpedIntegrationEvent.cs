@@ -9,6 +9,7 @@ namespace BuildingBlocks.Messaging.Events;
 public record KitchenOrderBumpedIntegrationEvent : IntegrationEvent
 {
     public Guid OrderId { get; init; }
+    public Guid RestaurantId { get; init; }
     public Guid BumpedByUserId { get; init; }
     public Instant BumpedAt { get; init; }
 }

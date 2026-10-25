@@ -12,7 +12,8 @@ namespace BuildingBlocks.Messaging.Events.Catalog;
 /// Identity re-issues claims when the configuration bound to permissions
 /// changes; Discount deactivates coupons whose currency no longer matches;
 /// Notification refreshes receipt templates for tax/currency placeholders
-/// (per <c>CATALOG_SERVICE_PLAN.md</c> §6.5).
+/// (per <c>CATALOG_SERVICE_PLAN.md</c> §6.5); Ordering caches the
+/// restaurant <see cref="TimeZone"/> for daily stats boundaries.
 /// </remarks>
 public record RestaurantConfigurationChangedIntegrationEvent : IntegrationEvent
 {
@@ -24,4 +25,10 @@ public record RestaurantConfigurationChangedIntegrationEvent : IntegrationEvent
     /// Empty when no configuration column changed (publish is skipped).
     /// </summary>
     public IReadOnlyList<string> ChangedFields { get; init; } = [];
+
+    /// <summary>
+    /// Current IANA time zone identifier of the restaurant (e.g. <c>"America/Monterrey"</c>).
+    /// Additive optional property consumed by Ordering for restaurant-local daily boundaries.
+    /// </summary>
+    public string? TimeZone { get; init; }
 }

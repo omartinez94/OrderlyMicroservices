@@ -42,6 +42,7 @@ public class BumpOrderHandler(
             new KitchenOrderBumpedIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
+                RestaurantId = ticket.RestaurantId,
                 BumpedByUserId = staffUserId,
                 BumpedAt = now,
             },

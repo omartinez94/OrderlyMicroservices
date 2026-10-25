@@ -47,6 +47,7 @@ public class AcceptOrderHandler(
             new KitchenOrderAcceptedIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
+                RestaurantId = ticket.RestaurantId,
                 ConfirmedByUserId = staffUserId,
                 ConfirmedAt = now,
             },

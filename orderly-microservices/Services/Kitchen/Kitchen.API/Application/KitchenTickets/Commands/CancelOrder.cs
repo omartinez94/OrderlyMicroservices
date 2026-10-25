@@ -52,6 +52,7 @@ public class CancelOrderHandler(
             new KitchenOrderCancelledIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
+                RestaurantId = ticket.RestaurantId,
                 Reason = command.Reason,
                 CancelledByUserId = staffUserId,
                 CancelledAt = now,

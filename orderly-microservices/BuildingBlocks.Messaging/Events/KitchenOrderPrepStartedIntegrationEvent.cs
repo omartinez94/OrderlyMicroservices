@@ -13,6 +13,7 @@ namespace BuildingBlocks.Messaging.Events;
 public record KitchenOrderPrepStartedIntegrationEvent : IntegrationEvent
 {
     public Guid OrderId { get; init; }
+    public Guid RestaurantId { get; init; }
     public Guid ItemId { get; init; }
     public Guid StaffUserId { get; init; }
     public Instant StartedAt { get; init; }

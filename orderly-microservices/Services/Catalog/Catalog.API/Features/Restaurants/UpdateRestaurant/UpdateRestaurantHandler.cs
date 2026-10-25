@@ -134,6 +134,7 @@ internal class UpdateRestaurantCommandHandler(
             {
                 RestaurantId = restaurant.Id,
                 ChangedFields = changedFields,
+                TimeZone = restaurant.TimeZone,
             }, cancellationToken).ConfigureAwait(false);
         }
 

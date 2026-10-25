@@ -56,6 +56,7 @@ public class StartItemPrepHandler(
                 new KitchenOrderPrepStartedIntegrationEvent
                 {
                     OrderId = ticket.Id.Value,
+                    RestaurantId = ticket.RestaurantId,
                     ItemId = command.ItemId,
                     StaffUserId = staffUserId,
                     StartedAt = now,

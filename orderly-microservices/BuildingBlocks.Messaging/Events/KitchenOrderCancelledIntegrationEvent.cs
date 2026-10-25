@@ -8,6 +8,7 @@ namespace BuildingBlocks.Messaging.Events;
 public record KitchenOrderCancelledIntegrationEvent : IntegrationEvent
 {
     public Guid OrderId { get; init; }
+    public Guid RestaurantId { get; init; }
     public string Reason { get; init; } = default!;
     public Guid CancelledByUserId { get; init; }
     public Instant CancelledAt { get; init; }

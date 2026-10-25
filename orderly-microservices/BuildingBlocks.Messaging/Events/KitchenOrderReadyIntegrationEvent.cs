@@ -9,5 +9,6 @@ namespace BuildingBlocks.Messaging.Events;
 public record KitchenOrderReadyIntegrationEvent : IntegrationEvent
 {
     public Guid OrderId { get; init; }
+    public Guid RestaurantId { get; init; }
     public Instant ReadyAt { get; init; }
 }

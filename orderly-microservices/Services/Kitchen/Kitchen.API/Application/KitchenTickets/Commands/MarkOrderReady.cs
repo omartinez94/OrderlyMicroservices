@@ -36,6 +36,7 @@ public class MarkOrderReadyHandler(
             new KitchenOrderReadyIntegrationEvent
             {
                 OrderId = ticket.Id.Value,
+                RestaurantId = ticket.RestaurantId,
                 ReadyAt = now,
             },
             cancellationToken);

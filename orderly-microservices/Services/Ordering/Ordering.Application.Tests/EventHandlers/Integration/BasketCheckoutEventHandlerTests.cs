@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using BuildingBlocks.Multitenancy;
 using Ordering.Application.Orders.Commands.CreateOrder;
 
 namespace Ordering.Application.Tests.EventHandlers.Integration;
@@ -5,10 +7,11 @@ namespace Ordering.Application.Tests.EventHandlers.Integration;
 public sealed class BasketCheckoutEventHandlerTests
 {
     [Fact]
-    public async Task Consume_GeneratesOrderNumberAndSendsCreateOrderCommand()
+    public async Task Consume_GeneratesOrderNumberAndSendsCreateOrderCommand_WhileAttachingTenant()
     {
         ISender sender = Substitute.For<ISender>();
         IOrderNumberGenerator generator = Substitute.For<IOrderNumberGenerator>();
+        ICurrentRestaurantProvider tenantProvider = Substitute.For<ICurrentRestaurantProvider>();
         ILogger<BasketCheckoutEventHandler> logger = NullLogger<BasketCheckoutEventHandler>.Instance;
 
         Guid restaurantId = Guid.NewGuid();
@@ -19,7 +22,12 @@ public sealed class BasketCheckoutEventHandlerTests
         generator.GenerateAsync(restaurantId, OrderType.Delivery, Arg.Any<CancellationToken>())
             .Returns(expectedOrderNumber);
 
-        BasketCheckoutEventHandler handler = new(sender, generator, logger);
+        ClaimsPrincipal? attachedPrincipal = null;
+        IDisposable scope = Substitute.For<IDisposable>();
+        tenantProvider.Attach(Arg.Do<ClaimsPrincipal>(p => attachedPrincipal = p))
+            .Returns(scope);
+
+        BasketCheckoutEventHandler handler = new(sender, generator, logger, tenantProvider);
 
         BasketCheckoutEvent evt = new()
         {
@@ -56,6 +64,10 @@ public sealed class BasketCheckoutEventHandlerTests
         await sender.Send(Arg.Do<CreateOrderCommand>(c => capturedCommand = c), Arg.Any<CancellationToken>());
 
         await handler.Consume(context);
+
+        attachedPrincipal.Should().NotBeNull();
+        attachedPrincipal!.FindFirstValue("restaurantId").Should().Be(restaurantId.ToString());
+        scope.Received(1).Dispose();
 
         await generator.Received(1).GenerateAsync(restaurantId, OrderType.Delivery, Arg.Any<CancellationToken>());
         capturedCommand.Should().NotBeNull();

@@ -10,7 +10,8 @@ namespace Ordering.Application.Orders.EventHandlers.Integration;
 /// </summary>
 public class KitchenOrderCancelledIntegrationEventHandler(
     IApplicationDbContext dbContext,
-    ILogger<KitchenOrderCancelledIntegrationEventHandler> logger)
+    ILogger<KitchenOrderCancelledIntegrationEventHandler> logger,
+    ICurrentRestaurantProvider? tenantProvider = null)
     : IConsumer<KitchenOrderCancelledIntegrationEvent>
 {
     public async Task Consume(ConsumeContext<KitchenOrderCancelledIntegrationEvent> context)
@@ -27,8 +28,24 @@ public class KitchenOrderCancelledIntegrationEventHandler(
                 message.OrderId,
                 correlationId);
 
+            using IDisposable? tenantScope = message.RestaurantId != Guid.Empty
+                ? tenantProvider?.Attach(
+                    new ClaimsPrincipalBuilder()
+                        .WithRestaurant(message.RestaurantId)
+                        .WithUser(message.CancelledByUserId)
+                        .WithActor("ordering-kitchen-consumer")
+                        .Build())
+                : null;
+
             Order? order = await dbContext.Orders.FindAsync(
                 [OrderId.Of(message.OrderId)], context.CancellationToken);
+
+            if (order is null && message.RestaurantId == Guid.Empty && dbContext is DbContext)
+            {
+                order = await dbContext.Orders
+                    .IgnoreQueryFilters()
+                    .SingleOrDefaultAsync(o => o.Id == OrderId.Of(message.OrderId), context.CancellationToken);
+            }
 
             if (order is null)
             {

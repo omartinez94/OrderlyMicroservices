@@ -5,7 +5,8 @@ namespace Ordering.Application.Orders.EventHandlers.Integration;
 public class BasketCheckoutEventHandler(
     ISender sender,
     IOrderNumberGenerator orderNumberGenerator,
-    ILogger<BasketCheckoutEventHandler> logger) : IConsumer<BasketCheckoutEvent>
+    ILogger<BasketCheckoutEventHandler> logger,
+    ICurrentRestaurantProvider? tenantProvider = null) : IConsumer<BasketCheckoutEvent>
 {
     public async Task Consume(ConsumeContext<BasketCheckoutEvent> context)
     {
@@ -20,6 +21,13 @@ public class BasketCheckoutEventHandler(
                 correlationId);
 
             BasketCheckoutEvent? message = context.Message;
+
+            using IDisposable? tenantScope = tenantProvider?.Attach(
+                new ClaimsPrincipalBuilder()
+                    .WithRestaurant(message.RestaurantId)
+                    .WithUser(message.UserId)
+                    .WithActor("ordering-basket-checkout")
+                    .Build());
 
             List<OrderItemDto>? orderItems = message.Items.Select(item => new OrderItemDto(
                 Id: Guid.Empty,

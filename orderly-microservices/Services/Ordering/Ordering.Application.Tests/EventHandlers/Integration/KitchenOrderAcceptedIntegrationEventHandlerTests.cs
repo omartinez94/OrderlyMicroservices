@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using BuildingBlocks.Multitenancy;
+
 namespace Ordering.Application.Tests.EventHandlers.Integration;
 
 /// <summary>
@@ -21,7 +24,7 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
 
     private static Order CreatePendingOrder()
     {
-        var order = Order.Create(
+        Order order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
         // Clear the OrderCreatedEvent so the consumer's transition test is
@@ -38,25 +41,34 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
     [Fact]
     public async Task Consume_PendingOrder_ConfirmsAndSaves()
     {
-        var order = CreatePendingOrder();
-        var dbContext = NewDbContextWith(order);
+        Order order = CreatePendingOrder();
+        IApplicationDbContext dbContext = NewDbContextWith(order);
+        ICurrentRestaurantProvider tenantProvider = Substitute.For<ICurrentRestaurantProvider>();
+        ClaimsPrincipal? attachedPrincipal = null;
+        tenantProvider.Attach(Arg.Do<ClaimsPrincipal>(p => attachedPrincipal = p))
+            .Returns(Substitute.For<IDisposable>());
 
-        var staffId = Guid.NewGuid();
-        var now = SystemClock.Instance.GetCurrentInstant();
-        var consumer = new KitchenOrderAcceptedIntegrationEventHandler(
-            dbContext, NullLogger<KitchenOrderAcceptedIntegrationEventHandler>.Instance);
+        Guid staffId = Guid.NewGuid();
+        Instant now = SystemClock.Instance.GetCurrentInstant();
+        KitchenOrderAcceptedIntegrationEventHandler consumer = new(
+            dbContext,
+            NullLogger<KitchenOrderAcceptedIntegrationEventHandler>.Instance,
+            tenantProvider);
 
-        var message = new KitchenOrderAcceptedIntegrationEvent
+        KitchenOrderAcceptedIntegrationEvent message = new()
         {
             OrderId = order.Id.Value,
+            RestaurantId = order.RestaurantId,
             ConfirmedByUserId = staffId,
             ConfirmedAt = now
         };
-        var context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
+        ConsumeContext<KitchenOrderAcceptedIntegrationEvent> context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
         context.Message.Returns(message);
 
         await consumer.Consume(context);
 
+        attachedPrincipal.Should().NotBeNull();
+        attachedPrincipal!.FindFirstValue("restaurantId").Should().Be(order.RestaurantId.ToString());
         order.Status.Should().Be(OrderStatus.Confirmed);
         order.ConfirmedByUserId.Should().Be(staffId);
         order.ConfirmedAt.Should().Be(now);
@@ -71,17 +83,18 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
     [Fact]
     public async Task Consume_UnknownOrder_SkipsAndDoesNotSave()
     {
-        var dbContext = Substitute.For<IApplicationDbContext>();
+        IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         dbContext.Orders.FindAsync(Arg.Any<object[]>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Order?>(null));
 
-        var consumer = new KitchenOrderAcceptedIntegrationEventHandler(
+        KitchenOrderAcceptedIntegrationEventHandler consumer = new(
             dbContext, NullLogger<KitchenOrderAcceptedIntegrationEventHandler>.Instance);
 
-        var context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
+        ConsumeContext<KitchenOrderAcceptedIntegrationEvent> context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
         context.Message.Returns(new KitchenOrderAcceptedIntegrationEvent
         {
             OrderId = Guid.NewGuid(),
+            RestaurantId = Guid.NewGuid(),
             ConfirmedByUserId = Guid.NewGuid(),
             ConfirmedAt = SystemClock.Instance.GetCurrentInstant()
         });
@@ -93,7 +106,7 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
 
     private static IApplicationDbContext NewDbContextWith(Order order)
     {
-        var dbContext = Substitute.For<IApplicationDbContext>();
+        IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         dbContext.Orders.FindAsync(Arg.Any<object[]>(), Arg.Any<CancellationToken>())
             .Returns(ValueTask.FromResult<Order?>(order));
         return dbContext;
@@ -108,20 +121,21 @@ public sealed class KitchenOrderAcceptedIntegrationEventHandlerTests
     [Fact]
     public async Task Consume_StampsCorrelationIdFromBusContext_OnActivityRow()
     {
-        var order = CreatePendingOrder();
-        var dbContext = NewDbContextWith(order);
+        Order order = CreatePendingOrder();
+        IApplicationDbContext dbContext = NewDbContextWith(order);
 
-        var consumer = new KitchenOrderAcceptedIntegrationEventHandler(
+        KitchenOrderAcceptedIntegrationEventHandler consumer = new(
             dbContext, NullLogger<KitchenOrderAcceptedIntegrationEventHandler>.Instance);
 
-        var correlationGuid = Guid.NewGuid();
-        var message = new KitchenOrderAcceptedIntegrationEvent
+        Guid correlationGuid = Guid.NewGuid();
+        KitchenOrderAcceptedIntegrationEvent message = new()
         {
             OrderId = order.Id.Value,
+            RestaurantId = order.RestaurantId,
             ConfirmedByUserId = Guid.NewGuid(),
             ConfirmedAt = SystemClock.Instance.GetCurrentInstant(),
         };
-        var context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
+        ConsumeContext<KitchenOrderAcceptedIntegrationEvent> context = Substitute.For<ConsumeContext<KitchenOrderAcceptedIntegrationEvent>>();
         context.Message.Returns(message);
         context.CorrelationId.Returns(correlationGuid);
 

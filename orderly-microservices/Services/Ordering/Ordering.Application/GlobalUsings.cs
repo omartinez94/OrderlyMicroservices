@@ -1,8 +1,10 @@
+global using BuildingBlocks.Authorization;
 global using BuildingBlocks.Correlation;
 global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Enums;
 global using BuildingBlocks.Exceptions;
 global using BuildingBlocks.Messaging.Events;
+global using BuildingBlocks.Multitenancy;
 global using BuildingBlocks.Pagination;
 global using FluentValidation;
 global using MassTransit;

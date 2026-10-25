@@ -1,12 +1,18 @@
+using System.Security.Claims;
+using Identity.API.Data;
+using Identity.API.Services;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
+using OpenIddict.Abstractions;
+using OpenIddict.Validation.AspNetCore;
+
 namespace Identity.API.Features.Auth.Logout;
 
 public class LogoutModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        RouteGroupBuilder? group = app.MapGroup("/v1/auth");
-
-        group.MapPost("/logout", async (
+        Delegate handler = async (
                 HttpContext context,
                 SignInManager<ApplicationUser> signInManager,
                 IOpenIddictTokenManager tokenManager,
@@ -16,26 +22,43 @@ public class LogoutModule : ICarterModule
             {
                 if (principal.Identity?.IsAuthenticated != true)
                 {
-                    return Results.NoContent();
+                    AuthenticateResult authResult = await context.AuthenticateAsync(OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme);
+                    if (authResult.Succeeded && authResult.Principal is not null)
+                    {
+                        principal = authResult.Principal;
+                    }
                 }
-
-                string? userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-                Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
 
                 string? ipAddress = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 string? userAgent = context.Request.Headers.UserAgent.ToString();
 
-                string? tokenId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
-                if (tokenId is not null)
+                if (principal.Identity?.IsAuthenticated == true)
                 {
-                    object? token = await tokenManager.FindByIdAsync(tokenId, ct);
+                    string? userIdString = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+                    Guid? userId = Guid.TryParse(userIdString, out var parsedId) ? parsedId : null;
+
+                    string? tokenId = principal.FindFirstValue(OpenIddictConstants.Claims.Subject);
+                    if (tokenId is not null)
+                    {
+                        object? token = await tokenManager.FindByIdAsync(tokenId, ct);
+                        if (token is not null)
+                        {
+                            await tokenManager.TryRevokeAsync(token, ct);
+                        }
+                    }
+
+                    await auditLogger.LogAsync(userId, "Logout", ipAddress, userAgent, null, ct);
+                }
+
+                if (context.Request.Cookies.TryGetValue("refresh_token", out string? refreshToken) && !string.IsNullOrEmpty(refreshToken))
+                {
+                    object? token = await tokenManager.FindByReferenceIdAsync(refreshToken, ct)
+                        ?? await tokenManager.FindByIdAsync(refreshToken, ct);
                     if (token is not null)
                     {
                         await tokenManager.TryRevokeAsync(token, ct);
                     }
                 }
-
-                await auditLogger.LogAsync(userId, "Logout", ipAddress, userAgent, null, ct);
 
                 await signInManager.SignOutAsync();
 
@@ -48,9 +71,14 @@ public class LogoutModule : ICarterModule
                 });
 
                 return Results.NoContent();
-            })
-            .RequireAuthorization()
+            };
+
+        app.MapGroup("/v1/auth")
+            .MapPost("/logout", handler)
+            .Produces(204);
+
+        app.MapGroup("/api/auth")
+            .MapPost("/logout", handler)
             .Produces(204);
     }
 }
-

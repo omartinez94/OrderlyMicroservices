@@ -346,6 +346,22 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
             metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
+    public static readonly Guid SystemUserId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+
+    /// <summary>
+    /// System/automated cancellation overload (e.g. daily reconciliation pass).
+    /// Uses <see cref="SystemUserId"/>.
+    /// </summary>
+    public void Cancel(Instant now, string reason) =>
+        Cancel(reason, SystemUserId, now);
+
+    /// <summary>
+    /// System/automated cancellation overload (e.g. daily reconciliation pass).
+    /// Uses <see cref="SystemUserId"/>.
+    /// </summary>
+    public void Cancel(string reason, Instant now) =>
+        Cancel(reason, SystemUserId, now);
+
     /// <summary>
     /// Permitted from any non-terminal state. Records reason and the user
     /// who cancelled for audit. If already Cancelled, this is an idempotent no-op.

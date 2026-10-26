@@ -29,4 +29,8 @@
     <ProjectReference Include="..\..\..\BuildingBlocks.Messaging\BuildingBlocks.Messaging.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Ordering.Application.Tests\Abstractions\*.cs" Link="Support\%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

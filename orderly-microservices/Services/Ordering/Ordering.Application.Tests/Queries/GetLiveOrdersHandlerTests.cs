@@ -135,4 +135,24 @@ public sealed class GetLiveOrdersHandlerTests
         result.ResyncRequired.Should().BeTrue();
         result.Orders.Should().ContainSingle(o => o.OrderNumber == "DIN-0001");
     }
+
+    [Fact]
+    public async Task Handle_WithCancelRequestedOrder_IncludesItInLiveOrdersSnapshot()
+    {
+        var cancelRequestedOrder = CreateSeedOrder("DIN-CR01", OrderStatus.Preparing);
+        cancelRequestedOrder.RequestCancel("Customer changed mind", Guid.NewGuid(), Now.Minus(Duration.FromMinutes(2)));
+
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        dbContext.Orders.Returns(MockDbSet<Order>.From([cancelRequestedOrder]));
+
+        var handler = new GetLiveOrdersHandler(dbContext, FixedClock(Now));
+        var result = await handler.Handle(new GetLiveOrdersQuery(), CancellationToken.None);
+
+        result.Orders.Should().ContainSingle(o => o.OrderNumber == "DIN-CR01");
+        var summary = result.Orders.Single(o => o.OrderNumber == "DIN-CR01");
+        summary.Status.Should().Be(OrderStatus.CancelRequested);
+        summary.PreviousStatus.Should().Be(OrderStatus.Preparing);
+        summary.CancelRequestedAt.Should().Be(Now.Minus(Duration.FromMinutes(2)));
+        summary.CancelRequestReason.Should().Be("Customer changed mind");
+    }
 }

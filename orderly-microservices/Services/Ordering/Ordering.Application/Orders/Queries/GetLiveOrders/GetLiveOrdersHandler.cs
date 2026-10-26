@@ -17,6 +17,7 @@ public class GetLiveOrdersHandler(
         OrderStatus.Preparing,
         OrderStatus.Ready,
         OrderStatus.OnHold,
+        OrderStatus.CancelRequested,
     ];
 
     private static readonly OrderStatus[] ClosedStatuses =

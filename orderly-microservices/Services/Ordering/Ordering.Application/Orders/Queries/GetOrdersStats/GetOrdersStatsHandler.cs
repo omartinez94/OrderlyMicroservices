@@ -10,8 +10,13 @@ public class GetOrdersStatsHandler(
     : IQueryHandler<GetOrdersStatsQuery, GetOrdersStatsResult>
 {
     public const int DefaultPrepMinutes = 15;
-    public const double AtRiskThresholdRatio = 0.80;
-    public const double LateThresholdRatio = 1.00;
+    public const int PendingLateThresholdSeconds = 120;
+    public const int PendingAtRiskThresholdSeconds = 90;
+    public const int ConfirmedLateThresholdSeconds = 300;
+    public const int ConfirmedAtRiskThresholdSeconds = 225;
+    public const int ReadyLateThresholdSeconds = 300;
+    public const int ReadyAtRiskThresholdSeconds = 225;
+    public const double PreparingAtRiskRatio = 0.75;
 
     private static readonly OrderStatus[] ActiveStatuses =
     [
@@ -20,6 +25,7 @@ public class GetOrdersStatsHandler(
         OrderStatus.Preparing,
         OrderStatus.Ready,
         OrderStatus.OnHold,
+        OrderStatus.CancelRequested,
     ];
 
     public async Task<GetOrdersStatsResult> Handle(
@@ -113,30 +119,73 @@ public class GetOrdersStatsHandler(
         foreach (Order order in activeOrders)
         {
             Instant? start = order.ConfirmedAt ?? order.CreatedAt;
-            if (!start.HasValue)
-            {
-                continue;
-            }
-
-            if (!oldest.HasValue || start.Value < oldest.Value)
+            if (start.HasValue && (!oldest.HasValue || start.Value < oldest.Value))
             {
                 oldest = start.Value;
             }
 
-            int targetMinutes = order.EstimatedPrepTimeMinutes > 0
-                ? order.EstimatedPrepTimeMinutes
-                : DefaultPrepMinutes;
+            Instant phaseAnchor = order.StatusChangedAt ?? order.ConfirmedAt ?? order.CreatedAt ?? serverTime;
+            double elapsedSeconds = (serverTime - phaseAnchor).TotalSeconds;
 
-            double elapsedMinutes = (serverTime - start.Value).TotalMinutes;
-            double ratio = elapsedMinutes / targetMinutes;
+            switch (order.Status)
+            {
+                case OrderStatus.CancelRequested:
+                    late++;
+                    break;
 
-            if (ratio > LateThresholdRatio)
-            {
-                late++;
-            }
-            else if (ratio >= AtRiskThresholdRatio)
-            {
-                atRisk++;
+                case OrderStatus.Pending:
+                    if (elapsedSeconds >= PendingLateThresholdSeconds)
+                    {
+                        late++;
+                    }
+                    else if (elapsedSeconds >= PendingAtRiskThresholdSeconds)
+                    {
+                        atRisk++;
+                    }
+                    break;
+
+                case OrderStatus.Confirmed:
+                    if (elapsedSeconds >= ConfirmedLateThresholdSeconds)
+                    {
+                        late++;
+                    }
+                    else if (elapsedSeconds >= ConfirmedAtRiskThresholdSeconds)
+                    {
+                        atRisk++;
+                    }
+                    break;
+
+                case OrderStatus.Preparing:
+                    int prepMinutes = order.EstimatedPrepTimeMinutes > 0
+                        ? order.EstimatedPrepTimeMinutes
+                        : DefaultPrepMinutes;
+                    double targetSeconds = prepMinutes * 60.0;
+
+                    if (elapsedSeconds >= targetSeconds)
+                    {
+                        late++;
+                    }
+                    else if (elapsedSeconds >= targetSeconds * PreparingAtRiskRatio)
+                    {
+                        atRisk++;
+                    }
+                    break;
+
+                case OrderStatus.Ready:
+                    if (elapsedSeconds >= ReadyLateThresholdSeconds)
+                    {
+                        late++;
+                    }
+                    else if (elapsedSeconds >= ReadyAtRiskThresholdSeconds)
+                    {
+                        atRisk++;
+                    }
+                    break;
+
+                case OrderStatus.OnHold:
+                default:
+                    // On hold or unhandled: no SLA penalty
+                    break;
             }
         }
 
@@ -152,6 +201,7 @@ public class GetOrdersStatsHandler(
             [nameof(OrderStatus.Preparing)] = 0,
             [nameof(OrderStatus.Ready)] = 0,
             [nameof(OrderStatus.OnHold)] = 0,
+            [nameof(OrderStatus.CancelRequested)] = 0,
             [nameof(OrderStatus.Delivered)] = 0,
             [nameof(OrderStatus.Completed)] = 0,
             [nameof(OrderStatus.Cancelled)] = 0,

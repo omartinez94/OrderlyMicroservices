@@ -1,37 +1,78 @@
+using BuildingBlocks.Messaging.Events.Ordering;
+using BuildingBlocks.Messaging.Outbox;
 using Microsoft.Extensions.Logging;
+using Ordering.Application.Data;
 
 namespace Ordering.Infrastructure.Services;
 
 /// <summary>
-/// Placeholder implementation of <see cref="IDailyReconciliationRunner"/>.
-/// The reconciliation logic (re-checking catalog state, recovering
-/// orphaned orders, recomputing bill totals against the latest
-/// menu) is not in this plan's scope — the dev-only
-/// <c>/_dev/trigger/daily-reconciliation</c> endpoint exists so the
-/// MCP server's <c>trigger_scheduled_jobs</c> tool has a target.
+/// Daily reconciliation runner: finds stale orders stuck in <see cref="OrderStatus.Pending"/>
+/// for 15+ minutes and cancels them, staging <see cref="OrderCancelledIntegrationEvent"/> in the outbox.
 /// </summary>
-/// <remarks>
-/// The real implementation lands with the future ordering-scheduler
-/// plan (Hangfire wiring + the actual reconciliation algorithm).
-/// This stub returns <c>0</c> immediately so the endpoint stays
-/// green; when the real implementation lands, the MCP server
-/// continues to call the same path unchanged.
-/// </remarks>
 public sealed class DailyReconciliationRunner(
+    IApplicationDbContext dbContext,
+    IClock clock,
+    IOutboxPublisher outboxPublisher,
     ILogger<DailyReconciliationRunner> logger)
     : IDailyReconciliationRunner
 {
+    public const int StalePendingTimeoutMinutes = 15;
+    public const string StalePendingCancellationReason = "Stale pending order expired by daily reconciliation pass";
+
     /// <inheritdoc />
     public async Task<int> RunAsync(CancellationToken cancellationToken)
     {
-        // Smoke-check: log so the operator sees the dev trigger fired.
-        logger.LogInformation(
-            "Daily reconciliation triggered via dev endpoint (placeholder implementation; no-op).");
+        logger.LogInformation("Daily reconciliation triggered; querying stale pending orders.");
 
-        // Real implementation would query `Orders` for status drift
-        // and reconcile against `MenuItems`. Out of scope for the
-        // Dev MCP close pass.
-        await Task.CompletedTask;
-        return 0;
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return 0;
+        }
+
+        Instant serverTime = clock.GetCurrentInstant();
+        Instant cutoff = serverTime - Duration.FromMinutes(StalePendingTimeoutMinutes);
+
+        List<Order> staleOrders;
+        try
+        {
+            staleOrders = await dbContext.Orders
+                .Where(o => o.Status == OrderStatus.Pending && o.CreatedAt.HasValue && o.CreatedAt.Value <= cutoff)
+                .ToListAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return 0;
+        }
+
+        if (staleOrders.Count == 0)
+        {
+            logger.LogInformation("Daily reconciliation completed: 0 stale pending orders found.");
+            return 0;
+        }
+
+        foreach (Order order in staleOrders)
+        {
+            order.Cancel(serverTime, StalePendingCancellationReason);
+
+            OrderCancelledIntegrationEvent integrationEvent = new()
+            {
+                OrderId = order.Id.Value,
+                RestaurantId = order.RestaurantId,
+                OrderNumber = order.OrderNumber.Value,
+                CancelledAt = order.CancelledAt ?? serverTime,
+                CancelledByUserId = order.CancelledByUserId ?? Order.SystemUserId,
+                Reason = StalePendingCancellationReason
+            };
+
+            await outboxPublisher.PublishAsync(integrationEvent, cancellationToken);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Daily reconciliation completed: {ReconciledCount} stale pending orders reconciled.",
+            staleOrders.Count);
+
+        return staleOrders.Count;
     }
 }

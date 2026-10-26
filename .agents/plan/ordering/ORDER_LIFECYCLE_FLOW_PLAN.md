@@ -7,7 +7,7 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-10-24) — comprehensive architecture and audit revision
-> **Current state**: 🚧 Phase 5 Pending (Phase 4 Done)
+> **Current state**: 🎉 Complete (Phase 5 Done)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -15,7 +15,7 @@
 | 2 | Outbox Reliability & Full Order Item Metadata | ✅ Done |
 | 3 | Identity Permission Upserts & Ordering Cancellation Workflow | ✅ Done |
 | 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | ✅ Done |
-| 5 | Per-Phase SLA Stats & Stale Order Reconciliation | ⏸ Pending |
+| 5 | Per-Phase SLA Stats & Stale Order Reconciliation | ✅ Done |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -396,13 +396,13 @@ Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs:105-144` to evalua
 
 **Goal**: Include `CancelRequested` in live order queries and stats, switch backend SLA calculation to per-phase elapsed time, and provide a reconciliation routine for existing stuck `Pending` and `Confirmed` orders.
 
-**Status**: 🔒 Blocked
+**Status**: ✅ Done
 
 **Deliverables**:
 
-- [ ] Add `OrderStatus.CancelRequested` to `ActiveStatuses` in `GetLiveOrdersHandler.cs` and `GetOrdersStatsHandler.cs`.
-- [ ] Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs` to evaluate per-phase thresholds (`CancelRequested`: 0s, `Pending`: 2m, `Confirmed`: 5m, `Preparing`: `EstimatedPrepTimeMinutes ?? 15m`, `Ready`: 5m) using `StatusChangedAt`.
-- [ ] Add reconciliation endpoint/command or dev trigger to advance stuck `Confirmed` orders whose KDS ticket is `Ready`/`Bumped` and republish or cancel orphan `Pending` orders.
+- [x] Add `OrderStatus.CancelRequested` to `ActiveStatuses` in `GetLiveOrdersHandler.cs` and `GetOrdersStatsHandler.cs`.
+- [x] Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs` to evaluate per-phase thresholds (`CancelRequested`: 0s, `Pending`: 2m, `Confirmed`: 5m, `Preparing`: `EstimatedPrepTimeMinutes ?? 15m`, `Ready`: 5m) using `StatusChangedAt`.
+- [x] Add reconciliation endpoint/command or dev trigger to advance stuck `Confirmed` orders whose KDS ticket is `Ready`/`Bumped` and republish or cancel orphan `Pending` orders.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 5" -Quick` passes with updated `GetLiveOrdersHandlerTests` and `GetOrdersStatsHandlerTests`.
 

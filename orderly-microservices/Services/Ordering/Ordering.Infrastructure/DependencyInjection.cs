@@ -84,7 +84,7 @@ public static class DependencyInjection
         }
 
         // IDailyReconciliationRunner handle for /_dev/trigger/daily-reconciliation.
-        services.AddSingleton<IDailyReconciliationRunner, DailyReconciliationRunner>();
+        services.AddScoped<IDailyReconciliationRunner, DailyReconciliationRunner>();
 
         return services;
     }

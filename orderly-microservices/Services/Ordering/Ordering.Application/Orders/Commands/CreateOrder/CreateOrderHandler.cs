@@ -78,9 +78,17 @@ public class CreateOrderHandler(
         order.TotalAmount = dto.TotalAmount;
 
         // Add order items
-        foreach (OrderItemDto? item in dto.OrderItems)
+        foreach (OrderItemDto item in dto.OrderItems)
         {
-            order.Add(MenuItemId.Of(item.MenuItemId), item.Quantity, item.UnitPrice);
+            order.Add(
+                MenuItemId.Of(item.MenuItemId),
+                item.Quantity,
+                item.UnitPrice,
+                item.MenuItemName,
+                item.SpecialInstructions,
+                item.Customizations,
+                item.SelectedVariations,
+                item.SeatNumber);
         }
 
         // Append the OrderCreated activity row. Order.Create cannot call

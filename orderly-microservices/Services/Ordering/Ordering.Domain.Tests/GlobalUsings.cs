@@ -1,4 +1,5 @@
 global using BuildingBlocks.Enums;
+global using BuildingBlocks.Messaging.Events;
 global using FluentAssertions;
 global using NodaTime;
 global using Ordering.Domain.Abstractions;

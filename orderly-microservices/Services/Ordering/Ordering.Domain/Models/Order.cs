@@ -376,10 +376,32 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)
     {
+        Add(menuItemId, quantity, price, string.Empty);
+    }
+
+    public void Add(
+        MenuItemId menuItemId,
+        int quantity,
+        decimal price,
+        string itemName,
+        string? specialInstructions = null,
+        IReadOnlyList<KitchenOrderItemCustomization>? customizations = null,
+        IReadOnlyList<KitchenOrderItemVariation>? selectedVariations = null,
+        int seatNumber = 0)
+    {
         ArgumentNullException.ThrowIfNull(menuItemId);
 
-        OrderItem? orderItem = new OrderItem(Id, menuItemId, quantity, price);
-        orderItem.Parent = this;
+        OrderItem orderItem = new OrderItem(Id, menuItemId, quantity, price)
+        {
+            Parent = this,
+            MenuItemName = itemName ?? string.Empty,
+            SpecialInstructions = specialInstructions ?? string.Empty,
+            Customizations = customizations ?? Array.Empty<KitchenOrderItemCustomization>(),
+            SelectedVariations = selectedVariations ?? Array.Empty<KitchenOrderItemVariation>(),
+            SeatNumber = seatNumber,
+            UnitPrice = price,
+            TotalPrice = price * quantity
+        };
 
         _orderItems.Add(orderItem);
     }

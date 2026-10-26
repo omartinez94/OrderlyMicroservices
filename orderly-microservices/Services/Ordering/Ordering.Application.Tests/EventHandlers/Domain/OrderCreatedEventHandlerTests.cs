@@ -1,11 +1,9 @@
-using Microsoft.FeatureManagement;
-
 namespace Ordering.Application.Tests.EventHandlers.Domain;
 
 /// <summary>
 /// When <see cref="OrderCreatedEventHandler"/> publishes, it MUST emit an
-/// <see cref="OrderCreatedIntegrationEvent"/> with no <c>Payment</c>-derived
-/// properties leaking onto the bus. This test exists because the historical
+/// <see cref="OrderCreatedIntegrationEvent"/> via <see cref="IOutboxPublisher"/>
+/// with no <c>Payment</c>-derived properties leaking onto the bus. This test exists because the historical
 /// code path published the full <c>OrderDto</c>, which included
 /// <c>PaymentDto.CardName / CardNumber / Ccv / Expiration / PaymentMethod</c>.
 /// </summary>
@@ -25,30 +23,27 @@ public sealed class OrderCreatedEventHandlerTests
 
     /// <summary>
     /// The published payload must be <see cref="OrderCreatedIntegrationEvent"/>,
-    /// not <c>OrderDto</c>. This is the load-bearing assertion: the bus stops
+    /// staged through <see cref="IOutboxPublisher"/>, not <c>OrderDto</c>. This is the load-bearing assertion: the bus stops
     /// carrying the rich internal DTO the moment this contract lands.
     /// </summary>
     [Fact]
     public async Task Handle_PublishesOrderCreatedIntegrationEvent()
     {
-        var publishEndpoint = Substitute.For<IPublishEndpoint>();
-        var featureManager = Substitute.For<IFeatureManager>();
-        featureManager.IsEnabledAsync("OrderFullfilment").Returns(true);
+        IOutboxPublisher outboxPublisher = Substitute.For<IOutboxPublisher>();
+        OrderCreatedEventHandler handler = new(outboxPublisher, NullLogger<OrderCreatedEventHandler>.Instance);
 
-        var handler = new OrderCreatedEventHandler(publishEndpoint, featureManager, NullLogger<OrderCreatedEventHandler>.Instance);
-
-        var order = Order.Create(
+        Order order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
         order.Add(NewMenuItemId(), quantity: 2, price: 9.99m);
 
-        var domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
+        OrderCreatedEvent domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
         await handler.Handle(domainEvent, CancellationToken.None);
 
-        await publishEndpoint.Received(1).Publish(
+        await outboxPublisher.Received(1).PublishAsync(
             Arg.Any<OrderCreatedIntegrationEvent>(),
             Arg.Any<CancellationToken>());
-        await publishEndpoint.DidNotReceive().Publish(
+        await outboxPublisher.DidNotReceive().PublishAsync(
             Arg.Any<OrderDto>(),
             Arg.Any<CancellationToken>());
     }
@@ -63,62 +58,36 @@ public sealed class OrderCreatedEventHandlerTests
     [Fact]
     public async Task Handle_PublishedEventCarriesNoPaymentProperties()
     {
-        var publishEndpoint = Substitute.For<IPublishEndpoint>();
-        var featureManager = Substitute.For<IFeatureManager>();
-        featureManager.IsEnabledAsync("OrderFullfilment").Returns(true);
+        IOutboxPublisher outboxPublisher = Substitute.For<IOutboxPublisher>();
+        OrderCreatedEventHandler handler = new(outboxPublisher, NullLogger<OrderCreatedEventHandler>.Instance);
 
-        var handler = new OrderCreatedEventHandler(publishEndpoint, featureManager, NullLogger<OrderCreatedEventHandler>.Instance);
-
-        var order = Order.Create(
+        Order order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
         order.Add(NewMenuItemId(), quantity: 1, price: 5m);
 
-        var domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
+        OrderCreatedEvent domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
         await handler.Handle(domainEvent, CancellationToken.None);
 
         // Capture the message that was published.
-        var call = publishEndpoint.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
-        var publishedMessage = call.GetArguments()[0]!;
-        var publishedType = publishedMessage.GetType();
+        var call = outboxPublisher.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
+        object publishedMessage = call.GetArguments()[0]!;
+        Type publishedType = publishedMessage.GetType();
 
         // The hard guarantee: NO property name overlaps with PaymentDto.
-        var paymentPropertyNames = typeof(PaymentDto)
+        HashSet<string> paymentPropertyNames = typeof(PaymentDto)
             .GetProperties()
             .Select(p => p.Name)
             .ToHashSet(StringComparer.Ordinal);
 
-        var eventPropertyNames = publishedType
+        HashSet<string> eventPropertyNames = publishedType
             .GetProperties()
             .Select(p => p.Name)
             .ToHashSet(StringComparer.Ordinal);
 
         eventPropertyNames.Should().NotIntersectWith(paymentPropertyNames,
             because: "no Payment* property may leak onto the message bus");
-    }
-
-    /// <summary>
-    /// When the <c>OrderFullfilment</c> feature flag is disabled, the handler
-    /// must remain a no-op — preserving the kill.
-    /// </summary>
-    [Fact]
-    public async Task Handle_WhenFeatureFlagDisabled_DoesNotPublish()
-    {
-        var publishEndpoint = Substitute.For<IPublishEndpoint>();
-        var featureManager = Substitute.For<IFeatureManager>();
-        featureManager.IsEnabledAsync("OrderFullfilment").Returns(false);
-
-        var handler = new OrderCreatedEventHandler(publishEndpoint, featureManager, NullLogger<OrderCreatedEventHandler>.Instance);
-
-        var order = Order.Create(
-            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
-            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
-
-        var domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
-        await handler.Handle(domainEvent, CancellationToken.None);
-
-        await publishEndpoint.DidNotReceiveWithAnyArgs().Publish(default(object)!, default);
     }
 
     /// <summary>
@@ -129,31 +98,28 @@ public sealed class OrderCreatedEventHandlerTests
     [Fact]
     public async Task Handle_MapsEveryRequiredFieldFromTheAggregate()
     {
-        var publishEndpoint = Substitute.For<IPublishEndpoint>();
-        var featureManager = Substitute.For<IFeatureManager>();
-        featureManager.IsEnabledAsync("OrderFullfilment").Returns(true);
+        IOutboxPublisher outboxPublisher = Substitute.For<IOutboxPublisher>();
+        OrderCreatedEventHandler handler = new(outboxPublisher, NullLogger<OrderCreatedEventHandler>.Instance);
 
-        var handler = new OrderCreatedEventHandler(publishEndpoint, featureManager, NullLogger<OrderCreatedEventHandler>.Instance);
+        OrderId orderId = NewOrderId();
+        CustomerId customerId = NewCustomerId();
+        OrderNumber orderNumber = ValidOrderNumber();
+        Guid restaurantId = Guid.NewGuid();
+        Guid tableId = Guid.NewGuid();
 
-        var orderId = NewOrderId();
-        var customerId = NewCustomerId();
-        var orderNumber = ValidOrderNumber();
-        var restaurantId = Guid.NewGuid();
-        var tableId = Guid.NewGuid();
-
-        var order = Order.Create(
+        Order order = Order.Create(
             orderId, customerId, orderNumber, restaurantId,
             ValidAddress(), ValidAddress(), ValidPayment());
         order.TableId = tableId;
         order.OrderType = OrderType.DineIn;
         order.EstimatedPrepTimeMinutes = 17;
 
-        var domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
+        OrderCreatedEvent domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
         await handler.Handle(domainEvent, CancellationToken.None);
 
-        var call = publishEndpoint.ReceivedCalls()
-            .Single(c => c.GetMethodInfo().Name == nameof(IPublishEndpoint.Publish));
-        var evt = (OrderCreatedIntegrationEvent)call.GetArguments()[0]!;
+        var call = outboxPublisher.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
+        OrderCreatedIntegrationEvent evt = (OrderCreatedIntegrationEvent)call.GetArguments()[0]!;
 
         evt.OrderId.Should().Be(orderId.Value);
         evt.OrderNumber.Should().Be(orderNumber.Value);
@@ -163,5 +129,56 @@ public sealed class OrderCreatedEventHandlerTests
         evt.TableId.Should().Be(tableId);
         evt.EstimatedPrepTimeMinutes.Should().Be(17);
         evt.BillingAddress.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Verifies that full item metadata (customizations, variations, seat number, special instructions)
+    /// is preserved when publishing OrderCreatedIntegrationEvent to the outbox.
+    /// </summary>
+    [Fact]
+    public async Task Handle_PreservesFullItemMetadataInIntegrationEvent()
+    {
+        IOutboxPublisher outboxPublisher = Substitute.For<IOutboxPublisher>();
+        OrderCreatedEventHandler handler = new(outboxPublisher, NullLogger<OrderCreatedEventHandler>.Instance);
+
+        Order order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        List<KitchenOrderItemCustomization> customizations =
+        [
+            new("Extra sauce", "Hot", 0.50m),
+        ];
+        List<KitchenOrderItemVariation> variations =
+        [
+            new("Size: Large", 2.00m),
+        ];
+
+        order.Add(
+            NewMenuItemId(),
+            quantity: 2,
+            price: 15.00m,
+            itemName: "Gourmet Burger",
+            specialInstructions: "Well done",
+            customizations: customizations,
+            selectedVariations: variations,
+            seatNumber: 1);
+
+        OrderCreatedEvent domainEvent = order.DomainEvents.OfType<OrderCreatedEvent>().Single();
+        await handler.Handle(domainEvent, CancellationToken.None);
+
+        var call = outboxPublisher.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
+        OrderCreatedIntegrationEvent evt = (OrderCreatedIntegrationEvent)call.GetArguments()[0]!;
+
+        evt.Items.Should().HaveCount(1);
+        KitchenOrderItemPreview item = evt.Items[0];
+        item.MenuItemName.Should().Be("Gourmet Burger");
+        item.SpecialInstructions.Should().Be("Well done");
+        item.SeatNumber.Should().Be(1);
+        item.Quantity.Should().Be(2);
+        item.UnitPrice.Should().Be(15.00m);
+        item.Customizations.Should().BeEquivalentTo(customizations);
+        item.SelectedVariations.Should().BeEquivalentTo(variations);
     }
 }

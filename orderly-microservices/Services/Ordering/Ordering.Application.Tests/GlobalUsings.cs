@@ -1,5 +1,6 @@
 global using BuildingBlocks.Enums;
 global using BuildingBlocks.Messaging.Events;
+global using BuildingBlocks.Messaging.Outbox;
 global using FluentAssertions;
 global using MassTransit;
 global using MediatR;

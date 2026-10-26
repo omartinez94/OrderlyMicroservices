@@ -4,6 +4,7 @@ global using BuildingBlocks.CQRS;
 global using BuildingBlocks.Enums;
 global using BuildingBlocks.Exceptions;
 global using BuildingBlocks.Messaging.Events;
+global using BuildingBlocks.Messaging.Outbox;
 global using BuildingBlocks.Multitenancy;
 global using BuildingBlocks.Pagination;
 global using FluentValidation;

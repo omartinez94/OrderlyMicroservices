@@ -29,11 +29,11 @@ public class BasketCheckoutEventHandler(
                     .WithActor("ordering-basket-checkout")
                     .Build());
 
-            List<OrderItemDto>? orderItems = message.Items.Select(item => new OrderItemDto(
+            List<OrderItemDto> orderItems = message.Items.Select(item => new OrderItemDto(
                 Id: Guid.Empty,
                 OrderId: Guid.Empty,
-                MenuItemId: Guid.TryParse(item.MenuItemId.ToString(), out var menuItemGuid) ? menuItemGuid : Guid.Empty,
-                MenuItemName: string.Empty,
+                MenuItemId: Guid.TryParse(item.MenuItemId.ToString(), out Guid menuItemGuid) ? menuItemGuid : Guid.Empty,
+                MenuItemName: item.Name,
                 MenuItemDescription: string.Empty,
                 MenuItemImageUrl: string.Empty,
                 Quantity: item.Quantity,
@@ -42,8 +42,17 @@ public class BasketCheckoutEventHandler(
                 TotalPrice: item.TotalPrice,
                 SeatNumber: 0,
                 SpecialInstructions: string.Empty,
-                Customizations: [],
-                SelectedVariations: [],
+                Customizations: (item.Customizations ?? [])
+                    .Select(c => new KitchenOrderItemCustomization(
+                        c.Ingredient,
+                        string.IsNullOrWhiteSpace(c.Action) ? null : c.Action,
+                        null))
+                    .ToList(),
+                SelectedVariations: (item.Variations ?? [])
+                    .Select(v => new KitchenOrderItemVariation(
+                        string.IsNullOrWhiteSpace(v.Value) ? v.Name : $"{v.Name}: {v.Value}",
+                        v.Price))
+                    .ToList(),
                 PrepStatus: PrepStatus.Pending,
                 CreatedAt: SystemClock.Instance.GetCurrentInstant(),
                 PrepStartedAt: null,

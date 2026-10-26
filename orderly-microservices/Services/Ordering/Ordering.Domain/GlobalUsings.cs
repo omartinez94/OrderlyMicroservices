@@ -1,5 +1,6 @@
-﻿global using BuildingBlocks.Entities.Contracts;
+global using BuildingBlocks.Entities.Contracts;
 global using BuildingBlocks.Enums;
+global using BuildingBlocks.Messaging.Events;
 global using MediatR;
 global using NodaTime;
 global using Ordering.Domain.Abstractions;

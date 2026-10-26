@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
+using NodaTime.Serialization.SystemTextJson;
 using Ordering.Application.Dtos;
 
 namespace Ordering.API.Tests.Integration;
@@ -37,7 +38,8 @@ public sealed class CreateOrderEndpointTests
     private const string OrdersWritePermission = "orders:write";
     private const string OrdersViewPermission = "orders:view_own";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        .ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 
     private readonly OrderingWebApplicationFactory _factory;
 
@@ -339,5 +341,69 @@ public sealed class CreateOrderEndpointTests
         orderNumber2.Should().NotBeNullOrWhiteSpace();
         orderNumber2.Should().StartWith("TAK");
         orderNumber2.Should().EndWith("-0002");
+    }
+
+    [Fact]
+    public async Task CreateOrder_PersistsOutboxMessage_WithFullItemMetadata()
+    {
+        var client = NewWriteClient();
+        var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
+        var restaurantId = Guid.NewGuid();
+        client.DefaultRequestHeaders.TryAddWithoutValidation("X-Test-Restaurant", restaurantId.ToString());
+
+        var customizations = new List<KitchenOrderItemCustomization>
+        {
+            new("No onions", null, 0m),
+            new("Extra sauce", "Hot", 0.50m),
+        };
+        var variations = new List<KitchenOrderItemVariation>
+        {
+            new("Size: Large", 2.00m),
+        };
+
+        var item = new OrderItemDto(
+            Id: Guid.NewGuid(),
+            OrderId: Guid.NewGuid(),
+            MenuItemId: menuItemIds[0],
+            MenuItemName: "Gourmet Burger",
+            MenuItemDescription: "A tasty burger",
+            MenuItemImageUrl: "https://example.test/burger.png",
+            Quantity: 2,
+            UnitPrice: 10.00m,
+            BasePrice: 10.00m,
+            TotalPrice: 20.00m,
+            SeatNumber: 2,
+            SpecialInstructions: "Well done",
+            Customizations: customizations,
+            SelectedVariations: variations,
+            PrepStatus: PrepStatus.Pending,
+            CreatedAt: SystemClock.Instance.GetCurrentInstant(),
+            PrepStartedAt: null,
+            PrepCompletedAt: null);
+
+        var dto = NewOrderDto(
+            customerId,
+            restaurantId,
+            [item]);
+
+        var response = await client.PostAsJsonAsync("/v1/orders", new { order = dto }, JsonOptions);
+        response.StatusCode.Should().Be(HttpStatusCode.Created,
+            $"body: {await response.Content.ReadAsStringAsync()}");
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var orderId = body.GetProperty("id").GetGuid();
+
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+
+        var outboxRow = await dbContext.OutboxMessages
+            .Where(m => m.Type.Contains("OrderCreatedIntegrationEvent") && m.Payload.Contains(orderId.ToString()))
+            .FirstOrDefaultAsync();
+
+        outboxRow.Should().NotBeNull();
+        outboxRow!.Payload.Should().Contain("Gourmet Burger");
+        outboxRow.Payload.Should().Contain("Well done");
+        outboxRow.Payload.Should().Contain("Extra sauce");
+        outboxRow.Payload.Should().Contain("Size: Large");
     }
 }

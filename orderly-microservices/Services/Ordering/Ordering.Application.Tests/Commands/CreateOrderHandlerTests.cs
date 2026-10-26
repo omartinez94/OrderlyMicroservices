@@ -184,4 +184,49 @@ public sealed class CreateOrderHandlerTests
         captured.OrderItems.Select(i => i.MenuItemId).Should().BeEquivalentTo(
             items.Select(i => MenuItemId.Of(i.MenuItemId)));
     }
+
+    [Fact]
+    public async Task Handle_ValidCommand_PreservesOrderItemMetadata()
+    {
+        KitchenOrderItemCustomization customization = new("Extra sauce", "Hot", 0.50m);
+        KitchenOrderItemVariation variation = new("Size: Medium", 1.50m);
+        OrderItemDto itemDto = new(
+            Id: Guid.NewGuid(),
+            OrderId: Guid.NewGuid(),
+            MenuItemId: Guid.NewGuid(),
+            MenuItemName: "Deluxe Pizza",
+            MenuItemDescription: "Delicious",
+            MenuItemImageUrl: "https://example.test/pizza.png",
+            Quantity: 2,
+            UnitPrice: 15.00m,
+            BasePrice: 15.00m,
+            TotalPrice: 30.00m,
+            SeatNumber: 3,
+            SpecialInstructions: "Well done crust",
+            Customizations: [customization],
+            SelectedVariations: [variation],
+            PrepStatus: PrepStatus.Pending,
+            CreatedAt: SystemClock.Instance.GetCurrentInstant(),
+            PrepStartedAt: null,
+            PrepCompletedAt: null);
+
+        OrderDto dto = NewValidOrderDto([itemDto]);
+        IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
+        IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator);
+        await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        OrderItem item = captured!.OrderItems.Single();
+        item.MenuItemName.Should().Be("Deluxe Pizza");
+        item.SpecialInstructions.Should().Be("Well done crust");
+        item.SeatNumber.Should().Be(3);
+        item.UnitPrice.Should().Be(15.00m);
+        item.TotalPrice.Should().Be(30.00m);
+        item.Customizations.Should().ContainSingle().Which.Should().BeEquivalentTo(customization);
+        item.SelectedVariations.Should().ContainSingle().Which.Should().BeEquivalentTo(variation);
+    }
 }

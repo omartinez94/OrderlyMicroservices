@@ -493,6 +493,50 @@ public sealed class OrderTests
         item.MenuItemId.Should().Be(menuItemId);
         item.Quantity.Should().Be(2);
         item.UnitPrice.Should().Be(9.99m);
+        item.TotalPrice.Should().Be(19.98m);
+        item.Parent.Should().BeSameAs(order);
+    }
+
+    [Fact]
+    public void Add_WithFullMetadata_PopulatesAllOrderItemProperties()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+
+        var menuItemId = NewMenuItemId();
+        var customizations = new List<KitchenOrderItemCustomization>
+        {
+            new("No onions", null, 0m),
+            new("Extra sauce", "Spicy", 0.75m)
+        };
+        var variations = new List<KitchenOrderItemVariation>
+        {
+            new("Size: Large", 2.50m)
+        };
+
+        order.Add(
+            menuItemId,
+            quantity: 3,
+            price: 12.50m,
+            itemName: "Special Pizza",
+            specialInstructions: "Cut into 8 slices",
+            customizations: customizations,
+            selectedVariations: variations,
+            seatNumber: 4);
+
+        order.OrderItems.Should().HaveCount(1);
+        var item = order.OrderItems.Single();
+        item.MenuItemId.Should().Be(menuItemId);
+        item.Quantity.Should().Be(3);
+        item.UnitPrice.Should().Be(12.50m);
+        item.TotalPrice.Should().Be(37.50m);
+        item.MenuItemName.Should().Be("Special Pizza");
+        item.SpecialInstructions.Should().Be("Cut into 8 slices");
+        item.Customizations.Should().BeEquivalentTo(customizations);
+        item.SelectedVariations.Should().BeEquivalentTo(variations);
+        item.SeatNumber.Should().Be(4);
+        item.Parent.Should().BeSameAs(order);
     }
 
     /// <summary>

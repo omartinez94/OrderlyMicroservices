@@ -7,13 +7,13 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-10-24) — comprehensive architecture and audit revision
-> **Current state**: 🚧 Phase 2 Pending (Phase 1 Done)
+> **Current state**: 🚧 Phase 3 Pending (Phase 2 Done)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Idempotent Kitchen Consumers, Bump-to-Delivered & Recall | ✅ Done |
-| 2 | Outbox Reliability & Full Order Item Metadata | ⏸ Pending |
-| 3 | Identity Permission Upserts & Ordering Cancellation Workflow | 🔒 Blocked |
+| 2 | Outbox Reliability & Full Order Item Metadata | ✅ Done |
+| 3 | Identity Permission Upserts & Ordering Cancellation Workflow | ⏸ Pending |
 | 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | 🔒 Blocked |
 | 5 | Per-Phase SLA Stats & Stale Order Reconciliation | 🔒 Blocked |
 
@@ -343,13 +343,13 @@ Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs:105-144` to evalua
 
 **Goal**: Eliminate lost `OrderCreatedIntegrationEvent` messages and blank item names by switching `OrderCreatedEventHandler` to `IOutboxPublisher` and passing all item fields in `CreateOrderHandler`.
 
-**Status**: 🔒 Blocked
+**Status**: ✅ Done
 
 **Deliverables**:
 
-- [ ] Refactor `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler.cs` to publish `OrderCreatedIntegrationEvent` via `IOutboxPublisher` instead of `IPublishEndpoint` and remove the `OrderFullfilment` feature-flag gate so tickets are always staged atomically.
-- [ ] Fix `Ordering.Application/Orders/Commands/CreateOrder/CreateOrderHandler.cs:83` to call the 8-argument `order.Add(...)` overload passing `item.MenuItemName`, `item.SpecialInstructions`, `item.Customizations`, `item.SelectedVariations`, and `item.SeatNumber`.
-- [ ] Add unit and integration tests verifying `OutboxMessage` creation on `CreateOrder` and `BasketCheckoutEventHandler`, including full item metadata serialization.
+- [x] Refactor `Ordering.Application/Orders/EventHandlers/Domain/OrderCreatedEventHandler.cs` to publish `OrderCreatedIntegrationEvent` via `IOutboxPublisher` instead of `IPublishEndpoint` and remove the `OrderFullfilment` feature-flag gate so tickets are always staged atomically.
+- [x] Fix `Ordering.Application/Orders/Commands/CreateOrder/CreateOrderHandler.cs:83` to call the 8-argument `order.Add(...)` overload passing `item.MenuItemName`, `item.SpecialInstructions`, `item.Customizations`, `item.SelectedVariations`, and `item.SeatNumber`.
+- [x] Add unit and integration tests verifying `OutboxMessage` creation on `CreateOrder` and `BasketCheckoutEventHandler`, including full item metadata serialization.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 2" -Quick` passes and `CreateOrderEndpointTests` verifies `OutboxMessages` row persistence.
 

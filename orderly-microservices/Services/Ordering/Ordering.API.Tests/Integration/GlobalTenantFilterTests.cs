@@ -16,7 +16,7 @@ namespace Ordering.API.Tests.Integration;
 public sealed class GlobalTenantFilterTests(OrderingWebApplicationFactory factory)
 {
     private const string AllOrderPermissions =
-        "orders:view_own,orders:view_all,orders:write,kitchen:view_orders,kitchen:update_prep_status";
+        "orders:view_own,orders:view_all,orders:write,kitchen:view_orders,kitchen:update_prep_status,orders:cancel,orders:approve_cancel,orders:request_cancel";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

@@ -182,7 +182,8 @@ public sealed class TransitionHandlerTests
         var order = SeedOrder(OrderStatus.Pending);
         var dbContext = NewDbContextWith(order);
         var httpContextAccessor = NewHttpContextAccessor(Guid.NewGuid());
-        var handler = new CancelOrderHandler(dbContext, httpContextAccessor);
+        var outbox = Substitute.For<IOutboxPublisher>();
+        var handler = new CancelOrderHandler(dbContext, httpContextAccessor, outbox);
 
         await handler.Handle(
             new CancelOrderCommand(order.Id.Value, "customer requested"),
@@ -200,7 +201,8 @@ public sealed class TransitionHandlerTests
         var dbContext = NewDbContextWith(order);
         var httpContextAccessor = Substitute.For<Microsoft.AspNetCore.Http.IHttpContextAccessor>();
         httpContextAccessor.HttpContext.Returns((Microsoft.AspNetCore.Http.HttpContext?)null);
-        var handler = new CancelOrderHandler(dbContext, httpContextAccessor);
+        var outbox = Substitute.For<IOutboxPublisher>();
+        var handler = new CancelOrderHandler(dbContext, httpContextAccessor, outbox);
 
         Func<Task> act = () => handler.Handle(
             new CancelOrderCommand(order.Id.Value, "reason"),

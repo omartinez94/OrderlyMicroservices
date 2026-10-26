@@ -7,14 +7,14 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-10-24) — comprehensive architecture and audit revision
-> **Current state**: 🚧 Phase 3 Pending (Phase 2 Done)
+> **Current state**: 🚧 Phase 4 Pending (Phase 3 Done)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Idempotent Kitchen Consumers, Bump-to-Delivered & Recall | ✅ Done |
 | 2 | Outbox Reliability & Full Order Item Metadata | ✅ Done |
-| 3 | Identity Permission Upserts & Ordering Cancellation Workflow | ⏸ Pending |
-| 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | 🔒 Blocked |
+| 3 | Identity Permission Upserts & Ordering Cancellation Workflow | ✅ Done |
+| 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | ⏸ Pending |
 | 5 | Per-Phase SLA Stats & Stale Order Reconciliation | 🔒 Blocked |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
@@ -359,16 +359,16 @@ Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs:105-144` to evalua
 
 **Goal**: Seed `orders:write`, `orders:cancel`, `orders:request_cancel`, and `orders:approve_cancel` idempotently in Identity, and implement the `CancelRequested` state machine, commands, endpoints, and EF Core migration in Ordering.
 
-**Status**: 🔒 Blocked
+**Status**: ✅ Done
 
 **Deliverables**:
 
-- [ ] Refactor `Identity.API/Data/DataSeeder.cs` (`SeedPermissionsAsync` and `SeedRolePermissionsAsync`) to check and insert missing permissions and role-permission mappings individually per row; add `orders:write`, `orders:cancel`, `orders:request_cancel`, and `orders:approve_cancel` and document them in `docs/architecture/permissions.md`.
-- [ ] Add `OrderStatus.CancelRequested` and `OrderActivityType` values in `BuildingBlocks/Enums/OrderEnums.cs`.
-- [ ] Add `PreviousStatus`, `CancelRequestedAt`, `CancelRequestedByUserId`, `CancelRequestReason`, `RequestCancel`, `ApproveCancel`, and `RejectCancel` to `Order.cs`; clear legacy `RequiresAdminApproval` usage.
-- [ ] Add `OrderCancelRequestedIntegrationEvent`, `OrderCancelRejectedIntegrationEvent`, and `OrderCancelledIntegrationEvent` to `BuildingBlocks.Messaging/Events/Ordering/`.
-- [ ] Implement `RequestCancelOrderCommand`, `ApproveCancelOrderCommand`, `RejectCancelOrderCommand`, update `CancelOrderCommand` (enforcing `Pending`-only for callers without `orders:approve_cancel`), and expose Carter endpoints in `Ordering.API/Endpoints/`.
-- [ ] Generate EF Core migration in `Ordering.Infrastructure` for the new `Order` columns and update `OrderDto`, `OrderSummaryDto`, and `OrderExtensions`.
+- [x] Refactor `Identity.API/Data/DataSeeder.cs` (`SeedPermissionsAsync` and `SeedRolePermissionsAsync`) to check and insert missing permissions and role-permission mappings individually per row; add `orders:write`, `orders:cancel`, `orders:request_cancel`, and `orders:approve_cancel` and document them in `docs/architecture/permissions.md`.
+- [x] Add `OrderStatus.CancelRequested` and `OrderActivityType` values in `BuildingBlocks/Enums/OrderEnums.cs`.
+- [x] Add `PreviousStatus`, `CancelRequestedAt`, `CancelRequestedByUserId`, `CancelRequestReason`, `RequestCancel`, `ApproveCancel`, and `RejectCancel` to `Order.cs`; clear legacy `RequiresAdminApproval` usage.
+- [x] Add `OrderCancelRequestedIntegrationEvent`, `OrderCancelRejectedIntegrationEvent`, and `OrderCancelledIntegrationEvent` to `BuildingBlocks.Messaging/Events/Ordering/`.
+- [x] Implement `RequestCancelOrderCommand`, `ApproveCancelOrderCommand`, `RejectCancelOrderCommand`, update `CancelOrderCommand` (enforcing `Pending`-only for callers without `orders:approve_cancel`), and expose Carter endpoints in `Ordering.API/Endpoints/`.
+- [x] Generate EF Core migration in `Ordering.Infrastructure` for the new `Order` columns and update `OrderDto`, `OrderSummaryDto`, and `OrderExtensions`.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 3" -Quick` passes with integration tests covering direct cancel, request cancel, manager approve, and manager reject.
 

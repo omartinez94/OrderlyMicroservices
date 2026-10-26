@@ -49,4 +49,8 @@ public record OrderSummaryDto(
     int ItemsTotal,
     IReadOnlyList<OrderSummaryItemPreviewDto> ItemsPreview,
     Guid? CreatedByUserId,
-    Guid? ConfirmedByUserId);
+    Guid? ConfirmedByUserId,
+    OrderStatus? PreviousStatus = null,
+    Instant? CancelRequestedAt = null,
+    string? CancelRequestedByUserId = null,
+    string? CancelRequestReason = null);

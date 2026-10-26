@@ -93,6 +93,17 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
                 s => s == null ? null : s.ToString(),
                 s => s == null ? null : (DeliveryStatus)Enum.Parse(typeof(DeliveryStatus), s));
 
+        builder.Property(o => o.PreviousStatus)
+            .HasConversion(
+                s => s == null ? null : s.ToString(),
+                s => s == null ? null : (OrderStatus)Enum.Parse(typeof(OrderStatus), s));
+
+        builder.Property(o => o.CancelRequestedByUserId)
+            .HasMaxLength(100);
+
+        builder.Property(o => o.CancelRequestReason)
+            .HasMaxLength(500);
+
         builder.Ignore(o => o.StatusChangedAt);
     }
 }

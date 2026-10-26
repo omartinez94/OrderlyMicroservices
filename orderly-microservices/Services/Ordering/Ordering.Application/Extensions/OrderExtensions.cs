@@ -78,7 +78,11 @@ public static class OrderExtensions
                     CorrelationId: a.CorrelationId,
                     Notes: a.Notes,
                     Metadata: a.Metadata))],
-            ShortId: order.ShortId
+            ShortId: order.ShortId,
+            PreviousStatus: order.PreviousStatus,
+            CancelRequestedAt: order.CancelRequestedAt,
+            CancelRequestedByUserId: order.CancelRequestedByUserId,
+            CancelRequestReason: order.CancelRequestReason
         );
     }
 
@@ -153,7 +157,11 @@ public static class OrderExtensions
             ItemsTotal: itemsTotal,
             ItemsPreview: preview,
             CreatedByUserId: order.CreatedByUserId,
-            ConfirmedByUserId: order.ConfirmedByUserId);
+            ConfirmedByUserId: order.ConfirmedByUserId,
+            PreviousStatus: order.PreviousStatus,
+            CancelRequestedAt: order.CancelRequestedAt,
+            CancelRequestedByUserId: order.CancelRequestedByUserId,
+            CancelRequestReason: order.CancelRequestReason);
     }
 
     public static Instant? ResolveStatusChangedAt(this Order order)
@@ -173,6 +181,7 @@ public static class OrderExtensions
             OrderStatus.Delivered => order.DeliveredAt ?? order.ReadyAt,
             OrderStatus.Completed => order.CompletedAt ?? order.DeliveredAt,
             OrderStatus.Cancelled => order.CancelledAt,
+            OrderStatus.CancelRequested => order.CancelRequestedAt,
             _ => null,
         };
 

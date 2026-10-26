@@ -64,12 +64,7 @@ public static class DataSeeder
 
     private static async Task SeedPermissionsAsync(IdentityDbContext dbContext, CancellationToken ct)
     {
-        if (await dbContext.Permissions.AnyAsync(ct))
-        {
-            return;
-        }
-
-        List<Permission>? permissions = new List<Permission>
+        List<Permission> permissions = new List<Permission>
         {
             // Users
             new() { Id = Guid.NewGuid(), Name = "users:view_all", Description = "View all users", Resource = "users", Action = "view_all" },
@@ -90,6 +85,10 @@ public static class DataSeeder
 
             // Orders
             new() { Id = Guid.NewGuid(), Name = "orders:create", Description = "Create orders", Resource = "orders", Action = "create" },
+            new() { Id = Guid.NewGuid(), Name = "orders:write", Description = "Create or update orders", Resource = "orders", Action = "write" },
+            new() { Id = Guid.NewGuid(), Name = "orders:cancel", Description = "Cancel orders directly", Resource = "orders", Action = "cancel" },
+            new() { Id = Guid.NewGuid(), Name = "orders:request_cancel", Description = "Request order cancellation", Resource = "orders", Action = "request_cancel" },
+            new() { Id = Guid.NewGuid(), Name = "orders:approve_cancel", Description = "Approve or reject order cancellation", Resource = "orders", Action = "approve_cancel" },
             new() { Id = Guid.NewGuid(), Name = "orders:view_own", Description = "View own orders", Resource = "orders", Action = "view_own" },
             new() { Id = Guid.NewGuid(), Name = "orders:view_all", Description = "View all orders", Resource = "orders", Action = "view_all" },
             new() { Id = Guid.NewGuid(), Name = "orders:modify_ordering", Description = "Modify orders in ordering status", Resource = "orders", Action = "modify_ordering" },
@@ -119,25 +118,36 @@ public static class DataSeeder
             new() { Id = Guid.NewGuid(), Name = "audit:view", Description = "View audit log", Resource = "audit", Action = "view" },
         };
 
-        dbContext.Permissions.AddRange(permissions);
+        bool hasNewPermissions = false;
+        foreach (Permission permission in permissions)
+        {
+            if (!await dbContext.Permissions.AnyAsync(p => p.Name == permission.Name, ct))
+            {
+                dbContext.Permissions.Add(permission);
+                hasNewPermissions = true;
+            }
+        }
+
+        if (hasNewPermissions)
+        {
+            await dbContext.SaveChangesAsync(ct);
+        }
     }
 
     private static async Task SeedRolePermissionsAsync(IdentityDbContext dbContext, RoleManager<ApplicationRole> roleManager, CancellationToken ct)
     {
-        if (await dbContext.RolePermissions.AnyAsync(ct))
-        {
-            return;
-        }
+        List<string> allPermissionNames = await dbContext.Permissions.Select(p => p.Name).ToListAsync(ct);
 
-        Dictionary<string, List<string>>? rolePermissionMap = new Dictionary<string, List<string>>
+        Dictionary<string, List<string>> rolePermissionMap = new()
         {
-            ["SuperAdmin"] = dbContext.Permissions.Select(p => p.Name).ToList(),
+            ["SuperAdmin"] = allPermissionNames,
             ["RestaurantAdmin"] = new()
             {
                 "users:view_all", "users:create", "users:edit", "users:assign_roles", "users:assign_restaurants",
                 "roles:view", "roles:edit", "roles:edit_permissions",
                 "permissions:view",
                 "orders:view_all", "orders:modify_confirmed", "orders:modify_ready", "orders:admin",
+                "orders:write", "orders:cancel", "orders:request_cancel", "orders:approve_cancel",
                 "menu:view", "menu:edit",
                 "kitchen:view_orders",
                 "reservations:view", "reservations:create", "reservations:edit",
@@ -150,6 +160,7 @@ public static class DataSeeder
                 "roles:view",
                 "permissions:view",
                 "orders:view_all", "orders:modify_confirmed",
+                "orders:write", "orders:cancel", "orders:request_cancel", "orders:approve_cancel",
                 "menu:view", "menu:edit",
                 "kitchen:view_orders",
                 "reservations:view", "reservations:edit",
@@ -159,11 +170,13 @@ public static class DataSeeder
             ["KitchenManager"] = new()
             {
                 "orders:view_all", "orders:modify_ordering", "orders:modify_confirmed",
+                "orders:approve_cancel",
                 "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Waiter"] = new()
             {
                 "orders:create", "orders:view_own", "orders:modify_ordering",
+                "orders:write", "orders:cancel", "orders:request_cancel",
                 "menu:view",
                 "reservations:view", "reservations:create",
             },
@@ -184,6 +197,7 @@ public static class DataSeeder
             },
         };
 
+        bool hasNewRolePermissions = false;
         foreach (var (roleName, permissionNames) in rolePermissionMap)
         {
             ApplicationRole? role = await roleManager.FindByNameAsync(roleName);
@@ -192,19 +206,29 @@ public static class DataSeeder
                 continue;
             }
 
-            List<Permission>? permissions = await dbContext.Permissions
+            List<Permission> permissions = await dbContext.Permissions
                 .Where(p => permissionNames.Contains(p.Name))
                 .ToListAsync(ct);
 
-            IEnumerable<RolePermission>? rolePermissions = permissions.Select(p => new RolePermission
+            foreach (Permission permission in permissions)
             {
-                RoleId = role.Id,
-                Role = role,
-                PermissionId = p.Id,
-                Permission = p,
-            });
+                if (!await dbContext.RolePermissions.AnyAsync(rp => rp.RoleId == role.Id && rp.PermissionId == permission.Id, ct))
+                {
+                    dbContext.RolePermissions.Add(new RolePermission
+                    {
+                        RoleId = role.Id,
+                        Role = role,
+                        PermissionId = permission.Id,
+                        Permission = permission,
+                    });
+                    hasNewRolePermissions = true;
+                }
+            }
+        }
 
-            dbContext.RolePermissions.AddRange(rolePermissions);
+        if (hasNewRolePermissions)
+        {
+            await dbContext.SaveChangesAsync(ct);
         }
     }
 

@@ -60,6 +60,10 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     public Instant? ReadyAt { get; set; }
     public Instant? StatusChangedAt { get; set; }
     public Guid? TableId { get; set; }
+    public OrderStatus? PreviousStatus { get; private set; }
+    public Instant? CancelRequestedAt { get; private set; }
+    public string? CancelRequestedByUserId { get; private set; }
+    public string? CancelRequestReason { get; private set; }
 
     // Navigation properties
     private readonly List<OrderItem> _orderItems = [];
@@ -344,11 +348,16 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
 
     /// <summary>
     /// Permitted from any non-terminal state. Records reason and the user
-    /// who cancelled for audit.
+    /// who cancelled for audit. If already Cancelled, this is an idempotent no-op.
     /// </summary>
     public void Cancel(string reason, Guid cancelledByUserId, Instant now)
     {
-        if (Status is OrderStatus.Cancelled or OrderStatus.Completed or OrderStatus.Delivered)
+        if (Status is OrderStatus.Cancelled)
+        {
+            return;
+        }
+
+        if (Status is OrderStatus.Completed or OrderStatus.Delivered)
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(Cancel));
         }
@@ -364,6 +373,12 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
         CancelledAt = now;
         CancelledByUserId = cancelledByUserId;
         CancellationReason = reason;
+        StatusChangedAt = now;
+        RequiresAdminApproval = false;
+        PreviousStatus = null;
+        CancelRequestedAt = null;
+        CancelRequestedByUserId = null;
+        CancelRequestReason = null;
 
         AddDomainEvent(new OrderCancelledEvent(this, reason, cancelledByUserId, now));
         RecordActivity(
@@ -373,6 +388,127 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
             notes: reason,
             metadata: CancelMetadata(reason, previousStatus));
     }
+
+    /// <summary>
+    /// Staff requests cancellation when an order has reached Confirmed, Preparing, or Ready.
+    /// Transitions status to CancelRequested awaiting manager/kitchen approval.
+    /// Direct cancellation of Pending orders should call <see cref="Cancel"/> instead.
+    /// </summary>
+    public void RequestCancel(Instant now, string? requestedByUserId, string? reason)
+    {
+        if (Status == OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
+        if (Status is not (OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.Ready))
+        {
+            throw new InvalidOrderStateTransitionException(Status, nameof(RequestCancel));
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+
+        OrderStatus previousStatus = Status;
+        PreviousStatus = previousStatus;
+        CancelRequestedAt = now;
+        CancelRequestedByUserId = requestedByUserId;
+        CancelRequestReason = reason;
+        Status = OrderStatus.CancelRequested;
+        StatusChangedAt = now;
+        RequiresAdminApproval = false;
+
+        Guid? actorGuid = Guid.TryParse(requestedByUserId, out Guid parsedId) ? parsedId : null;
+
+        RecordActivity(
+            OrderActivityType.OrderCancelRequested,
+            actorUserId: actorGuid,
+            occurredAt: now,
+            notes: reason,
+            metadata: OrderStatusMetadata(previousStatus, Status));
+    }
+
+    public void RequestCancel(string reason, Guid requestedByUserId, Instant now) =>
+        RequestCancel(now, requestedByUserId.ToString(), reason);
+
+    /// <summary>
+    /// Approver (Manager/Admin/Kitchen) accepts the cancellation request,
+    /// transitioning the order to Cancelled.
+    /// </summary>
+    public void ApproveCancel(Instant now, string? approvedByUserId, string? cancellationReason)
+    {
+        if (Status == OrderStatus.Cancelled)
+        {
+            return;
+        }
+
+        if (Status is not (OrderStatus.CancelRequested or OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.Ready))
+        {
+            throw new InvalidOrderStateTransitionException(Status, nameof(ApproveCancel));
+        }
+
+        Guid approvedGuid = Guid.TryParse(approvedByUserId, out Guid parsedId) && parsedId != Guid.Empty
+            ? parsedId
+            : (CancelledByUserId ?? Guid.Empty);
+
+        string reason = !string.IsNullOrWhiteSpace(cancellationReason)
+            ? cancellationReason
+            : (!string.IsNullOrWhiteSpace(CancelRequestReason) ? CancelRequestReason : "Cancellation approved");
+
+        OrderStatus previousStatus = Status;
+        Status = OrderStatus.Cancelled;
+        CancelledAt = now;
+        CancelledByUserId = approvedGuid != Guid.Empty ? approvedGuid : null;
+        CancellationReason = reason;
+        StatusChangedAt = now;
+        RequiresAdminApproval = false;
+        PreviousStatus = null;
+        CancelRequestedAt = null;
+        CancelRequestedByUserId = null;
+        CancelRequestReason = null;
+
+        AddDomainEvent(new OrderCancelledEvent(this, reason, approvedGuid, now));
+        RecordActivity(
+            OrderActivityType.OrderCancelled,
+            actorUserId: approvedGuid != Guid.Empty ? approvedGuid : null,
+            occurredAt: now,
+            notes: reason,
+            metadata: CancelMetadata(reason, previousStatus));
+    }
+
+    public void ApproveCancel(Guid approvedByUserId, string? reason, Instant now) =>
+        ApproveCancel(now, approvedByUserId.ToString(), reason);
+
+    /// <summary>
+    /// Approver (Manager/Admin/Kitchen) rejects the cancellation request,
+    /// restoring the order to its previous status.
+    /// </summary>
+    public void RejectCancel(Instant now, string? rejectedByUserId, string? rejectionReason)
+    {
+        if (Status != OrderStatus.CancelRequested)
+        {
+            throw new InvalidOrderStateTransitionException(Status, nameof(RejectCancel));
+        }
+
+        Guid? actorGuid = Guid.TryParse(rejectedByUserId, out Guid parsedId) ? parsedId : null;
+        OrderStatus previousStatus = Status;
+        Status = PreviousStatus ?? OrderStatus.Confirmed;
+        StatusChangedAt = now;
+        RequiresAdminApproval = false;
+        PreviousStatus = null;
+        CancelRequestedAt = null;
+        CancelRequestedByUserId = null;
+        CancelRequestReason = null;
+
+        RecordActivity(
+            OrderActivityType.OrderCancelRejected,
+            actorUserId: actorGuid,
+            occurredAt: now,
+            notes: rejectionReason,
+            metadata: OrderStatusMetadata(previousStatus, Status));
+    }
+
+    public void RejectCancel(Guid rejectedByUserId, string? rejectionNotes, Instant now) =>
+        RejectCancel(now, rejectedByUserId.ToString(), rejectionNotes);
 
     public void Add(MenuItemId menuItemId, int quantity, decimal price)
     {

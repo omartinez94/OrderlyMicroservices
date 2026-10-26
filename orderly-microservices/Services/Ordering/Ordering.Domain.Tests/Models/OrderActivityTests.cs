@@ -123,6 +123,8 @@ public sealed class OrderActivityTests
     [InlineData(OrderActivityType.OrderCancelled)]
     [InlineData(OrderActivityType.OrderItemPrepStarted)]
     [InlineData(OrderActivityType.OrderItemPrepCompleted)]
+    [InlineData(OrderActivityType.OrderCancelRequested)]
+    [InlineData(OrderActivityType.OrderCancelRejected)]
     public void Create_ForEachEnumValue_BuildsActivity(OrderActivityType type)
     {
         var activity = CreateActivity(type);

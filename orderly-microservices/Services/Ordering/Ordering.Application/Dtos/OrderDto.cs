@@ -65,5 +65,10 @@ public record OrderDto(
     /// works end-to-end.
     /// </summary>
     IReadOnlyList<OrderActivityDto> Activities,
-    string ShortId = ""
+    string ShortId = "",
+
+    OrderStatus? PreviousStatus = null,
+    Instant? CancelRequestedAt = null,
+    string? CancelRequestedByUserId = null,
+    string? CancelRequestReason = null
 );

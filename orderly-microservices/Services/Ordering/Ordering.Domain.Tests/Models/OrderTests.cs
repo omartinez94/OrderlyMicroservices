@@ -419,11 +419,9 @@ public sealed class OrderTests
     }
 
     /// <summary>
-    /// Illegal transition: <c>Cancel</c> cannot be invoked on an already
-    /// <c>Cancelled</c>, <c>Completed</c>, or <c>Delivered</c> order.
+    /// Illegal transition: <c>Cancel</c> cannot be invoked on Completed or Delivered orders.
     /// </summary>
     [Theory]
-    [InlineData(OrderStatus.Cancelled)]
     [InlineData(OrderStatus.Completed)]
     [InlineData(OrderStatus.Delivered)]
     public void Cancel_FromTerminalState_Throws(OrderStatus from)
@@ -438,6 +436,24 @@ public sealed class OrderTests
 
         act.Should().Throw<InvalidOrderStateTransitionException>()
             .Which.FromStatus.Should().Be(from);
+    }
+
+    [Fact]
+    public void Cancel_WhenAlreadyCancelled_IsIdempotentNoOp()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        var staffId = Guid.NewGuid();
+        var t0 = SystemClock.Instance.GetCurrentInstant();
+        order.Cancel("initial cancel", staffId, t0);
+        order.ClearDomainEvents();
+
+        order.Cancel("second cancel", staffId, t0.Plus(Duration.FromMinutes(1)));
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.CancellationReason.Should().Be("initial cancel");
+        order.DomainEvents.Should().BeEmpty();
     }
 
     /// <summary>
@@ -949,5 +965,198 @@ public sealed class OrderTests
 
         act.Should().Throw<InvalidOrderStateTransitionException>()
             .Which.FromStatus.Should().Be(OrderStatus.Pending);
+    }
+
+    // -------- RequestCancel --------
+
+    [Theory]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    public void RequestCancel_FromValidStatuses_TransitionsToCancelRequested(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.RequiresAdminApproval = true;
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        var staffId = Guid.NewGuid().ToString();
+        order.RequestCancel(now, staffId, "Customer changed mind");
+
+        order.Status.Should().Be(OrderStatus.CancelRequested);
+        order.PreviousStatus.Should().Be(from);
+        order.CancelRequestedAt.Should().Be(now);
+        order.CancelRequestedByUserId.Should().Be(staffId);
+        order.CancelRequestReason.Should().Be("Customer changed mind");
+        order.RequiresAdminApproval.Should().BeFalse();
+        order.StatusChangedAt.Should().Be(now);
+    }
+
+    [Fact]
+    public void RequestCancel_WhenAlreadyCancelRequested_IsIdempotentNoOp()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Confirmed);
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        order.RequestCancel(now, "staff-1", "First reason");
+
+        order.RequestCancel(now.Plus(Duration.FromMinutes(1)), "staff-2", "Second reason");
+
+        order.Status.Should().Be(OrderStatus.CancelRequested);
+        order.CancelRequestReason.Should().Be("First reason");
+        order.CancelRequestedByUserId.Should().Be("staff-1");
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Completed)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void RequestCancel_FromInvalidStatuses_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.RequestCancel(SystemClock.Instance.GetCurrentInstant(), "staff-1", "reason");
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    [Fact]
+    public void RequestCancel_WithEmptyReason_Throws()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Confirmed);
+
+        Action act = () => order.RequestCancel(SystemClock.Instance.GetCurrentInstant(), "staff-1", "");
+
+        act.Should().Throw<ArgumentException>();
+    }
+
+    // -------- ApproveCancel --------
+
+    [Fact]
+    public void ApproveCancel_FromCancelRequested_TransitionsToCancelled()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Confirmed);
+        var t0 = SystemClock.Instance.GetCurrentInstant();
+        order.RequestCancel(t0, "waiter-1", "Customer had to leave");
+        order.ClearDomainEvents();
+
+        var t1 = t0.Plus(Duration.FromMinutes(2));
+        var approverId = Guid.NewGuid();
+        order.ApproveCancel(t1, approverId.ToString(), "Approved by manager");
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.CancelledAt.Should().Be(t1);
+        order.CancelledByUserId.Should().Be(approverId);
+        order.CancellationReason.Should().Be("Approved by manager");
+        order.PreviousStatus.Should().BeNull();
+        order.CancelRequestedAt.Should().BeNull();
+        order.CancelRequestedByUserId.Should().BeNull();
+        order.CancelRequestReason.Should().BeNull();
+        order.RequiresAdminApproval.Should().BeFalse();
+        order.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<OrderCancelledEvent>();
+    }
+
+    [Fact]
+    public void ApproveCancel_WhenAlreadyCancelled_IsIdempotentNoOp()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.Cancel("initial cancel", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+        order.ClearDomainEvents();
+
+        order.ApproveCancel(SystemClock.Instance.GetCurrentInstant(), Guid.NewGuid().ToString(), "already cancelled");
+
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.DomainEvents.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Completed)]
+    public void ApproveCancel_FromDeliveredOrCompleted_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.ApproveCancel(SystemClock.Instance.GetCurrentInstant(), "manager-1", "reason");
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- RejectCancel --------
+
+    [Theory]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    public void RejectCancel_FromCancelRequested_RestoresPreviousStatus(OrderStatus previousStatus)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, previousStatus);
+        var t0 = SystemClock.Instance.GetCurrentInstant();
+        order.RequestCancel(t0, "waiter-1", "Mistake order");
+
+        var t1 = t0.Plus(Duration.FromMinutes(1));
+        order.RejectCancel(t1, "kitchen-1", "Food is already boxed");
+
+        order.Status.Should().Be(previousStatus);
+        order.StatusChangedAt.Should().Be(t1);
+        order.PreviousStatus.Should().BeNull();
+        order.CancelRequestedAt.Should().BeNull();
+        order.CancelRequestedByUserId.Should().BeNull();
+        order.CancelRequestReason.Should().BeNull();
+        order.RequiresAdminApproval.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.Completed)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void RejectCancel_FromNonCancelRequested_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.RejectCancel(SystemClock.Instance.GetCurrentInstant(), "manager-1", "reason");
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
     }
 }

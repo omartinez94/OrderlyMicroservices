@@ -180,6 +180,17 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.Property<Guid?>("ApprovedByAdminId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("CancelRequestReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("CancelRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CancelRequestedByUserId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CancellationReason")
                         .HasColumnType("nvarchar(max)");
 
@@ -269,6 +280,9 @@ namespace Ordering.Infrastructure.Data.Migrations
 
                     b.Property<DateTime?>("PreparingStartedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ReadyAt")
                         .HasColumnType("datetime2");

@@ -33,7 +33,21 @@ public sealed class LenientInstantJsonConverter : JsonConverter<Instant>
 
         if (reader.TokenType == JsonTokenType.StartObject)
         {
-            reader.Skip();
+            if (!reader.TrySkip())
+            {
+                int depth = 1;
+                while (depth > 0 && reader.Read())
+                {
+                    if (reader.TokenType == JsonTokenType.StartObject)
+                    {
+                        depth++;
+                    }
+                    else if (reader.TokenType == JsonTokenType.EndObject)
+                    {
+                        depth--;
+                    }
+                }
+            }
             return default;
         }
 

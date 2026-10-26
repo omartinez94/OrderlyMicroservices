@@ -24,7 +24,7 @@ namespace Ordering.API.Tests.Integration;
 public sealed class OrderingApiIntegrationTests
 {
     private const string KitchenPermissions =
-        "kitchen:view_orders,kitchen:update_prep_status";
+        "kitchen:view_orders,kitchen:update_prep_status,orders:cancel,orders:approve_cancel,orders:request_cancel";
 
     private readonly OrderingWebApplicationFactory _factory;
 

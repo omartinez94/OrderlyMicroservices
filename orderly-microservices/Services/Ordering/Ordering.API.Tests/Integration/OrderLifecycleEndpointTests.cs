@@ -25,7 +25,7 @@ namespace Ordering.API.Tests.Integration;
 [Collection(nameof(OrderingWebApplicationFactoryCollection))]
 public sealed class OrderLifecycleEndpointTests
 {
-    private const string KitchenPermissions = "kitchen:update_prep_status";
+    private const string KitchenPermissions = "kitchen:update_prep_status,orders:cancel,orders:approve_cancel,orders:request_cancel";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

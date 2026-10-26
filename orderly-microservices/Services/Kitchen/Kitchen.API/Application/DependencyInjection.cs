@@ -1,6 +1,8 @@
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Kitchen.API.Application.EventHandlers.Domain;
 using Kitchen.API.Infrastructure;
 
 namespace Kitchen.API.Application;
@@ -29,6 +31,9 @@ public static class DependencyInjection
 
         services.AddHttpContextAccessor();
         services.AddScoped<Application.Abstractions.ICurrentUser, HttpContextCurrentUser>();
+        services.TryAddScoped<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
+        services.AddScoped<IKitchenTicketBroadcaster, KitchenTicketBroadcaster>();
+        services.AddScoped<KitchenTicketBroadcaster>();
 
         services.AddMessageBroker(configuration, Assembly.GetExecutingAssembly());
 

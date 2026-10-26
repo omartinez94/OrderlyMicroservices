@@ -13,6 +13,8 @@ public class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket
 {
     public void Configure(EntityTypeBuilder<KitchenTicket> builder)
     {
+        ArgumentNullException.ThrowIfNull(builder);
+
         builder.ToTable("kitchen_tickets");
 
         builder.HasKey(t => t.Id);
@@ -33,10 +35,15 @@ public class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket
         builder.Property(t => t.StartedAt).HasColumnName("StartedAt").HasColumnType("timestamp with time zone");
         builder.Property(t => t.ReadyAt).HasColumnName("ReadyAt").HasColumnType("timestamp with time zone");
         builder.Property(t => t.BumpedAt).HasColumnName("BumpedAt").HasColumnType("timestamp with time zone");
+        builder.Property(t => t.CompletedAt).HasColumnName("CompletedAt").HasColumnType("timestamp with time zone");
+        builder.Property(t => t.StatusChangedAt).HasColumnName("StatusChangedAt").HasColumnType("timestamp with time zone");
         builder.Property(t => t.CancelledAt).HasColumnName("CancelledAt").HasColumnType("timestamp with time zone");
         builder.Property(t => t.ConfirmedByUserId).HasColumnName("ConfirmedByUserId").HasColumnType("uuid");
         builder.Property(t => t.CancelledByUserId).HasColumnName("CancelledByUserId").HasColumnType("uuid");
         builder.Property(t => t.CancellationReason).HasColumnName("CancellationReason").HasMaxLength(500);
+        builder.Property(t => t.IsCancelRequested).HasColumnName("IsCancelRequested").HasDefaultValue(false);
+        builder.Property(t => t.CancelRequestReason).HasColumnName("CancelRequestReason").HasMaxLength(500);
+        builder.Property(t => t.CancelRequestedAt).HasColumnName("CancelRequestedAt").HasColumnType("timestamp with time zone");
         builder.Property(t => t.Notes).HasColumnName("Notes").HasMaxLength(2000);
 
         // Domain events are dispatched by the interceptor — never persisted.
@@ -66,7 +73,7 @@ public class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket
                     v => v.ToList())
                 .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<string>>(
                     (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
-                    v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+                    v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode(StringComparison.Ordinal))),
                     v => (IReadOnlyList<string>)v.ToList()));
             item.Property(i => i.Customizations)
                 .HasColumnName("Customizations")
@@ -76,7 +83,7 @@ public class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket
                     v => v.ToList())
                 .Metadata.SetValueComparer(new ValueComparer<IReadOnlyList<string>>(
                     (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
-                    v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode())),
+                    v => v.Aggregate(0, (hash, s) => HashCode.Combine(hash, s.GetHashCode(StringComparison.Ordinal))),
                     v => (IReadOnlyList<string>)v.ToList()));
             item.Property(i => i.SpecialInstructions).HasColumnName("SpecialInstructions").HasMaxLength(1000);
             item.Property(i => i.SeatNumber).HasColumnName("SeatNumber");

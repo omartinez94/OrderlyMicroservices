@@ -62,6 +62,33 @@ public sealed class BumpOrderHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenTicketCancelledPendingAck_TransitionsToCancelled_AndDoesNotPublishBumpedEvent()
+    {
+        var ticket = ReadyTicket();
+        ticket.MarkCancelledPendingAck(Now, "External cancel");
+
+        var repo = Substitute.For<IKitchenTicketRepository>();
+        repo.GetByIdAsync(ticket.Id.Value, Arg.Any<CancellationToken>()).Returns(ticket);
+
+        var publish = Substitute.For<IOutboxPublisher>();
+        var currentUser = Substitute.For<ICurrentUser>();
+        var staffId = Guid.NewGuid();
+        currentUser.UserId.Returns(staffId);
+
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var handler = new BumpOrderHandler(
+            repo, unitOfWork, publish, currentUser, NullLogger<BumpOrderHandler>.Instance);
+
+        var result = await handler.Handle(new BumpOrderCommand(ticket.Id.Value), CancellationToken.None);
+
+        result.TicketId.Should().Be(ticket.Id.Value);
+        ticket.Status.Should().Be(KitchenTicketStatus.Cancelled);
+        await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        await publish.DidNotReceive().PublishAsync(
+            Arg.Any<KitchenOrderBumpedIntegrationEvent>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_WhenTicketNotReady_Throws()
     {
         // Build a ticket that is only Accepted, not Ready.

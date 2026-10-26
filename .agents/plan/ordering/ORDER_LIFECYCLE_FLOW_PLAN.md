@@ -7,15 +7,15 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-10-24) — comprehensive architecture and audit revision
-> **Current state**: 🚧 Phase 4 Pending (Phase 3 Done)
+> **Current state**: 🚧 Phase 5 Pending (Phase 4 Done)
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Idempotent Kitchen Consumers, Bump-to-Delivered & Recall | ✅ Done |
 | 2 | Outbox Reliability & Full Order Item Metadata | ✅ Done |
 | 3 | Identity Permission Upserts & Ordering Cancellation Workflow | ✅ Done |
-| 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | ⏸ Pending |
-| 5 | Per-Phase SLA Stats & Stale Order Reconciliation | 🔒 Blocked |
+| 4 | Kitchen Cancel Request Approval & CancelledPendingAck Queue | ✅ Done |
+| 5 | Per-Phase SLA Stats & Stale Order Reconciliation | ⏸ Pending |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -378,15 +378,15 @@ Update `ComputeActiveSlaMetrics` in `GetOrdersStatsHandler.cs:105-144` to evalua
 
 **Goal**: Synchronize cancellation requests and cancellations with `Kitchen.API` so KDS staff can approve/reject `CancelRequested` tickets and must bump/acknowledge externally cancelled tickets (`CancelledPendingAck`) before they leave the KDS queue.
 
-**Status**: 🔒 Blocked
+**Status**: ✅ Done
 
 **Deliverables**:
 
-- [ ] Add `KitchenTicketStatus.CancelledPendingAck = 5` and `IsCancelRequested`, `CancelRequestReason`, `CancelRequestedAt` properties + domain methods on `KitchenTicket.cs`, with an EF Core migration in `Kitchen.API`.
-- [ ] Update `KitchenTicketRepository.GetQueueAsync` to include `KitchenTicketStatus.CancelledPendingAck`.
-- [ ] Update `BumpOrder.cs` to transition `CancelledPendingAck -> Cancelled` without emitting `KitchenOrderBumpedIntegrationEvent`.
-- [ ] Add `RejectCancelRequest.cs` command and `POST /v1/kitchen/tickets/{id}/reject-cancel` endpoint in `Kitchen.API`, publishing `KitchenOrderCancelRejectedIntegrationEvent` (and add its consumer in `Ordering.Application`).
-- [ ] Implement `OrderCancelRequestedIntegrationEventHandler`, `OrderCancelRejectedIntegrationEventHandler`, and `OrderCancelledIntegrationEventHandler` (which no-ops if ticket is already `Cancelled` so KDS-initiated cancels never self-ack) in `Kitchen.API`, broadcasting updates via `KitchenTicketBroadcaster`.
+- [x] Add `KitchenTicketStatus.CancelledPendingAck = 5` and `IsCancelRequested`, `CancelRequestReason`, `CancelRequestedAt` properties + domain methods on `KitchenTicket.cs`, with an EF Core migration in `Kitchen.API`.
+- [x] Update `KitchenTicketRepository.GetQueueAsync` to include `KitchenTicketStatus.CancelledPendingAck`.
+- [x] Update `BumpOrder.cs` to transition `CancelledPendingAck -> Cancelled` without emitting `KitchenOrderBumpedIntegrationEvent`.
+- [x] Add `RejectCancelRequest.cs` command and `POST /v1/kitchen/tickets/{id}/reject-cancel` endpoint in `Kitchen.API`, publishing `KitchenOrderCancelRejectedIntegrationEvent` (and add its consumer in `Ordering.Application`).
+- [x] Implement `OrderCancelRequestedIntegrationEventHandler`, `OrderCancelRejectedIntegrationEventHandler`, and `OrderCancelledIntegrationEventHandler` (which no-ops if ticket is already `Cancelled` so KDS-initiated cancels never self-ack) in `Kitchen.API`, broadcasting updates via `KitchenTicketBroadcaster`.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 4" -Quick` passes with `Kitchen.API.Tests` verifying KDS cancel approval, rejection, external cancel `CancelledPendingAck` queue retention, and no self-ack on KDS direct cancel.
 

@@ -20,7 +20,10 @@ public record KitchenTicketDto(
     Guid? CancelledByUserId,
     string Notes,
     int EstimatedPrepTimeMinutes,
-    IReadOnlyList<KitchenTicketItemDto> Items);
+    IReadOnlyList<KitchenTicketItemDto> Items,
+    bool IsCancelRequested = false,
+    string? CancelRequestReason = null,
+    Instant? CancelRequestedAt = null);
 
 public record KitchenTicketItemDto(
     Guid Id,

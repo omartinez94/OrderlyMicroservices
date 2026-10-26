@@ -133,6 +133,15 @@ namespace Kitchen.API.Infrastructure.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("BumpedAt");
 
+                    b.Property<string>("CancelRequestReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("CancelRequestReason");
+
+                    b.Property<Instant?>("CancelRequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CancelRequestedAt");
+
                     b.Property<string>("CancellationReason")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
@@ -146,6 +155,10 @@ namespace Kitchen.API.Infrastructure.Data.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("CancelledByUserId");
 
+                    b.Property<Instant?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CompletedAt");
+
                     b.Property<Guid?>("ConfirmedByUserId")
                         .HasColumnType("uuid")
                         .HasColumnName("ConfirmedByUserId");
@@ -153,6 +166,12 @@ namespace Kitchen.API.Infrastructure.Data.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("CustomerId");
+
+                    b.Property<bool>("IsCancelRequested")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsCancelRequested");
 
                     b.Property<string>("Notes")
                         .IsRequired()
@@ -185,6 +204,10 @@ namespace Kitchen.API.Infrastructure.Data.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("Status");
+
+                    b.Property<Instant?>("StatusChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("StatusChangedAt");
 
                     b.HasKey("Id");
 

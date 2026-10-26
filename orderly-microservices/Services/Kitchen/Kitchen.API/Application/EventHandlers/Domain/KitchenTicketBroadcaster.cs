@@ -8,13 +8,38 @@ namespace Kitchen.API.Application.EventHandlers.Domain;
 /// <c>SaveChanges</c> commits, so this handler runs while the EF transaction
 /// is still open — the UI sees the change the instant the database commits.
 ///
-/// <c>OrderCreated</c> is intentionally NOT handled here: it is fired by the
-/// inbound <c>OrderCreatedIntegrationEventHandler</c> after it builds the
-/// ticket, which broadcasts directly via the same hub context.
+/// Also implements <see cref="IKitchenTicketBroadcaster"/> to support
+/// explicit broadcasts triggered by integration event consumers or commands.
 /// </summary>
 public class KitchenTicketBroadcaster(IHubContext<KitchenHub, IKitchenHubClient> hub)
-    : INotificationHandler<IDomainEvent>
+    : INotificationHandler<IDomainEvent>, IKitchenTicketBroadcaster
 {
+    public async Task BroadcastTicketUpdatedAsync(KitchenTicket ticket, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ticket);
+
+        IKitchenHubClient group = hub.Clients.Group($"restaurant:{ticket.RestaurantId}");
+
+        if (ticket.IsCancelRequested && ticket.CancelRequestedAt.HasValue)
+        {
+            await group.OrderCancelRequested(
+                ticket.Id.Value,
+                ticket.Id.Value,
+                ticket.CancelRequestReason ?? string.Empty,
+                ticket.CancelRequestedAt.Value);
+        }
+        else if (ticket.Status is KitchenTicketStatus.CancelledPendingAck or KitchenTicketStatus.Cancelled)
+        {
+            await group.OrderCancelled(ticket.Id.Value, ticket.CancellationReason ?? string.Empty);
+        }
+        else
+        {
+            await group.OrderCancelRejected(ticket.Id.Value, ticket.Id.Value, SystemClock.Instance.GetCurrentInstant());
+        }
+
+        await group.TicketUpdated(ticket.ToDto());
+    }
+
     public async Task Handle(IDomainEvent domainEvent, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);

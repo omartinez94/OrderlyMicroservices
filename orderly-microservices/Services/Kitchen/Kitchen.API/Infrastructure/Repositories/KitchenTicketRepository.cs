@@ -20,7 +20,8 @@ public class KitchenTicketRepository(KitchenDbContext dbContext) : IKitchenTicke
             .Include(t => t.Items)
             .Where(t => t.Status == KitchenTicketStatus.New
                      || t.Status == KitchenTicketStatus.InProgress
-                     || t.Status == KitchenTicketStatus.Ready);
+                     || t.Status == KitchenTicketStatus.Ready
+                     || t.Status == KitchenTicketStatus.CancelledPendingAck);
 
         if (restaurantId.HasValue)
         {

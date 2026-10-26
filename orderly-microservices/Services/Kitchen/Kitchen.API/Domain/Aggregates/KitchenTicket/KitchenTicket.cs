@@ -31,6 +31,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         OrderNumber = orderNumber;
         ReceivedAt = receivedAt;
         Status = KitchenTicketStatus.New;
+        StatusChangedAt = receivedAt;
     }
 
     public Guid RestaurantId { get; private set; }
@@ -41,10 +42,15 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
     public Instant? StartedAt { get; private set; }
     public Instant? ReadyAt { get; private set; }
     public Instant? BumpedAt { get; private set; }
+    public Instant? CompletedAt { get; private set; }
+    public Instant? StatusChangedAt { get; private set; }
     public Guid? ConfirmedByUserId { get; private set; }
     public string? CancellationReason { get; private set; }
     public Guid? CancelledByUserId { get; private set; }
     public Instant? CancelledAt { get; private set; }
+    public bool IsCancelRequested { get; private set; }
+    public string? CancelRequestReason { get; private set; }
+    public Instant? CancelRequestedAt { get; private set; }
     public string Notes { get; private set; } = string.Empty;
 
     public IReadOnlyCollection<KitchenTicketItem> Items => _items.AsReadOnly();
@@ -127,6 +133,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         Status = KitchenTicketStatus.InProgress;
         ConfirmedByUserId = staffUserId;
         StartedAt = now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new KitchenTicketAcceptedEvent(this, staffUserId, now));
     }
@@ -194,22 +201,33 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
 
         Status = KitchenTicketStatus.Ready;
         ReadyAt = now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new KitchenTicketReadyEvent(this, now));
     }
 
     /// <summary>
-    /// <c>Ready -&gt; Bumped</c>. The expo has acknowledged the ticket.
+    /// <c>Ready -&gt; Bumped</c> or <c>CancelledPendingAck -&gt; Cancelled</c>.
     /// </summary>
     public void Bump(Instant now)
     {
-        if (Status is not KitchenTicketStatus.Ready)
+        if (Status is not (KitchenTicketStatus.Ready or KitchenTicketStatus.CancelledPendingAck))
         {
             throw new InvalidKitchenTicketStateTransitionException(Status, nameof(Bump));
         }
 
+        if (Status == KitchenTicketStatus.CancelledPendingAck)
+        {
+            Status = KitchenTicketStatus.Cancelled;
+            CompletedAt = now;
+            StatusChangedAt = now;
+            return;
+        }
+
         Status = KitchenTicketStatus.Bumped;
         BumpedAt = now;
+        CompletedAt = now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new KitchenTicketBumpedEvent(this, now));
     }
@@ -227,6 +245,8 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
 
         Status = KitchenTicketStatus.Ready;
         BumpedAt = null;
+        CompletedAt = null;
+        StatusChangedAt = now;
 
         AddDomainEvent(new KitchenTicketRecalledEvent(this, now));
     }
@@ -252,8 +272,55 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
         CancellationReason = reason;
         CancelledByUserId = userId;
         CancelledAt = now;
+        CompletedAt = now;
+        StatusChangedAt = now;
+        IsCancelRequested = false;
 
         AddDomainEvent(new KitchenTicketCancelledEvent(this, reason, userId, now));
+    }
+
+    /// <summary>
+    /// Flags that staff requested cancellation on the order.
+    /// </summary>
+    public void MarkCancelRequested(Instant now, string? reason)
+    {
+        if (Status is KitchenTicketStatus.Cancelled or KitchenTicketStatus.CancelledPendingAck or KitchenTicketStatus.Bumped)
+        {
+            return;
+        }
+
+        IsCancelRequested = true;
+        CancelRequestReason = reason;
+        CancelRequestedAt = now;
+    }
+
+    /// <summary>
+    /// Clears the pending cancellation request flag and metadata.
+    /// </summary>
+    public void ClearCancelRequest()
+    {
+        IsCancelRequested = false;
+        CancelRequestReason = null;
+        CancelRequestedAt = null;
+    }
+
+    /// <summary>
+    /// Transitions status to CancelledPendingAck upon external order cancellation,
+    /// so the ticket remains visible on the KDS until kitchen staff bump it off.
+    /// Idempotent if already Cancelled or CancelledPendingAck (prevents self-ack loop).
+    /// </summary>
+    public void MarkCancelledPendingAck(Instant now, string? reason)
+    {
+        if (Status is KitchenTicketStatus.Cancelled or KitchenTicketStatus.CancelledPendingAck)
+        {
+            return;
+        }
+
+        Status = KitchenTicketStatus.CancelledPendingAck;
+        StatusChangedAt = now;
+        CancelledAt = now;
+        CancellationReason = reason;
+        IsCancelRequested = false;
     }
 
     private KitchenTicketItem FindItem(KitchenItemId itemId)

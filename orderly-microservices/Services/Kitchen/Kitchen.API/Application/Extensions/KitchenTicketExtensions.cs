@@ -24,7 +24,10 @@ public static class KitchenTicketExtensions
             EstimatedPrepTimeMinutes: ticket.Items.Count > 0
                 ? ticket.Items.Count * 5 // placeholder until prep-time tracking lands
                 : 0,
-            Items: ticket.Items.Select(i => i.ToDto()).ToList());
+            Items: ticket.Items.Select(i => i.ToDto()).ToList(),
+            IsCancelRequested: ticket.IsCancelRequested,
+            CancelRequestReason: ticket.CancelRequestReason,
+            CancelRequestedAt: ticket.CancelRequestedAt);
     }
 
     public static KitchenTicketItemDto ToDto(this KitchenTicketItem item)

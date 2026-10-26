@@ -8,6 +8,7 @@ namespace Kitchen.API.Domain.Enums;
 /// Ready       --bump-->     Bumped
 /// Bumped      --recall-->   Ready
 /// Any         --cancel-->   Cancelled
+/// External cancel -> CancelledPendingAck --bump--> Cancelled
 /// </code>
 /// Enforced by <see cref="Aggregates.KitchenTicket.KitchenTicket"/>; any
 /// illegal transition throws <c>InvalidKitchenTicketStateTransitionException</c>.
@@ -18,5 +19,6 @@ public enum KitchenTicketStatus
     InProgress = 1,
     Ready = 2,
     Bumped = 3,
-    Cancelled = 4
+    Cancelled = 4,
+    CancelledPendingAck = 5
 }

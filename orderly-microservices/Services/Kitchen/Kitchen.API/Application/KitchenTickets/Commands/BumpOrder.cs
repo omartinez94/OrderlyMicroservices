@@ -10,6 +10,8 @@ public record BumpOrderResult(Guid TicketId, Instant BumpedAt);
 /// downstream consumers (audit / analytics). The row is committed in the
 /// same transaction as the ticket transition, so a process crash between
 /// commit and broker publish can no longer lose the event.
+/// If the ticket is in <c>CancelledPendingAck</c>, transitions to <c>Cancelled</c>
+/// and does NOT publish <see cref="KitchenOrderBumpedIntegrationEvent"/>.
 /// </summary>
 public class BumpOrderHandler(
     IKitchenTicketRepository repository,
@@ -34,19 +36,23 @@ public class BumpOrderHandler(
             ?? throw new KitchenTicketNotFoundException(command.TicketId);
 
         Instant now = SystemClock.Instance.GetCurrentInstant();
+        KitchenTicketStatus previousStatus = ticket.Status;
         ticket.Bump(now);
 
         // See AcceptOrder: outbox row must commit in the same transaction
         // as the ticket transition. Publish first, then SaveChanges.
-        await outboxPublisher.PublishAsync(
-            new KitchenOrderBumpedIntegrationEvent
-            {
-                OrderId = ticket.Id.Value,
-                RestaurantId = ticket.RestaurantId,
-                BumpedByUserId = staffUserId,
-                BumpedAt = now,
-            },
-            cancellationToken);
+        if (previousStatus != KitchenTicketStatus.CancelledPendingAck)
+        {
+            await outboxPublisher.PublishAsync(
+                new KitchenOrderBumpedIntegrationEvent
+                {
+                    OrderId = ticket.Id.Value,
+                    RestaurantId = ticket.RestaurantId,
+                    BumpedByUserId = staffUserId,
+                    BumpedAt = now,
+                },
+                cancellationToken);
+        }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

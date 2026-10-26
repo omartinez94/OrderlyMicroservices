@@ -1,8 +1,11 @@
 global using BuildingBlocks.Messaging.Events;
+global using BuildingBlocks.Messaging.Events.Ordering;
 global using BuildingBlocks.Messaging.Outbox;
+global using BuildingBlocks.Multitenancy;
 global using FluentAssertions;
 global using Kitchen.API.Application.Abstractions;
 global using Kitchen.API.Application.EventHandlers.Domain;
+global using Kitchen.API.Application.EventHandlers.Integration;
 global using Kitchen.API.Application.KitchenTickets.Commands;
 global using Kitchen.API.Domain.Aggregates.KitchenTicket;
 global using Kitchen.API.Domain.Enums;

@@ -10,6 +10,9 @@ public interface IKitchenHubClient
     /// <summary>A new <c>KitchenTicket</c> arrived for this restaurant.</summary>
     Task OrderReceived(KitchenTicketDto ticket);
 
+    /// <summary>Ticket was updated (metadata, cancel request status, or queue status).</summary>
+    Task TicketUpdated(KitchenTicketDto ticket);
+
     /// <summary>Ticket moved <c>New</c> → <c>InProgress</c>.</summary>
     Task TicketAccepted(Guid ticketId, Guid acceptedByUserId, Instant acceptedAt);
 
@@ -28,4 +31,10 @@ public interface IKitchenHubClient
 
     /// <summary>Chef pulled a bumped ticket back to <c>Ready</c>.</summary>
     Task TicketRecalled(Guid ticketId);
+
+    /// <summary>Order cancellation was requested.</summary>
+    Task OrderCancelRequested(Guid ticketId, Guid orderId, string reason, Instant timestamp);
+
+    /// <summary>Order cancellation request was rejected.</summary>
+    Task OrderCancelRejected(Guid ticketId, Guid orderId, Instant timestamp);
 }

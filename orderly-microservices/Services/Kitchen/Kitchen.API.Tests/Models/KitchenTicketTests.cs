@@ -316,6 +316,88 @@ public sealed class KitchenTicketTests
         act.Should().Throw<ArgumentException>().WithParameterName("userId");
     }
 
+    // -------- CancelRequested & CancelledPendingAck --------
+
+    [Fact]
+    public void MarkCancelRequested_SetsCancelRequestedMetadata()
+    {
+        var ticket = AcceptedAndStarted();
+
+        ticket.MarkCancelRequested(Later, "Customer changed mind");
+
+        ticket.IsCancelRequested.Should().BeTrue();
+        ticket.CancelRequestReason.Should().Be("Customer changed mind");
+        ticket.CancelRequestedAt.Should().Be(Later);
+    }
+
+    [Fact]
+    public void MarkCancelRequested_WhenCancelledOrBumped_IsNoOp()
+    {
+        var ticket = ReadyTicket();
+        ticket.Bump(Later);
+
+        ticket.MarkCancelRequested(Later, "Too late");
+
+        ticket.IsCancelRequested.Should().BeFalse();
+        ticket.CancelRequestReason.Should().BeNull();
+        ticket.CancelRequestedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void ClearCancelRequest_ResetsMetadata()
+    {
+        var ticket = AcceptedAndStarted();
+        ticket.MarkCancelRequested(Later, "Customer changed mind");
+
+        ticket.ClearCancelRequest();
+
+        ticket.IsCancelRequested.Should().BeFalse();
+        ticket.CancelRequestReason.Should().BeNull();
+        ticket.CancelRequestedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public void MarkCancelledPendingAck_TransitionsStatusAndClearsCancelRequest()
+    {
+        var ticket = AcceptedAndStarted();
+        ticket.MarkCancelRequested(Later, "Customer changed mind");
+
+        ticket.MarkCancelledPendingAck(Later, "Manager approved cancel");
+
+        ticket.Status.Should().Be(KitchenTicketStatus.CancelledPendingAck);
+        ticket.CancelledAt.Should().Be(Later);
+        ticket.CancellationReason.Should().Be("Manager approved cancel");
+        ticket.IsCancelRequested.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MarkCancelledPendingAck_WhenAlreadyCancelled_IsNoOp()
+    {
+        var ticket = AcceptedAndStarted();
+        ticket.Cancel("Kitchen cancelled", Guid.NewGuid(), Later);
+
+        Instant muchLater = Instant.FromUtc(2026, 7, 4, 13, 0);
+        ticket.MarkCancelledPendingAck(muchLater, "Ordering approved cancel");
+
+        ticket.Status.Should().Be(KitchenTicketStatus.Cancelled);
+        ticket.CancellationReason.Should().Be("Kitchen cancelled");
+    }
+
+    [Fact]
+    public void Bump_WhenCancelledPendingAck_TransitionsToCancelledWithoutBumpedEvent()
+    {
+        var ticket = AcceptedAndStarted();
+        ticket.MarkCancelledPendingAck(Later, "External cancel");
+        ticket.ClearDomainEvents();
+
+        Instant bumpTime = Instant.FromUtc(2026, 7, 4, 12, 30);
+        ticket.Bump(bumpTime);
+
+        ticket.Status.Should().Be(KitchenTicketStatus.Cancelled);
+        ticket.CompletedAt.Should().Be(bumpTime);
+        ticket.DomainEvents.OfType<KitchenTicketBumpedEvent>().Should().BeEmpty();
+    }
+
     // -------- helpers --------
 
     private static KitchenTicket AcceptedAndStarted()

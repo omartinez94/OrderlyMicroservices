@@ -85,12 +85,10 @@ public sealed class KitchenOrderPrepStartedIntegrationEventHandlerTests
     }
 
     [Fact]
-    public async Task Consume_AlreadyPreparingOrder_ThrowsAndDoesNotSave()
+    public async Task Consume_AlreadyPreparingOrder_IsIdempotentAndSaves()
     {
-        // A duplicate delivery (the broker can replay an event whose first
-        // delivery succeeded on a different replica) must surface as a
-        // domain exception so MassTransit nacks it for retry rather than
-        // silently double-publishing a state transition.
+        // Multi-item kitchen tickets fire PrepStarted once per item.
+        // The 2nd+ item must be an idempotent no-op rather than throwing.
         var order = CreateConfirmedOrder();
         order.MarkPreparing(SystemClock.Instance.GetCurrentInstant());
         order.ClearDomainEvents();
@@ -108,10 +106,39 @@ public sealed class KitchenOrderPrepStartedIntegrationEventHandlerTests
             StartedAt = SystemClock.Instance.GetCurrentInstant(),
         });
 
-        Func<Task> act = () => consumer.Consume(context);
+        await consumer.Consume(context);
 
-        await act.Should().ThrowAsync<InvalidOrderStateTransitionException>();
-        await dbContext.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
+        order.Status.Should().Be(OrderStatus.Preparing);
+        await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_PendingOrder_AdvancesToPreparingAndSaves()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.ClearDomainEvents();
+        var dbContext = NewDbContextWith(order);
+
+        var consumer = new KitchenOrderPrepStartedIntegrationEventHandler(
+            dbContext, NullLogger<KitchenOrderPrepStartedIntegrationEventHandler>.Instance);
+
+        var context = Substitute.For<ConsumeContext<KitchenOrderPrepStartedIntegrationEvent>>();
+        context.Message.Returns(new KitchenOrderPrepStartedIntegrationEvent
+        {
+            OrderId = order.Id.Value,
+            ItemId = Guid.NewGuid(),
+            StaffUserId = Guid.NewGuid(),
+            StartedAt = SystemClock.Instance.GetCurrentInstant(),
+        });
+
+        await consumer.Consume(context);
+
+        order.Status.Should().Be(OrderStatus.Preparing);
+        order.ConfirmedAt.Should().NotBeNull();
+        order.PreparingStartedAt.Should().NotBeNull();
+        await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     private static IApplicationDbContext NewDbContextWith(Order order)

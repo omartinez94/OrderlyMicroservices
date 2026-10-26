@@ -41,4 +41,10 @@ public enum OrderActivityType
 
     /// <summary>Per-item prep completed.</summary>
     OrderItemPrepCompleted = 10,
+
+    /// <summary>Cancellation requested by staff awaiting approval.</summary>
+    OrderCancelRequested = 11,
+
+    /// <summary>Cancellation request rejected by approver or kitchen.</summary>
+    OrderCancelRejected = 12,
 }

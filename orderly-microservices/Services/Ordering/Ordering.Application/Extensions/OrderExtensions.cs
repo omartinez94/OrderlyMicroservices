@@ -161,7 +161,7 @@ public static class OrderExtensions
         ArgumentNullException.ThrowIfNull(order);
 
         Instant? specific = ResolveSpecificStatusTimestamp(order);
-        return specific ?? order.LastModified ?? order.CreatedAt;
+        return order.StatusChangedAt ?? specific ?? order.LastModified ?? order.CreatedAt;
     }
 
     private static Instant? ResolveSpecificStatusTimestamp(Order order) =>

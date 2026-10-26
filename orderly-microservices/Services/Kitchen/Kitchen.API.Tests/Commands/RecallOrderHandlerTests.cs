@@ -1,16 +1,9 @@
+using System.Reflection;
+
 namespace Kitchen.API.Tests.Commands;
 
 /// <summary>
 /// Covers the chef pull-back command: <c>Bumped -&gt; Ready</c>.
-///
-/// <para><b>Plan deviation (E2E_TEST_COVERAGE_PLAN §6.4).</b> The plan lists
-/// <c>Handle_PublishesKitchenOrderRecalledIntegrationEvent()</c>. No such
-/// integration event exists: <c>RecallOrderHandler</c> takes neither
-/// <c>IOutboxPublisher</c> nor <c>ICurrentUser</c> — recall is deliberately
-/// local state only (Ordering does not react to it), and the in-process
-/// <see cref="KitchenTicketRecalledEvent"/> is what drives the SignalR
-/// broadcast. The third test therefore asserts the domain event is raised
-/// instead of an integration event being published.</para>
 /// </summary>
 public sealed class RecallOrderHandlerTests
 {
@@ -18,7 +11,7 @@ public sealed class RecallOrderHandlerTests
 
     private static KitchenTicket NewTicket()
     {
-        OrderItemSeed seed = new OrderItemSeed(
+        OrderItemSeed seed = new(
             OrderItemId: Guid.NewGuid(),
             MenuItemId: Guid.NewGuid(),
             MenuItemName: "Burger",
@@ -59,23 +52,33 @@ public sealed class RecallOrderHandlerTests
         return ticket;
     }
 
-    private static (RecallOrderHandler handler, IUnitOfWork unitOfWork) BuildHandler(KitchenTicket? ticket)
+    private static (RecallOrderHandler handler, IUnitOfWork unitOfWork, IOutboxPublisher outboxPublisher, ICurrentUser currentUser) BuildHandler(
+        KitchenTicket? ticket,
+        Guid? staffUserId = null)
     {
         IKitchenTicketRepository repo = Substitute.For<IKitchenTicketRepository>();
         repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(ticket);
 
         IUnitOfWork unitOfWork = Substitute.For<IUnitOfWork>();
+        IOutboxPublisher outboxPublisher = Substitute.For<IOutboxPublisher>();
+        ICurrentUser currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns(staffUserId ?? Guid.NewGuid());
 
-        return (
-            new RecallOrderHandler(repo, unitOfWork, NullLogger<RecallOrderHandler>.Instance),
-            unitOfWork);
+        RecallOrderHandler handler = new(
+            repo,
+            unitOfWork,
+            outboxPublisher,
+            currentUser,
+            NullLogger<RecallOrderHandler>.Instance);
+
+        return (handler, unitOfWork, outboxPublisher, currentUser);
     }
 
     [Fact]
     public async Task Handle_FromBumped_TransitionsToReady()
     {
         KitchenTicket ticket = BumpedTicket();
-        (RecallOrderHandler handler, IUnitOfWork unitOfWork) = BuildHandler(ticket);
+        (RecallOrderHandler handler, IUnitOfWork unitOfWork, _, _) = BuildHandler(ticket);
 
         RecallOrderResult result = await handler.Handle(
             new RecallOrderCommand(ticket.Id.Value),
@@ -88,11 +91,54 @@ public sealed class RecallOrderHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PublishesKitchenOrderRecalledIntegrationEvent()
+    {
+        KitchenTicket ticket = BumpedTicket();
+        Guid staffId = Guid.NewGuid();
+        (RecallOrderHandler handler, _, IOutboxPublisher outbox, _) = BuildHandler(ticket, staffId);
+
+        await handler.Handle(new RecallOrderCommand(ticket.Id.Value), CancellationToken.None);
+
+        var call = outbox.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IOutboxPublisher.PublishAsync));
+        KitchenOrderRecalledIntegrationEvent evt = (KitchenOrderRecalledIntegrationEvent)call.GetArguments()[0]!;
+
+        evt.OrderId.Should().Be(ticket.Id.Value);
+        evt.KitchenTicketId.Should().Be(ticket.Id.Value);
+        evt.RestaurantId.Should().Be(ticket.RestaurantId);
+        evt.RecalledByUserId.Should().Be(staffId);
+    }
+
+    [Fact]
+    public async Task Handle_WithoutAuthenticatedUser_ThrowsKitchenDomainException()
+    {
+        KitchenTicket ticket = BumpedTicket();
+        IKitchenTicketRepository repo = Substitute.For<IKitchenTicketRepository>();
+        repo.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(ticket);
+
+        ICurrentUser currentUser = Substitute.For<ICurrentUser>();
+        currentUser.UserId.Returns((Guid?)null);
+
+        RecallOrderHandler handler = new(
+            repo,
+            Substitute.For<IUnitOfWork>(),
+            Substitute.For<IOutboxPublisher>(),
+            currentUser,
+            NullLogger<RecallOrderHandler>.Instance);
+
+        Func<Task> act = () => handler.Handle(
+            new RecallOrderCommand(ticket.Id.Value),
+            CancellationToken.None);
+
+        await act.Should().ThrowAsync<KitchenDomainException>()
+            .WithMessage("*Authenticated staff user id is required*");
+    }
+
+    [Fact]
     public async Task Handle_FromReady_Throws()
     {
-        // Ready is not a legal source state for Recall — only Bumped is.
         KitchenTicket ticket = ReadyTicket();
-        (RecallOrderHandler handler, IUnitOfWork unitOfWork) = BuildHandler(ticket);
+        (RecallOrderHandler handler, IUnitOfWork unitOfWork, _, _) = BuildHandler(ticket);
 
         Func<Task> act = () => handler.Handle(
             new RecallOrderCommand(ticket.Id.Value),
@@ -107,7 +153,7 @@ public sealed class RecallOrderHandlerTests
     public async Task Handle_RaisesKitchenTicketRecalledDomainEvent()
     {
         KitchenTicket ticket = BumpedTicket();
-        (RecallOrderHandler handler, IUnitOfWork _) = BuildHandler(ticket);
+        (RecallOrderHandler handler, _, _, _) = BuildHandler(ticket);
 
         await handler.Handle(new RecallOrderCommand(ticket.Id.Value), CancellationToken.None);
 
@@ -119,7 +165,7 @@ public sealed class RecallOrderHandlerTests
     [Fact]
     public async Task Handle_UnknownTicket_ThrowsKitchenTicketNotFound()
     {
-        (RecallOrderHandler handler, IUnitOfWork _) = BuildHandler(ticket: null);
+        (RecallOrderHandler handler, _, _, _) = BuildHandler(ticket: null);
 
         Func<Task> act = () => handler.Handle(
             new RecallOrderCommand(Guid.NewGuid()),

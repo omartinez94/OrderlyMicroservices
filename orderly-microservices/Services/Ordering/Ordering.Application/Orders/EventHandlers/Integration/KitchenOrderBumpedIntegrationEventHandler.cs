@@ -1,29 +1,62 @@
 namespace Ordering.Application.Orders.EventHandlers.Integration;
 
 /// <summary>
-/// Consumes <see cref="KitchenOrderBumpedIntegrationEvent"/>. The kitchen
-/// "bumped" transition (<c>Ready -&gt; Bumped</c>) does not change the
-/// upstream <c>Order.Status</c> today — the order stays in <c>Ready</c>
-/// until dispatched — but the event is recorded for audit and future
-/// analytics consumers to attach. This handler exists so the broker
-/// route is exercised end-to-end and the event is not silently dropped
-/// on the Ordering side.
+/// Consumes <see cref="KitchenOrderBumpedIntegrationEvent"/> and drives
+/// the upstream <c>Order</c> from <c>Ready</c> to <c>Delivered</c> via
+/// <see cref="Order.MarkDelivered"/>.
 /// </summary>
 public class KitchenOrderBumpedIntegrationEventHandler(
-    ILogger<KitchenOrderBumpedIntegrationEventHandler> logger)
+    IApplicationDbContext dbContext,
+    IClock clock,
+    ILogger<KitchenOrderBumpedIntegrationEventHandler> logger,
+    ICurrentRestaurantProvider? currentRestaurantProvider = null)
     : IConsumer<KitchenOrderBumpedIntegrationEvent>
 {
-    public Task Consume(ConsumeContext<KitchenOrderBumpedIntegrationEvent> context)
+    public async Task Consume(ConsumeContext<KitchenOrderBumpedIntegrationEvent> context)
     {
         KitchenOrderBumpedIntegrationEvent? message = context.Message;
-        logger.LogInformation(
-            "Integration Event handled: {IntegrationEvent} for Order {OrderId} by Staff {StaffId}",
-            nameof(KitchenOrderBumpedIntegrationEvent),
-            message.OrderId,
-            message.BumpedByUserId);
+        string? correlationId = context.CorrelationId?.ToString() ?? Guid.NewGuid().ToString();
+        CorrelationContext.Set(correlationId);
 
-        // No aggregate mutation today — bump is an audit signal only.
-        // Reserved for a future per-state consumer (e.g. analytics).
-        return Task.CompletedTask;
+        try
+        {
+            logger.LogInformation(
+                "Integration Event handled: {IntegrationEvent} for Order {OrderId} by Staff {StaffId} (CorrelationId: {CorrelationId})",
+                nameof(KitchenOrderBumpedIntegrationEvent),
+                message.OrderId,
+                message.BumpedByUserId,
+                correlationId);
+
+            using IDisposable? tenantScope = message.RestaurantId != Guid.Empty
+                ? currentRestaurantProvider?.Attach(message.RestaurantId)
+                : null;
+
+            Order? order = await dbContext.Orders.FindAsync(
+                [OrderId.Of(message.OrderId)], context.CancellationToken);
+
+            if (order is null && message.RestaurantId == Guid.Empty && dbContext is DbContext)
+            {
+                order = await dbContext.Orders
+                    .IgnoreQueryFilters()
+                    .SingleOrDefaultAsync(o => o.Id == OrderId.Of(message.OrderId), context.CancellationToken);
+            }
+
+            if (order is null)
+            {
+                logger.LogWarning(
+                    "Skipping {Event} — Order {OrderId} not found.",
+                    nameof(KitchenOrderBumpedIntegrationEvent),
+                    message.OrderId);
+                return;
+            }
+
+            order.MarkDelivered(clock.GetCurrentInstant());
+
+            await dbContext.SaveChangesAsync(context.CancellationToken);
+        }
+        finally
+        {
+            CorrelationContext.Clear();
+        }
     }
 }

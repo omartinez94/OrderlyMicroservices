@@ -9,22 +9,32 @@ notes in `architecture.md` (lines ~298-311).
 
 ```text
 Pending -> Confirmed -> Preparing -> Ready -> Delivered
+                                       ^          |
+                                       +-- Recall +
 ```
 
 | Transition | Triggered by | Mechanism |
 |---|---|---|
-| Pending to Confirmed | Kitchen accepts the ticket | `KitchenOrderAccepted` event |
-| Confirmed to Preparing | Kitchen starts the first item | `KitchenOrderPrepStarted` event |
-| Preparing to Ready | Kitchen marks the ticket ready | `KitchenOrderReady` event |
-| Ready to Delivered | Kitchen bumps the ticket | `KitchenOrderBumped` event (new consumer) |
+| Pending to Confirmed | Kitchen accepts the ticket | `KitchenOrderAcceptedIntegrationEvent` |
+| Confirmed to Preparing | Kitchen starts the first item | `KitchenOrderPrepStartedIntegrationEvent` |
+| Preparing to Ready | Kitchen marks the ticket ready | `KitchenOrderReadyIntegrationEvent` |
+| Ready to Delivered | Kitchen bumps the ticket | `KitchenOrderBumpedIntegrationEvent` (updated consumer) |
+| Delivered to Ready | Kitchen recalls a bumped ticket | `KitchenOrderRecalledIntegrationEvent` (new event + consumer) |
 
 - Delivered is the end of the flow for now.
-- `Order.Complete()` and `OrderCompleted` stay unused. Catalog analytics that
-  depend on `OrderCompleted` remain empty until a Completed step is defined.
+- Recalling a bumped ticket on the KDS (`Bumped -> Ready`) emits
+  `KitchenOrderRecalledIntegrationEvent` and reverts the order in Ordering from
+  `Delivered` back to `Ready`.
+- `Order.Complete()` and `OrderCompletedIntegrationEvent` stay unused. Catalog
+  analytics that depend on `OrderCompletedIntegrationEvent` remain empty until
+  a Completed step is defined.
 - Kitchen to Ordering consumers must be idempotent and tolerant of
   out-of-order events: a transition to a status the order has already reached
   is a no-op, and Confirmed to Ready is accepted.
-- `OrderCreated` must be published through the outbox, not a raw publish.
+- `OrderCreatedIntegrationEvent` must be published through `IOutboxPublisher`,
+  not a raw `IPublishEndpoint.Publish`, and `CreateOrderHandler` must pass full
+  item metadata (`MenuItemName`, `SpecialInstructions`, `Customizations`,
+  `SelectedVariations`, `SeatNumber`).
 
 ## Cancellation
 
@@ -36,62 +46,78 @@ Pending -> Confirmed -> Preparing -> Ready -> Delivered
 | Confirmed, Preparing or Ready | Can only request cancellation | Manager or kitchen |
 | Delivered | Not allowed | Not allowed |
 
-- Manager and kitchen can also cancel directly.
+- Manager and kitchen can also cancel directly from any pre-Delivered state.
 - Cancelling a Ready order is allowed. The UI lock and the domain guard that
   block it today must be removed.
 
 ### New states
 
-- **Order: `CancelRequested`**. The order waits for approval. It stores the
-  previous status (`PreviousStatus`) before entering this state.
-- **Kitchen ticket: `CancelledPendingAck`** (working name). The ticket stays
-  visible on the kitchen screen after an approved or direct cancel. The kitchen
-  clears it with one acknowledge action (bump or confirm). Only then does it
-  leave the kitchen list.
+- **Order: `CancelRequested`**. The order waits for approval. It stores
+  `PreviousStatus`, `CancelRequestedAt`, `CancelRequestedByUserId`, and
+  `CancelRequestReason` before entering this state.
+- **Kitchen ticket: `CancelRequestPending` flag (or metadata)** while awaiting
+  decision so KDS staff can see and approve/reject the request directly from
+  `/site/kitchen`.
+- **Kitchen ticket: `CancelledPendingAck`**. The ticket stays visible on the
+  kitchen screen after an external cancel (Waiter/Cashier direct cancel on
+  `Pending`, or Manager approving `CancelRequested`). The kitchen clears it
+  with one acknowledge/bump action, which transitions the ticket to
+  `Cancelled` and removes it from the active KDS queue.
+- **Kitchen-initiated cancel (no self-ack)**. When kitchen staff cancel a
+  ticket directly on the KDS or approve a `CancelRequested` ticket on the KDS,
+  the ticket goes straight to `Cancelled` (no second acknowledgement needed)
+  and publishes `KitchenOrderCancelledIntegrationEvent` to Ordering without
+  Ordering echoing `OrderCancelledIntegrationEvent` back.
 
 ### Rules
 
 - **Cancel request wins.** While an order is `CancelRequested`, kitchen
-  progress events (Preparing, Ready, Bumped) are ignored for the order status.
-- **Denied request.** The order returns to `PreviousStatus`.
-- **Approved request or direct cancel.** The order becomes `Cancelled` and
-  Ordering publishes `OrderCancelled` through the outbox. Kitchen consumes it
-  and moves the ticket to `CancelledPendingAck`.
-- Today Ordering publishes no cancel event, so a cancelled order stays on the
-  kitchen screen. That is a bug fixed by this spec.
+  progress events (Preparing, Ready, Bumped, Recalled) are ignored for the
+  order status.
+- **Denied request.** Manager or kitchen rejects the request. The order returns
+  to `PreviousStatus` and notifies Kitchen (`OrderCancelRejectedIntegrationEvent`)
+  so the KDS clears the pending cancel request banner.
+- **Approved request or direct cancel.** The order becomes `Cancelled`. If
+  initiated or approved in Ordering, Ordering publishes
+  `OrderCancelledIntegrationEvent` through the outbox and Kitchen moves the
+  ticket to `CancelledPendingAck`.
 
 ### Permissions
 
-New permissions (names are proposals; update `permissions.md` and the Identity
-`DataSeeder`):
+Update `permissions.md` and `Identity.API/Data/DataSeeder.cs` (using per-row
+idempotent upserts so existing databases receive new permissions):
 
-- `orders:request_cancel`: Waiter, Cashier.
-- `orders:approve_cancel`: Manager, KitchenManager, KitchenStaff.
-- Direct cancel of a Pending order: Waiter, Cashier, Manager.
-
-The Identity seed only runs when `RolePermissions` is empty, so existing
-databases need a migration or an upsert.
+- `orders:write`: Waiter, Cashier, Manager, RestaurantAdmin.
+- `orders:cancel`: Waiter, Cashier, Manager, RestaurantAdmin, KitchenManager,
+  KitchenStaff (Waiter/Cashier restricted in handler to `Pending` orders;
+  Manager/Admin/Kitchen allowed on any pre-`Delivered` state).
+- `orders:request_cancel`: Waiter, Cashier, Host.
+- `orders:approve_cancel`: Manager, RestaurantAdmin, KitchenManager,
+  KitchenStaff.
 
 ## Needs attention
 
-- Visible to **every role**.
-- Configurable time limit **per phase** (Pending, Confirmed, Preparing, Ready).
-  Preparing may allow more time than Pending, and Ready has its own limit.
-- Delivered and Cancelled do not trigger it.
-- Today it is computed only in the frontend (`AttentionFeed.tsx`, with Pending
-  at 2 minutes and Ready at 5 minutes, and one overall SLA for the rest).
-- `requiresAdminApproval` is a flag that nothing ever clears. Remove it or
-  replace it with the cancel-request flow.
+- Visible to **every role** (Waiter, Cashier, Host, Manager, RestaurantAdmin
+  on `/site/restaurant/orders`, and Kitchen roles on KDS).
+- Evaluated using **time spent in the current phase** (`now - StatusChangedAt`),
+  not total order age:
+  - `Pending`: > 2 minutes.
+  - `Confirmed`: > 5 minutes.
+  - `Preparing`: > `EstimatedPrepTimeMinutes` (default 15 minutes).
+  - `Ready`: > 5 minutes.
+  - `CancelRequested`: immediate (`0s` — always needs attention).
+- `Delivered` and `Cancelled` do not trigger it.
+- Legacy `requiresAdminApproval` flag is replaced by `CancelRequested`.
 
 ## Future work
 
 - **Refunds** for cancelled orders that were already paid or prepared (food
   waste and void records). Out of scope for this spec.
 - A Completed step tied to payment (`OrderBill.PaymentStatus`,
-  `payments:process`), and publishing `OrderCompleted`.
+  `payments:process`), and publishing `OrderCompletedIntegrationEvent`.
 
 ## Known data issues to reconcile
 
 - Orders stuck in Confirmed or Pending with finished or missing kitchen
   tickets. Advance them when the ticket is Ready or Bumped. If there is no
-  ticket, republish `OrderCreated` or cancel the order.
+  ticket, republish `OrderCreatedIntegrationEvent` or cancel the order.

@@ -58,6 +58,7 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     public DeliveryStatus? DeliveryStatus { get; set; }
     public Instant? PreparingStartedAt { get; set; }
     public Instant? ReadyAt { get; set; }
+    public Instant? StatusChangedAt { get; set; }
     public Guid? TableId { get; set; }
 
     // Navigation properties
@@ -135,6 +136,11 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     /// </summary>
     public void Confirm(Guid confirmedByUserId, Instant now)
     {
+        if (Status is OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.Ready or OrderStatus.Delivered or OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
         if (Status != OrderStatus.Pending)
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(Confirm));
@@ -149,6 +155,7 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
         Status = OrderStatus.Confirmed;
         ConfirmedAt = now;
         ConfirmedByUserId = confirmedByUserId;
+        StatusChangedAt = now;
 
         AddDomainEvent(new OrderConfirmedEvent(this, confirmedByUserId, now));
         RecordActivity(
@@ -164,14 +171,22 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     /// </summary>
     public void MarkReady(Instant now)
     {
-        if (Status != OrderStatus.Preparing)
+        if (Status is OrderStatus.Ready or OrderStatus.Delivered or OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
+        if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed or OrderStatus.Preparing))
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkReady));
         }
 
         OrderStatus previousStatus = Status;
         Status = OrderStatus.Ready;
+        ConfirmedAt ??= now;
+        PreparingStartedAt ??= now;
         ReadyAt = now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new OrderReadyEvent(this, now));
         RecordActivity(
@@ -189,14 +204,21 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     /// </summary>
     public void MarkPreparing(Instant now)
     {
-        if (Status != OrderStatus.Confirmed)
+        if (Status is OrderStatus.Preparing or OrderStatus.Ready or OrderStatus.Delivered or OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
+        if (Status is not (OrderStatus.Pending or OrderStatus.Confirmed))
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkPreparing));
         }
 
         OrderStatus previousStatus = Status;
         Status = OrderStatus.Preparing;
-        PreparingStartedAt = now;
+        ConfirmedAt ??= now;
+        PreparingStartedAt ??= now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new OrderPreparingEvent(this, now));
         RecordActivity(
@@ -239,7 +261,12 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     /// </summary>
     public void MarkDelivered(Instant now)
     {
-        if (Status != OrderStatus.Ready)
+        if (Status is OrderStatus.Delivered or OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
+        if (Status is not (OrderStatus.Confirmed or OrderStatus.Preparing or OrderStatus.Ready))
         {
             throw new InvalidOrderStateTransitionException(Status, nameof(MarkDelivered));
         }
@@ -248,7 +275,9 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
         DeliveryStatus? previousDeliveryStatus = DeliveryStatus;
         Status = OrderStatus.Delivered;
         DeliveryStatus = BuildingBlocks.Enums.DeliveryStatus.Delivered;
+        ReadyAt ??= now;
         DeliveredAt = now;
+        StatusChangedAt = now;
 
         AddDomainEvent(new OrderDeliveredEvent(this, now));
         RecordActivity(
@@ -257,6 +286,37 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
             occurredAt: now,
             metadata: CombinedOrderAndDeliveryMetadata(
                 previousStatus, Status, previousDeliveryStatus, DeliveryStatus));
+    }
+
+    /// <summary>
+    /// <c>Delivered -&gt; Ready</c>. Chef pull-back when an order was prematurely
+    /// bumped to delivered on the KDS. Reverts status to <c>Ready</c>, clears
+    /// <see cref="DeliveredAt"/>, and updates <see cref="StatusChangedAt"/>.
+    /// </summary>
+    public void RecallDelivery(Instant now)
+    {
+        if (Status is OrderStatus.Ready or OrderStatus.CancelRequested)
+        {
+            return;
+        }
+
+        if (Status != OrderStatus.Delivered)
+        {
+            throw new InvalidOrderStateTransitionException(Status, nameof(RecallDelivery));
+        }
+
+        OrderStatus previousStatus = Status;
+        Status = OrderStatus.Ready;
+        DeliveredAt = null;
+        DeliveryStatus = null;
+        StatusChangedAt = now;
+
+        AddDomainEvent(new OrderReadyEvent(this, now));
+        RecordActivity(
+            OrderActivityType.OrderReady,
+            actorUserId: null,
+            occurredAt: now,
+            metadata: OrderStatusMetadata(previousStatus, Status));
     }
 
     /// <summary>

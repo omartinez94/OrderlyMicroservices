@@ -92,5 +92,7 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasConversion(
                 s => s == null ? null : s.ToString(),
                 s => s == null ? null : (DeliveryStatus)Enum.Parse(typeof(DeliveryStatus), s));
+
+        builder.Ignore(o => o.StatusChangedAt);
     }
 }

@@ -230,39 +230,39 @@ public sealed class OrderTests
     /// retry rather than silently rewriting Status.
     /// </summary>
     [Theory]
-    [InlineData(OrderStatus.Confirmed)]
-    [InlineData(OrderStatus.Preparing)]
-    [InlineData(OrderStatus.Ready)]
     [InlineData(OrderStatus.Cancelled)]
-    public void Confirm_FromNonPending_Throws(OrderStatus from)
+    public void Confirm_FromCancelled_Throws(OrderStatus from)
     {
         var order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
             Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
-
-        // Drive the order into the desired starting status via the legal
-        // transition methods (rather than a back-door Status setter).
-        switch (from)
-        {
-            case OrderStatus.Confirmed:
-                order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
-                break;
-            case OrderStatus.Cancelled:
-                order.Cancel("test", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
-                break;
-            // Preparing / Ready cannot be reached from Pending via the public
-            // API alone (the kitchen-side consumers drive them); set Status
-            // directly here only to seed the test fixture.
-            default:
-                order.GetType().GetProperty(nameof(Order.Status))!
-                    .SetValue(order, from);
-                break;
-        }
+        order.Cancel("test", Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
 
         Action act = () => order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
 
         act.Should().Throw<InvalidOrderStateTransitionException>()
             .Which.FromStatus.Should().Be(from);
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.CancelRequested)]
+    public void Confirm_WhenAlreadyAtOrPastTarget_IsIdempotentNoOp(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+
+        order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(from);
+        order.DomainEvents.Should().BeEmpty();
     }
 
     /// <summary>
@@ -315,10 +315,8 @@ public sealed class OrderTests
     /// <c>Preparing -&gt; Ready</c>. Any other starting state must throw.
     /// </summary>
     [Theory]
-    [InlineData(OrderStatus.Pending)]
-    [InlineData(OrderStatus.Confirmed)]
     [InlineData(OrderStatus.Cancelled)]
-    public void MarkReady_FromNonPreparing_Throws(OrderStatus from)
+    public void MarkReady_FromCancelled_Throws(OrderStatus from)
     {
         var order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
@@ -330,6 +328,45 @@ public sealed class OrderTests
 
         act.Should().Throw<InvalidOrderStateTransitionException>()
             .Which.FromStatus.Should().Be(from);
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Confirmed)]
+    public void MarkReady_FromPendingOrConfirmed_TransitionsToReady(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.MarkReady(now);
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        order.ReadyAt.Should().Be(now);
+        order.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<OrderReadyEvent>();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.CancelRequested)]
+    public void MarkReady_WhenAlreadyReadyOrPast_IsIdempotentNoOp(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+
+        order.MarkReady(SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(from);
+        order.DomainEvents.Should().BeEmpty();
     }
 
     // -------- Cancel --------
@@ -583,12 +620,46 @@ public sealed class OrderTests
     /// Illegal transition: <c>MarkPreparing</c> from any non-Confirmed
     /// state throws <see cref="InvalidOrderStateTransitionException"/>.
     /// </summary>
+    [Fact]
+    public void MarkPreparing_FromPending_TransitionsToPreparingAndRaisesEvent()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.ClearDomainEvents();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.MarkPreparing(now);
+
+        order.Status.Should().Be(OrderStatus.Preparing);
+        order.PreparingStartedAt.Should().Be(now);
+        order.ConfirmedAt.Should().Be(now);
+        order.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<OrderPreparingEvent>();
+    }
+
     [Theory]
-    [InlineData(OrderStatus.Pending)]
     [InlineData(OrderStatus.Preparing)]
     [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.CancelRequested)]
+    public void MarkPreparing_WhenAlreadyPreparingOrPast_IsIdempotentNoOp(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+
+        order.MarkPreparing(SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(from);
+        order.DomainEvents.Should().BeEmpty();
+    }
+
+    [Theory]
     [InlineData(OrderStatus.Cancelled)]
-    public void MarkPreparing_FromNonConfirmed_Throws(OrderStatus from)
+    public void MarkPreparing_FromCancelled_Throws(OrderStatus from)
     {
         var order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
@@ -635,11 +706,48 @@ public sealed class OrderTests
     /// throws <see cref="InvalidOrderStateTransitionException"/>.
     /// </summary>
     [Theory]
-    [InlineData(OrderStatus.Pending)]
     [InlineData(OrderStatus.Confirmed)]
     [InlineData(OrderStatus.Preparing)]
+    public void MarkDelivered_FromConfirmedOrPreparing_TransitionsToDelivered(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+        var now = SystemClock.Instance.GetCurrentInstant();
+
+        order.MarkDelivered(now);
+
+        order.Status.Should().Be(OrderStatus.Delivered);
+        order.DeliveredAt.Should().Be(now);
+        order.ReadyAt.Should().Be(now);
+        order.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<OrderDeliveredEvent>();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Delivered)]
+    [InlineData(OrderStatus.CancelRequested)]
+    public void MarkDelivered_WhenAlreadyDeliveredOrCancelRequested_IsIdempotentNoOp(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+
+        order.MarkDelivered(SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(from);
+        order.DomainEvents.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
     [InlineData(OrderStatus.Cancelled)]
-    public void MarkDelivered_FromNonReady_Throws(OrderStatus from)
+    public void MarkDelivered_FromPendingOrCancelled_Throws(OrderStatus from)
     {
         var order = Order.Create(
             NewOrderId(), NewCustomerId(), ValidOrderNumber(),
@@ -648,6 +756,65 @@ public sealed class OrderTests
             .SetValue(order, from);
 
         Action act = () => order.MarkDelivered(SystemClock.Instance.GetCurrentInstant());
+
+        act.Should().Throw<InvalidOrderStateTransitionException>()
+            .Which.FromStatus.Should().Be(from);
+    }
+
+    // -------- RecallDelivery --------
+
+    [Fact]
+    public void RecallDelivery_FromDelivered_TransitionsToReadyAndClearsDeliveredAt()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, OrderStatus.Delivered);
+        order.DeliveredAt = SystemClock.Instance.GetCurrentInstant();
+        order.ClearDomainEvents();
+
+        var now = SystemClock.Instance.GetCurrentInstant();
+        order.RecallDelivery(now);
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        order.DeliveredAt.Should().BeNull();
+        order.StatusChangedAt.Should().Be(now);
+        order.DomainEvents.Should().ContainSingle().Which.Should().BeOfType<OrderReadyEvent>();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Ready)]
+    [InlineData(OrderStatus.CancelRequested)]
+    public void RecallDelivery_WhenAlreadyReadyOrCancelRequested_IsIdempotentNoOp(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+        order.ClearDomainEvents();
+
+        order.RecallDelivery(SystemClock.Instance.GetCurrentInstant());
+
+        order.Status.Should().Be(from);
+        order.DomainEvents.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(OrderStatus.Pending)]
+    [InlineData(OrderStatus.Confirmed)]
+    [InlineData(OrderStatus.Preparing)]
+    [InlineData(OrderStatus.Cancelled)]
+    public void RecallDelivery_FromNonDelivered_Throws(OrderStatus from)
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.GetType().GetProperty(nameof(Order.Status))!
+            .SetValue(order, from);
+
+        Action act = () => order.RecallDelivery(SystemClock.Instance.GetCurrentInstant());
 
         act.Should().Throw<InvalidOrderStateTransitionException>()
             .Which.FromStatus.Should().Be(from);

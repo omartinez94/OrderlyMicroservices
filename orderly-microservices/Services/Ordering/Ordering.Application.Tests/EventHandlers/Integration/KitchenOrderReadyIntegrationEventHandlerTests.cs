@@ -57,6 +57,59 @@ public sealed class KitchenOrderReadyIntegrationEventHandlerTests
     }
 
     [Fact]
+    public async Task Consume_ConfirmedOrder_AdvancesToReadyAndSaves()
+    {
+        var order = Order.Create(
+            NewOrderId(), NewCustomerId(), ValidOrderNumber(),
+            Guid.NewGuid(), ValidAddress(), ValidAddress(), ValidPayment());
+        order.ClearDomainEvents();
+        order.Confirm(Guid.NewGuid(), SystemClock.Instance.GetCurrentInstant());
+        order.ClearDomainEvents();
+        var dbContext = NewDbContextWith(order);
+
+        var readyAt = SystemClock.Instance.GetCurrentInstant();
+        var consumer = new KitchenOrderReadyIntegrationEventHandler(
+            dbContext, NullLogger<KitchenOrderReadyIntegrationEventHandler>.Instance);
+
+        var context = Substitute.For<ConsumeContext<KitchenOrderReadyIntegrationEvent>>();
+        context.Message.Returns(new KitchenOrderReadyIntegrationEvent
+        {
+            OrderId = order.Id.Value,
+            ReadyAt = readyAt
+        });
+
+        await consumer.Consume(context);
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        order.ReadyAt.Should().Be(readyAt);
+        await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Consume_AlreadyReadyOrder_IsIdempotentAndSaves()
+    {
+        var order = CreatePreparingOrder();
+        order.MarkReady(SystemClock.Instance.GetCurrentInstant());
+        order.ClearDomainEvents();
+        var dbContext = NewDbContextWith(order);
+
+        var consumer = new KitchenOrderReadyIntegrationEventHandler(
+            dbContext, NullLogger<KitchenOrderReadyIntegrationEventHandler>.Instance);
+
+        var context = Substitute.For<ConsumeContext<KitchenOrderReadyIntegrationEvent>>();
+        context.Message.Returns(new KitchenOrderReadyIntegrationEvent
+        {
+            OrderId = order.Id.Value,
+            ReadyAt = SystemClock.Instance.GetCurrentInstant()
+        });
+
+        await consumer.Consume(context);
+
+        order.Status.Should().Be(OrderStatus.Ready);
+        await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Consume_UnknownOrder_SkipsAndDoesNotSave()
     {
         var dbContext = Substitute.For<IApplicationDbContext>();

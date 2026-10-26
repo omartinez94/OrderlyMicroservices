@@ -10,7 +10,8 @@ public enum OrderStatus
     Delivered,
     Completed,
     Cancelled,
-    OnHold
+    OnHold,
+    CancelRequested = 9
 }
 
 public enum OrderType

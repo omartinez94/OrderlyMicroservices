@@ -170,7 +170,7 @@ public static class DataSeeder
             ["KitchenManager"] = new()
             {
                 "orders:view_all", "orders:modify_ordering", "orders:modify_confirmed",
-                "orders:approve_cancel",
+                "orders:cancel", "orders:approve_cancel",
                 "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Waiter"] = new()
@@ -183,16 +183,18 @@ public static class DataSeeder
             ["KitchenStaff"] = new()
             {
                 "orders:view_all",
+                "orders:cancel", "orders:approve_cancel",
                 "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Host"] = new()
             {
                 "reservations:view", "reservations:create", "reservations:edit",
-                "orders:view_all",
+                "orders:view_all", "orders:request_cancel",
             },
             ["Cashier"] = new()
             {
                 "orders:view_all",
+                "orders:write", "orders:cancel", "orders:request_cancel",
                 "payments:process", "payments:split_bill",
             },
         };

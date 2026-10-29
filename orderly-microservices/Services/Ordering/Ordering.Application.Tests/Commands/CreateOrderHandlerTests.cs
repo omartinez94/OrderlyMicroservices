@@ -7,7 +7,8 @@ namespace Ordering.Application.Tests.Commands;
 /// Covers <see cref="CreateOrderHandler"/>: builds the <c>Order</c>
 /// aggregate from the inbound <see cref="OrderDto"/>, generates
 /// order number when not provided, appends one
-/// <c>OrderCreated</c> activity, persists, and returns the new id.
+/// <c>OrderCreated</c> activity, stages <see cref="OrderCreatedIntegrationEvent"/>
+/// in the outbox, persists, and returns the new id.
 /// </summary>
 public sealed class CreateOrderHandlerTests
 {
@@ -87,16 +88,18 @@ public sealed class CreateOrderHandlerTests
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
         captured.Should().NotBeNull();
         captured!.Id.Value.Should().Be(result.Id);
         captured.OrderNumber.Value.Should().Be("ORD-2026-0001");
+        await outbox.Received(1).PublishAsync(Arg.Any<OrderCreatedIntegrationEvent>(), Arg.Any<CancellationToken>());
         await dbContext.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         await orderNumberGenerator.DidNotReceive().GenerateAsync(Arg.Any<Guid>(), Arg.Any<OrderType>(), Arg.Any<CancellationToken>());
     }
@@ -107,6 +110,7 @@ public sealed class CreateOrderHandlerTests
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) }, orderNumber: string.Empty);
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
         var generatedNumber = OrderNumber.Create("DIN", new LocalDate(2026, 10, 23), 1);
         orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
             .Returns(generatedNumber);
@@ -114,7 +118,7 @@ public sealed class CreateOrderHandlerTests
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
@@ -129,6 +133,7 @@ public sealed class CreateOrderHandlerTests
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) }, orderNumber: "default");
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
         var generatedNumber = OrderNumber.Create(OrderType.DineIn, new LocalDate(2026, 10, 23), 5);
         orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
             .Returns(generatedNumber);
@@ -136,7 +141,7 @@ public sealed class CreateOrderHandlerTests
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
@@ -151,10 +156,11 @@ public sealed class CreateOrderHandlerTests
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -173,10 +179,11 @@ public sealed class CreateOrderHandlerTests
         var dto = NewValidOrderDto(items);
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -213,10 +220,11 @@ public sealed class CreateOrderHandlerTests
         OrderDto dto = NewValidOrderDto([itemDto]);
         IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        CreateOrderHandler handler = new(dbContext, orderNumberGenerator);
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -228,5 +236,52 @@ public sealed class CreateOrderHandlerTests
         item.TotalPrice.Should().Be(30.00m);
         item.Customizations.Should().ContainSingle().Which.Should().BeEquivalentTo(customization);
         item.SelectedVariations.Should().ContainSingle().Which.Should().BeEquivalentTo(variation);
+    }
+
+    [Fact]
+    public async Task Handle_ValidCommand_PublishesOrderCreatedIntegrationEventWithFullItemMetadata()
+    {
+        KitchenOrderItemCustomization customization = new("Extra sauce", "Hot", 0.50m);
+        KitchenOrderItemVariation variation = new("Size: Medium", 1.50m);
+        OrderItemDto itemDto = new(
+            Id: Guid.NewGuid(),
+            OrderId: Guid.NewGuid(),
+            MenuItemId: Guid.NewGuid(),
+            MenuItemName: "Deluxe Pizza",
+            MenuItemDescription: "Delicious",
+            MenuItemImageUrl: "https://example.test/pizza.png",
+            Quantity: 2,
+            UnitPrice: 15.00m,
+            BasePrice: 15.00m,
+            TotalPrice: 30.00m,
+            SeatNumber: 3,
+            SpecialInstructions: "Well done crust",
+            Customizations: [customization],
+            SelectedVariations: [variation],
+            PrepStatus: PrepStatus.Pending,
+            CreatedAt: SystemClock.Instance.GetCurrentInstant(),
+            PrepStartedAt: null,
+            PrepCompletedAt: null);
+
+        OrderDto dto = NewValidOrderDto([itemDto]);
+        IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
+        IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
+        OrderCreatedIntegrationEvent? publishedEvent = null;
+        await outbox.PublishAsync(Arg.Do<OrderCreatedIntegrationEvent>(e => publishedEvent = e), Arg.Any<CancellationToken>());
+
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
+        CreateOrderResult result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        publishedEvent.Should().NotBeNull();
+        publishedEvent!.OrderId.Should().Be(result.Id);
+        publishedEvent.RestaurantId.Should().Be(dto.RestaurantId);
+        publishedEvent.Items.Should().ContainSingle();
+        KitchenOrderItemPreview itemPreview = publishedEvent.Items.Single();
+        itemPreview.MenuItemName.Should().Be("Deluxe Pizza");
+        itemPreview.SpecialInstructions.Should().Be("Well done crust");
+        itemPreview.SeatNumber.Should().Be(3);
+        itemPreview.Customizations.Should().ContainSingle().Which.Should().BeEquivalentTo(customization);
+        itemPreview.SelectedVariations.Should().ContainSingle().Which.Should().BeEquivalentTo(variation);
     }
 }

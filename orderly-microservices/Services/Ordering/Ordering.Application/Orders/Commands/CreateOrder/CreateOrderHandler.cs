@@ -2,7 +2,8 @@ namespace Ordering.Application.Orders.Commands.CreateOrder;
 
 public class CreateOrderHandler(
     IApplicationDbContext dbContext,
-    IOrderNumberGenerator orderNumberGenerator)
+    IOrderNumberGenerator orderNumberGenerator,
+    IOutboxPublisher outboxPublisher)
     : ICommandHandler<CreateOrderCommand, CreateOrderResult>
 {
     public async Task<CreateOrderResult> Handle(
@@ -100,6 +101,10 @@ public class CreateOrderHandler(
             occurredAt: SystemClock.Instance.GetCurrentInstant());
 
         dbContext.Orders.Add(order);
+
+        OrderCreatedIntegrationEvent integrationEvent = order.ToOrderCreatedIntegrationEvent();
+        await outboxPublisher.PublishAsync(integrationEvent, cancellationToken);
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new CreateOrderResult(orderId.Value);

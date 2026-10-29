@@ -1,6 +1,6 @@
 # Order Lifecycle (Target Spec)
 
-Status: **agreed, not yet implemented**. This document is the target behavior
+Status: **implemented**. This document is the target behavior
 agreed with the product owner. Where it differs from the code, the code is
 the current state and this document is the goal. It supersedes the lifecycle
 notes in `architecture.md` (lines ~298-311).

@@ -1,7 +1,8 @@
 {
-  "$comment": "Canonical test menu for the dev MCP server's seed_test_menu tool. ≥3 categories, ≥10 items, with variations and ingredient customizations. The tool inserts into Catalogdb EF Core tables; restaurantId is provided by the caller (a stub Brand+Restaurant is created if absent). All IDs are deterministic GUIDs so the seed is idempotent.",
+  "$comment": "Canonical test menu for the dev MCP server's seed_test_menu tool. 1 brand, 5 categories, 25 items, with variations and ingredient customizations. The tool inserts into Catalogdb EF Core tables; restaurantId is provided by the caller (a stub Brand+Restaurant is created if absent). All IDs are deterministic GUIDs so the seed is idempotent, and every row that carries a ShortId has an explicit, stable, non-empty value: Brands/Restaurants/MenuItems all have a UNIQUE index on ShortId, so an omitted column would default to '' and collide on the second insert. NOT PERSISTED BY THE SEEDER: categories[].id (the seeder assigns MenuCategories.Id = index + 1, a global integer key), items[].categoryId (there is no category FK on MenuItems — the seeder writes MenuItems.SubCategoryId = NULL and creates no MenuSubCategories rows) and variations[].id (MenuItemVariations carries Name/VariationValue/PriceModifier, no id). The categories are an authoring grouping only.",
   "brand": {
     "id": "11111111-1111-1111-1111-111111111111",
+    "shortId": "brd11111111",
     "name": "Acme",
     "cuisineType": 0,
     "description": "Brand used by the dev MCP server for seeded test menus.",
@@ -9,6 +10,9 @@
     "contactPhone": "+52-81-0000-0000",
     "logoUrl": "https://placehold.co/100x100/png?text=OTB",
     "websiteUrl": "https://test.orderly.local"
+  },
+  "restaurant": {
+    "shortId": "rst22222222"
   },
   "categories": [
     {
@@ -28,11 +32,24 @@
       "name": "Desserts",
       "description": "Sweet finishes.",
       "displayOrder": 3
+    },
+    {
+      "id": "c0000004-0000-0000-0000-000000000004",
+      "name": "Drinks",
+      "description": "Cold house-made drinks and coffee.",
+      "displayOrder": 4
+    },
+    {
+      "id": "c0000005-0000-0000-0000-000000000005",
+      "name": "Breakfast",
+      "description": "Morning plates served all day.",
+      "displayOrder": 5
     }
   ],
   "items": [
     {
       "id": "a0000001-0000-0000-0000-000000000001",
+      "shortId": "itm00000001",
       "categoryId": "c0000001-0000-0000-0000-000000000001",
       "name": "Chips & Guac",
       "description": "House-made guacamole with corn tortilla chips.",
@@ -50,6 +67,7 @@
     },
     {
       "id": "a0000001-0000-0000-0000-000000000002",
+      "shortId": "itm00000002",
       "categoryId": "c0000001-0000-0000-0000-000000000001",
       "name": "Queso Fundido",
       "description": "Melted Chihuahua cheese with chorizo and roasted poblano.",
@@ -59,6 +77,7 @@
     },
     {
       "id": "a0000001-0000-0000-0000-000000000003",
+      "shortId": "itm00000003",
       "categoryId": "c0000001-0000-0000-0000-000000000001",
       "name": "Shrimp Ceviche",
       "description": "Lime-cured shrimp with tomato, red onion, and cilantro.",
@@ -67,7 +86,44 @@
       "prepTimeMaxMinutes": 15
     },
     {
+      "id": "a0000001-0000-0000-0000-000000000004",
+      "shortId": "itm00000012",
+      "categoryId": "c0000001-0000-0000-0000-000000000001",
+      "name": "Elote",
+      "description": "Grilled street corn with cotija, lime and chile.",
+      "basePrice": 89.00,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "variations": [
+        { "id": "a0000001-v000-0000-0000-000000000004", "name": "Without cheese", "priceDelta": 0.00 },
+        { "id": "a0000001-v000-0000-0000-000000000005", "name": "With cheese",    "priceDelta": 15.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Lime", "action": "extra" },
+        { "ingredientName": "Chili", "action": "extra" }
+      ]
+    },
+    {
+      "id": "a0000001-0000-0000-0000-000000000005",
+      "shortId": "itm00000013",
+      "categoryId": "c0000001-0000-0000-0000-000000000001",
+      "name": "Nachos Supreme",
+      "description": "Tortilla chips loaded with beef, cheese, jalapeños and salsa.",
+      "basePrice": 139.00,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "variations": [
+        { "id": "a0000001-v000-0000-0000-000000000006", "name": "Mild", "priceDelta": 0.00 },
+        { "id": "a0000001-v000-0000-0000-000000000007", "name": "Hot",  "priceDelta": 0.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Sour cream", "action": "no" },
+        { "ingredientName": "Jalapeños",  "action": "extra" }
+      ]
+    },
+    {
       "id": "a0000002-0000-0000-0000-000000000001",
+      "shortId": "itm00000004",
       "categoryId": "c0000002-0000-0000-0000-000000000002",
       "name": "Carne Asada Tacos (3)",
       "description": "Charcoal-grilled skirt steak, corn tortilla, salsa verde.",
@@ -86,6 +142,7 @@
     },
     {
       "id": "a0000002-0000-0000-0000-000000000002",
+      "shortId": "itm00000005",
       "categoryId": "c0000002-0000-0000-0000-000000000002",
       "name": "Chicken Enchiladas",
       "description": "Three corn tortillas rolled with chicken, mole sauce, queso fresco.",
@@ -95,6 +152,7 @@
     },
     {
       "id": "a0000002-0000-0000-0000-000000000003",
+      "shortId": "itm00000006",
       "categoryId": "c0000002-0000-0000-0000-000000000002",
       "name": "Veggie Bowl",
       "description": "Brown rice, black beans, roasted vegetables, avocado.",
@@ -108,6 +166,7 @@
     },
     {
       "id": "a0000002-0000-0000-0000-000000000004",
+      "shortId": "itm00000007",
       "categoryId": "c0000002-0000-0000-0000-000000000002",
       "name": "Grilled Salmon",
       "description": "Pacific salmon, citrus glaze, seasonal vegetables.",
@@ -117,6 +176,7 @@
     },
     {
       "id": "a0000002-0000-0000-0000-000000000005",
+      "shortId": "itm00000008",
       "categoryId": "c0000002-0000-0000-0000-000000000002",
       "name": "Burger 'Orderly'",
       "description": "Wagyu patty, smoked cheddar, caramelised onion, brioche bun.",
@@ -129,7 +189,62 @@
       ]
     },
     {
+      "id": "a0000002-0000-0000-0000-000000000006",
+      "shortId": "itm00000014",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Birria Tacos (3)",
+      "description": "Slow-braised beef tacos with consommé and diced onion.",
+      "basePrice": 275.00,
+      "prepTimeMinutes": 20,
+      "prepTimeMaxMinutes": 30,
+      "variations": [
+        { "id": "a0000002-v000-0000-0000-000000000006", "name": "Consommé",    "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000007", "name": "No consommé", "priceDelta": 0.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Cilantro", "action": "extra" },
+        { "ingredientName": "Onion",    "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000007",
+      "shortId": "itm00000015",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Al Pastor Tacos (3)",
+      "description": "Trompo-roasted pork tacos with pineapple and onion.",
+      "basePrice": 225.00,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 22,
+      "variations": [
+        { "id": "a0000002-v000-0000-0000-000000000008", "name": "Flour tortilla", "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000009", "name": "Corn tortilla",  "priceDelta": 0.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Pineapple", "action": "extra" },
+        { "ingredientName": "Cilantro",  "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000002-0000-0000-0000-000000000008",
+      "shortId": "itm00000016",
+      "categoryId": "c0000002-0000-0000-0000-000000000002",
+      "name": "Parrilla Mixta",
+      "description": "Mixed grill of beef, chorizo and chicken with charred onion.",
+      "basePrice": 425.00,
+      "prepTimeMinutes": 25,
+      "prepTimeMaxMinutes": 35,
+      "variations": [
+        { "id": "a0000002-v000-0000-0000-000000000012", "name": "For two",    "priceDelta": 0.00 },
+        { "id": "a0000002-v000-0000-0000-000000000013", "name": "Add shrimp", "priceDelta": 60.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Queso fresco",  "action": "extra" },
+        { "ingredientName": "Charred onion", "action": "no" }
+      ]
+    },
+    {
       "id": "a0000003-0000-0000-0000-000000000001",
+      "shortId": "itm00000009",
       "categoryId": "c0000003-0000-0000-0000-000000000003",
       "name": "Flan",
       "description": "Classic Mexican custard with caramel sauce.",
@@ -139,6 +254,7 @@
     },
     {
       "id": "a0000003-0000-0000-0000-000000000002",
+      "shortId": "itm00000010",
       "categoryId": "c0000003-0000-0000-0000-000000000003",
       "name": "Churros",
       "description": "Cinnamon sugar, dark chocolate dipping sauce.",
@@ -148,12 +264,175 @@
     },
     {
       "id": "a0000003-0000-0000-0000-000000000003",
+      "shortId": "itm00000011",
       "categoryId": "c0000003-0000-0000-0000-000000000003",
       "name": "Tres Leches",
       "description": "Sponge soaked in three milks, fresh berries.",
       "basePrice": 95.00,
       "prepTimeMinutes": 3,
       "prepTimeMaxMinutes": 5
+    },
+    {
+      "id": "a0000003-0000-0000-0000-000000000004",
+      "shortId": "itm00000017",
+      "categoryId": "c0000003-0000-0000-0000-000000000003",
+      "name": "Brownie con Helado",
+      "description": "Warm brownie with vanilla ice cream and chocolate sauce.",
+      "basePrice": 109.00,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "variations": [
+        { "id": "a0000003-v000-0000-0000-000000000004", "name": "Classic",     "priceDelta": 0.00 },
+        { "id": "a0000003-v000-0000-0000-000000000005", "name": "Extra scoop", "priceDelta": 25.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Walnuts", "action": "extra" },
+        { "ingredientName": "Mint",    "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000004-0000-0000-0000-000000000001",
+      "shortId": "itm00000018",
+      "categoryId": "c0000004-0000-0000-0000-000000000004",
+      "name": "Agua de Horchata",
+      "description": "Chilled rice milk drink with cinnamon and vanilla.",
+      "basePrice": 55.00,
+      "prepTimeMinutes": 2,
+      "prepTimeMaxMinutes": 4,
+      "variations": [
+        { "id": "a0000004-v000-0000-0000-000000000001", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000004-v000-0000-0000-000000000002", "name": "Large",   "priceDelta": 12.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Cinnamon",         "action": "extra" },
+        { "ingredientName": "Condensed milk",   "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000004-0000-0000-0000-000000000002",
+      "shortId": "itm00000019",
+      "categoryId": "c0000004-0000-0000-0000-000000000004",
+      "name": "Limonada de Jamaica",
+      "description": "Hibiscus tea sweetened with sugar and lime.",
+      "basePrice": 48.00,
+      "prepTimeMinutes": 2,
+      "prepTimeMaxMinutes": 4,
+      "variations": [
+        { "id": "a0000004-v000-0000-0000-000000000003", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000004-v000-0000-0000-000000000004", "name": "Large",   "priceDelta": 10.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Sugar", "action": "no" },
+        { "ingredientName": "Lime",  "action": "extra" }
+      ]
+    },
+    {
+      "id": "a0000004-0000-0000-0000-000000000003",
+      "shortId": "itm00000020",
+      "categoryId": "c0000004-0000-0000-0000-000000000004",
+      "name": "Agua de Naranja",
+      "description": "Fresh orange juice lightly sweetened and served over ice.",
+      "basePrice": 52.00,
+      "prepTimeMinutes": 2,
+      "prepTimeMaxMinutes": 4,
+      "variations": [
+        { "id": "a0000004-v000-0000-0000-000000000005", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000004-v000-0000-0000-000000000006", "name": "Large",   "priceDelta": 12.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Orange slices", "action": "extra" },
+        { "ingredientName": "Sugar",         "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000004-0000-0000-0000-000000000004",
+      "shortId": "itm00000021",
+      "categoryId": "c0000004-0000-0000-0000-000000000004",
+      "name": "Café de Olla",
+      "description": "Pot-brewed coffee with cinnamon, piloncillo and orange peel.",
+      "basePrice": 45.00,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 6,
+      "variations": [
+        { "id": "a0000004-v000-0000-0000-000000000007", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000004-v000-0000-0000-000000000008", "name": "Large",   "priceDelta": 10.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Cinnamon stick", "action": "extra" },
+        { "ingredientName": "Sugar",          "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000004-0000-0000-0000-000000000005",
+      "shortId": "itm00000022",
+      "categoryId": "c0000004-0000-0000-0000-000000000004",
+      "name": "Colada de Café",
+      "description": "Espresso blended with condensed milk and ice.",
+      "basePrice": 68.00,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 6,
+      "variations": [
+        { "id": "a0000004-v000-0000-0000-000000000009", "name": "Regular", "priceDelta": 0.00 },
+        { "id": "a0000004-v000-0000-0000-000000000010", "name": "Large",   "priceDelta": 14.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Sweet condensed milk", "action": "extra" },
+        { "ingredientName": "Cinnamon",             "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000005-0000-0000-0000-000000000001",
+      "shortId": "itm00000023",
+      "categoryId": "c0000005-0000-0000-0000-000000000005",
+      "name": "Huevos Rancheros",
+      "description": "Two fried eggs on tortillas with ranchero salsa and beans.",
+      "basePrice": 165.00,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 20,
+      "variations": [
+        { "id": "a0000005-v000-0000-0000-000000000001", "name": "Two eggs",   "priceDelta": 0.00 },
+        { "id": "a0000005-v000-0000-0000-000000000002", "name": "Three eggs", "priceDelta": 18.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Salsa verde", "action": "extra" },
+        { "ingredientName": "Cheese",      "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000005-0000-0000-0000-000000000002",
+      "shortId": "itm00000024",
+      "categoryId": "c0000005-0000-0000-0000-000000000005",
+      "name": "Chilaquiles",
+      "description": "Tortilla chips simmered in salsa with crema and queso fresco.",
+      "basePrice": 145.00,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 20,
+      "variations": [
+        { "id": "a0000005-v000-0000-0000-000000000003", "name": "Rojo",  "priceDelta": 0.00 },
+        { "id": "a0000005-v000-0000-0000-000000000004", "name": "Verde", "priceDelta": 0.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Crema",       "action": "extra" },
+        { "ingredientName": "Queso fresco", "action": "no" }
+      ]
+    },
+    {
+      "id": "a0000005-0000-0000-0000-000000000003",
+      "shortId": "itm00000025",
+      "categoryId": "c0000005-0000-0000-0000-000000000005",
+      "name": "Molletes",
+      "description": "Split bolillo rolls with refried beans, cheese and butter.",
+      "basePrice": 78.00,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "variations": [
+        { "id": "a0000005-v000-0000-0000-000000000005", "name": "Classic",   "priceDelta": 0.00 },
+        { "id": "a0000005-v000-0000-0000-000000000006", "name": "Add egg",   "priceDelta": 15.00 }
+      ],
+      "customizations": [
+        { "ingredientName": "Butter",     "action": "extra" },
+        { "ingredientName": "Jalapeños",  "action": "no" }
+      ]
     }
   ]
 }

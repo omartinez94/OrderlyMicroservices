@@ -1,10 +1,27 @@
-%% Checkout flow — client POST to basket.checkout, BasketCheckoutEvent fans out
-%% to Ordering (creates Order) and Kitchen (creates KitchenTicket).
+%% Checkout flow — client POST to /basket-api/v1/cart/checkout. The basket
+%% publishes BasketCheckoutEvent, which Ordering consumes to create the
+%% Order. Ordering then publishes OrderCreatedIntegrationEvent, and THAT
+%% event is what the Kitchen consumes to create the KitchenTicket — the
+%% Kitchen's only integration consumer is IConsumer<OrderCreatedIntegrationEvent>,
+%% so the ticket is created after the order row exists and the two legs
+%% are sequential, not concurrent.
 %%
 %% Source of truth: BasketCheckoutEvent.cs, CheckoutBasketHandler.cs,
 %% OrderCreatedIntegrationEventHandler.cs (Kitchen).
 %%
-%% Last reconciled to code: 2026-07-17.
+%% Traced by `trace_business_flow({flowName: 'checkout'})` in
+%% src/tools/flow-tracing.ts, which seeds one basket line with
+%% PUT /v1/cart, drives the checkout with POST /v1/cart/checkout, waits
+%% 1.5 s and then reads Orders back from OrderDb.
+%%
+%% Wire contract the tracer honours: POST /v1/cart/checkout requires an
+%% `Idempotency-Key` header (UUID v4) and binds `paymentMethod` as an
+%% INTEGER enum (Card = 1) — the basket registers no
+%% JsonStringEnumConverter for HTTP, so the string "Card" fails model
+%% binding. `userId` / `restaurantId` are sent as Guid.Empty because the
+%% endpoint overwrites them with the JWT-derived identity.
+%%
+%% Last reconciled to code: 2026-10-24.
 
 sequenceDiagram
     autonumber
@@ -20,7 +37,7 @@ sequenceDiagram
     participant KD as kitchendb PG (5436)
     participant H as KitchenHub (SignalR)
 
-    C->>Y: POST /basket/checkout { userId, restaurantId, ... }
+    C->>Y: POST /basket-api/v1/cart/checkout { userId, restaurantId, ... }
     Y->>B: forward CheckoutBasketCommand
     B->>R: SELECT basket by (userId, restaurantId)
     R-->>B: basket (or miss)
@@ -28,29 +45,27 @@ sequenceDiagram
     D-->>B: cached blob (warm path) or miss
 
     alt basket empty
-        B-->>C: 200 { success: false, message: "Basket is empty." }
+        B-->>C: 400 { success: false, message: "Basket is empty." }
     else basket has items
         B->>X: Publish BasketCheckoutEvent { Id, OccurredOn, MessageVersion, Items, TotalAmount, ... }
         X-->>B: ack
         B->>R: DELETE basket row
         B-->>C: 200 { success: true, message: "Checkout completed successfully." }
 
-        par Ordering consumer
-            X->>O: deliver BasketCheckoutEvent
-            O->>OD: INSERT Orders + OrderItems (transactional)
-            OD-->>O: new OrderId
-            O->>X: Publish OrderCreatedIntegrationEvent
-            X-->>O: ack
-        and Kitchen consumer
-            X->>K: deliver BasketCheckoutEvent
-            K->>KD: SELECT ticket by OrderId (idempotency check)
-            alt ticket already exists
-                K-->>K: skip (idempotent)
-            else new
-                K->>KD: INSERT kitchen_tickets + kitchen_ticket_items
-                KD-->>K: new TicketId
-                K->>H: broadcast OrderReceived (SignalR, restaurant group)
-            end
+        X->>O: consume BasketCheckoutEvent (Ordering consumer)
+        O->>OD: INSERT Orders + OrderItems (transactional)
+        OD-->>O: new OrderId
+        O->>X: Publish OrderCreatedIntegrationEvent
+        X-->>O: ack
+
+        X->>K: consume OrderCreatedIntegrationEvent (Kitchen consumer)
+        K->>KD: SELECT ticket by OrderId (idempotency check)
+        alt ticket already exists
+            K-->>K: skip (idempotent)
+        else new
+            K->>KD: INSERT kitchen_tickets + kitchen_ticket_items
+            KD-->>K: new TicketId
+            K->>H: broadcast OrderReceived (SignalR, restaurant group)
         end
 
         opt Verification step (verify_flow_state)

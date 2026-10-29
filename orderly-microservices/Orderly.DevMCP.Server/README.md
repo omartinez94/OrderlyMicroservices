@@ -1,6 +1,6 @@
 # Orderly.DevMCP.Server
 
-> Local-only MCP server that exposes the OrderlyMicroservices backend to AI assistants during frontend development. Implements the [Model Context Protocol](https://modelcontextprotocol.io/) over HTTP/SSE so LAN clients (the Web CRM, the Mobile App, Claude Desktop, Cursor) can connect.
+> Local-only MCP server that exposes the OrderlyMicroservices backend to AI assistants during frontend development. Implements the [Model Context Protocol](https://modelcontextprotocol.io/) over **Streamable HTTP** so LAN clients (the Web CRM, the Mobile App, Claude Desktop, Cursor) can connect.
 
 > **Package manager**: This project uses [pnpm](https://pnpm.io/) via Corepack. Run `corepack enable` once per machine; the `packageManager` field in `package.json` pins the version for everyone.
 
@@ -11,7 +11,7 @@
 
 ## 1. What it does
 
-17 tools across 9 modules (Phase 1 + 2 + 3 + 4 complete):
+20 tools across 10 modules (Phase 1 + 2 + 3 + 4 complete):
 
 | Module | Tools |
 |---|---|
@@ -22,7 +22,7 @@
 | `log-tracing` | `get_recent_logs` |
 | `data-seeding` | `seed_test_menu`, `create_mock_order` |
 | `event-bus` | `publish_integration_event`, `inspect_dead_letters` |
-| `infrastructure` | `reset_databases`, `simulate_service_outage` |
+| `infrastructure` | `reset_databases`, `flush_orders`, `simulate_service_outage` |
 | `jobs` | `seed_historical_sales`, `trigger_scheduled_jobs` |
 | `flow-tracing` | `trace_business_flow`, `get_flow_architecture`, `verify_flow_state` |
 
@@ -31,7 +31,8 @@ Run `get_api_schema({serviceName: 'catalog'})` for the full per-tool schema.
 ## 2. Requirements
 
 - **Node.js 22.6+** (type stripping is native; no `tsc` build, no `tsx`).
-- **Docker** running the `orderly-microservices/docker-compose.override.yml` stack (Catalog, Basket, Ordering, Identity, Kitchen, Discount + Yarp + Postgres × 4 + Redis + RabbitMQ + MSSQL).
+- **Docker** running the `orderly-microservices/docker-compose.override.dev.yml` stack (Catalog, Basket, Ordering, Identity, Kitchen, Discount + Yarp + Postgres × 4 + Redis + RabbitMQ + MSSQL).
+- **A shared `JWT_SECRET`**. The .NET services register a dev-only HS256 scheme (`DevHs256`) that verifies the tokens `generate_dev_token` mints — but only when `JWT_SECRET` is present in their environment. The dev compose override sources it from this server's own `.env` via `env_file`, so the secret has a single source of truth. Without it every dev token fails with *"No authentication handler is registered for the scheme 'DevHs256'"*.
 - A JWT secret (≥ 16 chars) for `JWT_SECRET`.
 
 ## 3. Install
@@ -100,11 +101,12 @@ The full snippet is in [`../docs/sse-config-snippet.json`](../docs/sse-config-sn
 | `get_system_snapshot(restaurantId?)` | One-shot cross-service state report. 3 s per sub-query. |
 | `watch_system(intervalSeconds, ...)` | Streams snapshots via `notifications/message`. |
 | `get_recent_logs(serviceName, lines?, level?)` | Tails the Docker container for a service. |
-| `seed_test_menu(restaurantId, dryRun?)` | Inserts the canonical test menu. Idempotent. |
-| `create_mock_order(restaurantId, status?)` | Creates a fake order in OrderDb. Returns the new OrderId. |
+| `seed_test_menu(restaurantId, dryRun?)` | Inserts the canonical test menu (5 categories, 25 items) into Catalogdb. Idempotent — every row carries an explicit unique `ShortId` and re-running replaces the variations of the items that declare them instead of duplicating them. |
+| `create_mock_order(restaurantId, status?, orderType?, itemCount?, seed?)` | Creates a fake order in OrderDb with 1-12 distinct menu items picked from the catalog seed (quantity `MIN_ITEM_QUANTITY`..`MAX_ITEM_QUANTITY`, i.e. 1-3, per line). Each line carries **at most one** of the item's mutually exclusive variations and `unitPrice` is the catalog `basePrice` **plus the chosen variation's price delta**. `itemCount` overrides the random count; `seed` makes the pick fully reproducible. Returns the new OrderId, the picked items and whether the Kitchen ticket was mirrored (`kitchenMirrored` / `kitchenTicketId`). |
 | `publish_integration_event(eventName, payload)` | Publishes a JSON event to `BuildingBlocks.Messaging.Events:{EventTypeName}`. Rate-limited 5/min. |
 | `inspect_dead_letters()` | Lists failed messages from `*_error` queues. |
 | `reset_databases(targets?, confirmText)` | **DESTRUCTIVE.** Two-step confirmation. Rate-limited 1/hour. |
+| `flush_orders(restaurantId?, scope?, includeKitchen?, purgeOutbox?, resetSequences?, dryRun?, confirm)` | Selectively purges orders, line items, activities, bills, and tickets without dropping schemas. Rate-limited 10/min. |
 | `simulate_service_outage(serviceName, durationSeconds?)` | Stops an API container for N seconds. Allowlist-enforced. |
 | `seed_historical_sales(restaurantId, daysBack)` | Deterministic bulk insert into OrderDb. |
 | `trigger_scheduled_jobs(jobName)` | HTTP POST to a dev-only endpoint. Requires `DEV_TRIGGER_SECRET`. |
@@ -116,10 +118,11 @@ The full snippet is in [`../docs/sse-config-snippet.json`](../docs/sse-config-sn
 
 - **JWT_SECRET** is the same secret the .NET services use to verify dev tokens. Rotate it whenever the dev team rotates. As of the v1.1 close pass, the `.NET-side fallback dev-secret handler` is implemented via `BuildingBlocks.Dev.DevJwtBearerFallbackExtensions.AddJwtAuthenticationWithDevFallback` — services that have it wired accept HS256 tokens signed with `JWT_SECRET` when the OpenIddict `Authority` is unreachable. Production services do not have the fallback wired.
 - **`trigger_scheduled_jobs` → `/dev/trigger/*` endpoints** are now live on the .NET services via `BuildingBlocks.Dev.DevTriggerEndpointExtensions.MapDevTriggerEndpoint`. The MCP server POSTs to `http://basket.api:8080/_dev/trigger/clear-abandoned-baskets`, `http://ordering.api:8080/_dev/trigger/daily-reconciliation`, and `http://ordering.api:8080/_dev/trigger/outbox-relay` with the `X-Dev-Trigger-Secret` header (must match `DEV_TRIGGER_SECRET` on each .NET host). The endpoints are gated on `IsDevelopment()` + constant-time secret compare.
-- `reset_databases` and `simulate_service_outage` are **DESTRUCTIVE**. The first requires a second `confirmText` field that must equal a target name; the second refuses to stop any container that isn't in the API allow-list (databases and `messagebroker` are always refused).
-- `publish_integration_event` and `reset_databases` are rate-limited (5/min, 1/hour) so an AI loop can't fire them indefinitely.
+- `reset_databases` and `simulate_service_outage` are **DESTRUCTIVE**. The first requires a second `confirmText` field that must list **every** target being reset (comma-separated) — matching only one of them is rejected, because `targets` defaults to all five databases. The second refuses to stop any container that isn't in the API allow-list (databases and `messagebroker` are always refused).
+- `publish_integration_event`, `reset_databases`, and `flush_orders` are rate-limited (5/min, 1/hour, 10/min) so an AI loop can't fire them indefinitely. The bucket key is fixed by the server — it is not a caller-supplied parameter, because a caller-chosen key would mint a fresh bucket per call and defeat the cap.
+- `flush_orders` caveats: in-flight messages already queued in RabbitMQ can still be delivered to consumers and recreate tickets after a flush; purge broker queues manually if needed. Also, connected SignalR dashboards will retain client-side memory until refreshed.
 - All DB / cache / broker factories call `assertDevHost` before opening a connection. The allow-list is `localhost,127.0.0.1` by default; override with `DEV_HOST`.
-- Every tool call logs `{ tool, params (sanitized), durationMs, outcome }` — pino with `JWT_SECRET` / `password` / `Authorization` redaction.
+- Tool output is logged with pino and `JWT_SECRET` / `password` / `Authorization` redaction.
 
 ## 8. Troubleshooting
 
@@ -135,11 +138,49 @@ The full snippet is in [`../docs/sse-config-snippet.json`](../docs/sse-config-sn
 ```bash
 pnpm dev          # --watch + --env-file
 pnpm typecheck    # tsc --noEmit
-pnpm test         # node --test (skips live-backend tests if Docker is down)
+pnpm test         # node --test (unit + wire tests; skips live-backend tests if Docker is down)
+pnpm test:wire    # wire tests ONLY, against an already-running server
 pnpm run lint:mmd # fails if any resources/flows/*.mmd is older than tools/flow-tracing.ts
 ```
 
 The `.mmd` lint exists because drift between diagram and code is the bug class this whole server exists to prevent. Touch a `.mmd` to silence the lint after review; never auto-update.
+
+### Wire tests (`test/wire/`)
+
+The unit tests import the tool modules and call the handlers directly. That
+structurally cannot catch the failures that matter in production: a tool
+that typechecks and unit-tests fine but throws once the JSON-RPC envelope
+is applied, a tool that leaks a raw exception instead of the structured
+`{ error: { code, message } }` payload, or a tool that was never
+registered on the server at all.
+
+The wire tests connect to a **running** server over Streamable HTTP with
+the real MCP SDK client — the same path an AI assistant takes — and assert
+on what actually comes back:
+
+```bash
+# terminal 1
+pnpm dev                    # server on :8080
+
+# terminal 2
+pnpm test:wire              # 21 tests against the live server
+```
+
+They skip (rather than fail) when no server is reachable, so `pnpm test`
+stays green on a machine without the dev stack.
+
+Every tool response is checked for **runtime-error leakage**. The server is
+expected to catch backend failures and return a structured error envelope;
+when it does not, the raw exception text leaks through and the caller sees
+things like *"Cannot read properties of undefined"* — a just-in-time
+failure no typechecker would have caught. `RUNTIME_ERROR_PATTERNS` in
+`test/support/mcp-client.ts` lists the signatures that fail the test.
+
+## 9b. Known limitations in the surrounding stack
+
+These are **not** MCP-server bugs — the server calls the API correctly — but they bound what the flow tools can currently prove.
+
+- **The basket → ordering order projection does not complete.** `BasketItem.MenuItemId` is an `int`, and `BasketCheckoutEventHandler` converts it with `Guid.TryParse(item.MenuItemId.ToString())`, which yields `Guid.Empty` for an int; `MenuItemId.Of()` then rejects it (`"MenuItemId cannot be empty."`). Every order in the dev stack is `DineIn`/`Takeout` — there are zero `Delivery` orders, and the basket path always creates `Delivery`, so this path has never produced an order. Separately, the Basket outbox dispatcher queries with the default tenant while rows are stored per-restaurant tenant, so staged events are never published. `trace_business_flow('checkout')` therefore reports `pass: false` with *"no order row found … the checkout did not project into OrderDb"*. The basket side itself succeeds: `PUT /v1/cart` returns 201 and `POST /v1/cart/checkout` returns `{"Success":true}`.
 
 ## 10. Verification with Docker (live-backend tests)
 

@@ -78,10 +78,13 @@ export function registerStateInspectionTools(
       const key = `basket:${userId}:${restaurantId}`;
       let raw: string | null;
       try {
-        raw = await ctx.redis.get(key);
+        // The basket cache is a HASH written by the StackExchange Redis
+        // `IDistributedCache`; the payload lives in its `data` field.
+        // A plain GET raises "WRONGTYPE ... wrong kind of value".
+        raw = await ctx.redis.hget(key, 'data');
       } catch (cause) {
         return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'redis GET failed', cause: String(cause), key }, null, 2) }],
+          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'redis HGET failed', cause: String(cause), key }, null, 2) }],
           isError: true,
         };
       }
@@ -166,10 +169,14 @@ export function registerStateInspectionTools(
           if (!row) throw new Error(`order ${orderId} not found`);
           return row as Record<string, unknown>;
         })(),
-        // RabbitMQ Management API — depth of ordering queue (default vhost '/')
+        // RabbitMQ Management API — depth of the ordering consumer queue
+        // (default vhost '/'). MassTransit names the queue after the
+        // consumer handler: Ordering consumes BasketCheckoutEvent via
+        // BasketCheckoutEventHandler, so the queue is
+        // `basket-checkout-event-handler` — there is no "ordering-api".
         (async () => {
           const auth = Buffer.from(`${process.env.RABBITMQ_DEFAULT_USER ?? 'guest'}:${process.env.RABBITMQ_DEFAULT_PASS ?? 'guest'}`).toString('base64');
-          const res = await fetch('http://localhost:15672/api/queues/%2F/ordering-api', {
+          const res = await fetch('http://localhost:15672/api/queues/%2F/basket-checkout-event-handler', {
             headers: { Authorization: `Basic ${auth}` },
             signal: AbortSignal.timeout(3_000),
           });

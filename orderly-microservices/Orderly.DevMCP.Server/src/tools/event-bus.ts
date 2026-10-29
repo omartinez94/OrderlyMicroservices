@@ -85,13 +85,15 @@ export function registerEventBusTools(server: McpServer, deps: EventBusDeps): vo
       inputSchema: {
         eventName: z.string().min(1).describe(`Event type name. Known types: ${knownEventTypes.join(', ') || '(none discovered)'}`),
         payload: z.record(z.string(), z.unknown()).describe('Event payload as a JSON object. Will be merged with auto-injected fields.'),
-        rateLimitKey: z.string().default('global').describe('Rate-limit bucket key. Default "global".'),
       },
     },
     async (args) => {
-      const { eventName, payload, rateLimitKey } = args as { eventName: string; payload: Record<string, unknown>; rateLimitKey: string };
+      const { eventName, payload } = args as { eventName: string; payload: Record<string, unknown> };
 
-      const limit = rateLimits.publish.consume(rateLimitKey);
+      // The bucket key is fixed by the server, never supplied by the
+      // caller: a caller-chosen key would mint a fresh token bucket per
+      // call and defeat the 5/min cap entirely.
+      const limit = rateLimits.publish.consume('global');
       if (!limit.allowed) {
         return {
           content: [{

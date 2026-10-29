@@ -1,13 +1,18 @@
-%% Discount application — synchronous gRPC call from basket.api to
-%% discount.grpc. Returns DiscountResponse with the reduced price; the
-%% basket applies it via AppliedDiscounts list (no DB write on the
-%% basket side — the cache + Marten document is updated by the
-%% StoreBasketHandler after the gRPC call returns).
+%% Discount application — the basket resolves every coupon code it
+%% carries with a synchronous gRPC call to discount.grpc, which reads
+%% the coupon from discountdb (Postgres). The stacking math is applied
+%% by the basket (ApplyDiscountsHelper) and persisted with the basket.
 %%
-%% Source of truth: Discount.proto, Basket.API/Program.cs gRPC client
-%% registration, StoreBasketHandler.cs (cache invalidation).
+%% Source of truth: discount.proto (DiscountProtoService.GetDiscount /
+%% ListDiscounts / RedeemDiscount), Basket.API/Discount/GrpcDiscountLookup.cs,
+%% Basket.API/Basket/StoreBasket/StoreBasketHandler.cs.
 %%
-%% Last reconciled to code: 2026-07-17.
+%% Traced by `trace_business_flow({flowName: 'discount-application'})` in
+%% src/tools/flow-tracing.ts, which calls ListDiscounts → GetDiscount →
+%% RedeemDiscount on discount.grpc:6002 and emits an info step (instead of
+%% failing) when proto/discount.proto is missing.
+%%
+%% Last reconciled to code: 2026-10-24.
 
 sequenceDiagram
     autonumber
@@ -15,27 +20,27 @@ sequenceDiagram
     participant Y as Yarp Gateway (:6004)
     participant B as basket.api (:6001)
     participant G as discount.grpc (:6002)
-    participant D as discountdb SQLite
+    participant D as discountdb PG (5437)
 
-    U->>Y: GET /basket (or POST /basket/items)
-    Y->>B: forward request
+    U->>Y: PUT /basket-api/v1/cart { userId, restaurantId, items[], appliedDiscounts[] }
+    Y->>B: forward StoreBasketCommand
     B->>B: load basket from basketdb (or Redis)
-    B->>G: gRPC DiscountRequest { MenuItemId, Quantity, CustomerId, RestaurantId, CouponCode? }
-    alt coupon code present
-        G->>D: SELECT Coupons WHERE Code = @code AND Active
-        D-->>G: coupon row (or 404)
-    end
-    G->>D: SELECT DiscountRules WHERE appliesTo(@item)
-    D-->>G: matching rules
-    G->>G: compute final price (subtotal - sum(rule.adjustments))
-    G-->>B: DiscountResponse { OriginalPrice, FinalPrice, AppliedAdjustments[], CouponUsed? }
 
-    alt FinalPrice < OriginalPrice
-        B->>B: append applied rule to basket.AppliedDiscounts
-        B->>B: refresh basket.Subtotal with discounted unit price
-        B->>Y: 200 with updated basket
-        Y-->>U: basket view shows line-item discount
-    else no discount matched
-        B->>Y: 200 with basket unchanged
-        Y-->>U: basket view unchanged
+    loop one gRPC call per coupon code
+        B->>G: gRPC GetDiscount { restaurant_id, code }
+        G->>D: SELECT coupon WHERE restaurant_id = @rid AND code = @code
+        D-->>G: coupon row (or none)
+        G-->>B: GetDiscountResponse { coupon: CouponModel { code, description, amount, is_active, expiration_date, discount_type } }
     end
+
+    Note over B: normalise to DiscountSnapshot — amount widened to decimal,<br/>expiration_date parsed to Instant (fail-closed on a malformed date)
+
+    alt coupon inactive (IsActive=false) or expired
+        B->>B: skip the coupon
+    else coupon valid
+        B->>B: ApplyDiscountsHelper.Apply(subtotal, applied[]) —<br/>percentage points or flat amount, clamped to the subtotal
+    end
+
+    B->>B: basket.AppliedCoupons / DiscountAmount / EffectiveSubtotal
+    B->>Y: 200 with the updated basket
+    Y-->>U: basket view shows the discount

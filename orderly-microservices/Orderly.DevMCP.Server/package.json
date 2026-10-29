@@ -12,6 +12,7 @@
     "dev": "node --env-file=.env --watch src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test --env-file=.env test/**/*.test.ts",
+    "test:wire": "node --test --env-file=.env test/wire/*.test.ts",
     "lint:mmd": "node scripts/check-mmds-in-sync.ts"
   },
   "dependencies": {

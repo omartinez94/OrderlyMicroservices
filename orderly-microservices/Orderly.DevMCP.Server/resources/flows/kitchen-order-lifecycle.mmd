@@ -1,46 +1,67 @@
-%% Kitchen order lifecycle — KitchenTicket state machine triggered by
-%% the operator UI. Each transition publishes an IntegrationEvent
-%% that Ordering consumes to advance the parent Order status.
+%% Kitchen order lifecycle — the KitchenTicket state machine. Every
+%% transition is driven by the operator UI and stages an IntegrationEvent
+%% (through the outbox). Most of those events are consumed by Ordering to
+%% advance the parent Order; the bump is an audit signal only.
 %%
-%% Source of truth: KitchenTicket.cs, KitchenTicketStatus.cs,
-%%                   KitchenTicketAcceptedEvent.cs (and the 7 sibling events).
+%% Source of truth: Kitchen.API/Domain/Aggregates/KitchenTicket/KitchenTicket.cs,
+%% Kitchen.API/Domain/Enums/KitchenTicketStatus.cs,
+%% Kitchen.API/Domain/Enums/KitchenItemStatus.cs,
+%% Kitchen.API/Endpoints/{AcceptOrder,BumpOrder,CancelOrder,MarkItemReady,MarkOrderReady,RecallOrder,StartItemPrep}.cs
 %%
-%% Last reconciled to code: 2026-07-17.
+%% Traced by `trace_business_flow({flowName: 'kitchen-order-lifecycle'})`
+%% in src/tools/flow-tracing.ts, which publishes
+%% KitchenOrderAcceptedIntegrationEvent → KitchenOrderPrepStartedIntegrationEvent
+%% → KitchenOrderReadyIntegrationEvent and then reads the
+%% order-created-integration-event-handler queue depth.
+%%
+%% Last reconciled to code: 2026-10-24.
 
 stateDiagram-v2
-    [*] --> Pending : ticket created from OrderCreatedIntegrationEvent
-    Pending --> Accepted : POST /tickets/{id}/accept (operator)
-    Accepted --> PrepStarted : POST /tickets/{id}/start-prep (per-item or whole)
-    PrepStarted --> Ready : POST /tickets/{id}/mark-ready (per-item or whole)
-    Ready --> Bumped : POST /tickets/{id}/bump (operator serves the order)
-    Bumped --> [*] : terminal — no further transitions
-    Pending --> Cancelled : POST /tickets/{id}/cancel
-    Accepted --> Cancelled : POST /tickets/{id}/cancel
-    PrepStarted --> Cancelled : POST /tickets/{id}/cancel
-    Ready --> Cancelled : POST /tickets/{id}/cancel
-    Pending --> Recalled : POST /tickets/{id}/recall (revert to ordering)
-    Accepted --> Recalled : POST /tickets/{id}/recall
+    [*] --> New : ticket created from OrderCreatedIntegrationEvent
+    New --> InProgress : POST /v1/kitchen/tickets/{id:guid}/accept (operator)
+    InProgress --> Ready : POST /v1/kitchen/tickets/{id:guid}/mark-ready (every item Ready)
+    Ready --> Bumped : POST /v1/kitchen/tickets/{id:guid}/bump (operator serves the order)
+    Bumped --> Ready : POST /v1/kitchen/tickets/{id:guid}/recall (chef pull-back)
+    New --> Cancelled : POST /v1/kitchen/tickets/{id:guid}/cancel
+    InProgress --> Cancelled : POST /v1/kitchen/tickets/{id:guid}/cancel
+    Ready --> Cancelled : POST /v1/kitchen/tickets/{id:guid}/cancel
+    Bumped --> Cancelled : POST /v1/kitchen/tickets/{id:guid}/cancel
 
-    note right of Accepted
-        AcceptOrder publishes
-        KitchenOrderAcceptedIntegrationEvent
-        → Ordering marks Order.ConfirmedAt
+    note right of New
+        Per-item state machine (KitchenItemStatus):
+        Pending → Preparing → Ready
+        POST /v1/kitchen/tickets/{id:guid}/items/{itemId:guid}/start
+        POST /v1/kitchen/tickets/{id:guid}/items/{itemId:guid}/ready
+        The ticket stays New/InProgress while the items move.
     end note
 
-    note right of PrepStarted
-        StartItemPrep publishes
-        KitchenOrderPrepStartedIntegrationEvent
-        → Ordering marks Order.StartedAt
+    note right of InProgress
+        Accept publishes
+        KitchenOrderAcceptedIntegrationEvent
+        → Ordering marks Order.ConfirmedAt
     end note
 
     note right of Ready
         MarkOrderReady publishes
         KitchenOrderReadyIntegrationEvent
         → Ordering marks Order.ReadyAt
+        Only legal once every item reports Ready.
     end note
 
     note right of Bumped
         BumpOrder publishes
         KitchenOrderBumpedIntegrationEvent
-        → Ordering marks Order.CompletedAt
+        → Ordering records it for AUDIT ONLY:
+        Order.Status is unchanged and stays Ready
+        until the order is dispatched.
+        Recall (Bumped → Ready) raises NO integration
+        event — a domain event only
+        (KitchenTicketRecalledEvent) — so Ordering
+        is not notified.
+    end note
+
+    note right of Cancelled
+        CancelOrder publishes
+        KitchenOrderCancelledIntegrationEvent
+        Permitted from every non-cancelled state.
     end note

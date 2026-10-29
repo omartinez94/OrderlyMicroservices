@@ -1,5 +1,5 @@
 {
-  "$comment": "Canonical order payload matching BasketCheckoutEvent shape (BuildingBlocks.Messaging/Events/BasketCheckoutEvent.cs). Used by create_mock_order to seed a known order directly into OrderDb Orders/OrderItems/OrderAddresses tables. Status defaults to 'Pending'; can be overridden.",
+  "$comment": "Canonical order payload matching BasketCheckoutEvent shape (BuildingBlocks.Messaging/Events/BasketCheckoutEvent.cs). Used by create_mock_order to seed the customer, addresses and payment payload of an order in OrderDb. The address is a ComplexProperty on Orders (DeliveryAddress_* / BillingAddress_* columns) — there is NO OrderAddresses table. The `orderItems` array below is ONLY the fallback used when `catalog-seed.json` holds no items; the normal path picks the line items from the catalog seed. Status defaults to 'Pending'; can be overridden.",
   "customerId": "d0000001-0000-0000-0000-000000000001",
   "restaurantId": "22222222-2222-2222-2222-222222222222",
   "userName": "devmcp@orderly.local",

@@ -127,7 +127,7 @@ function createMcpInstance(): { mcp: McpServer; transport: StreamableHTTPServerT
         'Local-only MCP server for the Orderly backend. Refuses to run unless NODE_ENV=development. ' +
         'Ships 20 tools across 10 modules: API discovery, auth (HS256 dev tokens), state inspection, ' +
         'system snapshot + watcher, log tracing, data seeding (catalog menu + mock orders), event bus ' +
-        '(publish + DLQ inspection), infrastructure (DB reset + outage simulation), and jobs ' +
+        '(publish + DLQ inspection), infrastructure (DB reset + flush orders + outage simulation), and jobs ' +
         '(historical sales + scheduled triggers).',
     },
   );

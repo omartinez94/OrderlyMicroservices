@@ -102,6 +102,16 @@ interface FlowToolContext {
   redis: ToolContext['redis'];
 }
 
+/**
+ * Shape of the dynamically loaded discount.proto package — the proto
+ * loader returns plain objects, so every member stays `unknown` until
+ * it is cast at the call site.
+ */
+type DiscountProtoPackage = Record<string, Record<string, unknown>>;
+
+/** Constructor of a protobuf request message. */
+type DiscountProtoCtor = new (init?: Record<string, unknown>) => unknown;
+
 async function withTiming<T>(fn: () => Promise<T>): Promise<{ result: T; elapsedMs: number }> {
   const t0 = Date.now();
   const result = await fn();
@@ -162,17 +172,31 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
         return { status: res.status, body: await res.text().catch(() => '') };
       });
       log({ kind: 'http', step: 'add-item-to-basket', method: 'PUT', url, status: result.status, body: result.body, elapsedMs });
+      // A non-2xx here means the basket was never populated, so the
+      // checkout below cannot succeed either.
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`add-item-to-basket failed with HTTP ${result.status}: ${result.body}`);
+      }
     }
 
     // Step 2: Checkout (POST /v1/cart/checkout)
-    let orderId = '';
     {
       const url = 'http://localhost:6001/v1/cart/checkout';
       const { result, elapsedMs } = await withTiming(async () => {
         const res = await fetch(url, {
           method: 'POST',
-          headers: authHeaders,
+          headers: {
+            ...authHeaders,
+            // `BasketIdempotencyFilter` rejects the request with 400
+            // "missing-idempotency-key" when this header is absent.
+            // It must be a UUID v4.
+            'Idempotency-Key': randomUUID(),
+          },
           body: JSON.stringify({
+            // The Basket API REQUIRES Guid.Empty for these two fields:
+            // the endpoint overwrites them with the JWT-derived
+            // identity (the "spoofing footgun" guard rejects any
+            // other value with 422). The JWT carries the real ids.
             userId: '00000000-0000-0000-0000-000000000000',
             restaurantId: '00000000-0000-0000-0000-000000000000',
             firstName: 'Flow',
@@ -181,21 +205,33 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
             addressLine: '123 Test St',
             country: 'MX',
             state: 'NL',
-            city: 'Monterrey',
             zipCode: '64000',
             cardName: 'Flow Trace',
             cardNumber: '4111111111111111',
             expiration: '12/30',
             cvv: '123',
-            paymentMethod: 'Card',
+            // `PaymentMethod` is bound as an INTEGER enum — the
+            // basket's HTTP JSON options do NOT register
+            // JsonStringEnumConverter, so the string "Card" fails
+            // model binding with a 400. Card = 1.
+            paymentMethod: 1,
           }),
           signal: AbortSignal.timeout(10_000),
         });
         const body = await res.text().catch(() => '');
-        try { const parsed = JSON.parse(body) as { orderId?: string }; if (parsed.orderId) orderId = parsed.orderId; } catch { /* ignore */ }
+        // Persist the created order id back onto the run context so
+        // `verify_flow_state` and the cleanup step can target the real
+        // order instead of the pre-generated placeholder.
+        try {
+          const parsed = JSON.parse(body) as { orderId?: string };
+          if (parsed.orderId) fc.ids.orderId = parsed.orderId;
+        } catch { /* ignore */ }
         return { status: res.status, body };
       });
       log({ kind: 'http', step: 'checkout', method: 'POST', url, status: result.status, body: result.body, elapsedMs });
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`checkout failed with HTTP ${result.status}: ${result.body}`);
+      }
     }
 
     // Step 3: Wait + verify order in OrderDb
@@ -207,13 +243,22 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
 
     {
       const { result, elapsedMs } = await withTiming(async () => {
-        const r = await ctx.mssql.request().query<{ cnt: number }>(`SELECT count(*) AS cnt FROM Orders WHERE RestaurantId = @rid`, );
-        // mssql .input requires parameter binding; use a separate request for clarity.
+        // `@rid` MUST be bound. Passing an unbound parameter makes
+        // mssql raise "must declare the scalar variable @rid", which
+        // aborted the flow at this step every time.
+        const r = await ctx.mssql.request()
+          .input('rid', restaurantId)
+          .query<{ cnt: number }>(`SELECT count(*) AS cnt FROM Orders WHERE RestaurantId = @rid`);
         return r.recordset[0]?.cnt ?? 0;
       });
-      // Note: the count query above uses a literal RestaurantId substitution; for
-      // production-grade safety we'd parameterize it. Phase 4 keeps it simple.
-      log({ kind: 'mssql_query', step: 'verify-order-created', sql: 'SELECT count(*) FROM Orders WHERE RestaurantId = ?', rowCount: result, elapsedMs });
+      log({ kind: 'mssql_query', step: 'verify-order-created', sql: 'SELECT count(*) FROM Orders WHERE RestaurantId = @rid', rowCount: result, elapsedMs });
+      // The flow's verdict must reflect what actually happened. A
+      // verification that finds no order has to fail the flow —
+      // otherwise `pass: true` is reported for a run where the
+      // business outcome never materialised.
+      if (result < 1) {
+        throw new Error(`verify-order-created: no order row found for restaurant ${restaurantId} — the checkout did not project into OrderDb`);
+      }
     }
   },
 
@@ -243,11 +288,11 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
 
     await publishEvent('KitchenOrderReadyIntegrationEvent', 'publish-ready');
 
-    // Verify OrderCompletedIntegrationEvent reached the ordering queue.
+    // Verify the ordering consumer queue received the published events.
     {
       const auth = Buffer.from(`${process.env.RABBITMQ_DEFAULT_USER ?? 'guest'}:${process.env.RABBITMQ_DEFAULT_PASS ?? 'guest'}`).toString('base64');
       const { result, elapsedMs } = await withTiming(async () => {
-        const res = await fetch('http://localhost:15672/api/queues/%2F/ordering-api', {
+        const res = await fetch('http://localhost:15672/api/queues/%2F/order-created-integration-event-handler', {
           headers: { Authorization: `Basic ${auth}` },
           signal: AbortSignal.timeout(3_000),
         });
@@ -255,7 +300,7 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
         const j = (await res.json()) as { messages?: number; consumers?: number };
         return { messages: j.messages ?? 0, consumers: j.consumers ?? 0 };
       });
-      log({ kind: 'info', step: 'verify-order-queue-depth', note: `ordering-api messages=${result.messages} consumers=${result.consumers}`, elapsedMs });
+      log({ kind: 'info', step: 'verify-order-queue-depth', note: `order-created-integration-event-handler messages=${result.messages} consumers=${result.consumers}`, elapsedMs });
     }
   },
 
@@ -273,7 +318,7 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
     const discountUrl = process.env.DEV_GRPC_DISCOUNT_URL ?? 'discount.grpc:6002';
 
     let grpcClient: import('@grpc/grpc-js').Client | undefined;
-    let protoPkg: unknown;
+    let protoPkg: DiscountProtoPackage | undefined;
 
     try {
       // Dynamic import to keep the dependency lazy — flows that don't
@@ -287,10 +332,10 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
         defaults: true,
         oneofs: true,
       });
-      protoPkg = grpc.loadPackageDefinition(def) as Record<string, Record<string, Record<string, unknown>>>;
-      grpcClient = new (protoPkg.discount!.DiscountProtoService as new (
+      protoPkg = grpc.loadPackageDefinition(def) as unknown as DiscountProtoPackage;
+      grpcClient = new (protoPkg['discount']!['DiscountProtoService'] as unknown as new (
         target: string,
-        creds: grpc.ChannelCredentials,
+        creds: import('@grpc/grpc-js').ChannelCredentials,
       ) => import('@grpc/grpc-js').Client)(
         discountUrl,
         grpc.credentials.createInsecure(),
@@ -312,13 +357,14 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
       return;
     }
 
-    if (!grpcClient) return;
+    if (!grpcClient || !protoPkg) return;
+    const discountPkg = protoPkg['discount'];
 
     // Step 1: List coupons for the test restaurant and pick a coupon code.
     {
       const step = 'list-discounts';
       const { result, elapsedMs } = await withTiming(async () => {
-        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).ListDiscountsRequest as { new: (init?: Record<string, unknown>) => unknown };
+        const req = discountPkg!['ListDiscountsRequest'] as unknown as DiscountProtoCtor;
         return new Promise<{ status: number; body: string }>((resolve) => {
           (grpcClient as unknown as {
             ListDiscounts: (req: unknown, cb: (err: Error | null, res: { coupons?: unknown[] }) => void) => void;
@@ -326,7 +372,7 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
             new req({ restaurant_id: restaurantId, page: 1, page_size: 5 }),
             (err, res) => resolve({
               status: err ? 500 : 200,
-              body: JSON.stringify(err ? { error: err.message } : { coupons: (res.coupons ?? []).map((c: { code?: unknown }) => ({ code: c.code })) }),
+              body: JSON.stringify(err ? { error: err.message } : { coupons: (res.coupons ?? []).map((c: unknown) => ({ code: (c as { code?: unknown }).code })) }),
             }),
           );
         });
@@ -339,7 +385,7 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
     {
       const step = 'get-discount-by-code';
       const { result, elapsedMs } = await withTiming(async () => {
-        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).GetDiscountRequest as { new: (init?: Record<string, unknown>) => unknown };
+        const req = discountPkg!['GetDiscountRequest'] as unknown as DiscountProtoCtor;
         return new Promise<{ status: number; body: string }>((resolve) => {
           (grpcClient as unknown as {
             GetDiscount: (req: unknown, cb: (err: Error | null, res: unknown) => void) => void;
@@ -363,7 +409,7 @@ const FLOWS: Record<FlowName, (fc: FlowContext) => Promise<void>> = {
     {
       const step = 'redeem-discount';
       const { result, elapsedMs } = await withTiming(async () => {
-        const req = (protoPkg!.discount as Record<string, Record<string, unknown>>).RedeemDiscountRequest as { new: (init?: Record<string, unknown>) => unknown };
+        const req = discountPkg!['RedeemDiscountRequest'] as unknown as DiscountProtoCtor;
         return new Promise<{ status: number; body: string }>((resolve) => {
           (grpcClient as unknown as {
             RedeemDiscount: (req: unknown, cb: (err: Error | null, res: unknown) => void) => void;
@@ -530,12 +576,19 @@ export function registerFlowTracingTools(server: McpServer, deps: FlowTracingDep
       const failures: Array<{ system: string; expected: string; actual: string }> = [];
 
       if (entityType === 'order') {
-        const r = await deps.ctx.mssql.request().query<{ Status: string }>(`SELECT Status FROM Orders WHERE Id = '${entityId.replace(/'/g, "''")}'`);
+        // Parameterised, not string-interpolated — `entityId` is
+        // caller-supplied and the old `replace(/'/g, "''")` escaping
+        // was not a substitute for a bound parameter.
+        const r = await deps.ctx.mssql.request()
+          .input('id', entityId)
+          .query<{ Status: string }>(`SELECT Status FROM Orders WHERE Id = @id`);
         const status = r.recordset[0]?.Status ?? 'NOT_FOUND';
         actual.orderDb = status;
         if (status !== expectedState) failures.push({ system: 'orderDb', expected: expectedState, actual: status });
       } else if (entityType === 'basket') {
-        const raw = await deps.ctx.redis.get(`basket:${entityId}`);
+        // The basket cache is a HASH — the payload is in its `data`
+        // field. A plain GET raises "WRONGTYPE ... wrong kind of value".
+        const raw = await deps.ctx.redis.hget(`basket:${entityId}`, 'data');
         actual.redis = raw === null ? 'NOT_FOUND' : 'Present';
         if (actual.redis !== expectedState) failures.push({ system: 'redis', expected: expectedState, actual: actual.redis });
       } else {

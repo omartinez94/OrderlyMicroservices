@@ -69,7 +69,31 @@ services:
 
   catalog.api:
     container_name: catalog.api
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - DEV_TRIGGER_SECRET=
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
@@ -103,7 +127,30 @@ services:
       - ${XDG_DATA_HOME:-${APPDATA:-~/.local/share}}/ASP.NET/Https:/root/.aspnet/https:ro
   basket.api:
     container_name: basket.api
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
@@ -153,7 +200,31 @@ services:
 
   discount.grpc:
     container_name: discount.grpc
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - DEV_TRIGGER_SECRET=
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
@@ -232,7 +303,31 @@ services:
 
   ordering.api:
     container_name: ordering.api
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - JWT_SECRET=
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
@@ -264,7 +359,31 @@ services:
 
   kitchen.api:
     container_name: kitchen.api
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - DEV_TRIGGER_SECRET=
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081
@@ -301,7 +420,31 @@ services:
 
   yarpapigateway:
     container_name: yarpapigateway
+    # Dev-only secrets shared with the DevMCP server:
+    #   JWT_SECRET         - signs/verifies the HS256 dev tokens
+    #                        (BuildingBlocks.Dev DevHs256Scheme)
+    #   DEV_TRIGGER_SECRET - authorises POST /_dev/trigger/*
+    # The file holds more than these two, so the unwanted entries
+    # are overridden with an empty value in `environment:` below —
+    # Compose gives `environment:` precedence over `env_file:`, and
+    # an empty value still wins.
+    env_file:
+      - path: ./Orderly.DevMCP.Server/.env
+        required: false
     environment:
+      # Neutralised: present in the DevMCP .env but not needed by this service.
+      - DEV_TRIGGER_SECRET=
+      - POSTGRES_USER=
+      - POSTGRES_PASSWORD=
+      - SA_PASSWORD=
+      - REDIS_PASSWORD=
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+      - NODE_ENV=
+      - HOST=
+      - PORT=
+      - LOG_LEVEL=
+      - DEV_HOST=
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ASPNETCORE_HTTPS_PORTS=8081

@@ -59,8 +59,10 @@ export class TokenBucket {
  * Process-wide singletons. Configured per §10.1.
  * - `publish`: 5 tokens, refilled every 12s = 5/min.
  * - `reset`:   1 token,  refilled every 3600_000ms = 1/hour.
+ * - `flush`:   10 tokens, refilled every 6s = 10/min.
  */
 export const rateLimits = {
   publish: new TokenBucket(5, 12_000),
   reset: new TokenBucket(1, 3_600_000),
+  flush: new TokenBucket(10, 6_000),
 };

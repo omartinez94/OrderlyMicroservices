@@ -24,7 +24,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 import type { Logger } from '../logger.ts';
-import { SWAGGER_SERVICES, serviceSwaggerUrl, type ServiceName } from '../config/services.ts';
+import { SWAGGER_SERVICES, serviceSchemaUrls, serviceRequiresHttp2, type ServiceName } from '../config/services.ts';
 import { ToolInputError, ConnectionError } from '../errors/DevMCPError.ts';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -99,48 +99,151 @@ function extractResponseSchema(op: Record<string, unknown>, _components: Record<
   return ok?.content?.['application/json']?.schema;
 }
 
+/**
+ * Fetch a JSON document over h2c (HTTP/2 cleartext).
+ *
+ * `discount.grpc` runs a gRPC host whose plain-HTTP listener rejects
+ * HTTP/1.1 with "An HTTP/1.x request was sent to an HTTP/2 only
+ * endpoint." Node's global `fetch` speaks HTTP/1.1 only, so the h2c
+ * client from `node:http2` is required for that host.
+ */
+async function fetchJsonHttp2(url: string, timeoutMs: number): Promise<{ status: number; body: string }> {
+  const { connect } = await import('node:http2');
+  const target = new URL(url);
+
+  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const client = connect(`${target.protocol}//${target.host}`);
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      client.destroy();
+      reject(new Error(`timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    client.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    const req = client.request({ ':method': 'GET', ':path': `${target.pathname}${target.search}` });
+    let status = 0;
+    const chunks: Buffer[] = [];
+
+    req.on('response', (headers) => {
+      status = Number(headers[':status'] ?? 0);
+    });
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('error', (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      client.destroy();
+      reject(err);
+    });
+    req.on('end', () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      client.close();
+      resolve({ status, body: Buffer.concat(chunks).toString('utf-8') });
+    });
+    req.end();
+  });
+}
+
+/**
+ * Fetch a JSON document over HTTP/1.1.
+ *
+ * Uses `node:http` rather than the global `fetch` on purpose: the
+ * WHATWG fetch spec blocks a list of ports (6000 is on it — the X11
+ * port), so `fetch('http://localhost:6000/...')` fails with
+ * "bad port" before a single byte is sent. Catalog is published on
+ * 6000, so the global `fetch` cannot reach it at all.
+ */
+async function fetchJsonHttp1(url: string, timeoutMs: number): Promise<{ status: number; body: string }> {
+  const { request } = await import('node:http');
+  const target = new URL(url);
+
+  return new Promise<{ status: number; body: string }>((resolve, reject) => {
+    const req = request(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: `${target.pathname}${target.search}`,
+        method: 'GET',
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => resolve({ status, body: Buffer.concat(chunks).toString('utf-8') }));
+        res.on('error', reject);
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error(`timed out after ${timeoutMs}ms`)));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 async function fetchAndNormalize(
   service: ServiceName,
   logger: Logger,
   cache: LRUCache<ServiceName, NormalizedSchema>,
 ): Promise<NormalizedSchema> {
-  const url = serviceSwaggerUrl(service);
-  if (!url) {
-    throw new ToolInputError(`service "${service}" has no swagger endpoint`);
+  const urls = serviceSchemaUrls(service);
+  if (urls.length === 0) {
+    throw new ToolInputError(`service "${service}" has no OpenAPI endpoint`);
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(url, { signal: controller.signal });
-  } catch (cause) {
-    clearTimeout(timer);
-    throw new ConnectionError(`failed to fetch swagger from ${url}`, {
-      cause,
-      context: { service, url },
-    });
-  }
-  clearTimeout(timer);
+  const http2 = serviceRequiresHttp2(service);
+  const failures: string[] = [];
 
-  if (!res.ok) {
-    throw new ConnectionError(
-      `swagger for ${service} returned ${res.status} ${res.statusText} — service is probably not in Development mode`,
-      { context: { service, url, status: res.status } },
-    );
+  // The services disagree on the OpenAPI path convention (Swashbuckle
+  // vs .NET 9 `MapOpenApi()`), so each candidate is tried in turn and
+  // the first one that returns a parsable document wins.
+  for (const url of urls) {
+    let status: number;
+    let body: string;
+    try {
+      const res = http2
+        ? await fetchJsonHttp2(url, FETCH_TIMEOUT_MS)
+        : await fetchJsonHttp1(url, FETCH_TIMEOUT_MS);
+      status = res.status;
+      body = res.body;
+    } catch (cause) {
+      failures.push(`${url}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      continue;
+    }
+
+    if (status !== 200) {
+      failures.push(`${url}: HTTP ${status}`);
+      continue;
+    }
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(body);
+    } catch (cause) {
+      failures.push(`${url}: invalid JSON`);
+      continue;
+    }
+
+    logger.info({ service, url, bytes: body.length }, 'fetched OpenAPI document');
+    const normalized = normalizeSwagger(service, raw);
+    cache.set(service, normalized);
+    return normalized;
   }
 
-  let raw: unknown;
-  try {
-    raw = await res.json();
-  } catch (cause) {
-    throw new ConnectionError(`swagger for ${service} returned invalid JSON`, { cause, context: { service } });
-  }
-
-  logger.info({ service, bytes: JSON.stringify(raw).length }, 'fetched swagger');
-  const normalized = normalizeSwagger(service, raw);
-  cache.set(service, normalized);
-  return normalized;
+  throw new ConnectionError(
+    `could not fetch an OpenAPI document for ${service} — tried ${failures.join('; ')}`,
+    { context: { service, urls } },
+  );
 }
 
 export interface ApiDiscoveryDeps {

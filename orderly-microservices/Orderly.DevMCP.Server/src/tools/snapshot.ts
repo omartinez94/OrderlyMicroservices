@@ -30,8 +30,10 @@ import { withTimeout, TimeoutError } from '../util/timeout.ts';
 const SUBQUERY_TIMEOUT_MS = 3_000;
 
 interface CatalogSection {
-  martenDocumentCount: number;
-  orderSnapshotCount: number;
+  /** Rows in Catalog's `MenuItems` table. */
+  menuItemCount: number;
+  /** Rows in Catalog's `MenuCategories` table. */
+  menuCategoryCount: number;
 }
 
 interface OrdersSection {
@@ -80,15 +82,21 @@ export function registerSnapshotTools(
   // ── Sub-query implementations ────────────────────────────────────────
 
   const fetchCatalog = async (): Promise<CatalogSection> => {
-    const r = await ctx.pg.catalog.query<{ count: string }>(
-      "SELECT count(*)::text AS count FROM mt_doc_order_snapshot",
+    // Catalog stores its menu in EF Core tables (`MenuItems`,
+    // `MenuCategories`), NOT in Marten documents. The Marten
+    // projections (`OrderSnapshot`, `OrderModificationLog`) are
+    // registered in `Catalog.API/Program.cs` but no writer ever
+    // persists them, so their `mt_doc_*` tables are never created —
+    // querying them raised "relation does not exist".
+    const items = await ctx.pg.catalog.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM "MenuItems"',
     );
-    const all = await ctx.pg.catalog.query<{ count: string }>(
-      "SELECT count(*)::text AS count FROM mt_doc_order_modification_log",
+    const categories = await ctx.pg.catalog.query<{ count: string }>(
+      'SELECT count(*)::text AS count FROM "MenuCategories"',
     );
     return {
-      martenDocumentCount: parseInt(r.rows[0]?.count ?? '0', 10) + parseInt(all.rows[0]?.count ?? '0', 10),
-      orderSnapshotCount: parseInt(r.rows[0]?.count ?? '0', 10),
+      menuItemCount: parseInt(items.rows[0]?.count ?? '0', 10),
+      menuCategoryCount: parseInt(categories.rows[0]?.count ?? '0', 10),
     };
   };
 
@@ -100,8 +108,17 @@ export function registerSnapshotTools(
       const [next, keys] = await ctx.redis.scan(cursor, 'MATCH', 'basket:*', 'COUNT', 100);
       cursor = next;
       for (const key of keys) {
+        // `basket:idem:{userId}:{restaurantId}:{key}` holds the
+        // idempotency-response cache, not a cart. Counting it would
+        // inflate the basket count.
+        if (key.startsWith('basket:idem:')) continue;
         basketCount++;
-        const raw = await ctx.redis.get(key);
+        // The basket cache is written by the StackExchange Redis
+        // `IDistributedCache`, which stores the payload in the `data`
+        // field of a HASH — `GET` on it fails with
+        // "WRONGTYPE Operation against a key holding the wrong kind
+        // of value".
+        const raw = await ctx.redis.hget(key, 'data');
         if (raw) {
           try {
             const parsed = JSON.parse(raw) as { Items?: unknown[]; items?: unknown[] };
@@ -152,7 +169,12 @@ export function registerSnapshotTools(
 
   const fetchEventBus = async (): Promise<EventBusSection> => {
     const auth = Buffer.from(`${process.env.RABBITMQ_DEFAULT_USER ?? 'guest'}:${process.env.RABBITMQ_DEFAULT_PASS ?? 'guest'}`).toString('base64');
-    const res = await fetch('http://localhost:15672/api/queues/%2F/ordering-api', {
+    // MassTransit names each consumer queue after the consumer
+    // handler — there is no queue literally called "ordering-api".
+    // Ordering consumes `BasketCheckoutEvent` through
+    // `BasketCheckoutEventHandler`, so its queue is
+    // `basket-checkout-event-handler`.
+    const res = await fetch('http://localhost:15672/api/queues/%2F/basket-checkout-event-handler', {
       headers: { Authorization: `Basic ${auth}` },
       signal: AbortSignal.timeout(SUBQUERY_TIMEOUT_MS),
     });
@@ -168,21 +190,23 @@ export function registerSnapshotTools(
     stale: 0,
     storage: { type: 'memory' },
   });
-  cache.define('catalog', { ttl: 2 }, () => fetchCatalog());
-  cache.define('sessions', { ttl: 2 }, () => fetchActiveSessions());
-  cache.define('orders', { ttl: 2 }, () => fetchOrders());
-  cache.define('kitchen', { ttl: 2 }, () => fetchKitchen());
-  cache.define('bus', { ttl: 2 }, () => fetchEventBus());
+  // `define` registers the resolver under `name` and returns the cache
+  // augmented with that typed property. The resolver must be invoked
+  // through `cache[name](key)` — `cache.get(name, key)` only reads an
+  // already-stored value and never runs the resolver, so calling it
+  // here would make every sub-query resolve to `undefined`.
+  const catalogCache = cache.define('catalog', { ttl: 2 }, () => fetchCatalog());
+  const sessionsCache = cache.define('sessions', { ttl: 2 }, () => fetchActiveSessions());
+  const ordersCache = cache.define('orders', { ttl: 2 }, () => fetchOrders());
+  const kitchenCache = cache.define('kitchen', { ttl: 2 }, () => fetchKitchen());
+  const busCache = cache.define('bus', { ttl: 2 }, () => fetchEventBus());
 
-  // The library's TS surface is generic and the dynamic property
-  // augmentation isn't reliably inferred, so wrap the lookups explicitly.
-  const get = <T>(name: string): Promise<T> => cache.get(name, 'default') as Promise<T>;
   const cached = {
-    catalog: () => get<CatalogSection>('catalog'),
-    sessions: () => get<ActiveSessionsSection>('sessions'),
-    orders: () => get<OrdersSection>('orders'),
-    kitchen: () => get<KitchenSection>('kitchen'),
-    bus: () => get<EventBusSection>('bus'),
+    catalog: () => catalogCache.catalog(),
+    sessions: () => sessionsCache.sessions(),
+    orders: () => ordersCache.orders(),
+    kitchen: () => kitchenCache.kitchen(),
+    bus: () => busCache.bus(),
   };
 
   // ── get_system_snapshot ──────────────────────────────────────────────

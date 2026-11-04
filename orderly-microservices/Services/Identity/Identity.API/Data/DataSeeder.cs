@@ -117,6 +117,9 @@ public static class DataSeeder
 
             // Audit
             new() { Id = Guid.NewGuid(), Name = "audit:view", Description = "View audit log", Resource = "audit", Action = "view" },
+
+            // Dashboard
+            new() { Id = Guid.NewGuid(), Name = "dashboard:view", Description = "View restaurant operations live dashboard", Resource = "dashboard", Action = "view" },
         };
 
         bool hasNewPermissions = false;
@@ -154,6 +157,7 @@ public static class DataSeeder
                 "reservations:view", "reservations:create", "reservations:edit",
                 "payments:view_reports",
                 "audit:view",
+                "dashboard:view",
             },
             ["Manager"] = new()
             {
@@ -167,6 +171,7 @@ public static class DataSeeder
                 "reservations:view", "reservations:edit",
                 "payments:view_reports",
                 "audit:view",
+                "dashboard:view",
             },
             ["KitchenManager"] = new()
             {
@@ -174,6 +179,7 @@ public static class DataSeeder
                 "orders:cancel", "orders:approve_cancel",
                 "menu:view", "menu:toggle",
                 "kitchen:view_orders", "kitchen:update_prep_status",
+                "dashboard:view",
             },
             ["Waiter"] = new()
             {
@@ -181,6 +187,7 @@ public static class DataSeeder
                 "orders:write", "orders:cancel", "orders:request_cancel",
                 "menu:view",
                 "reservations:view", "reservations:create",
+                "dashboard:view",
             },
             ["KitchenStaff"] = new()
             {
@@ -194,6 +201,7 @@ public static class DataSeeder
                 "reservations:view", "reservations:create", "reservations:edit",
                 "orders:view_all", "orders:request_cancel",
                 "menu:view",
+                "dashboard:view",
             },
             ["Cashier"] = new()
             {
@@ -201,6 +209,7 @@ public static class DataSeeder
                 "orders:write", "orders:cancel", "orders:request_cancel",
                 "payments:process", "payments:split_bill",
                 "menu:view",
+                "dashboard:view",
             },
         };
 

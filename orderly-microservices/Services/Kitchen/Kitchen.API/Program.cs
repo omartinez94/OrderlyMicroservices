@@ -45,6 +45,7 @@ builder.Services.AddOpenApi();
 // WebSocket upgrade transparently (verified by route config in
 // ApiGateway/YarpApiGateway/appsettings.json).
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<NodaTime.IClock>(NodaTime.SystemClock.Instance);
 
 builder.Services.Configure<MigratorHostedServiceOptions>(
     builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));

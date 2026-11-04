@@ -7,7 +7,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NodaTime;
 using Ordering.Application.Common.Interfaces;
 using Ordering.Application.Data;
+using Ordering.Infrastructure.Caching;
 using Ordering.Infrastructure.Data.Interceptors;
+using Ordering.Infrastructure.Http;
 using Ordering.Infrastructure.Persistence;
 using Ordering.Infrastructure.Services;
 
@@ -85,6 +87,36 @@ public static class DependencyInjection
 
         // IDailyReconciliationRunner handle for /_dev/trigger/daily-reconciliation.
         services.AddScoped<IDailyReconciliationRunner, DailyReconciliationRunner>();
+
+        string catalogUrl = configuration["CatalogServiceUrl"] ?? "http://catalog.api:8080";
+        string kitchenUrl = configuration["KitchenServiceUrl"] ?? "http://kitchen.api:8080";
+
+        services.AddHttpClient<ICatalogDashboardReader, CatalogDashboardReader>(client =>
+        {
+            client.BaseAddress = new Uri(catalogUrl);
+            client.Timeout = TimeSpan.FromMilliseconds(800);
+        })
+        .AddStandardResilienceHandler();
+
+        services.AddHttpClient<IKitchenDashboardReader, KitchenDashboardReader>(client =>
+        {
+            client.BaseAddress = new Uri(kitchenUrl);
+            client.Timeout = TimeSpan.FromMilliseconds(800);
+        })
+        .AddStandardResilienceHandler();
+
+        string? redisConn = configuration.GetConnectionString("Redis");
+        if (!string.IsNullOrWhiteSpace(redisConn))
+        {
+            services.AddStackExchangeRedisCache(opts => opts.Configuration = redisConn);
+        }
+        else
+        {
+            services.AddDistributedMemoryCache();
+        }
+
+        services.AddSingleton<IDashboardSnapshotCache, DashboardSnapshotCache>();
+        services.AddScoped<IDashboardSummaryService, DashboardSummaryService>();
 
         return services;
     }

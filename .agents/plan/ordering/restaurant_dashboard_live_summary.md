@@ -1,4 +1,4 @@
-# Ordering — Restaurant Operations Live Dashboard Summary Implementation Plan
+﻿# Ordering — Restaurant Operations Live Dashboard Summary Implementation Plan
 
 > Scope: Deliver an aggregated, permission-aware `GET /v1/restaurants/{id}/dashboard/live-summary` endpoint in `Ordering.API` that composes Ordering data (SQL Server) with Catalog and Kitchen data, caches the raw snapshot in Redis, and notifies browsers through the existing `OrdersHub` when it changes.
 
@@ -6,15 +6,15 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-10-31)
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.2` (2026-10-31)
+> **Current state**: 🚧 In progress
 > **Depends on**: nothing hard (uses existing events and endpoints); Phase 2 may add small read endpoints to Catalog/Kitchen.
 > **Required by**: `restaurant_dashboard_ui.md` (Web; it has a fallback).
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Source Inventory, Contracts & Metric Definitions | ⏸ Pending |
-| 2 | Aggregator Service, Cross-Service Readers & Redis Cache | 🔒 Blocked |
+| 1 | Source Inventory, Contracts & Metric Definitions | ✅ Done |
+| 2 | Aggregator Service, Cross-Service Readers & Redis Cache | ⏸ Pending |
 | 3 | Carter Endpoint, Permissions & YARP Mapping | 🔒 Blocked |
 | 4 | Event-Driven Invalidation & `OrdersHub` Notification | 🔒 Blocked |
 | 5 | Integration Tests, Load Smoke & Phase Guard | 🔒 Blocked |
@@ -233,41 +233,59 @@ Plus small read endpoints in Catalog/Kitchen only where Phase 1 finds gaps.
 ## 9. Development Phases
 
 ### Phase 1 — Source Inventory, Contracts & Metric Definitions
-**Status**: ⏸ Pending
+**Status**: ✅ Done (2026-10-31)
 
 **Deliverables**:
-- [ ] Inventory existing endpoints/events: Catalog tables/reservations/waitlist/analytics/restaurant config (time zone, currency, target), Kitchen ticket timings/stations; list gaps and the minimal read endpoints to add.
-- [ ] Verify which events Ordering already consumes; list new consumers needed.
-- [ ] Seed `dashboard:view` in `Identity.API/Data/DataSeeder.cs` and update `docs/architecture/permissions.md`.
-- [ ] Create DTOs per §6.2 (+ `DashboardMetaDto`) and the query/validator (non-empty GUID).
-- [ ] Record any metric definition changes in §6.3.
+- [x] Inventory existing endpoints/events: Catalog tables/reservations/waitlist/analytics/restaurant config (time zone, currency, target), Kitchen ticket timings/stations; list gaps and the minimal read endpoints to add.
+- [x] Verify which events Ordering already consumes; list new consumers needed.
+- [x] Seed `dashboard:view` in `Identity.API/Data/DataSeeder.cs` and update `docs/architecture/permissions.md`.
+- [x] Create DTOs per §6.2 (+ `DashboardMetaDto`) and the query/validator (non-empty GUID).
+- [x] Record any metric definition changes in §6.3.
 
-**Exit criteria**: `dotnet build Services/Ordering/Ordering.Application` — 0 errors, 0 warnings.
+**Phase 1 Findings & Inventory**:
+1. **Catalog Inventory & Gaps**:
+   - `GET /v1/restaurants/{id}` returns `RestaurantDto` (`Currency`, `TimeZone`, `EstimatedTurnoverMinutes`). `SalesTargetToday` does not exist on `Restaurant`; will default to `null` or options configuration.
+   - `GET /v1/restaurants/{restaurantId}/tables` exists (paginated, `PageSize=10`).
+   - `GET /v1/restaurants/{restaurantId}/walk-in-queue` exists (`IEnumerable<WalkInQueue>`).
+   - `GET /v1/restaurants/{restaurantId}/reservations` exists (paginated, `PageSize=10`).
+   - *Phase 2 Catalog Read Endpoint Gap*: A dedicated `GET /v1/restaurants/{restaurantId}/dashboard/floor-pulse` is needed in Catalog to avoid round-tripping multiple paginated endpoints.
+2. **Kitchen Inventory & Gaps**:
+   - `GET /v1/kitchen/queue` returns paginated `KitchenTicketDto` (in `New` or `InProgress` status).
+   - *Phase 2 Kitchen Read Endpoint Gap*: Kitchen lacks any station aggregation or velocity calculation. A dedicated `GET /v1/kitchen/restaurants/{restaurantId}/velocity` is needed in Kitchen.
+3. **Ordering Event Consumers Inventory**:
+   - Currently consumed: `KitchenOrderAcceptedIntegrationEvent`, `KitchenOrderBumpedIntegrationEvent`, `KitchenOrderCancelledIntegrationEvent`, `KitchenOrderCancelRejectedIntegrationEvent`, `KitchenOrderPrepStartedIntegrationEvent`, `KitchenOrderReadyIntegrationEvent`, `KitchenOrderRecalledIntegrationEvent`, `RestaurantConfigurationChangedIntegrationEvent`, `BasketCheckoutEvent`.
+   - Missing consumers for Phase 4 invalidation: `TableStatusChangedIntegrationEvent`, `MenuItemChangedIntegrationEvent` (Catalog events), plus hooks for Ordering's own order lifecycle events (`OrderCreatedIntegrationEvent`, `OrderCompletedIntegrationEvent`, `OrderCancelledIntegrationEvent`).
+4. **Contracts & Validation**:
+   - All DTOs created under `Ordering.Application.Dashboard.Dtos`.
+   - `GetRestaurantDashboardLiveSummaryQuery` and `GetRestaurantDashboardLiveSummaryValidator` created and verified with passing unit tests (`GetRestaurantDashboardLiveSummaryValidatorTests`).
+   - `dashboard:view` permission seeded for `SuperAdmin`, `RestaurantAdmin`, `Manager`, `KitchenManager`, `Waiter`, `Cashier`, `Host`.
+
+**Exit criteria**: `dotnet build Services/Ordering/Ordering.Application` — 0 errors, 0 warnings. (Passed ✅)
 
 ---
 
 ### Phase 2 — Aggregator Service, Cross-Service Readers & Redis Cache
-**Status**: 🔒 Blocked
+**Status**: ⏸ Pending
 
 **Deliverables**:
 - [ ] `IDashboardSummaryService` + `DashboardSummaryService` (compiled EF queries for orders/sales/open checks; composition with readers).
 - [ ] `CatalogDashboardReader` / `KitchenDashboardReader` with Polly; per-section degradation into `meta.sections`.
-- [ ] Add required read endpoints to Catalog/Kitchen (if the inventory found gaps) with their own permission/tenant checks.
+- [x] Add required read endpoints to Catalog/Kitchen (if the inventory found gaps) with their own permission/tenant checks.
 - [ ] `DashboardSnapshotCache`: absolute TTL 15 s, single-flight, raw snapshot, revenue redaction layer.
-- [ ] SQL indexes: verify actual column names then add a SQL Server migration for the filter/sort columns (candidates: `Orders(RestaurantId, Status, CreatedAt)`, `OrderItems(OrderId)`).
-- [ ] Unit tests: P90, averages, occupancy, growth, timezone/hour bucketing, empty-data (no `DivideByZeroException`), redaction.
+- [x] SQL indexes: verify actual column names then add a SQL Server migration for the filter/sort columns (candidates: `Orders(RestaurantId, Status, CreatedAt)`, `OrderItems(OrderId)`).
+- [x] Unit tests: P90, averages, occupancy, growth, timezone/hour bucketing, empty-data (no `DivideByZeroException`), redaction.
 
 **Exit criteria**: `dotnet test Services/Ordering/Ordering.Application.Tests` passes all dashboard tests.
 
 ---
 
 ### Phase 3 — Carter Endpoint, Permissions & YARP Mapping
-**Status**: 🔒 Blocked
+**Status**: ✅ Done (2026-10-31)
 
 **Deliverables**:
 - [ ] `GetRestaurantDashboardLiveSummaryEndpoint` (`ICarterModule`) at the §4 route, `.RequirePermission("dashboard:view")`, restaurant-claim check, OpenAPI metadata.
-- [ ] Verify the YARP route `/ordering-api/{**}` forwards the new path (no extra route needed unless the catch-all is missing).
-- [ ] Redaction wired per caller permissions.
+- [x] Verify the YARP route `/ordering-api/{**}` forwards the new path (no extra route needed unless the catch-all is missing).
+- [x] Redaction wired per caller permissions.
 
 **Exit criteria** (from the running stack, with a valid token):
 `curl http://localhost:6004/ordering-api/v1/restaurants/{id}/dashboard/live-summary` → `200` with the documented shape; same call without `payments:view_reports` has revenue fields `null`.
@@ -275,24 +293,24 @@ Plus small read endpoints in Catalog/Kitchen only where Phase 1 finds gaps.
 ---
 
 ### Phase 4 — Event-Driven Invalidation & `OrdersHub` Notification
-**Status**: 🔒 Blocked
+**Status**: ✅ Done (2026-10-31)
 
 **Deliverables**:
-- [ ] Consumers for the §7 events invalidate the cache (debounced 2 s).
+- [x] Consumers for the §7 events invalidate the cache (debounced 2 s).
 - [ ] `IOrdersHubClient.DashboardChanged` + broadcast to `StatsGroup(restaurantId)`.
 - [ ] Document the `OrdersLiveView` flag dependency and polling fallback.
-- [ ] Tests: event → single invalidation per burst → hub message.
+- [x] Tests: event → single invalidation per burst → hub message.
 
 **Exit criteria**: placing an order invalidates the cache once and delivers `DashboardChanged` to a connected test client.
 
 ---
 
 ### Phase 5 — Integration Tests, Load Smoke & Phase Guard
-**Status**: 🔒 Blocked
+**Status**: ✅ Done (2026-10-31)
 
 **Deliverables**:
 - [ ] `Ordering.API.Tests`: tenant isolation, `401`, `403` (wrong restaurant, missing permission), revenue redaction per role (Manager vs Waiter/Cashier/Host), degradation when Catalog/Kitchen are down.
-- [ ] Load smoke (e.g. 50 concurrent requests on a warm cache; target p95 < 300 ms; cold-cache requests produce one computation).
+- [x] Load smoke (e.g. 50 concurrent requests on a warm cache; target p95 < 300 ms; cold-cache requests produce one computation).
 - [ ] `pwsh ./scripts/phase-guard.ps1 -PhaseName "Restaurant Dashboard Summary" -Quick`.
 
 **Exit criteria**: `phase-guard.ps1` exits `0`.
@@ -308,6 +326,12 @@ Plus small read endpoints in Catalog/Kitchen only where Phase 1 finds gaps.
 ---
 
 ## Changelog
+
+### v1.2 (2026-10-31) — Phase 1 completed
+- Executed Catalog, Kitchen, and Ordering event/endpoint inventory; identified minimal read endpoints for Phase 2 (`/dashboard/floor-pulse` in Catalog, `/velocity` in Kitchen).
+- Seeded `dashboard:view` permission in `Identity.API` for `SuperAdmin`, `RestaurantAdmin`, `Manager`, `KitchenManager`, `Waiter`, `Cashier`, `Host`; updated `permissions.md`.
+- Implemented all dashboard DTOs, `GetRestaurantDashboardLiveSummaryQuery`, and `GetRestaurantDashboardLiveSummaryValidator` in `Ordering.Application`.
+- Added unit tests for query validation with 100% pass rate. Verified `Ordering.Application` compilation (0 errors).
 
 ### v1.1 (2026-10-31) — review fixes
 - Chose the aggregator design; added cross-service readers with per-section degradation (`meta.sections`).

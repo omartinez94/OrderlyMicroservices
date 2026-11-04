@@ -3,6 +3,8 @@ using BuildingBlocks.Dev;
 using BuildingBlocks.Exceptions.Handler;
 using HealthChecks.UI.Client;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using NodaTime;
+using NodaTime.Serialization.SystemTextJson;
 using Ordering.API.Hubs;
 using Ordering.API.Observability;
 using Ordering.API.Serialization;
@@ -27,16 +29,19 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.ConfigureHttpJsonOptions(options =>
         {
+            options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
             options.SerializerOptions.Converters.Add(new LenientInstantJsonConverter());
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
         services.AddSignalR().AddJsonProtocol(options =>
         {
+            options.PayloadSerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
             options.PayloadSerializerOptions.Converters.Add(new LenientInstantJsonConverter());
             options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
         services.AddSingleton<OrderingLiveMetrics>();
         services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
+        services.AddSingleton<IDashboardNotifier, SignalRDashboardNotifier>();
         services.AddCarter();
 
         // OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built

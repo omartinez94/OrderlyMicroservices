@@ -57,6 +57,13 @@ public class TestAuthHandler(
             claims.Add(new Claim("restaurantId", restaurantId.ToString()));
         }
 
+        string roleHeader = Request.Headers["X-Test-Role"].ToString();
+        if (!string.IsNullOrWhiteSpace(roleHeader))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, roleHeader));
+            claims.Add(new Claim("role", roleHeader));
+        }
+
         foreach (string p in permissions)
         {
             claims.Add(new Claim("permissions", p));

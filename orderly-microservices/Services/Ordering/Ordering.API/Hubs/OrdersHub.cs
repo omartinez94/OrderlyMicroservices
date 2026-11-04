@@ -48,7 +48,8 @@ public sealed class OrdersHub(
 
         await base.OnConnectedAsync();
 
-        bool canViewAll = HasPermissionOrSuperAdmin(Context.User, "orders:view_all");
+        bool canViewAll = HasPermissionOrSuperAdmin(Context.User, "orders:view_all")
+            || HasPermissionOrSuperAdmin(Context.User, "dashboard:view");
         bool canViewReports = HasPermissionOrSuperAdmin(Context.User, "payments:view_reports");
 
         foreach (Guid restaurantId in restaurantIds)

@@ -16,6 +16,7 @@ global using Microsoft.EntityFrameworkCore;
 global using Microsoft.Extensions.Logging;
 global using NodaTime;
 global using Ordering.Application.Common.Interfaces;
+global using Ordering.Application.Dashboard.Dtos;
 global using Ordering.Application.Data;
 global using Ordering.Application.Dtos;
 global using Ordering.Application.Dtos.Validators;

@@ -81,6 +81,7 @@ verb granularity at seed time).
 | `payments:split_bill` | Bill split | Ordering.API | (legacy seed) | |
 | `payments:view_reports` | Payment reports | Ordering.API | (legacy seed) | |
 | `audit:view` | Audit log read | Identity.API | (legacy seed) | |
+| `dashboard:view` | Restaurant operations live dashboard | Ordering.API | `GET /v1/restaurants/{id}/dashboard/live-summary` | Granted to SuperAdmin, RestaurantAdmin, Manager, KitchenManager, Waiter, Cashier, Host. |
 
 ---
 

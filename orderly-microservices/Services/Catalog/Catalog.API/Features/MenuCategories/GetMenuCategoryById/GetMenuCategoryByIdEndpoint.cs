@@ -15,6 +15,7 @@ public class GetMenuCategoryByIdEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:view")
         .WithDescription("Gets a menu category by ID.")
         .WithName("GetMenuCategoryById")
         .Produces<GetMenuCategoryByIdResponse>(StatusCodes.Status200OK)

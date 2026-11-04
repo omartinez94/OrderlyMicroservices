@@ -6,15 +6,24 @@ public record GetMenuItemVariationsQuery(Guid MenuItemId) : IQuery<GetMenuItemVa
 
 public record GetMenuItemVariationsResult(IEnumerable<MenuItemVariationDto> Variations);
 
-internal class GetMenuItemVariationsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuItemVariationsQuery, GetMenuItemVariationsResult>
+internal class GetMenuItemVariationsQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuItemVariationsQuery, GetMenuItemVariationsResult>
 {
     public async Task<GetMenuItemVariationsResult> Handle(GetMenuItemVariationsQuery query, CancellationToken cancellationToken)
     {
-        bool menuItemExists = await dbContext.MenuItems.AnyAsync(m => m.Id == query.MenuItemId && !m.IsDeleted, cancellationToken);
+        Guid? menuItemRestaurantId = await dbContext.MenuItems
+            .AsNoTracking()
+            .Where(m => m.Id == query.MenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        bool menuItemExists = menuItemRestaurantId is not null;
         if (!menuItemExists)
         {
             throw new NotFoundException("MenuItem", query.MenuItemId);
         }
+
+        currentUser.EnsureTenantAccess(menuItemRestaurantId!.Value);
 
         List<MenuItemVariation>? variations = await dbContext.MenuItemVariations
             .AsNoTracking()

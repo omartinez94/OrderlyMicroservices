@@ -19,10 +19,13 @@ public class CreateMenuCategoryCommandValidator : AbstractValidator<CreateMenuCa
 
 internal class CreateMenuCategoryCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<CreateMenuCategoryCommand, CreateMenuCategoryResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateMenuCategoryCommand, CreateMenuCategoryResult>
 {
     public async Task<CreateMenuCategoryResult> Handle(CreateMenuCategoryCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         MenuCategory? category = new MenuCategory
         {
             RestaurantId = command.RestaurantId,

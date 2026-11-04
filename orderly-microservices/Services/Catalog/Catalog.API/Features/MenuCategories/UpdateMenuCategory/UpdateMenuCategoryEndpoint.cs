@@ -22,7 +22,7 @@ public class UpdateMenuCategoryEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
-        .RequirePermission("catalog:menu_update")
+        .RequirePermission("menu:edit")
         .WithDescription("Updates a menu category.")
         .WithName("UpdateMenuCategory")
         .Produces<UpdateMenuCategoryResponse>(StatusCodes.Status200OK)

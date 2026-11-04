@@ -135,7 +135,8 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 PrepTimeMaxMinutes: mi.PrepTimeMaxMinutes,
                 ImageUrl: mi.ImageUrl,
                 Variations: BuildVariationNodes(mi.Id, variations),
-                Ingredients: BuildIngredientNodes(mi.Id, ingredientLinks)))
+                Ingredients: BuildIngredientNodes(mi.Id, ingredientLinks),
+                DefaultCourseNumber: mi.DefaultCourseNumber))
             .ToList();
     }
 

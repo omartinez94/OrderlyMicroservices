@@ -27,6 +27,7 @@ public class GetMenuItemVariationsEndpoint : ICarterModule
         .WithDescription("Gets variations for a menu item.")
         .WithName("GetMenuItemVariations")
         .Produces<GetMenuItemVariationsResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:view");
     }
 }

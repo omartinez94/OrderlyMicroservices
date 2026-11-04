@@ -24,9 +24,7 @@ public class UpdateMenuItemVariationCommandValidator : AbstractValidator<UpdateM
 
 internal class UpdateMenuItemVariationCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager,
+    IMenuItemMutationNotifier notifier,
     IPriceHistoryRecorder priceHistory,
     ICurrentUser currentUser) : ICommandHandler<UpdateMenuItemVariationCommand, UpdateMenuItemVariationResult>
 {
@@ -44,6 +42,11 @@ internal class UpdateMenuItemVariationCommandHandler(
             .Where(m => m.Id == variation.MenuItemId && !m.IsDeleted)
             .Select(m => m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (restaurantId != Guid.Empty)
+        {
+            currentUser.EnsureTenantAccess(restaurantId);
+        }
 
         decimal oldPriceModifier = variation.PriceModifier;
 
@@ -68,22 +71,7 @@ internal class UpdateMenuItemVariationCommandHandler(
                 ct: cancellationToken);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        if (restaurantId != Guid.Empty)
-        {
-            await cache.InvalidateMenuAsync(restaurantId, cancellationToken);
-
-            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-            {
-                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-                {
-                    MenuItemId = variation.MenuItemId,
-                    RestaurantId = restaurantId,
-                    ChangeType = MenuItemChangeType.Updated,
-                }, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await notifier.SaveAndNotifyRelatedAsync(variation.MenuItemId, restaurantId, cancellationToken).ConfigureAwait(false);
 
         return new UpdateMenuItemVariationResult(true);
     }

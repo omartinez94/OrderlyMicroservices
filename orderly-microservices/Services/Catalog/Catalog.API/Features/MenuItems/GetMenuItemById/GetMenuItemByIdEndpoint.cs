@@ -13,6 +13,7 @@ public class GetMenuItemByIdEndpoint : ICarterModule
             GetMenuItemByIdResult? result = await sender.Send(new GetMenuItemByIdQuery(id));
             return Results.Ok(result.Adapt<GetMenuItemByIdResponse>());
         })
+        .RequirePermission("menu:view")
         .WithTags("MenuItems")
         .WithDescription("Gets a menu item by ID or ShortId.")
         .WithName("GetMenuItemById")

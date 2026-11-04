@@ -40,6 +40,8 @@ builder.Services.AddAuthorizationServices();
 // HttpContextAccessor is added implicitly by AddJwtAuthentication.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
+builder.Services.AddScoped<ITenantAccessValidator, DefaultTenantAccessValidator>();
+builder.Services.AddSingleton<IClock>(SystemClock.Instance);
 
 // Feature management — the CatalogRedisCache flag (env: FeatureManagement__CatalogRedisCache)
 // gates the cache drift-repair hosted service and lets ops disable the cache without
@@ -113,6 +115,11 @@ builder.Services.AddOpenApi();
 // price-mutating handler. Scoped — shares the request's DbContext so the
 // audit row commits in the same transaction as the mutation.
 builder.Services.AddScoped<IPriceHistoryRecorder, PriceHistoryRecorder>();
+builder.Services.AddScoped<IMenuItemMutationNotifier, MenuItemMutationNotifier>();
+
+// Provider-agnostic blob storage layer (Azure Blob Storage / Azurite)
+builder.Services.AddBlobStorage(builder.Configuration);
+builder.Services.AddHostedService<Catalog.API.Features.MenuItems.UploadMenuItemImage.MenuItemImageOrphanSweepHostedService>();
 
 // Hangfire + recurring jobs. Jobs self-gate on the
 // FeatureManagement__CatalogScheduledJobs flag (default false), so the

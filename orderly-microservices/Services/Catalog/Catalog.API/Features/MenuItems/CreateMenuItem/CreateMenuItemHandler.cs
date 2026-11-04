@@ -19,6 +19,7 @@ public class CreateMenuItemCommand : ICommand<CreateMenuItemResult>
     public Instant? PromoStartDate { get; set; }
     public Instant? PromoEndDate { get; set; }
     public int DisplayOrder { get; set; }
+    public int? DefaultCourseNumber { get; set; }
 }
 
 public record CreateMenuItemResult(Guid Id, string ShortId = "");
@@ -30,59 +31,51 @@ public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCo
         RuleFor(x => x.RestaurantId).NotEmpty().WithMessage("RestaurantId is required");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required").MaximumLength(255).WithMessage("Name must not exceed 255 characters");
         RuleFor(x => x.BasePrice).GreaterThanOrEqualTo(0).WithMessage("BasePrice must be greater than or equal to 0");
+        RuleFor(x => x.ImageUrl).MaximumLength(500).WithMessage("ImageUrl must not exceed 500 characters");
+        RuleFor(x => x.DefaultCourseNumber)
+            .InclusiveBetween(1, 9)
+            .When(x => x.DefaultCourseNumber.HasValue)
+            .WithMessage("DefaultCourseNumber must be between 1 and 9");
     }
 }
 
 internal class CreateMenuItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<CreateMenuItemCommand, CreateMenuItemResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateMenuItemCommand, CreateMenuItemResult>
 {
     public async Task<CreateMenuItemResult> Handle(CreateMenuItemCommand command, CancellationToken cancellationToken)
     {
-        MenuItem? menuItem = new MenuItem
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
+        MenuItem menuItem = new MenuItem
         {
             Id = Guid.NewGuid(),
             ShortId = ShortIdGenerator.Generate(EntityPrefix.MenuItem),
             RestaurantId = command.RestaurantId,
             SubCategoryId = command.SubCategoryId,
             Name = command.Name,
-            Description = command.Description,
+            Description = command.Description ?? string.Empty,
             BasePrice = command.BasePrice,
-            ImageUrl = command.ImageUrl,
+            ImageUrl = command.ImageUrl ?? string.Empty,
             PrepTimeMinutes = command.PrepTimeMinutes,
             PrepTimeMaxMinutes = command.PrepTimeMaxMinutes,
             ItemType = command.ItemType,
-            IsAvailable = command.IsAvailable,
             AvailabilityStatus = command.AvailabilityStatus,
+            IsAvailable = command.AvailabilityStatus != AvailabilityStatus.Unavailable,
             SeasonStartDate = command.SeasonStartDate,
             SeasonEndDate = command.SeasonEndDate,
             PromoPrice = command.PromoPrice,
             PromoStartDate = command.PromoStartDate,
             PromoEndDate = command.PromoEndDate,
             DisplayOrder = command.DisplayOrder,
+            DefaultCourseNumber = command.DefaultCourseNumber,
             IsDeleted = false
         };
 
         dbContext.MenuItems.Add(menuItem);
-        await dbContext.SaveChangesAsync(cancellationToken);
 
-        await cache.InvalidateMenuAsync(command.RestaurantId, cancellationToken);
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = menuItem.Id,
-                RestaurantId = menuItem.RestaurantId,
-                ChangeType = MenuItemChangeType.Created,
-                Name = menuItem.Name,
-                BasePrice = menuItem.BasePrice,
-                IsAvailable = menuItem.IsAvailable,
-                AvailabilityStatus = menuItem.AvailabilityStatus.ToString(),
-            }, cancellationToken).ConfigureAwait(false);
-        }
+        await notifier.SaveAndNotifyAsync(menuItem, MenuItemChangeType.Created, cancellationToken).ConfigureAwait(false);
 
         return new CreateMenuItemResult(menuItem.Id, menuItem.ShortId);
     }

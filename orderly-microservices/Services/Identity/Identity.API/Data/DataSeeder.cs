@@ -33,7 +33,7 @@ public static class DataSeeder
         await dbContext.SaveChangesAsync(ct);
     }
 
-    private static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager, CancellationToken ct)
+    public static async Task SeedRolesAsync(RoleManager<ApplicationRole> roleManager, CancellationToken ct = default)
     {
         var roles = new[]
         {
@@ -62,7 +62,7 @@ public static class DataSeeder
         }
     }
 
-    private static async Task SeedPermissionsAsync(IdentityDbContext dbContext, CancellationToken ct)
+    public static async Task SeedPermissionsAsync(IdentityDbContext dbContext, CancellationToken ct = default)
     {
         List<Permission> permissions = new List<Permission>
         {
@@ -98,6 +98,7 @@ public static class DataSeeder
 
             // Menu
             new() { Id = Guid.NewGuid(), Name = "menu:view", Description = "View menu", Resource = "menu", Action = "view" },
+            new() { Id = Guid.NewGuid(), Name = "menu:toggle", Description = "Toggle menu item availability (86'd / limited)", Resource = "menu", Action = "toggle" },
             new() { Id = Guid.NewGuid(), Name = "menu:edit", Description = "Edit menu", Resource = "menu", Action = "edit" },
 
             // Kitchen
@@ -134,7 +135,7 @@ public static class DataSeeder
         }
     }
 
-    private static async Task SeedRolePermissionsAsync(IdentityDbContext dbContext, RoleManager<ApplicationRole> roleManager, CancellationToken ct)
+    public static async Task SeedRolePermissionsAsync(IdentityDbContext dbContext, RoleManager<ApplicationRole> roleManager, CancellationToken ct = default)
     {
         List<string> allPermissionNames = await dbContext.Permissions.Select(p => p.Name).ToListAsync(ct);
 
@@ -148,7 +149,7 @@ public static class DataSeeder
                 "permissions:view",
                 "orders:view_all", "orders:modify_confirmed", "orders:modify_ready", "orders:admin",
                 "orders:write", "orders:cancel", "orders:request_cancel", "orders:approve_cancel",
-                "menu:view", "menu:edit",
+                "menu:view", "menu:toggle", "menu:edit",
                 "kitchen:view_orders",
                 "reservations:view", "reservations:create", "reservations:edit",
                 "payments:view_reports",
@@ -161,7 +162,7 @@ public static class DataSeeder
                 "permissions:view",
                 "orders:view_all", "orders:modify_confirmed",
                 "orders:write", "orders:cancel", "orders:request_cancel", "orders:approve_cancel",
-                "menu:view", "menu:edit",
+                "menu:view", "menu:toggle", "menu:edit",
                 "kitchen:view_orders",
                 "reservations:view", "reservations:edit",
                 "payments:view_reports",
@@ -171,6 +172,7 @@ public static class DataSeeder
             {
                 "orders:view_all", "orders:modify_ordering", "orders:modify_confirmed",
                 "orders:cancel", "orders:approve_cancel",
+                "menu:view", "menu:toggle",
                 "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Waiter"] = new()
@@ -184,18 +186,21 @@ public static class DataSeeder
             {
                 "orders:view_all",
                 "orders:cancel", "orders:approve_cancel",
+                "menu:view",
                 "kitchen:view_orders", "kitchen:update_prep_status",
             },
             ["Host"] = new()
             {
                 "reservations:view", "reservations:create", "reservations:edit",
                 "orders:view_all", "orders:request_cancel",
+                "menu:view",
             },
             ["Cashier"] = new()
             {
                 "orders:view_all",
                 "orders:write", "orders:cancel", "orders:request_cancel",
                 "payments:process", "payments:split_bill",
+                "menu:view",
             },
         };
 

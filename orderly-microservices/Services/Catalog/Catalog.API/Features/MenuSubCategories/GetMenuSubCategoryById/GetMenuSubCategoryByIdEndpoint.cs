@@ -25,6 +25,7 @@ public class GetMenuSubCategoryByIdEndpoint : ICarterModule
         .WithDescription("Gets a menu sub-category by its Id.")
         .WithName("GetMenuSubCategoryById")
         .Produces<GetMenuSubCategoryByIdResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:view");
     }
 }

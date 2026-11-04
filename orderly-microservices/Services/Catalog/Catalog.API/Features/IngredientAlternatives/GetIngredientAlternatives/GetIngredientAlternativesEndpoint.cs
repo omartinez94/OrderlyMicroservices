@@ -28,6 +28,7 @@ public class GetIngredientAlternativesEndpoint : ICarterModule
         .WithDescription("Gets ingredient alternatives for a restaurant.")
         .WithName("GetIngredientAlternatives")
         .Produces<GetIngredientAlternativesResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:view");
     }
 }

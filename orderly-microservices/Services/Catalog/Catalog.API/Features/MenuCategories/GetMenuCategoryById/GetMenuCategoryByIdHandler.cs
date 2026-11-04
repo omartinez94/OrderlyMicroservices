@@ -6,7 +6,9 @@ public record GetMenuCategoryByIdQuery(int Id) : IQuery<GetMenuCategoryByIdResul
 
 public record GetMenuCategoryByIdResult(MenuCategoryDto MenuCategory);
 
-internal class GetMenuCategoryByIdQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuCategoryByIdQuery, GetMenuCategoryByIdResult>
+internal class GetMenuCategoryByIdQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuCategoryByIdQuery, GetMenuCategoryByIdResult>
 {
     public async Task<GetMenuCategoryByIdResult> Handle(GetMenuCategoryByIdQuery query, CancellationToken cancellationToken)
     {
@@ -14,6 +16,8 @@ internal class GetMenuCategoryByIdQueryHandler(CatalogDbContext dbContext) : IQu
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == query.Id, cancellationToken)
             ?? throw new MenuCategoryNotFoundException(query.Id);
+
+        currentUser.EnsureTenantAccess(category.RestaurantId);
 
         return new GetMenuCategoryByIdResult(category.Adapt<MenuCategoryDto>());
     }

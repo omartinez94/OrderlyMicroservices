@@ -14,10 +14,22 @@ public class GetMenuItemIngredientsQueryValidator : AbstractValidator<GetMenuIte
     }
 }
 
-internal class GetMenuItemIngredientsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuItemIngredientsQuery, GetMenuItemIngredientsResult>
+internal class GetMenuItemIngredientsQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuItemIngredientsQuery, GetMenuItemIngredientsResult>
 {
     public async Task<GetMenuItemIngredientsResult> Handle(GetMenuItemIngredientsQuery query, CancellationToken cancellationToken)
     {
+        Guid? menuRestaurantId = await dbContext.MenuItems
+            .AsNoTracking()
+            .Where(m => m.Id == query.MenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (menuRestaurantId is not null)
+        {
+            currentUser.EnsureTenantAccess(menuRestaurantId.Value);
+        }
+
         List<MenuItemIngredient>? ingredients = await dbContext.MenuItemIngredients
             .AsNoTracking()
             .Where(x => x.MenuItemId == query.MenuItemId)

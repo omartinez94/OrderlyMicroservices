@@ -16,9 +16,8 @@ public class DeleteMenuItemVariationCommandValidator : AbstractValidator<DeleteM
 
 internal class DeleteMenuItemVariationCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<DeleteMenuItemVariationCommand, DeleteMenuItemVariationResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteMenuItemVariationCommand, DeleteMenuItemVariationResult>
 {
     public async Task<DeleteMenuItemVariationResult> Handle(DeleteMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
@@ -35,25 +34,15 @@ internal class DeleteMenuItemVariationCommandHandler(
             .Select(m => m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
+        if (restaurantId != Guid.Empty)
+        {
+            currentUser.EnsureTenantAccess(restaurantId);
+        }
+
         variation.IsDeleted = true;
         variation.DeletedAt = SystemClock.Instance.GetCurrentInstant();
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        if (restaurantId != Guid.Empty)
-        {
-            await cache.InvalidateMenuAsync(restaurantId, cancellationToken);
-
-            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-            {
-                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-                {
-                    MenuItemId = variation.MenuItemId,
-                    RestaurantId = restaurantId,
-                    ChangeType = MenuItemChangeType.Updated,
-                }, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await notifier.SaveAndNotifyRelatedAsync(variation.MenuItemId, restaurantId, cancellationToken).ConfigureAwait(false);
 
         return new DeleteMenuItemVariationResult(true);
     }

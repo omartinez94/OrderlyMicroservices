@@ -26,6 +26,7 @@ public class CreateMenuSubCategoryEndpoint : ICarterModule
         .WithDescription("Creates a new menu sub-category.")
         .WithName("CreateMenuSubCategory")
         .Produces<CreateMenuSubCategoryResponse>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:edit");
     }
 }

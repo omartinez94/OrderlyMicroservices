@@ -5,7 +5,7 @@ public record CreateMenuItemRequest(
     string Name,
     string Description,
     decimal BasePrice,
-    string ImageUrl,
+    string? ImageUrl,
     int PrepTimeMinutes,
     int PrepTimeMaxMinutes,
     ItemType ItemType,
@@ -16,7 +16,8 @@ public record CreateMenuItemRequest(
     decimal? PromoPrice,
     Instant? PromoStartDate,
     Instant? PromoEndDate,
-    int DisplayOrder);
+    int DisplayOrder,
+    int? DefaultCourseNumber = null);
 
 public record CreateMenuItemResponse(Guid Id, string ShortId = "");
 
@@ -34,6 +35,7 @@ public class CreateMenuItemEndpoint : ICarterModule
 
             return Results.Created($"/v1/menu-items/{response.Id}", response);
         })
+        .RequirePermission("menu:edit")
         .WithTags("MenuItems")
         .WithDescription("Creates a new menu item for a restaurant.")
         .WithName("CreateMenuItem")

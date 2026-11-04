@@ -26,7 +26,8 @@ public class UpdateMenuSubCategoryCommandValidator : AbstractValidator<UpdateMen
 
 internal class UpdateMenuSubCategoryCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<UpdateMenuSubCategoryCommand, UpdateMenuSubCategoryResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<UpdateMenuSubCategoryCommand, UpdateMenuSubCategoryResult>
 {
     public async Task<UpdateMenuSubCategoryResult> Handle(UpdateMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -41,6 +42,8 @@ internal class UpdateMenuSubCategoryCommandHandler(
             .Select(c => (Guid?)c.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken))
             ?? throw new MenuCategoryNotFoundException(command.CategoryId);
+
+        currentUser.EnsureTenantAccess(newCategoryRestaurantId);
 
         subCategory.CategoryId = command.CategoryId;
         subCategory.Name = command.Name;

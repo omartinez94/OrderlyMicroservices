@@ -21,6 +21,7 @@ public class DeleteIngredientAlternativeEndpoint : ICarterModule
         .WithName("DeleteIngredientAlternative")
         .Produces<DeleteIngredientAlternativeResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:edit");
     }
 }

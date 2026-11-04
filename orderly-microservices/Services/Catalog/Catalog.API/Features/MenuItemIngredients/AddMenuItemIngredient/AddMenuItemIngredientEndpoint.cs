@@ -24,6 +24,7 @@ public class AddMenuItemIngredientEndpoint : ICarterModule
         .WithDescription("Adds an ingredient to a menu item.")
         .WithName("AddMenuItemIngredient")
         .Produces<AddMenuItemIngredientResponse>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:edit");
     }
 }

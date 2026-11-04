@@ -33,6 +33,8 @@ internal class UpdateIngredientAlternativeCommandHandler(
 {
     public async Task<UpdateIngredientAlternativeResult> Handle(UpdateIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         IngredientAlternative? ingredientAlternative = await dbContext.IngredientAlternatives
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken);
 

@@ -24,10 +24,13 @@ public class CreateIngredientCommandValidator : AbstractValidator<CreateIngredie
 
 internal class CreateIngredientCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<CreateIngredientCommand, CreateIngredientResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateIngredientCommand, CreateIngredientResult>
 {
     public async Task<CreateIngredientResult> Handle(CreateIngredientCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         Ingredient? ingredient = new Ingredient
         {
             RestaurantId = command.RestaurantId,

@@ -20,7 +20,9 @@ public class GetMenuItemByIdQueryValidator : AbstractValidator<GetMenuItemByIdQu
     }
 }
 
-internal class GetMenuItemByIdQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuItemByIdQuery, GetMenuItemByIdResult>
+internal class GetMenuItemByIdQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuItemByIdQuery, GetMenuItemByIdResult>
 {
     public async Task<GetMenuItemByIdResult> Handle(GetMenuItemByIdQuery query, CancellationToken cancellationToken)
     {
@@ -43,6 +45,8 @@ internal class GetMenuItemByIdQueryHandler(CatalogDbContext dbContext) : IQueryH
         {
             throw new NotFoundException(nameof(MenuItem), query.Identifier);
         }
+
+        currentUser.EnsureTenantAccess(menuItem.RestaurantId);
 
         MenuItemDto? dto = menuItem.Adapt<MenuItemDto>();
         return new GetMenuItemByIdResult(dto);

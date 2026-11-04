@@ -544,6 +544,10 @@ namespace Catalog.API.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("DefaultCourseNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("default_course_number");
+
                     b.Property<Instant?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 

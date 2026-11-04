@@ -37,4 +37,7 @@ public interface IKitchenHubClient
 
     /// <summary>Order cancellation request was rejected.</summary>
     Task OrderCancelRejected(Guid ticketId, Guid orderId, Instant timestamp);
+
+    /// <summary>Catalog menu item was created, updated, or deleted.</summary>
+    Task MenuItemChanged(MenuItemChangedDto change);
 }

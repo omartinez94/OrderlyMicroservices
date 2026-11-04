@@ -24,9 +24,8 @@ public class CreateMenuItemVariationCommandValidator : AbstractValidator<CreateM
 
 internal class CreateMenuItemVariationCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<CreateMenuItemVariationCommand, CreateMenuItemVariationResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateMenuItemVariationCommand, CreateMenuItemVariationResult>
 {
     public async Task<CreateMenuItemVariationResult> Handle(CreateMenuItemVariationCommand command, CancellationToken cancellationToken)
     {
@@ -39,7 +38,9 @@ internal class CreateMenuItemVariationCommandHandler(
             throw new NotFoundException("MenuItem", command.MenuItemId);
         }
 
-        MenuItemVariation? variation = new MenuItemVariation
+        currentUser.EnsureTenantAccess(menuItemRestaurantId.Value);
+
+        MenuItemVariation variation = new MenuItemVariation
         {
             Id = 0,
             MenuItemId = command.MenuItemId,
@@ -52,19 +53,7 @@ internal class CreateMenuItemVariationCommandHandler(
         };
 
         dbContext.MenuItemVariations.Add(variation);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await cache.InvalidateMenuAsync(menuItemRestaurantId.Value, cancellationToken);
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = command.MenuItemId,
-                RestaurantId = menuItemRestaurantId.Value,
-                ChangeType = MenuItemChangeType.Updated,
-            }, cancellationToken).ConfigureAwait(false);
-        }
+        await notifier.SaveAndNotifyRelatedAsync(command.MenuItemId, menuItemRestaurantId.Value, cancellationToken).ConfigureAwait(false);
 
         return new CreateMenuItemVariationResult(variation.Id);
     }

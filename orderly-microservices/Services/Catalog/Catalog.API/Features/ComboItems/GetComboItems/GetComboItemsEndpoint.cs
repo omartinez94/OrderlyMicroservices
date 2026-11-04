@@ -20,6 +20,7 @@ public class GetComboItemsEndpoint : ICarterModule
         .WithDescription("Gets all combo items for a menu item.")
         .WithName("GetComboItems")
         .Produces<GetComboItemsResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:view");
     }
 }

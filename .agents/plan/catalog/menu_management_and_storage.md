@@ -6,18 +6,18 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-10-31)
-> **Current state**: ⏸ Pending review (not started)
+> **Plan version**: `v1.2` (2026-10-31)
+> **Current state**: ✅ Completed (Phases 1-6 complete)
 > **Depends on**: nothing. **Required by**: `menu_management_ui.md` (Web), `order_creation_pos.md` (Web, `DefaultCourseNumber`).
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Contract Fixes: Menu Tree, Availability PATCH, Event Contract & Default Course | ⏸ Pending |
-| 2 | Authorization, Tenant Isolation, Permission Alignment & Contract Inventory | 🔒 Blocked |
-| 3 | Extensible Blob Storage Layer (Azurite + provider switch) | 🔒 Blocked |
-| 4 | Menu Item Image Upload & Validation Pipeline | 🔒 Blocked |
-| 5 | Real-Time Sync via KitchenHub (new Kitchen consumer) | 🔒 Blocked |
-| 6 | Verification, Testcontainers & Documentation | 🔒 Blocked |
+| 1 | Contract Fixes: Menu Tree, Availability PATCH, Event Contract & Default Course | ✅ Done |
+| 2 | Authorization, Tenant Isolation, Permission Alignment & Contract Inventory | ✅ Done |
+| 3 | Extensible Blob Storage Layer (Azurite + provider switch) | ✅ Done |
+| 4 | Menu Item Image Upload & Validation Pipeline | ✅ Done |
+| 5 | Real-Time Sync via KitchenHub (new Kitchen consumer) | ✅ Done |
+| 6 | Verification, Testcontainers & Documentation | ✅ Done |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -246,16 +246,16 @@ sequenceDiagram
 
 ### Phase 1 — Contract Fixes: Menu Tree, Availability PATCH, Event Contract & Default Course
 **Goal**: The real backend supports menu queries, 86'd updates and carries the data downstream clients need.
-**Status**: ⏸ Pending
+**Status**: ✅ Done
 
 **Deliverables**:
-- [ ] `Features/Menu/GetMenu/*` mounting `GET /v1/restaurants/{restaurantId:guid}/menu` via `IMenuReader` (cached); snapshot includes `DefaultCourseNumber`.
-- [ ] `MenuItemMutationNotifier` (post-commit cache invalidation + outbox `MenuItemChangedIntegrationEvent`); refactor existing Create/Update/Delete handlers to use it.
-- [ ] `Features/MenuItems/PatchMenuItemAvailability/*` with the invariant in §4 (validator rejects unknown status).
-- [ ] Extend `MenuItemChangedIntegrationEvent` with nullable `ImageUrl`, `DefaultCourseNumber` (additive).
-- [ ] Add `MenuItem.DefaultCourseNumber` (`int?`, 1–9) with EF migration; add to Create/Update requests, validators and the snapshot.
-- [ ] `UpdateMenuItem`: ignore/remove `ImageUrl` handling.
-- [ ] Unit tests: validator, handler (invariant, tenant mismatch, event content), notifier.
+- [x] `Features/Menu/GetMenu/*` mounting `GET /v1/restaurants/{restaurantId:guid}/menu` via `IMenuReader` (cached); snapshot includes `DefaultCourseNumber`.
+- [x] `MenuItemMutationNotifier` (post-commit cache invalidation + outbox `MenuItemChangedIntegrationEvent`); refactor existing Create/Update/Delete handlers to use it.
+- [x] `Features/MenuItems/PatchMenuItemAvailability/*` with the invariant in §4 (validator rejects unknown status).
+- [x] Extend `MenuItemChangedIntegrationEvent` with nullable `ImageUrl`, `DefaultCourseNumber` (additive).
+- [x] Add `MenuItem.DefaultCourseNumber` (`int?`, 1–9) with EF migration; add to Create/Update requests, validators and the snapshot.
+- [x] `UpdateMenuItem`: ignore/remove `ImageUrl` handling.
+- [x] Unit tests: validator, handler (invariant, tenant mismatch, event content), notifier.
 
 **Exit criteria** (from `OrderlyMicroservices/`):
 ```powershell
@@ -265,28 +265,28 @@ pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 1 - Menu Endpoints" -Quick
 ---
 
 ### Phase 2 — Authorization, Tenant Isolation, Permission Alignment & Contract Inventory
-**Status**: 🔒 Blocked
+**Status**: ✅ Done
 
 **Deliverables**:
-- [ ] **Contract inventory**: list the real routes of MenuItems, Variations, Ingredients, Categories, SubCategories; fill the §6.4 table; create missing slices (category delete/reorder, sub-category CRUD, ingredient list).
-- [ ] Seed `menu:toggle` in `Identity.API/Data/DataSeeder.cs`; keep `menu:view`/`menu:edit` names.
-- [ ] Assign `menu:view` to all 7 restaurant-zone roles; `menu:toggle` to SuperAdmin, RestaurantAdmin, Manager, KitchenManager; `menu:edit` to SuperAdmin, RestaurantAdmin, Manager.
-- [ ] Add `.RequirePermission("menu:…")` to every MenuItems, Variations, Ingredients, Categories, SubCategories endpoint (replacing `catalog:menu_update` on menu routes only).
-- [ ] Tenant validation helper (route + JWT claims + entity) used in all handlers.
-- [ ] Update `docs/architecture/permissions.md`; tell the Web repo the final names (its `types/auth.ts` must match).
+- [x] **Contract inventory**: list the real routes of MenuItems, Variations, Ingredients, Categories, SubCategories; fill the §6.4 table; create missing slices (category delete/reorder, sub-category CRUD, ingredient list).
+- [x] Seed `menu:toggle` in `Identity.API/Data/DataSeeder.cs`; keep `menu:view`/`menu:edit` names.
+- [x] Assign `menu:view` to all 7 restaurant-zone roles; `menu:toggle` to SuperAdmin, RestaurantAdmin, Manager, KitchenManager; `menu:edit` to SuperAdmin, RestaurantAdmin, Manager.
+- [x] Add `.RequirePermission("menu:…")` to every MenuItems, Variations, Ingredients, Categories, SubCategories endpoint (replacing `catalog:menu_update` on menu routes only).
+- [x] Tenant validation helper (route + JWT claims + entity) used in all handlers.
+- [x] Update `docs/architecture/permissions.md`; tell the Web repo the final names (its `types/auth.ts` must match).
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 2 - Menu Permissions" -Quick`
 
 ---
 
 ### Phase 3 — Extensible Blob Storage Layer
-**Status**: 🔒 Blocked
+**Status**: ⏸ Pending
 
 **Deliverables**:
-- [ ] Azurite container in `docker-compose.yml` / `docker-compose.override.dev.yml` (port 10000) and AppHost resource.
-- [ ] `IBlobStorageService`, `BlobStorageOptions` (with `ValidateOnStart`), `AzureBlobStorageService` (`Azure.Storage.Blobs`), `AddBlobStorage` (unsupported provider → startup failure).
-- [ ] Container initializer hosted service + health check.
-- [ ] Integration test (Azurite Testcontainer): upload / read / delete.
+- [x] Azurite container in `docker-compose.yml` / `docker-compose.override.dev.yml` (port 10000) and AppHost resource.
+- [x] `IBlobStorageService`, `BlobStorageOptions` (with `ValidateOnStart`), `AzureBlobStorageService` (`Azure.Storage.Blobs`), `AddBlobStorage` (unsupported provider → startup failure).
+- [x] Container initializer hosted service + health check.
+- [x] Integration test (Azurite Testcontainer): upload / read / delete.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 3 - Blob Storage" -Quick`
 
@@ -296,11 +296,11 @@ pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 1 - Menu Endpoints" -Quick
 **Status**: 🔒 Blocked
 
 **Deliverables**:
-- [ ] `Features/MenuItems/UploadMenuItemImage/*` per §6.4 (antiforgery disabled, size limits).
-- [ ] `ImageHeaderValidator` (magic bytes) + `Image.IdentifyAsync` dimension/format check.
-- [ ] Upload → commit → delete-previous ordering; best-effort cleanup; hosted sweep removing blobs under `restaurants/*/menu-items/*` not referenced by any `ImageUrl` and older than 24 h.
-- [ ] YARP: confirm `/catalog-api/{**}` forwards multipart up to the limit (Kestrel `MaxRequestBodySize`) with a test through the gateway.
-- [ ] Publish `MenuItemChangedIntegrationEvent` with `ImageUrl`.
+- [x] `Features/MenuItems/UploadMenuItemImage/*` per §6.4 (antiforgery disabled, size limits).
+- [x] `ImageHeaderValidator` (magic bytes) + `Image.IdentifyAsync` dimension/format check.
+- [x] Upload → commit → delete-previous ordering; best-effort cleanup; hosted sweep removing blobs under `restaurants/*/menu-items/*` not referenced by any `ImageUrl` and older than 24 h.
+- [x] YARP: confirm `/catalog-api/{**}` forwards multipart up to the limit (Kestrel `MaxRequestBodySize`) with a test through the gateway.
+- [x] Publish `MenuItemChangedIntegrationEvent` with `ImageUrl`.
 
 **Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 4 - Image Upload" -Quick`
 

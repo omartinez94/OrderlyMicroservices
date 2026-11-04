@@ -16,6 +16,7 @@ public class RemoveMenuItemIngredientEndpoint : ICarterModule
         .WithDescription("Removes an ingredient from a menu item.")
         .WithName("RemoveMenuItemIngredient")
         .Produces(StatusCodes.Status204NoContent)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:edit");
     }
 }

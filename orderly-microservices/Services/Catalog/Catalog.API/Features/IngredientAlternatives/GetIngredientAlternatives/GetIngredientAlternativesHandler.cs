@@ -15,10 +15,14 @@ public class GetIngredientAlternativesQueryValidator : AbstractValidator<GetIngr
     }
 }
 
-internal class GetIngredientAlternativesQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetIngredientAlternativesQuery, GetIngredientAlternativesResult>
+internal class GetIngredientAlternativesQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetIngredientAlternativesQuery, GetIngredientAlternativesResult>
 {
     public async Task<GetIngredientAlternativesResult> Handle(GetIngredientAlternativesQuery query, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(query.RestaurantId);
+
         List<IngredientAlternative>? alternatives = await dbContext.IngredientAlternatives
             .Where(x => x.RestaurantId == query.RestaurantId)
             .ToListAsync(cancellationToken);

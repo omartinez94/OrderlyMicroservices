@@ -22,9 +22,8 @@ public class CreateComboItemCommandValidator : AbstractValidator<CreateComboItem
 
 internal class CreateComboItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateComboItemCommand, CreateComboItemResult>
 {
     public async Task<CreateComboItemResult> Handle(CreateComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -37,7 +36,9 @@ internal class CreateComboItemCommandHandler(
             throw new NotFoundException("MenuItem", command.ComboMenuItemId);
         }
 
-        ComboItem? comboItem = new ComboItem
+        currentUser.EnsureTenantAccess(restaurantId.Value);
+
+        ComboItem comboItem = new ComboItem
         {
             ComboMenuItemId = command.ComboMenuItemId,
             IncludedMenuItemId = command.IncludedMenuItemId,
@@ -46,19 +47,7 @@ internal class CreateComboItemCommandHandler(
         };
 
         dbContext.ComboItems.Add(comboItem);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = command.ComboMenuItemId,
-                RestaurantId = restaurantId.Value,
-                ChangeType = MenuItemChangeType.Updated,
-            }, cancellationToken).ConfigureAwait(false);
-        }
+        await notifier.SaveAndNotifyRelatedAsync(command.ComboMenuItemId, restaurantId.Value, cancellationToken).ConfigureAwait(false);
 
         return new CreateComboItemResult(comboItem.Id);
     }

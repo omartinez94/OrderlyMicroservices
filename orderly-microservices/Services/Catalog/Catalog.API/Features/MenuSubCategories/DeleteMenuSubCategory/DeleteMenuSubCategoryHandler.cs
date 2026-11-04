@@ -24,7 +24,8 @@ public class DeleteMenuSubCategoryCommandValidator : AbstractValidator<DeleteMen
 
 internal class DeleteMenuSubCategoryCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteMenuSubCategoryCommand, DeleteMenuSubCategoryResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteMenuSubCategoryCommand, DeleteMenuSubCategoryResult>
 {
     public async Task<DeleteMenuSubCategoryResult> Handle(DeleteMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -34,6 +35,16 @@ internal class DeleteMenuSubCategoryCommandHandler(
         if (subCategory is null)
         {
             throw new MenuSubCategoryNotFoundException(command.Id);
+        }
+
+        Guid? parentRestaurantId = await dbContext.MenuCategories
+            .Where(c => c.Id == subCategory.CategoryId)
+            .Select(c => (Guid?)c.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (parentRestaurantId is not null)
+        {
+            currentUser.EnsureTenantAccess(parentRestaurantId.Value);
         }
 
         // Idempotent: a second delete on an already-deleted row is a no-op

@@ -26,6 +26,7 @@ public class GetMenuItemIngredientsEndpoint : ICarterModule
         .WithDescription("Gets all ingredients for a menu item.")
         .WithName("GetMenuItemIngredients")
         .Produces<GetMenuItemIngredientsResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:view");
     }
 }

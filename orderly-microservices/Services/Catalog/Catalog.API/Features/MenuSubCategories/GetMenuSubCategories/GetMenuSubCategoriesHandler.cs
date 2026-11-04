@@ -14,15 +14,24 @@ public class GetMenuSubCategoriesQueryValidator : AbstractValidator<GetMenuSubCa
     }
 }
 
-internal class GetMenuSubCategoriesQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuSubCategoriesQuery, GetMenuSubCategoriesResult>
+internal class GetMenuSubCategoriesQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuSubCategoriesQuery, GetMenuSubCategoriesResult>
 {
     public async Task<GetMenuSubCategoriesResult> Handle(GetMenuSubCategoriesQuery query, CancellationToken cancellationToken)
     {
-        bool categoryExists = await dbContext.MenuCategories.AnyAsync(c => c.Id == query.CategoryId, cancellationToken);
+        Guid? categoryRestaurantId = await dbContext.MenuCategories
+            .AsNoTracking()
+            .Where(c => c.Id == query.CategoryId)
+            .Select(c => (Guid?)c.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        bool categoryExists = categoryRestaurantId is not null;
         if (!categoryExists)
         {
             throw new MenuCategoryNotFoundException(query.CategoryId);
         }
+
+        currentUser.EnsureTenantAccess(categoryRestaurantId!.Value);
 
         List<MenuSubCategory>? subCategories = await dbContext.MenuSubCategories
             .AsNoTracking()

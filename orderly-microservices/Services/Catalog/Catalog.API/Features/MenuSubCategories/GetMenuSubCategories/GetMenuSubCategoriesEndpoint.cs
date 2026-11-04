@@ -24,6 +24,7 @@ public class GetMenuSubCategoriesEndpoint : ICarterModule
         .WithTags("MenuSubCategories")
         .WithDescription("Gets a list of sub-categories for a specific menu category.")
         .WithName("GetMenuSubCategories")
-        .Produces<GetMenuSubCategoriesResponse>(StatusCodes.Status200OK);
+        .Produces<GetMenuSubCategoriesResponse>(StatusCodes.Status200OK)
+        .RequirePermission("menu:view");
     }
 }

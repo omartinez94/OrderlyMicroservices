@@ -9,7 +9,7 @@ public class UpdateMenuItemCommand : ICommand<UpdateMenuItemResult>
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public decimal BasePrice { get; set; }
-    public string ImageUrl { get; set; } = string.Empty;
+    public string? ImageUrl { get; set; }
     public int PrepTimeMinutes { get; set; }
     public int PrepTimeMaxMinutes { get; set; }
     public ItemType ItemType { get; set; }
@@ -21,6 +21,7 @@ public class UpdateMenuItemCommand : ICommand<UpdateMenuItemResult>
     public Instant? PromoStartDate { get; set; }
     public Instant? PromoEndDate { get; set; }
     public int DisplayOrder { get; set; }
+    public int? DefaultCourseNumber { get; set; }
 }
 
 public record UpdateMenuItemResult(bool Success);
@@ -32,14 +33,16 @@ public class UpdateMenuItemCommandValidator : AbstractValidator<UpdateMenuItemCo
         RuleFor(x => x.Id).NotEmpty().WithMessage("Id is required");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required").MaximumLength(255).WithMessage("Name must not exceed 255 characters");
         RuleFor(x => x.BasePrice).GreaterThanOrEqualTo(0).WithMessage("BasePrice must be greater than or equal to 0");
+        RuleFor(x => x.DefaultCourseNumber)
+            .InclusiveBetween(1, 9)
+            .When(x => x.DefaultCourseNumber.HasValue)
+            .WithMessage("DefaultCourseNumber must be between 1 and 9");
     }
 }
 
 internal class UpdateMenuItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager,
+    IMenuItemMutationNotifier notifier,
     IPriceHistoryRecorder priceHistory,
     ICurrentUser currentUser) : ICommandHandler<UpdateMenuItemCommand, UpdateMenuItemResult>
 {
@@ -53,26 +56,29 @@ internal class UpdateMenuItemCommandHandler(
             throw new NotFoundException(nameof(MenuItem), command.Id);
         }
 
+        currentUser.EnsureTenantAccess(menuItem.RestaurantId);
+
         // Capture the old base price BEFORE the mutation so the audit row
         // can be recorded against the current persisted value.
         decimal oldBasePrice = menuItem.BasePrice;
 
         menuItem.SubCategoryId = command.SubCategoryId;
         menuItem.Name = command.Name;
-        menuItem.Description = command.Description;
+        menuItem.Description = command.Description ?? string.Empty;
         menuItem.BasePrice = command.BasePrice;
-        menuItem.ImageUrl = command.ImageUrl;
+        // ImageUrl is intentionally ignored/immutable on PUT to prevent stale edit forms from overwriting uploaded images.
         menuItem.PrepTimeMinutes = command.PrepTimeMinutes;
         menuItem.PrepTimeMaxMinutes = command.PrepTimeMaxMinutes;
         menuItem.ItemType = command.ItemType;
-        menuItem.IsAvailable = command.IsAvailable;
         menuItem.AvailabilityStatus = command.AvailabilityStatus;
+        menuItem.IsAvailable = command.AvailabilityStatus != AvailabilityStatus.Unavailable;
         menuItem.SeasonStartDate = command.SeasonStartDate;
         menuItem.SeasonEndDate = command.SeasonEndDate;
         menuItem.PromoPrice = command.PromoPrice;
         menuItem.PromoStartDate = command.PromoStartDate;
         menuItem.PromoEndDate = command.PromoEndDate;
         menuItem.DisplayOrder = command.DisplayOrder;
+        menuItem.DefaultCourseNumber = command.DefaultCourseNumber;
 
         // Phase 4: append a PriceHistory row when the base price changed.
         // The recorder skips no-op writes internally.
@@ -86,23 +92,7 @@ internal class UpdateMenuItemCommandHandler(
             menuItemId: menuItem.Id,
             ct: cancellationToken);
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await cache.InvalidateMenuAsync(menuItem.RestaurantId, cancellationToken);
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = menuItem.Id,
-                RestaurantId = menuItem.RestaurantId,
-                ChangeType = MenuItemChangeType.Updated,
-                Name = menuItem.Name,
-                BasePrice = menuItem.BasePrice,
-                IsAvailable = menuItem.IsAvailable,
-                AvailabilityStatus = menuItem.AvailabilityStatus.ToString(),
-            }, cancellationToken).ConfigureAwait(false);
-        }
+        await notifier.SaveAndNotifyAsync(menuItem, MenuItemChangeType.Updated, cancellationToken).ConfigureAwait(false);
 
         return new UpdateMenuItemResult(true);
     }

@@ -16,6 +16,7 @@ public class DeleteMenuSubCategoryEndpoint : ICarterModule
         .WithDescription("Soft-deletes a menu sub-category. Idempotent: a second delete on an already-deleted row is a no-op.")
         .WithName("DeleteMenuSubCategory")
         .Produces<DeleteMenuSubCategoryResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:edit");
     }
 }

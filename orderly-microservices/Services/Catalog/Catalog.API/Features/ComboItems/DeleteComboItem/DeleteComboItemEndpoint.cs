@@ -19,6 +19,7 @@ public class DeleteComboItemEndpoint : ICarterModule
         .WithName("DeleteComboItem")
         .Produces<DeleteComboItemResponse>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:edit");
     }
 }

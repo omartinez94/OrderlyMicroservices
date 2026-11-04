@@ -16,9 +16,8 @@ public class DeleteComboItemCommandValidator : AbstractValidator<DeleteComboItem
 
 internal class DeleteComboItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteComboItemCommand, DeleteComboItemResult>
 {
     public async Task<DeleteComboItemResult> Handle(DeleteComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -30,28 +29,18 @@ internal class DeleteComboItemCommandHandler(
             throw new NotFoundException(nameof(ComboItem), command.Id);
         }
 
-        Guid? restaurantId = await dbContext.MenuItems
+        Guid restaurantId = await dbContext.MenuItems
             .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
-            .Select(m => (Guid?)m.RestaurantId)
+            .Select(m => m.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        dbContext.ComboItems.Remove(comboItem);
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        if (restaurantId is not null)
+        if (restaurantId != Guid.Empty)
         {
-            await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
-
-            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-            {
-                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-                {
-                    MenuItemId = comboItem.ComboMenuItemId,
-                    RestaurantId = restaurantId.Value,
-                    ChangeType = MenuItemChangeType.Updated,
-                }, cancellationToken).ConfigureAwait(false);
-            }
+            currentUser.EnsureTenantAccess(restaurantId);
         }
+
+        dbContext.ComboItems.Remove(comboItem);
+        await notifier.SaveAndNotifyRelatedAsync(comboItem.ComboMenuItemId, restaurantId, cancellationToken).ConfigureAwait(false);
 
         return new DeleteComboItemResult(true);
     }

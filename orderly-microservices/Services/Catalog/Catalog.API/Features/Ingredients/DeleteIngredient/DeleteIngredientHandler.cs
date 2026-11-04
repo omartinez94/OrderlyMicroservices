@@ -17,10 +17,13 @@ public class DeleteIngredientCommandValidator : AbstractValidator<DeleteIngredie
 
 internal class DeleteIngredientCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteIngredientCommand, DeleteIngredientResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteIngredientCommand, DeleteIngredientResult>
 {
     public async Task<DeleteIngredientResult> Handle(DeleteIngredientCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         Ingredient? ingredient = await dbContext.Ingredients.FirstOrDefaultAsync(i => i.RestaurantId == command.RestaurantId && i.Id == command.Id, cancellationToken)
             ?? throw new IngredientNotFoundException(command.Id);
 

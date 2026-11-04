@@ -30,9 +30,8 @@ public class UpdateComboItemCommandValidator : AbstractValidator<UpdateComboItem
 
 internal class UpdateComboItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<UpdateComboItemCommand, UpdateComboItemResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<UpdateComboItemCommand, UpdateComboItemResult>
 {
     public async Task<UpdateComboItemResult> Handle(UpdateComboItemCommand command, CancellationToken cancellationToken)
     {
@@ -54,30 +53,20 @@ internal class UpdateComboItemCommandHandler(
             throw new NotFoundException("IncludedMenuItem", comboItem.IncludedMenuItemId);
         }
 
+        Guid restaurantId = await dbContext.MenuItems
+            .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
+            .Select(m => m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (restaurantId != Guid.Empty)
+        {
+            currentUser.EnsureTenantAccess(restaurantId);
+        }
+
         comboItem.Quantity = command.Quantity;
         comboItem.IsOptional = command.IsOptional;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        Guid? restaurantId = await dbContext.MenuItems
-            .Where(m => m.Id == comboItem.ComboMenuItemId && !m.IsDeleted)
-            .Select(m => (Guid?)m.RestaurantId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (restaurantId is not null)
-        {
-            await cache.InvalidateMenuAsync(restaurantId.Value, cancellationToken);
-
-            if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-            {
-                await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-                {
-                    MenuItemId = comboItem.ComboMenuItemId,
-                    RestaurantId = restaurantId.Value,
-                    ChangeType = MenuItemChangeType.Updated,
-                }, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        await notifier.SaveAndNotifyRelatedAsync(comboItem.ComboMenuItemId, restaurantId, cancellationToken).ConfigureAwait(false);
 
         return new UpdateComboItemResult(true);
     }

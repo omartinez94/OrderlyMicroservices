@@ -70,7 +70,8 @@ public sealed record MenuItemNode(
     int PrepTimeMaxMinutes,
     string ImageUrl,
     IReadOnlyList<MenuItemVariationNode> Variations,
-    IReadOnlyList<MenuItemIngredientNode> Ingredients);
+    IReadOnlyList<MenuItemIngredientNode> Ingredients,
+    int? DefaultCourseNumber = null);
 
 /// <summary>
 /// A menu item variation (e.g. "Large", "Extra Spicy") with its price modifier.

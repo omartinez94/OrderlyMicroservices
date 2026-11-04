@@ -5,7 +5,6 @@ public record UpdateMenuItemRequest(
     string Name,
     string Description,
     decimal BasePrice,
-    string ImageUrl,
     int PrepTimeMinutes,
     int PrepTimeMaxMinutes,
     ItemType ItemType,
@@ -16,7 +15,9 @@ public record UpdateMenuItemRequest(
     decimal? PromoPrice,
     Instant? PromoStartDate,
     Instant? PromoEndDate,
-    int DisplayOrder);
+    int DisplayOrder,
+    string? ImageUrl = null,
+    int? DefaultCourseNumber = null);
 
 public record UpdateMenuItemResponse(bool Success);
 
@@ -34,6 +35,7 @@ public class UpdateMenuItemEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:edit")
         .WithTags("MenuItems")
         .WithDescription("Updates a menu item.")
         .WithName("UpdateMenuItem")

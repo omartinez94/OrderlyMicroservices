@@ -32,7 +32,8 @@ public record MenuItemDto(
     Instant? PromoStartDate,
     Instant? PromoEndDate,
     int DisplayOrder,
-    string ShortId = "");
+    string ShortId = "",
+    int? DefaultCourseNumber = null);
 
 public class GetMenuItemsQueryValidator : AbstractValidator<GetMenuItemsQuery>
 {
@@ -44,10 +45,14 @@ public class GetMenuItemsQueryValidator : AbstractValidator<GetMenuItemsQuery>
     }
 }
 
-internal class GetMenuItemsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuItemsQuery, GetMenuItemsResult>
+internal class GetMenuItemsQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuItemsQuery, GetMenuItemsResult>
 {
     public async Task<GetMenuItemsResult> Handle(GetMenuItemsQuery query, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(query.RestaurantId);
+
         IQueryable<MenuItem>? dbQuery = dbContext.MenuItems
             .AsNoTracking()
             .Where(m => m.RestaurantId == query.RestaurantId);

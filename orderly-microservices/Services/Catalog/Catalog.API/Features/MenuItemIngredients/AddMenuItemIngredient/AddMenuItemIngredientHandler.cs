@@ -23,8 +23,8 @@ public class AddMenuItemIngredientCommandValidator : AbstractValidator<AddMenuIt
 internal class AddMenuItemIngredientCommandHandler(
     CatalogDbContext dbContext,
     ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<AddMenuItemIngredientCommand, AddMenuItemIngredientResult>
 {
     public async Task<AddMenuItemIngredientResult> Handle(AddMenuItemIngredientCommand command, CancellationToken cancellationToken)
     {
@@ -37,12 +37,14 @@ internal class AddMenuItemIngredientCommandHandler(
             throw new NotFoundException("MenuItem", command.MenuItemId);
         }
 
+        currentUser.EnsureTenantAccess(menuRestaurantId.Value);
+
         Guid? ingredientRestaurantId = await dbContext.Ingredients
             .Where(i => i.Id == command.IngredientId)
             .Select(i => (Guid?)i.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        MenuItemIngredient? link = new MenuItemIngredient
+        MenuItemIngredient link = new MenuItemIngredient
         {
             MenuItemId = command.MenuItemId,
             IngredientId = command.IngredientId,
@@ -61,25 +63,11 @@ internal class AddMenuItemIngredientCommandHandler(
             command.IngredientId,
             MenuItemIngredientChangedDomainEvent.ChangeKind.Created));
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await notifier.SaveAndNotifyRelatedAsync(command.MenuItemId, menuRestaurantId.Value, cancellationToken).ConfigureAwait(false);
 
-        // Invalidate the menu tree because the item's ingredient list changed,
-        // and the ingredient tree because the ingredient is now wired to a
-        // menu item (engine recomputes availability — Phase 3).
-        await cache.InvalidateMenuAsync(menuRestaurantId.Value, cancellationToken);
         if (ingredientRestaurantId is { } ingredientRid)
         {
             await cache.InvalidateIngredientsAsync(ingredientRid, cancellationToken);
-        }
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = command.MenuItemId,
-                RestaurantId = menuRestaurantId.Value,
-                ChangeType = MenuItemChangeType.Updated,
-            }, cancellationToken).ConfigureAwait(false);
         }
 
         return new AddMenuItemIngredientResult(link.Id);

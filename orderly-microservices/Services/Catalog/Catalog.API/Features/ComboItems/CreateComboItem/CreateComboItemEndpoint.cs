@@ -25,6 +25,7 @@ public class CreateComboItemEndpoint : ICarterModule
         .WithDescription("Creates a new combo item.")
         .WithName("CreateComboItem")
         .Produces<CreateComboItemResponse>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:edit");
     }
 }

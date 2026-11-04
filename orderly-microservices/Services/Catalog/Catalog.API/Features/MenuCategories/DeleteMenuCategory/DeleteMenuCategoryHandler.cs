@@ -16,7 +16,8 @@ public class DeleteMenuCategoryCommandValidator : AbstractValidator<DeleteMenuCa
 
 internal class DeleteMenuCategoryCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteMenuCategoryCommand, DeleteMenuCategoryResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteMenuCategoryCommand, DeleteMenuCategoryResult>
 {
     public async Task<DeleteMenuCategoryResult> Handle(DeleteMenuCategoryCommand command, CancellationToken cancellationToken)
     {
@@ -27,6 +28,8 @@ internal class DeleteMenuCategoryCommandHandler(
         {
             throw new MenuCategoryNotFoundException(command.Id);
         }
+
+        currentUser.EnsureTenantAccess(category.RestaurantId);
 
         category.IsDeleted = true;
         category.DeletedAt = SystemClock.Instance.GetCurrentInstant();

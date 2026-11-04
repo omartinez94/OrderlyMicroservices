@@ -16,9 +16,8 @@ public class DeleteMenuItemCommandValidator : AbstractValidator<DeleteMenuItemCo
 
 internal class DeleteMenuItemCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache,
-    IOutboxPublisher outbox,
-    IFeatureManager featureManager) : ICommandHandler<DeleteMenuItemCommand, DeleteMenuItemResult>
+    IMenuItemMutationNotifier notifier,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteMenuItemCommand, DeleteMenuItemResult>
 {
     public async Task<DeleteMenuItemResult> Handle(DeleteMenuItemCommand command, CancellationToken cancellationToken)
     {
@@ -30,27 +29,13 @@ internal class DeleteMenuItemCommandHandler(
             throw new NotFoundException(nameof(MenuItem), command.Id);
         }
 
+        currentUser.EnsureTenantAccess(menuItem.RestaurantId);
+
         menuItem.IsDeleted = true;
         menuItem.DeletedAt = SystemClock.Instance.GetCurrentInstant();
         menuItem.IsAvailable = false;
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        await cache.InvalidateMenuAsync(menuItem.RestaurantId, cancellationToken);
-
-        if (await featureManager.IsEnabledAsync("CatalogMenuEvents", cancellationToken).ConfigureAwait(false))
-        {
-            await outbox.PublishAsync(new MenuItemChangedIntegrationEvent
-            {
-                MenuItemId = menuItem.Id,
-                RestaurantId = menuItem.RestaurantId,
-                ChangeType = MenuItemChangeType.Deleted,
-                Name = menuItem.Name,
-                BasePrice = menuItem.BasePrice,
-                IsAvailable = false,
-                AvailabilityStatus = menuItem.AvailabilityStatus.ToString(),
-            }, cancellationToken).ConfigureAwait(false);
-        }
+        await notifier.SaveAndNotifyAsync(menuItem, MenuItemChangeType.Deleted, cancellationToken).ConfigureAwait(false);
 
         return new DeleteMenuItemResult(true);
     }

@@ -13,6 +13,7 @@ public class DeleteMenuItemEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:edit")
         .WithTags("MenuItems")
         .WithDescription("Deletes a menu item.")
         .WithName("DeleteMenuItem")

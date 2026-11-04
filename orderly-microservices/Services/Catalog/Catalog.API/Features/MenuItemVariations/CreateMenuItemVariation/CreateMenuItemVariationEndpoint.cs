@@ -34,6 +34,7 @@ public class CreateMenuItemVariationEndpoint : ICarterModule
         .WithName("CreateMenuItemVariation")
         .Produces<CreateMenuItemVariationResponse>(StatusCodes.Status201Created)
         .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status404NotFound);
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .RequirePermission("menu:edit");
     }
 }

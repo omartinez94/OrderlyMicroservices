@@ -16,6 +16,7 @@ public class GetMenuCategoriesEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:view")
         .WithDescription("Gets all menu categories for a restaurant.")
         .WithName("GetMenuCategories")
         .Produces<GetMenuCategoriesResponse>(StatusCodes.Status200OK)

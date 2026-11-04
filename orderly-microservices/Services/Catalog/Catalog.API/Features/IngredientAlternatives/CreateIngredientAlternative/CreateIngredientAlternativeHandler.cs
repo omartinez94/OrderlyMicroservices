@@ -27,10 +27,13 @@ public class CreateIngredientAlternativeCommandValidator : AbstractValidator<Cre
 
 internal class CreateIngredientAlternativeCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<CreateIngredientAlternativeCommand, CreateIngredientAlternativeResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateIngredientAlternativeCommand, CreateIngredientAlternativeResult>
 {
     public async Task<CreateIngredientAlternativeResult> Handle(CreateIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         IngredientAlternative? ingredientAlternative = new IngredientAlternative
         {
             RestaurantId = command.RestaurantId,

@@ -17,10 +17,13 @@ public class DeleteIngredientAlternativeCommandValidator : AbstractValidator<Del
 
 internal class DeleteIngredientAlternativeCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<DeleteIngredientAlternativeCommand, DeleteIngredientAlternativeResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<DeleteIngredientAlternativeCommand, DeleteIngredientAlternativeResult>
 {
     public async Task<DeleteIngredientAlternativeResult> Handle(DeleteIngredientAlternativeCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.RestaurantId);
+
         IngredientAlternative? ingredientAlternative = await dbContext.IngredientAlternatives
             .FirstOrDefaultAsync(x => x.Id == command.Id && x.RestaurantId == command.RestaurantId, cancellationToken);
 

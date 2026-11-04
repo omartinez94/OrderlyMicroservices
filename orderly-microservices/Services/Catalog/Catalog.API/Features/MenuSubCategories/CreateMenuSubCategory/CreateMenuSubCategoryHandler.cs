@@ -25,18 +25,21 @@ public class CreateMenuSubCategoryCommandValidator : AbstractValidator<CreateMen
 
 internal class CreateMenuSubCategoryCommandHandler(
     CatalogDbContext dbContext,
-    ICatalogCache cache) : ICommandHandler<CreateMenuSubCategoryCommand, CreateMenuSubCategoryResult>
+    ICatalogCache cache,
+    ICurrentUser? currentUser = null) : ICommandHandler<CreateMenuSubCategoryCommand, CreateMenuSubCategoryResult>
 {
     public async Task<CreateMenuSubCategoryResult> Handle(CreateMenuSubCategoryCommand command, CancellationToken cancellationToken)
     {
-        var category = await dbContext.MenuCategories
+        Guid? categoryRestaurantId = await dbContext.MenuCategories
             .Where(c => c.Id == command.CategoryId)
-            .Select(c => new { c.Id, c.RestaurantId })
+            .Select(c => (Guid?)c.RestaurantId)
             .FirstOrDefaultAsync(cancellationToken);
-        if (category is null)
+        if (categoryRestaurantId is null)
         {
             throw new MenuCategoryNotFoundException(command.CategoryId);
         }
+
+        currentUser.EnsureTenantAccess(categoryRestaurantId.Value);
 
         MenuSubCategory? subCategory = new MenuSubCategory
         {
@@ -51,7 +54,7 @@ internal class CreateMenuSubCategoryCommandHandler(
         dbContext.MenuSubCategories.Add(subCategory);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        await cache.InvalidateMenuAsync(category.RestaurantId, cancellationToken);
+        await cache.InvalidateMenuAsync(categoryRestaurantId.Value, cancellationToken);
 
         return new CreateMenuSubCategoryResult(subCategory.Id);
     }

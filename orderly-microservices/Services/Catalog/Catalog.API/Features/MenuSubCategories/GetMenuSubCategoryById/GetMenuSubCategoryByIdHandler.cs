@@ -14,7 +14,9 @@ public class GetMenuSubCategoryByIdQueryValidator : AbstractValidator<GetMenuSub
     }
 }
 
-internal class GetMenuSubCategoryByIdQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetMenuSubCategoryByIdQuery, GetMenuSubCategoryByIdResult>
+internal class GetMenuSubCategoryByIdQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetMenuSubCategoryByIdQuery, GetMenuSubCategoryByIdResult>
 {
     public async Task<GetMenuSubCategoryByIdResult> Handle(GetMenuSubCategoryByIdQuery query, CancellationToken cancellationToken)
     {
@@ -28,6 +30,16 @@ internal class GetMenuSubCategoryByIdQueryHandler(CatalogDbContext dbContext) : 
         }
 
         MenuSubCategoryDto? dto = subCategory.Adapt<MenuSubCategoryDto>();
+
+        Guid? categoryRestaurantId = await dbContext.MenuCategories
+            .AsNoTracking()
+            .Where(c => c.Id == subCategory.CategoryId)
+            .Select(c => (Guid?)c.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (categoryRestaurantId is not null)
+        {
+            currentUser.EnsureTenantAccess(categoryRestaurantId.Value);
+        }
 
         return new GetMenuSubCategoryByIdResult(dto);
     }

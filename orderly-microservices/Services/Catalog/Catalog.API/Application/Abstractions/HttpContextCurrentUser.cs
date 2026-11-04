@@ -27,4 +27,39 @@ public sealed class HttpContextCurrentUser(IHttpContextAccessor httpContextAcces
     /// <inheritdoc />
     public bool IsAuthenticated =>
         httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
+    /// <inheritdoc />
+    public Guid? RestaurantId
+    {
+        get
+        {
+            ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
+            if (user?.Identity is null || !user.Identity.IsAuthenticated)
+            {
+                return null;
+            }
+
+            Guid restaurantId = user.GetRestaurantId();
+            return restaurantId == Guid.Empty ? null : restaurantId;
+        }
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<string> Roles
+    {
+        get
+        {
+            ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
+            if (user?.Identity is null || !user.Identity.IsAuthenticated)
+            {
+                return [];
+            }
+
+            return user.Claims
+                .Where(c => c.Type == ClaimTypes.Role || c.Type == "role")
+                .Select(c => c.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+    }
 }

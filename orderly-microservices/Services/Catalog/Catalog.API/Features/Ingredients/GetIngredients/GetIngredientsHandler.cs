@@ -6,10 +6,14 @@ public record GetIngredientsQuery(Guid RestaurantId, bool? IsAvailable = null) :
 
 public record GetIngredientsResult(IEnumerable<Ingredient> Ingredients);
 
-internal class GetIngredientsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetIngredientsQuery, GetIngredientsResult>
+internal class GetIngredientsQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetIngredientsQuery, GetIngredientsResult>
 {
     public async Task<GetIngredientsResult> Handle(GetIngredientsQuery query, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(query.RestaurantId);
+
         IQueryable<Ingredient>? ingredientsQuery = dbContext.Ingredients
             .AsNoTracking()
             .Where(i => i.RestaurantId == query.RestaurantId);

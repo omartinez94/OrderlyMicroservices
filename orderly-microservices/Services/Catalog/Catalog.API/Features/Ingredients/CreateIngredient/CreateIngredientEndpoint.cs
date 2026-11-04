@@ -26,6 +26,7 @@ public class CreateIngredientEndpoint : ICarterModule
         .WithDescription("Creates a new ingredient for a restaurant.")
         .WithName("CreateIngredient")
         .Produces<CreateIngredientResponse>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:edit");
     }
 }

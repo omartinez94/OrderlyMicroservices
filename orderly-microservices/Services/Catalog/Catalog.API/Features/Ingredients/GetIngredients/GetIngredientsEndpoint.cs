@@ -19,6 +19,7 @@ public class GetIngredientsEndpoint : ICarterModule
         .WithDescription("Gets ingredients for a restaurant.")
         .WithName("GetIngredients")
         .Produces<GetIngredientsResponse>(StatusCodes.Status200OK)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:view");
     }
 }

@@ -14,10 +14,22 @@ public class GetComboItemsQueryValidator : AbstractValidator<GetComboItemsQuery>
     }
 }
 
-internal class GetComboItemsQueryHandler(CatalogDbContext dbContext) : IQueryHandler<GetComboItemsQuery, GetComboItemsResult>
+internal class GetComboItemsQueryHandler(
+    CatalogDbContext dbContext,
+    ICurrentUser? currentUser = null) : IQueryHandler<GetComboItemsQuery, GetComboItemsResult>
 {
     public async Task<GetComboItemsResult> Handle(GetComboItemsQuery query, CancellationToken cancellationToken)
     {
+        Guid? restaurantId = await dbContext.MenuItems
+            .AsNoTracking()
+            .Where(m => m.Id == query.ComboMenuItemId && !m.IsDeleted)
+            .Select(m => (Guid?)m.RestaurantId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (restaurantId is not null)
+        {
+            currentUser.EnsureTenantAccess(restaurantId.Value);
+        }
+
         List<ComboItem>? comboItems = await dbContext.ComboItems
             .AsNoTracking()
             .Where(c => c.ComboMenuItemId == query.ComboMenuItemId)

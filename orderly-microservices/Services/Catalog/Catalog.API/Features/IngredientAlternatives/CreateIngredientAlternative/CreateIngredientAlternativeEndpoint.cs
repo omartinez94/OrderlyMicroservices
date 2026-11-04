@@ -31,6 +31,7 @@ public class CreateIngredientAlternativeEndpoint : ICarterModule
         .WithDescription("Creates a new ingredient alternative.")
         .WithName("CreateIngredientAlternative")
         .Produces<CreateIngredientAlternativeResponse>(StatusCodes.Status201Created)
-        .ProducesProblem(StatusCodes.Status400BadRequest);
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .RequirePermission("menu:edit");
     }
 }

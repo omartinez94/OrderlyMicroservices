@@ -22,6 +22,7 @@ public class GetMenuItemsEndpoint : ICarterModule
             GetMenuItemsResult? result = await sender.Send(query);
             return Results.Ok(result.Adapt<GetMenuItemsResponse>());
         })
+        .RequirePermission("menu:view")
         .WithTags("MenuItems")
         .WithDescription("Gets a list of menu items for a restaurant.")
         .WithName("GetMenuItems")

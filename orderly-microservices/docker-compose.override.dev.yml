@@ -67,6 +67,15 @@ services:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER:-guest}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
 
+
+  azurite:
+    container_name: azurite
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite_data:/data
+
   catalog.api:
     container_name: catalog.api
     # Dev-only secrets shared with the DevMCP server:
@@ -110,6 +119,8 @@ services:
       - MessageBroker__Host=amqp://messagebroker:5672
       - MessageBroker__UserName=guest
       - MessageBroker__Password=guest
+      - BlobStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      - BlobStorage__PublicBaseUrl=http://localhost:10000/devstoreaccount1
     ports:
       - "6000:8080"
       - "6060:8081"

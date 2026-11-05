@@ -90,7 +90,7 @@ public class GetKitchenVelocityHandler(
             foreach (KitchenTicket t in tickets)
             {
                 KitchenTicketItem? item = t.Items.FirstOrDefault(i => i.StationId == station.Id.Value);
-                if (item?.ReadyAt != null)
+                if (item?.ReadyAt is not null)
                 {
                     Instant start = item.StartedAt ?? t.StartedAt ?? t.ReceivedAt;
                     if (item.ReadyAt.Value >= start)

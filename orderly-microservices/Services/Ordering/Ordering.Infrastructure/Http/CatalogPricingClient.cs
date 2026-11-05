@@ -30,21 +30,10 @@ public class CatalogPricingClient(
     public async Task<CatalogMenuSnapshot> GetMenuSnapshotAsync(Guid restaurantId, CancellationToken cancellationToken = default)
     {
         string cacheKey = $"catalog:menu-snapshot:{restaurantId}";
-        try
+        CatalogMenuSnapshot? cached = await TryGetCachedSnapshotAsync(cacheKey, restaurantId, cancellationToken);
+        if (cached is not null)
         {
-            byte[]? cachedBytes = await distributedCache.GetAsync(cacheKey, cancellationToken);
-            if (cachedBytes is not null && cachedBytes.Length > 0)
-            {
-                CatalogMenuSnapshot? cachedSnapshot = JsonSerializer.Deserialize<CatalogMenuSnapshot>(cachedBytes, JsonOptions);
-                if (cachedSnapshot is not null)
-                {
-                    return cachedSnapshot;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Failed to read menu snapshot cache for restaurant {RestaurantId}; proceeding with live fetch", restaurantId);
+            return cached;
         }
 
         try
@@ -55,8 +44,7 @@ public class CatalogPricingClient(
             using HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                CatalogMenuSnapshot emptySnapshot = new(restaurantId, []);
-                return emptySnapshot;
+                return new CatalogMenuSnapshot(restaurantId, []);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -68,46 +56,13 @@ public class CatalogPricingClient(
             RawCatalogMenuResponse? body = await response.Content.ReadFromJsonAsync<RawCatalogMenuResponse>(JsonOptions, cancellationToken);
             if (body is null)
             {
-                CatalogMenuSnapshot emptySnapshot = new(restaurantId, []);
-                return emptySnapshot;
+                return new CatalogMenuSnapshot(restaurantId, []);
             }
 
-            List<CatalogMenuItemDto> items = [];
-            foreach (RawCategoryNode category in body.Categories)
-            {
-                foreach (RawSubCategoryNode subCategory in category.SubCategories)
-                {
-                    foreach (RawItemNode item in subCategory.Items)
-                    {
-                        List<CatalogMenuItemVariationDto> variations = item.Variations
-                            .Select(v => new CatalogMenuItemVariationDto(v.Id, v.Name, v.VariationValue, v.PriceModifier, v.IsDefault))
-                            .ToList();
-
-                        items.Add(new CatalogMenuItemDto(
-                            item.Id,
-                            item.Name,
-                            item.BasePrice,
-                            item.PromoPrice,
-                            item.IsAvailable,
-                            item.AvailabilityStatus ?? "Available",
-                            variations,
-                            item.DefaultCourseNumber));
-                    }
-                }
-            }
-
+            List<CatalogMenuItemDto> items = FlattenMenuItems(body);
             CatalogMenuSnapshot snapshot = new(restaurantId, items);
 
-            try
-            {
-                byte[] bytesToCache = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
-                await distributedCache.SetAsync(cacheKey, bytesToCache, CacheOptions, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Failed to cache menu snapshot for restaurant {RestaurantId}", restaurantId);
-            }
-
+            await TryCacheSnapshotAsync(cacheKey, snapshot, restaurantId, cancellationToken);
             return snapshot;
         }
         catch (CatalogUnavailableException)
@@ -164,6 +119,66 @@ public class CatalogPricingClient(
         }
     }
 
+    private async Task<CatalogMenuSnapshot?> TryGetCachedSnapshotAsync(string cacheKey, Guid restaurantId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            byte[]? cachedBytes = await distributedCache.GetAsync(cacheKey, cancellationToken);
+            if (cachedBytes is not null && cachedBytes.Length > 0)
+            {
+                return JsonSerializer.Deserialize<CatalogMenuSnapshot>(cachedBytes, JsonOptions);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to read menu snapshot cache for restaurant {RestaurantId}; proceeding with live fetch", restaurantId);
+        }
+
+        return null;
+    }
+
+    private async Task TryCacheSnapshotAsync(string cacheKey, CatalogMenuSnapshot snapshot, Guid restaurantId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            byte[] bytesToCache = JsonSerializer.SerializeToUtf8Bytes(snapshot, JsonOptions);
+            await distributedCache.SetAsync(cacheKey, bytesToCache, CacheOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to cache menu snapshot for restaurant {RestaurantId}", restaurantId);
+        }
+    }
+
+    private static List<CatalogMenuItemDto> FlattenMenuItems(RawCatalogMenuResponse body)
+    {
+        List<CatalogMenuItemDto> items = [];
+        foreach (RawCategoryNode category in body.Categories)
+        {
+            foreach (RawSubCategoryNode subCategory in category.SubCategories)
+            {
+                foreach (RawItemNode item in subCategory.Items)
+                {
+                    List<CatalogMenuItemVariationDto> variations = item.Variations
+                        .Select(v => new CatalogMenuItemVariationDto(v.Id, v.Name, v.VariationValue, v.PriceModifier, v.IsDefault))
+                        .ToList();
+
+                    items.Add(new CatalogMenuItemDto(
+                        item.Id,
+                        item.Name,
+                        item.BasePrice,
+                        item.PromoPrice,
+                        item.IsAvailable,
+                        item.AvailabilityStatus ?? "Available",
+                        variations,
+                        item.DefaultCourseNumber));
+                }
+            }
+        }
+
+        return items;
+    }
+
     private void AttachAuthorization(HttpRequestMessage request)
     {
         string? authHeader = httpContextAccessor.HttpContext?.Request.Headers.Authorization.ToString();
@@ -173,10 +188,10 @@ public class CatalogPricingClient(
         }
     }
 
-    private record RawCatalogMenuResponse(Guid RestaurantId, IReadOnlyList<RawCategoryNode> Categories);
-    private record RawCategoryNode(int Id, string Name, IReadOnlyList<RawSubCategoryNode> SubCategories);
-    private record RawSubCategoryNode(int Id, string Name, IReadOnlyList<RawItemNode> Items);
-    private record RawItemNode(
+    private sealed record RawCatalogMenuResponse(Guid RestaurantId, IReadOnlyList<RawCategoryNode> Categories);
+    private sealed record RawCategoryNode(int Id, string Name, IReadOnlyList<RawSubCategoryNode> SubCategories);
+    private sealed record RawSubCategoryNode(int Id, string Name, IReadOnlyList<RawItemNode> Items);
+    private sealed record RawItemNode(
         Guid Id,
         string Name,
         decimal BasePrice,
@@ -185,15 +200,15 @@ public class CatalogPricingClient(
         string AvailabilityStatus,
         IReadOnlyList<RawVariationNode> Variations,
         int? DefaultCourseNumber);
-    private record RawVariationNode(
+    private sealed record RawVariationNode(
         int Id,
         string Name,
         string VariationValue,
         decimal PriceModifier,
         bool IsDefault);
 
-    private record RawTableResponse(RawTableData Table);
-    private record RawTableData(
+    private sealed record RawTableResponse(RawTableData Table);
+    private sealed record RawTableData(
         Guid Id,
         Guid RestaurantId,
         string TableNumber,

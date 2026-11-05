@@ -94,8 +94,7 @@ if ($IncludeCs) {
 # 3. Run cspell.
 # ----------------------------------------------------------------
 $argList = @('--yes', 'cspell', '--config', 'cspell.json',
-    '--no-progress', '--no-summary', '--unique',
-    '--exclude-code')
+    '--no-progress', '--no-summary', '--unique')
 $argList += $files
 
 Write-Host "$script:Tag running: npx $($argList -join ' ')"

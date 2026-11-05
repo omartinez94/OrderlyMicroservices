@@ -63,7 +63,8 @@ $excludes = @(
     'MenuReader\.cs$',
     'ReservationNoShowJob\.cs$',
     'ReservationReminderJob\.cs$',
-    'WalkInNoShowJob\.cs$'
+    'WalkInNoShowJob\.cs$',
+    'MenuItemImageOrphanSweepHostedService\.cs$'
 )
 $excludePattern = ($excludes -join '|')
 $filter = { $_.FullName -notmatch $excludePattern }

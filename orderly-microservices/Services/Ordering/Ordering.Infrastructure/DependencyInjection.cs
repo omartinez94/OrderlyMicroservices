@@ -98,6 +98,13 @@ public static class DependencyInjection
         })
         .AddStandardResilienceHandler();
 
+        services.AddHttpClient<ICatalogPricingClient, CatalogPricingClient>(client =>
+        {
+            client.BaseAddress = new Uri(catalogUrl);
+            client.Timeout = TimeSpan.FromSeconds(5);
+        })
+        .AddStandardResilienceHandler();
+
         services.AddHttpClient<IKitchenDashboardReader, KitchenDashboardReader>(client =>
         {
             client.BaseAddress = new Uri(kitchenUrl);

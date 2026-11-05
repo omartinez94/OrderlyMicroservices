@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Ordering.Application.Common.Interfaces;
 using Testcontainers.MsSql;
 using Testcontainers.RabbitMq;
 
@@ -79,6 +81,9 @@ public class OrderingWebApplicationFactory : WebApplicationFactory<Program>, IAs
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                     TestAuthHandler.SchemeName, _ => { });
+
+            services.RemoveAll<ICatalogPricingClient>();
+            services.AddScoped<ICatalogPricingClient, TestCatalogPricingClient>();
         });
     }
 

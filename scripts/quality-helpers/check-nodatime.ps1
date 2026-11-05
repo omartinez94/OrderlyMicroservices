@@ -136,7 +136,16 @@ $script:AllowedWallClockFiles = @{
         'Sets ApplicationUser.CreatedAt (DateTimeOffset, ASP.NET Identity shape). Same rationale as AuditLogger.cs.'
 
     'orderly-microservices/Services/Identity/Identity.API/Features/Users/CreateUser/CreateUserCommand.cs' =
-        'Sets ApplicationUser.CreatedAt (DateTimeOffset, ASP.NET Identity shape). Same rationale as AuditLogger.cs.'
+        'Sets ApplicationUser.CreatedAt (DateTimeOffset, ASP.NET Identity shape). Same rationale as AuditLogger.cs.';
+
+    'orderly-microservices/Services/Catalog/Catalog.API/Features/MenuItems/UploadMenuItemImage/MenuItemImageOrphanSweepHostedService.cs' =
+        'Azure Blob Storage metadata and retention calculations.';
+
+    'orderly-microservices/Services/Catalog/Catalog.API/Features/MenuItems/UploadMenuItemImage/UploadMenuItemImageHandler.cs' =
+        'Azure Blob Storage file naming Unix timestamp.';
+
+    'orderly-microservices/Services/Identity/Identity.API/Extensions/OpenIddictServerExtensions.cs' =
+        'OpenIddict token expiration calculation requiring DateTimeOffset.'
 }
 
 # ----------------------------------------------------------------

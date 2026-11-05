@@ -7,7 +7,7 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-10-31)
-> **Current state**: ⏸ Not started
+> **Current state**: ✅ Completed (Phases 1-5 complete)
 > **Depends on**: `menu_management_and_storage.md` Phase 1 (`DefaultCourseNumber`, `GET menu` for server-side pricing/availability).
 > **Required by**: `order_creation_pos.md` (Web).
 
@@ -17,7 +17,7 @@
 | 2 | Table & Seat Association Enforcement | ✅ Done |
 | 3 | Server-Side Tenant, Price, Availability & Idempotency | ✅ Done |
 | 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | ✅ Done |
-| 5 | Integration Tests & Phase Guard Validation | ⏸ Pending |
+| 5 | Integration Tests & Phase Guard Validation | ✅ Done |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -180,8 +180,8 @@ OrderlyMicroservices/orderly-microservices/
   - All unit tests pass and `orderly-microservices.slnx` builds cleanly with 0 errors.
 
 ### Phase 5: Integration Tests & Phase Guard Validation
-- **Task 5.1**: `CreatePosOrderTests.cs` in `Ordering.API.Tests/Integration`: Dine-in with seats/courses/deferred payment → `201`; Takeout walk-in → `201`; foreign restaurant → `403`; unavailable item → `409`; tampered total overwritten; duplicate `Idempotency-Key` → same order; missing table on DineIn → `400`.
-- **Task 5.2**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "POS Order Creation" -Quick`.
+- [x] **Task 5.1**: `CreatePosOrderTests.cs` in `Ordering.API.Tests/Integration`: Dine-in with seats/courses/deferred payment → `201`; Takeout walk-in → `201`; foreign restaurant → `403`; unavailable item → `409`; tampered total overwritten; duplicate `Idempotency-Key` → same order; missing table on DineIn → `400`.
+- [x] **Task 5.2**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "POS Order Creation" -Quick`.
 
 ---
 

@@ -167,7 +167,7 @@ public class DashboardSummaryService(
             index = Math.Clamp(index, 0, rolling60MinPrep.Count - 1);
             p90PrepMinutesRolling = Math.Round(rolling60MinPrep[index], 1);
         }
-        else if (kitchenResult.KitchenVelocity?.P90PrepMinutes != null)
+        else if (kitchenResult.KitchenVelocity?.P90PrepMinutes is not null)
         {
             p90PrepMinutesRolling = kitchenResult.KitchenVelocity.P90PrepMinutes;
         }

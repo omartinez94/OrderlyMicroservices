@@ -12,8 +12,8 @@ public sealed class UploadMenuItemImageValidator : AbstractValidator<UploadMenuI
 
         RuleFor(x => x.File)
             .NotNull().WithMessage("Image file must be provided.")
-            .Must(f => f != null && f.Length > 0).WithMessage("Image file must not be empty.")
-            .Must(f => f == null || f.Length <= ImageHeaderValidator.MaxFileSizeBytes)
+            .Must(f => f is not null && f.Length > 0).WithMessage("Image file must not be empty.")
+            .Must(f => f is null || f.Length <= ImageHeaderValidator.MaxFileSizeBytes)
             .WithMessage($"Image file size must not exceed {ImageHeaderValidator.MaxFileSizeBytes / (1024 * 1024)} MB.");
     }
 }

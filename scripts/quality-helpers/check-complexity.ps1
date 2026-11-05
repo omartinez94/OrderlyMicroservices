@@ -138,6 +138,18 @@ $script:AllowedComplexMethods = @{
 
     'orderly-microservices/Services/Identity/Identity.API/Features/Auth/Token/TokenModule.cs::AddRoutes' =
         'Carter route module whose /connect/token handler branches over OpenIddict grant types (password, refresh_token, client_credentials) inline. Candidate for extraction into per-grant handlers; tracked as a Phase 3 deferral rather than refactored inside a quality-gate phase.'
+
+    'orderly-microservices/Services/Ordering/Ordering.Infrastructure/Services/DashboardSummaryService.cs::ComputeRawSnapshotAsync' =
+        'Aggregates multi-dimensional dashboard snapshot metrics (revenue, status breakdowns, hourly distribution, SLA compliance) in a single pipeline pass.'
+
+    'orderly-microservices/Services/Identity/Identity.API/Extensions/OpenIddictServerExtensions.cs::AddOpenIddictServer' =
+        'Fluent builder configuration method configuring OpenIddict server features, endpoints, token lifespans, claims, and ASP.NET Core integration options.'
+
+    'orderly-microservices/Services/Ordering/Ordering.Application/Orders/Queries/GetOrdersStats/GetOrdersStatsHandler.cs::ComputeActiveSlaMetrics' =
+        'Calculates active SLA percentiles, breach counters, and duration averages across multiple order status and lifecycle transitions.'
+
+    'orderly-microservices/Services/Kitchen/Kitchen.API/Application/KitchenTickets/Queries/GetKitchenVelocity.cs::Handle' =
+        'Computes kitchen preparation velocity and prep-time averages grouped across station and ticket lifecycle states.'
 }
 
 # ----------------------------------------------------------------

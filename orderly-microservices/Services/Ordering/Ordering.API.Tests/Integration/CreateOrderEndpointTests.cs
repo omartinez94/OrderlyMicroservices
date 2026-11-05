@@ -180,7 +180,7 @@ public sealed class CreateOrderEndpointTests
     {
         var client = NewWriteClient();
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
-        var dto = NewOrderDto(customerId, Guid.NewGuid(), ValidItems(menuItemIds));
+        var dto = NewOrderDto(customerId, TestAuthHandler.DefaultRestaurantId, ValidItems(menuItemIds));
 
         var response = await client.PostAsJsonAsync(
             "/v1/orders",
@@ -206,8 +206,9 @@ public sealed class CreateOrderEndpointTests
         var (_, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
         var dto = NewOrderDto(
             customerId: Guid.Empty,
-            Guid.NewGuid(),
-            ValidItems(menuItemIds));
+            TestAuthHandler.DefaultRestaurantId,
+            ValidItems(menuItemIds),
+            orderType: OrderType.Delivery);
 
         var response = await client.PostAsJsonAsync(
             "/v1/orders",
@@ -224,7 +225,7 @@ public sealed class CreateOrderEndpointTests
         // OrderDtoValidator's OrderItems NotEmpty rule rejects the request.
         var client = NewWriteClient();
         var (customerId, _) = await SeedOwnerAsync(menuItemCount: 0);
-        var dto = NewOrderDto(customerId, Guid.NewGuid(), Array.Empty<OrderItemDto>());
+        var dto = NewOrderDto(customerId, TestAuthHandler.DefaultRestaurantId, Array.Empty<OrderItemDto>());
 
         var response = await client.PostAsJsonAsync(
             "/v1/orders",

@@ -12,7 +12,8 @@ public class OrderItemDtoValidatorTests
     private static OrderItemDto CreateItem(
         int? courseNumber = null,
         decimal unitPrice = 10m,
-        decimal totalPrice = 10m) => new(
+        decimal totalPrice = 10m,
+        int seatNumber = 1) => new(
         Id: Guid.NewGuid(),
         OrderId: Guid.NewGuid(),
         MenuItemId: Guid.NewGuid(),
@@ -23,7 +24,7 @@ public class OrderItemDtoValidatorTests
         UnitPrice: unitPrice,
         BasePrice: unitPrice,
         TotalPrice: totalPrice,
-        SeatNumber: 1,
+        SeatNumber: seatNumber,
         SpecialInstructions: string.Empty,
         Customizations: [],
         SelectedVariations: [],
@@ -81,5 +82,31 @@ public class OrderItemDtoValidatorTests
 
         result.ShouldHaveValidationErrorFor(x => x.UnitPrice);
         result.ShouldHaveValidationErrorFor(x => x.TotalPrice);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(12)]
+    public void Validate_NonNegativeSeatNumber_IsValid(int seatNumber)
+    {
+        OrderItemDto item = CreateItem(seatNumber: seatNumber);
+
+        TestValidationResult<OrderItemDto> result = _validator.TestValidate(item);
+
+        result.ShouldNotHaveValidationErrorFor(x => x.SeatNumber);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-5)]
+    public void Validate_NegativeSeatNumber_FailsValidation(int seatNumber)
+    {
+        OrderItemDto item = CreateItem(seatNumber: seatNumber);
+
+        TestValidationResult<OrderItemDto> result = _validator.TestValidate(item);
+
+        result.ShouldHaveValidationErrorFor(x => x.SeatNumber)
+            .WithErrorMessage("SeatNumber must be non-negative.");
     }
 }

@@ -102,7 +102,8 @@ public sealed class CreateOrderEndpointTests
         string discountCode = "",
         decimal totalAmount = 21.58m,
         string? orderNumber = null,
-        OrderType orderType = OrderType.DineIn) => new(
+        OrderType orderType = OrderType.DineIn,
+        Guid? tableId = null) => new(
             Id: Guid.NewGuid(),
             CustomerId: customerId,
             OrderNumber: orderNumber ?? $"ORD-{Guid.NewGuid():N}"[..16],
@@ -127,7 +128,7 @@ public sealed class CreateOrderEndpointTests
             ActualPrepTimeMinutes: 0,
             IsModified: false,
             RequiresAdminApproval: false,
-            TableId: null,
+            TableId: tableId ?? (orderType == OrderType.DineIn ? Guid.NewGuid() : null),
             CreatedByUserId: null,
             ApprovedByAdminId: null,
             ConfirmedByUserId: null,

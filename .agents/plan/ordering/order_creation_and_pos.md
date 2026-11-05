@@ -14,8 +14,8 @@
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | POS Contract & Validation Refinement | ✅ Done |
-| 2 | Table & Seat Association Enforcement | ⏸ Pending |
-| 3 | Server-Side Tenant, Price, Availability & Idempotency | 🔒 Blocked |
+| 2 | Table & Seat Association Enforcement | ✅ Done |
+| 3 | Server-Side Tenant, Price, Availability & Idempotency | ⏸ Pending |
 | 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | 🔒 Blocked |
 | 5 | Integration Tests & Phase Guard Validation | 🔒 Blocked |
 
@@ -134,10 +134,14 @@ OrderlyMicroservices/orderly-microservices/
 - [x] **Verification**: `dotnet test Services/Ordering/Ordering.Application.Tests`. All 135 unit tests pass.
 
 ### Phase 2: Table & Seat Association Enforcement
-- **Task 2.1**: Require `TableId` when `OrderType == DineIn`; forbid it for `Delivery`.
-- **Task 2.2**: `SeatNumber >= 0` (0 = shared table, 1..N = seat).
-- **Task 2.3**: Table ownership/capacity checks live in Phase 3 (they need Catalog); here only structural validation.
-- **Verification**: unit tests for valid/invalid Dine-In configurations.
+- [x] **Task 2.1**: Require `TableId` when `OrderType == DineIn`; forbid it for `Delivery`.
+  - In `OrderDtoValidator`, added rules enforcing `TableId` is not null and not empty (`NotEmpty().NotEqual(Guid.Empty)`) when `OrderType == OrderType.DineIn`.
+  - Added rule enforcing `TableId` is null (`Null()`) when `OrderType == OrderType.Delivery`.
+  - For `Takeout`, `TableId` remains optional or null (counter takeout walk-ins).
+- [x] **Task 2.2**: `SeatNumber >= 0` (0 = shared table, 1..N = seat).
+  - In `OrderItemDtoValidator`, added rule enforcing `SeatNumber >= 0` (`GreaterThanOrEqualTo(0)`).
+- [x] **Task 2.3**: Table ownership/capacity checks live in Phase 3 (they need Catalog); here only structural validation.
+- [x] **Verification**: unit tests for valid/invalid Dine-In configurations (`OrderDtoValidatorTests` and `OrderItemDtoValidatorTests`). All 145 unit tests pass in `Ordering.Application.Tests`.
 
 ### Phase 3: Server-Side Tenant, Price, Availability & Idempotency
 - **Task 3.1**: Endpoint/handler verify `command.RestaurantId ∈ caller's JWT restaurant claims` (`403` otherwise).

@@ -40,6 +40,18 @@ public class OrderDtoValidator : AbstractValidator<OrderDto>
         RuleFor(x => x.OrderType)
             .IsInEnum().WithMessage("OrderType is not a valid OrderType value.");
 
+        RuleFor(x => x.TableId)
+            .NotEmpty()
+            .WithMessage("TableId is required for dine-in orders.")
+            .NotEqual(Guid.Empty)
+            .WithMessage("TableId is required for dine-in orders.")
+            .When(x => x.OrderType == OrderType.DineIn);
+
+        RuleFor(x => x.TableId)
+            .Null()
+            .When(x => x.OrderType == OrderType.Delivery)
+            .WithMessage("TableId must be null for delivery orders.");
+
         RuleFor(x => x.BillingAddress)
             .NotNull()
             .When(x => x.OrderType == OrderType.Delivery)

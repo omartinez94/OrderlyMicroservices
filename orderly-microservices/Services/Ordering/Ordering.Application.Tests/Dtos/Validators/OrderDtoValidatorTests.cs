@@ -37,7 +37,8 @@ public class OrderDtoValidatorTests
         AddressDto? deliveryAddress = null,
         PaymentDto? payment = null,
         decimal subtotal = 10m,
-        decimal total = 10m) => new(
+        decimal total = 10m,
+        Guid? tableId = null) => new(
         Id: Guid.NewGuid(),
         CustomerId: customerId ?? (orderType == OrderType.Delivery ? Guid.NewGuid() : Guid.Empty),
         OrderNumber: "ORD-1",
@@ -62,7 +63,7 @@ public class OrderDtoValidatorTests
         ActualPrepTimeMinutes: 0,
         IsModified: false,
         RequiresAdminApproval: false,
-        TableId: null,
+        TableId: tableId ?? (orderType == OrderType.DineIn ? Guid.NewGuid() : null),
         CreatedByUserId: Guid.NewGuid(),
         ApprovedByAdminId: null,
         ConfirmedByUserId: null,
@@ -186,5 +187,75 @@ public class OrderDtoValidatorTests
 
         result.ShouldHaveValidationErrorFor(x => x.Subtotal);
         result.ShouldHaveValidationErrorFor(x => x.TotalAmount);
+    }
+
+    [Fact]
+    public void Validate_DineInWithMissingTableId_FailsValidation()
+    {
+        OrderDto orderWithNullTable = CreateValidOrder(orderType: OrderType.DineIn) with { TableId = null };
+        OrderDto orderWithEmptyTable = CreateValidOrder(orderType: OrderType.DineIn) with { TableId = Guid.Empty };
+
+        TestValidationResult<OrderDto> resultNull = _validator.TestValidate(orderWithNullTable);
+        TestValidationResult<OrderDto> resultEmpty = _validator.TestValidate(orderWithEmptyTable);
+
+        resultNull.ShouldHaveValidationErrorFor(x => x.TableId)
+            .WithErrorMessage("TableId is required for dine-in orders.");
+        resultEmpty.ShouldHaveValidationErrorFor(x => x.TableId)
+            .WithErrorMessage("TableId is required for dine-in orders.");
+    }
+
+    [Fact]
+    public void Validate_DineInWithValidTableId_PassesValidation()
+    {
+        OrderDto order = CreateValidOrder(orderType: OrderType.DineIn, tableId: Guid.NewGuid());
+
+        TestValidationResult<OrderDto> result = _validator.TestValidate(order);
+
+        result.ShouldNotHaveValidationErrorFor(x => x.TableId);
+    }
+
+    [Fact]
+    public void Validate_DeliveryWithTableId_FailsValidation()
+    {
+        OrderDto order = CreateValidOrder(
+            orderType: OrderType.Delivery,
+            billingAddress: new AddressDto("123 Main", "City", "ST", "12345", "USA"),
+            deliveryAddress: new AddressDto("123 Main", "City", "ST", "12345", "USA"),
+            payment: new PaymentDto(PaymentMethod.Card, "Visa", "1234")) with
+        {
+            TableId = Guid.NewGuid()
+        };
+
+        TestValidationResult<OrderDto> result = _validator.TestValidate(order);
+
+        result.ShouldHaveValidationErrorFor(x => x.TableId)
+            .WithErrorMessage("TableId must be null for delivery orders.");
+    }
+
+    [Fact]
+    public void Validate_DeliveryWithoutTableId_PassesValidation()
+    {
+        OrderDto order = CreateValidOrder(
+            orderType: OrderType.Delivery,
+            billingAddress: new AddressDto("123 Main", "City", "ST", "12345", "USA"),
+            deliveryAddress: new AddressDto("123 Main", "City", "ST", "12345", "USA"),
+            payment: new PaymentDto(PaymentMethod.Card, "Visa", "1234"));
+
+        TestValidationResult<OrderDto> result = _validator.TestValidate(order);
+
+        result.ShouldNotHaveValidationErrorFor(x => x.TableId);
+    }
+
+    [Fact]
+    public void Validate_TakeoutWithOrWithoutTableId_PassesValidation()
+    {
+        OrderDto orderWithoutTable = CreateValidOrder(orderType: OrderType.Takeout) with { TableId = null };
+        OrderDto orderWithTable = CreateValidOrder(orderType: OrderType.Takeout) with { TableId = Guid.NewGuid() };
+
+        TestValidationResult<OrderDto> resultWithout = _validator.TestValidate(orderWithoutTable);
+        TestValidationResult<OrderDto> resultWith = _validator.TestValidate(orderWithTable);
+
+        resultWithout.ShouldNotHaveValidationErrorFor(x => x.TableId);
+        resultWith.ShouldNotHaveValidationErrorFor(x => x.TableId);
     }
 }

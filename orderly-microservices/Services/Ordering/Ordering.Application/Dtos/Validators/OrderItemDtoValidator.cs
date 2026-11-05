@@ -19,6 +19,9 @@ public class OrderItemDtoValidator : AbstractValidator<OrderItemDto>
         RuleFor(x => x.TotalPrice)
             .GreaterThanOrEqualTo(0).WithMessage("TotalPrice must be non-negative.");
 
+        RuleFor(x => x.SeatNumber)
+            .GreaterThanOrEqualTo(0).WithMessage("SeatNumber must be non-negative.");
+
         RuleFor(x => x.PrepStatus)
             .IsInEnum().WithMessage("PrepStatus is not a valid PrepStatus value.");
 

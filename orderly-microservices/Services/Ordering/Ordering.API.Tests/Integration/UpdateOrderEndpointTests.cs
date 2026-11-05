@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using NodaTime;
+using NodaTime.Serialization.SystemTextJson;
 using Ordering.Application.Dtos;
 
 namespace Ordering.API.Tests.Integration;
@@ -26,7 +27,8 @@ public sealed class UpdateOrderEndpointTests
 {
     private const string OrdersWritePermission = "orders:write";
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        .ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
 
     private readonly OrderingWebApplicationFactory _factory;
 
@@ -93,7 +95,7 @@ public sealed class UpdateOrderEndpointTests
         ActualPrepTimeMinutes: 0,
         IsModified: true,
         RequiresAdminApproval: false,
-        TableId: null,
+        TableId: Guid.NewGuid(),
         CreatedByUserId: null,
         ApprovedByAdminId: null,
         ConfirmedByUserId: null,

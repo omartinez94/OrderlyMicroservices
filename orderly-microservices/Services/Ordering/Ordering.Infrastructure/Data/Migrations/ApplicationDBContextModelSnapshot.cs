@@ -254,6 +254,9 @@ namespace Ordering.Infrastructure.Data.Migrations
                     b.Property<int>("EstimatedPrepTimeMinutes")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("IdempotencyKey")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("IsModified")
                         .HasColumnType("bit");
 
@@ -403,6 +406,11 @@ namespace Ordering.Infrastructure.Data.Migrations
 
                     b.HasIndex("ShortId")
                         .IsUnique();
+
+                    b.HasIndex("RestaurantId", "IdempotencyKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Orders_RestaurantId_IdempotencyKey")
+                        .HasFilter("[IdempotencyKey] IS NOT NULL");
 
                     b.HasIndex("RestaurantId", "LastModified")
                         .HasDatabaseName("IX_Orders_RestaurantId_LastModified");

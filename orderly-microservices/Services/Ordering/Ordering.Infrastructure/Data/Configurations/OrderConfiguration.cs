@@ -37,6 +37,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasIndex(o => new { o.RestaurantId, o.OrderNumber })
             .IsUnique();
 
+        builder.HasIndex(o => new { o.RestaurantId, o.IdempotencyKey })
+            .IsUnique()
+            .HasFilter("[IdempotencyKey] IS NOT NULL")
+            .HasDatabaseName("IX_Orders_RestaurantId_IdempotencyKey");
+
         builder.HasIndex(o => new { o.RestaurantId, o.Status, o.CreatedAt })
             .HasDatabaseName("IX_Orders_RestaurantId_Status_CreatedAt");
 

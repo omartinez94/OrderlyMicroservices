@@ -60,6 +60,7 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
     public Instant? ReadyAt { get; set; }
     public Instant? StatusChangedAt { get; set; }
     public Guid? TableId { get; set; }
+    public Guid? IdempotencyKey { get; set; }
     public OrderStatus? PreviousStatus { get; private set; }
     public Instant? CancelRequestedAt { get; private set; }
     public string? CancelRequestedByUserId { get; private set; }

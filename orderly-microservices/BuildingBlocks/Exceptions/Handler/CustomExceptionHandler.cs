@@ -56,6 +56,21 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 exception.GetType().Name,
                 httpContext.Response.StatusCode = StatusCodes.Status422UnprocessableEntity
             ),
+            _ when IsConflictException(exception) => (
+                exception.Message ?? "Conflict.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status409Conflict
+            ),
+            _ when IsUnprocessableException(exception) => (
+                exception.Message ?? "Unprocessable entity.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status422UnprocessableEntity
+            ),
+            _ when IsServiceUnavailableException(exception) => (
+                exception.Message ?? "Service unavailable.",
+                exception.GetType().Name,
+                httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable
+            ),
             _ => (
                 exception.Message ?? "An unexpected error occurred.",
                 exception.GetType().Name ?? "Internal Server Error.",
@@ -93,6 +108,22 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
                 problemDetails.Extensions["attemptedTransition"] = attempted;
             }
         }
+        else if (IsConflictException(exception))
+        {
+            object? unavailableItemIds = TryGetProperty(exception, "UnavailableItemIds");
+            if (unavailableItemIds is not null)
+            {
+                problemDetails.Extensions["unavailableItemIds"] = unavailableItemIds;
+            }
+        }
+        else if (IsServiceUnavailableException(exception))
+        {
+            object? retryAfter = TryGetProperty(exception, "RetryAfterSeconds");
+            if (retryAfter is int seconds)
+            {
+                httpContext.Response.Headers.RetryAfter = seconds.ToString();
+            }
+        }
 
         await httpContext.Response.WriteAsJsonAsync(problemDetails, cancellationToken);
         return true;
@@ -118,6 +149,16 @@ public class CustomExceptionHandler(ILogger<CustomExceptionHandler> logger) : IE
     /// </summary>
     private static bool IsActivityInvariantException(Exception exception) =>
         exception.GetType().Name.EndsWith("ActivityInvariantException", StringComparison.Ordinal);
+
+    private static bool IsConflictException(Exception exception) =>
+        exception.GetType().Name.EndsWith("ConflictException", StringComparison.Ordinal);
+
+    private static bool IsUnprocessableException(Exception exception) =>
+        exception.GetType().Name.EndsWith("UnprocessableException", StringComparison.Ordinal) ||
+        exception.GetType().Name.EndsWith("UnprocessableEntityException", StringComparison.Ordinal);
+
+    private static bool IsServiceUnavailableException(Exception exception) =>
+        exception.GetType().Name.EndsWith("UnavailableException", StringComparison.Ordinal);
 
     private static object? TryGetProperty(object target, string propertyName) =>
         target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance)?.GetValue(target);

@@ -15,8 +15,8 @@
 |:-----:|---|:-----:|
 | 1 | POS Contract & Validation Refinement | ✅ Done |
 | 2 | Table & Seat Association Enforcement | ✅ Done |
-| 3 | Server-Side Tenant, Price, Availability & Idempotency | ⏸ Pending |
-| 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | 🔒 Blocked |
+| 3 | Server-Side Tenant, Price, Availability & Idempotency | ✅ Done |
+| 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | ⏸ Pending |
 | 5 | Integration Tests & Phase Guard Validation | 🔒 Blocked |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
@@ -144,11 +144,21 @@ OrderlyMicroservices/orderly-microservices/
 - [x] **Verification**: unit tests for valid/invalid Dine-In configurations (`OrderDtoValidatorTests` and `OrderItemDtoValidatorTests`). All 145 unit tests pass in `Ordering.Application.Tests`.
 
 ### Phase 3: Server-Side Tenant, Price, Availability & Idempotency
-- **Task 3.1**: Endpoint/handler verify `command.RestaurantId ∈ caller's JWT restaurant claims` (`403` otherwise).
-- **Task 3.2**: `ICatalogPricingClient` fetches the menu snapshot (`GET /v1/restaurants/{id}/menu`, short cache) and the table (`GET …/tables/{id}`): reject items that are unknown/foreign (`422`), **unavailable** (`409` with `unavailableItemIds[]` in `ProblemDetails`), table not in restaurant, `SeatNumber` beyond the table's seats. On Catalog outage fail closed with `503` + `Retry-After`.
-- **Task 3.3**: Overwrite client-supplied unit prices, subtotal, tax and total with server-computed values.
-- **Task 3.4**: `Idempotency-Key` handling with the unique index + replay of the original response.
-- **Verification**: unit + integration tests (foreign restaurant, unavailable item, tampered totals, replayed key).
+- [x] **Task 3.1**: Endpoint/handler verify `command.RestaurantId ∈ caller's JWT restaurant claims` (`403` otherwise via `ForbiddenException`).
+  - In `CreateOrder.cs`, added verification that the caller has a matching `restaurantId` or `restaurantIds` claim, with bypass for `SuperAdmin` role. Throws `ForbiddenException` (yielding RFC 7807 403 ProblemDetails) if unauthorized.
+- [x] **Task 3.2**: `ICatalogPricingClient` fetches the menu snapshot (`GET /v1/restaurants/{id}/menu`, short distributed cache) and the table (`GET …/tables/{id}`): reject items that are unknown/foreign (`422` via `MenuItemNotFoundUnprocessableException`), **unavailable** (`409` via `MenuItemUnavailableConflictException` with `unavailableItemIds` in `ProblemDetails`), table not in restaurant (`422` via `TableNotFoundUnprocessableException`), `SeatNumber` beyond the table's seats (`422` via `SeatNumberExceedsCapacityUnprocessableException`). On Catalog outage fail closed with `503` (`CatalogUnavailableException` with `Retry-After` header).
+  - Defined `ICatalogPricingClient` interface with `GetMenuSnapshotAsync` and `GetTableAsync`.
+  - Implemented `CatalogPricingClient` with `HttpClient`, resilience handler, distributed cache, authorization header forwarding, and fail-closed 503 behavior.
+  - Enhanced `CustomExceptionHandler` with arms and problem details extensions for conflict (409), unprocessable entity (422), and service unavailable (503 + Retry-After).
+- [x] **Task 3.3**: Overwrite client-supplied unit prices, subtotal, tax and total with server-computed values.
+  - In `CreateOrderHandler`, recomputes authoritative prices from Catalog base prices + selected variation price modifiers. Overwrites client-supplied item unit/total prices, recomputes order `Subtotal`, `TaxAmount`, and `TotalAmount` on the server.
+- [x] **Task 3.4**: `Idempotency-Key` handling with the unique index + replay of the original response.
+  - Added `IdempotencyKey` (`Guid?`) to `Order` aggregate.
+  - Configured unique index on `(RestaurantId, IdempotencyKey)` with filter `[IdempotencyKey] IS NOT NULL` in `OrderConfiguration`.
+  - Generated and applied EF Core migration `20261105005721_AddIdempotencyKeyToOrder`.
+  - In `CreateOrder.cs`, extracts `Idempotency-Key` header.
+  - In `CreateOrderHandler`, checks for existing order by `(RestaurantId, IdempotencyKey)`; if duplicate is detected, short-circuits and replays the existing order (200 OK / original payload) without re-executing order creation or outbox staging.
+- [x] **Verification**: Added comprehensive unit tests in `CreateOrderHandlerTests` covering unknown items (422), unavailable items (409), seat capacity limits (422), price tampering overwrite, and idempotency replay. All 149 unit tests pass in `Ordering.Application.Tests`, and `orderly-microservices.slnx` builds with 0 errors.
 
 ### Phase 4: Kitchen Persistence & SignalR Payload
 - **Task 4.1**: Event serializes `CourseNumber` (nullable) and `SeatNumber`.

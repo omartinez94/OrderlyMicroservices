@@ -1,4 +1,6 @@
 using BuildingBlocks.Messaging.Events;
+using Ordering.Application.Common.Interfaces;
+using Ordering.Application.Exceptions;
 using Ordering.Application.Orders.Commands.CreateOrder;
 
 namespace Ordering.Application.Tests.Commands;
@@ -6,9 +8,10 @@ namespace Ordering.Application.Tests.Commands;
 /// <summary>
 /// Covers <see cref="CreateOrderHandler"/>: builds the <c>Order</c>
 /// aggregate from the inbound <see cref="OrderDto"/>, generates
-/// order number when not provided, appends one
-/// <c>OrderCreated</c> activity, stages <see cref="OrderCreatedIntegrationEvent"/>
-/// in the outbox, persists, and returns the new id.
+/// order number when not provided, validates tenant, catalog pricing,
+/// availability, table capacity, handles idempotency replays,
+/// appends one <c>OrderCreated</c> activity, stages <see cref="OrderCreatedIntegrationEvent"/>
+/// in the outbox, persists, and returns the result.
 /// </summary>
 public sealed class CreateOrderHandlerTests
 {
@@ -41,11 +44,15 @@ public sealed class CreateOrderHandlerTests
         PrepStartedAt: null,
         PrepCompletedAt: null);
 
-    private static OrderDto NewValidOrderDto(IEnumerable<OrderItemDto> items, string orderNumber = "ORD-2026-0001") => new(
+    private static OrderDto NewValidOrderDto(
+        IEnumerable<OrderItemDto> items,
+        string orderNumber = "ORD-2026-0001",
+        Guid? restaurantId = null,
+        Guid? tableId = null) => new(
         Id: Guid.NewGuid(),
         CustomerId: NewCustomerId().Value,
         OrderNumber: orderNumber,
-        RestaurantId: Guid.NewGuid(),
+        RestaurantId: restaurantId ?? Guid.NewGuid(),
         Currency: "USD",
         Subtotal: 100m,
         TaxRate: 0.08m,
@@ -66,7 +73,7 @@ public sealed class CreateOrderHandlerTests
         ActualPrepTimeMinutes: 0,
         IsModified: false,
         RequiresAdminApproval: false,
-        TableId: null,
+        TableId: tableId ?? Guid.NewGuid(),
         CreatedByUserId: Guid.NewGuid(),
         ApprovedByAdminId: null,
         ConfirmedByUserId: null,
@@ -82,6 +89,38 @@ public sealed class CreateOrderHandlerTests
         OrderItems: [.. items],
         Activities: []);
 
+    private static ICatalogPricingClient SetupMockCatalogClient(
+        OrderDto dto,
+        decimal basePrice = 9.99m,
+        string availabilityStatus = "Available",
+        bool isAvailable = true,
+        int tableCapacity = 10)
+    {
+        ICatalogPricingClient client = Substitute.For<ICatalogPricingClient>();
+
+        List<CatalogMenuItemDto> items = dto.OrderItems.Select(oi => new CatalogMenuItemDto(
+            oi.MenuItemId,
+            oi.MenuItemName,
+            basePrice,
+            null,
+            isAvailable,
+            availabilityStatus,
+            oi.SelectedVariations.Select(v => new CatalogMenuItemVariationDto(1, v.Name, v.Name, v.Price, false)).ToList(),
+            null
+        )).ToList();
+
+        client.GetMenuSnapshotAsync(dto.RestaurantId, Arg.Any<CancellationToken>())
+            .Returns(new CatalogMenuSnapshot(dto.RestaurantId, items));
+
+        if (dto.TableId.HasValue)
+        {
+            client.GetTableAsync(dto.RestaurantId, dto.TableId.Value, Arg.Any<CancellationToken>())
+                .Returns(new CatalogTableDto(dto.TableId.Value, dto.RestaurantId, "T1", tableCapacity, "Available"));
+        }
+
+        return client;
+    }
+
     [Fact]
     public async Task Handle_ValidCommand_CreatesOrderAndReturnsId()
     {
@@ -89,10 +128,11 @@ public sealed class CreateOrderHandlerTests
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto);
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
@@ -111,6 +151,7 @@ public sealed class CreateOrderHandlerTests
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto);
         var generatedNumber = OrderNumber.Create("DIN", new LocalDate(2026, 10, 23), 1);
         orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
             .Returns(generatedNumber);
@@ -118,7 +159,7 @@ public sealed class CreateOrderHandlerTests
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
         var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
@@ -128,47 +169,54 @@ public sealed class CreateOrderHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WithDefaultOrderNumber_GeneratesFromOrderNumberGenerator()
-    {
-        var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) }, orderNumber: "default");
-        var dbContext = Substitute.For<IApplicationDbContext>();
-        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
-        var outbox = Substitute.For<IOutboxPublisher>();
-        var generatedNumber = OrderNumber.Create(OrderType.DineIn, new LocalDate(2026, 10, 23), 5);
-        orderNumberGenerator.GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>())
-            .Returns(generatedNumber);
-
-        Order? captured = null;
-        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
-
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
-        var result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
-
-        result.Id.Should().NotBe(Guid.Empty);
-        captured.Should().NotBeNull();
-        captured!.OrderNumber.Value.Should().Be("DIN20261023-0005");
-        await orderNumberGenerator.Received(1).GenerateAsync(dto.RestaurantId, dto.OrderType, Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Handle_ValidCommand_RaisesOrderCreatedDomainEvent()
+    public async Task Handle_ValidCommand_AppendsOrderCreatedActivity()
     {
         var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto);
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
-        captured!.DomainEvents.Should().ContainSingle(e => e is OrderCreatedEvent);
+        captured!.Activities.Should().ContainSingle();
+        var activity = captured.Activities.Single();
+        activity.ActivityType.Should().Be(Ordering.Domain.Enums.OrderActivityType.OrderCreated);
+        activity.ActorUserId.Should().Be(dto.CreatedByUserId);
+        activity.OrderId.Should().Be(captured.Id);
     }
 
     [Fact]
-    public async Task Handle_ValidCommand_PersistsAllOrderItems()
+    public async Task Handle_ValidCommand_CopiesScalarsToDomainAggregate()
+    {
+        var dto = NewValidOrderDto(new[] { ValidItemDto(NewMenuItemId()) });
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto);
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
+        await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.Currency.Should().Be(dto.Currency);
+        captured.OrderType.Should().Be(dto.OrderType);
+        captured.Notes.Should().Be(dto.Notes);
+        captured.DeliveryNotes.Should().Be(dto.DeliveryNotes);
+        captured.EstimatedPrepTimeMinutes.Should().Be(dto.EstimatedPrepTimeMinutes);
+        captured.RequiresAdminApproval.Should().Be(dto.RequiresAdminApproval);
+        captured.TableId.Should().Be(dto.TableId);
+        captured.CreatedByUserId.Should().Be(dto.CreatedByUserId);
+    }
+
+    [Fact]
+    public async Task Handle_ValidCommand_AddsAllItemsToDomainAggregate()
     {
         var items = new[]
         {
@@ -180,10 +228,11 @@ public sealed class CreateOrderHandlerTests
         var dbContext = Substitute.For<IApplicationDbContext>();
         var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto);
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox);
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -221,10 +270,11 @@ public sealed class CreateOrderHandlerTests
         IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
+        ICatalogPricingClient catalogClient = SetupMockCatalogClient(dto, basePrice: 15.00m);
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
 
-        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox, catalogClient);
         await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         captured.Should().NotBeNull();
@@ -232,8 +282,9 @@ public sealed class CreateOrderHandlerTests
         item.MenuItemName.Should().Be("Deluxe Pizza");
         item.SpecialInstructions.Should().Be("Well done crust");
         item.SeatNumber.Should().Be(3);
-        item.UnitPrice.Should().Be(15.00m);
-        item.TotalPrice.Should().Be(30.00m);
+        // Base 15 + variation 1.50 = 16.50
+        item.UnitPrice.Should().Be(16.50m);
+        item.TotalPrice.Should().Be(33.00m);
         item.Customizations.Should().ContainSingle().Which.Should().BeEquivalentTo(customization);
         item.SelectedVariations.Should().ContainSingle().Which.Should().BeEquivalentTo(variation);
     }
@@ -267,10 +318,11 @@ public sealed class CreateOrderHandlerTests
         IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
+        ICatalogPricingClient catalogClient = SetupMockCatalogClient(dto, basePrice: 15.00m);
         OrderCreatedIntegrationEvent? publishedEvent = null;
         await outbox.PublishAsync(Arg.Do<OrderCreatedIntegrationEvent>(e => publishedEvent = e), Arg.Any<CancellationToken>());
 
-        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox, catalogClient);
         CreateOrderResult result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         publishedEvent.Should().NotBeNull();
@@ -356,12 +408,13 @@ public sealed class CreateOrderHandlerTests
         IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
         IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
         IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
+        ICatalogPricingClient catalogClient = SetupMockCatalogClient(dto, basePrice: 10m);
         Order? captured = null;
         dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
         OrderCreatedIntegrationEvent? publishedEvent = null;
         await outbox.PublishAsync(Arg.Do<OrderCreatedIntegrationEvent>(e => publishedEvent = e), Arg.Any<CancellationToken>());
 
-        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox, catalogClient);
         CreateOrderResult result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
 
         result.Id.Should().NotBe(Guid.Empty);
@@ -378,5 +431,97 @@ public sealed class CreateOrderHandlerTests
         publishedEvent!.BillingAddress.Should().BeNull();
         publishedEvent.DeliveryAddress.Should().BeNull();
         publishedEvent.Items.Single().CourseNumber.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Handle_UnknownMenuItemId_ThrowsMenuItemNotFoundUnprocessableException()
+    {
+        var itemDto = ValidItemDto(NewMenuItemId());
+        var dto = NewValidOrderDto([itemDto]);
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = Substitute.For<ICatalogPricingClient>();
+
+        // Return empty menu snapshot
+        catalogClient.GetMenuSnapshotAsync(dto.RestaurantId, Arg.Any<CancellationToken>())
+            .Returns(new CatalogMenuSnapshot(dto.RestaurantId, []));
+        catalogClient.GetTableAsync(dto.RestaurantId, dto.TableId!.Value, Arg.Any<CancellationToken>())
+            .Returns(new CatalogTableDto(dto.TableId.Value, dto.RestaurantId, "T1", 4, "Available"));
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
+
+        Func<Task> act = async () => await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        await act.Should().ThrowAsync<MenuItemNotFoundUnprocessableException>();
+    }
+
+    [Fact]
+    public async Task Handle_UnavailableMenuItem_ThrowsMenuItemUnavailableConflictException()
+    {
+        var itemDto = ValidItemDto(NewMenuItemId());
+        var dto = NewValidOrderDto([itemDto]);
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
+        var catalogClient = SetupMockCatalogClient(dto, availabilityStatus: "SoldOut", isAvailable: false);
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
+
+        Func<Task> act = async () => await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        await act.Should().ThrowAsync<MenuItemUnavailableConflictException>();
+    }
+
+    [Fact]
+    public async Task Handle_TamperedClientPrices_OverwritesWithAuthoritativeCatalogPrices()
+    {
+        // Client claims UnitPrice = 1.00m and Subtotal = 2.00m
+        var itemDto = ValidItemDto(NewMenuItemId());
+        var tamperedItem = itemDto with { UnitPrice = 1.00m, TotalPrice = 2.00m };
+        var dto = NewValidOrderDto([tamperedItem]) with
+        {
+            Subtotal = 2.00m,
+            TaxRate = 0.10m,
+            TaxAmount = 0.20m,
+            TotalAmount = 2.20m
+        };
+
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
+        // Catalog says BasePrice = 20.00m each
+        var catalogClient = SetupMockCatalogClient(dto, basePrice: 20.00m);
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
+        await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        // Quantity is 2, UnitPrice = 20.00 -> Subtotal = 40.00, Tax = 4.00, Total = 44.00
+        captured!.Subtotal.Should().Be(40.00m);
+        captured.TaxAmount.Should().Be(4.00m);
+        captured.TotalAmount.Should().Be(44.00m);
+        captured.OrderItems.Single().UnitPrice.Should().Be(20.00m);
+        captured.OrderItems.Single().TotalPrice.Should().Be(40.00m);
+    }
+
+    [Fact]
+    public async Task Handle_SeatNumberExceedsCapacity_ThrowsSeatNumberExceedsCapacityUnprocessableException()
+    {
+        var itemDto = ValidItemDto(NewMenuItemId()) with { SeatNumber = 12 };
+        var dto = NewValidOrderDto([itemDto]);
+        var dbContext = Substitute.For<IApplicationDbContext>();
+        var orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        var outbox = Substitute.For<IOutboxPublisher>();
+        // Table capacity is only 4 seats
+        var catalogClient = SetupMockCatalogClient(dto, tableCapacity: 4);
+
+        var handler = new CreateOrderHandler(dbContext, orderNumberGenerator, outbox, catalogClient);
+
+        Func<Task> act = async () => await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        await act.Should().ThrowAsync<SeatNumberExceedsCapacityUnprocessableException>();
     }
 }

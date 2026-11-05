@@ -22,7 +22,7 @@ public record OrderCreatedIntegrationEvent : IntegrationEvent
     public string Currency { get; init; } = default!;
     public string? DiscountCode { get; init; }
 
-    public OrderAddress BillingAddress { get; init; } = default!;
+    public OrderAddress? BillingAddress { get; init; }
     public OrderAddress? DeliveryAddress { get; init; }
 
     public IReadOnlyList<KitchenOrderItemPreview> Items { get; init; } = [];
@@ -65,4 +65,5 @@ public record KitchenOrderItemPreview(
     IReadOnlyList<KitchenOrderItemVariation> SelectedVariations,
     IReadOnlyList<KitchenOrderItemCustomization> Customizations,
     string? SpecialInstructions,
-    int? SeatNumber);
+    int? SeatNumber,
+    int? CourseNumber = null);

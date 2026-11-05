@@ -84,7 +84,8 @@ public static class KitchenTicketExtensions
                 SelectedVariations: FlattenVariations(i.SelectedVariations),
                 Customizations: FlattenCustomizations(i.Customizations),
                 SpecialInstructions: i.SpecialInstructions,
-                SeatNumber: i.SeatNumber))
+                SeatNumber: i.SeatNumber,
+                CourseNumber: i.CourseNumber))
             .ToList();
 
     /// <summary>

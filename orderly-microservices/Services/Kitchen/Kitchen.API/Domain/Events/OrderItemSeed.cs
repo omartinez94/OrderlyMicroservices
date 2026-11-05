@@ -22,4 +22,5 @@ public record OrderItemSeed(
     IReadOnlyList<string> SelectedVariations,
     IReadOnlyList<string> Customizations,
     string? SpecialInstructions,
-    int? SeatNumber);
+    int? SeatNumber,
+    int? CourseNumber = null);

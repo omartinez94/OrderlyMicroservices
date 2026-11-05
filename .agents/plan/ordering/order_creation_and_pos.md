@@ -13,8 +13,8 @@
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | POS Contract & Validation Refinement | ⏸ Pending |
-| 2 | Table & Seat Association Enforcement | 🔒 Blocked |
+| 1 | POS Contract & Validation Refinement | ✅ Done |
+| 2 | Table & Seat Association Enforcement | ⏸ Pending |
 | 3 | Server-Side Tenant, Price, Availability & Idempotency | 🔒 Blocked |
 | 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | 🔒 Blocked |
 | 5 | Integration Tests & Phase Guard Validation | 🔒 Blocked |
@@ -119,11 +119,19 @@ OrderlyMicroservices/orderly-microservices/
 ## 6. Implementation Phases
 
 ### Phase 1: POS Contract & Validation Refinement
-- **Task 1.0**: Inventory `PaymentDto`, `PaymentDtoValidator`, `PaymentMethod` values, `Address` mapping, and every existing validator constraint that blocks POS (`Subtotal > 0`, `TotalAmount > 0` for comped items, etc.); document decisions in this plan.
-- **Task 1.1**: Add `CourseNumber` (`int?`) to `OrderItemDto`, `OrderItem`, `OrderItemConfiguration` (+ SQL Server migration) and the event `OrderItemSeed`. Confirm `OrderItemSeed` has a single definition (the event file vs `Kitchen.API/Domain/Events/OrderItemSeed.cs`) and remove the duplicate.
-- **Task 1.2**: `OrderDtoValidator`: addresses required only for `Delivery`; `Payment` optional for non-Delivery; `CourseNumber` in `1..9` when present; `CustomerId` may be `Guid.Empty` for non-Delivery. Spike nullable address persistence (nullable owned types vs `Address.None`).
-- **Task 1.3**: `CreateOrderHandler`: map `CourseNumber`, substitute walk-in customer, create pending payment when `Payment` is absent.
-- **Verification**: `dotnet test Services/Ordering/Ordering.Application.Tests`.
+- [x] **Task 1.0**: Inventory `PaymentDto`, `PaymentDtoValidator`, `PaymentMethod` values, `Address` mapping, and every existing validator constraint that blocks POS (`Subtotal > 0`, `TotalAmount > 0` for comped items, etc.); document decisions in this plan.
+  - *Payment Inventory*: `PaymentDto(PaymentMethod Method, string Brand, string LastFour)` carries redacted payment summary. `PaymentDtoValidator` requires defined enum != Unspecified, non-empty brand, exactly 4 digits. `PaymentMethod` enum has `Unspecified = 0`, `Card = 1`, `Cash = 2`, `Wallet = 3` (no "Unpaid" method exists; deferred payment is represented by omitting payment or pending status).
+  - *Address Inventory & Spike*: `Order` complex properties `BillingAddress` and `DeliveryAddress` map to non-null columns in SQL Server. Implemented `Address.None` sentinel (`""`, `""`, `""`, `"00000"`, `""`) and `Payment.Pending` (`Unspecified`, `"Pending"`, `"0000"`) so non-Delivery POS orders do not store fake PII, require no database column alterations, and project to `null` in wire DTOs and integration events.
+  - *POS Blocking Constraints Removed*: `OrderDtoValidator` relaxes `CustomerId` required only for Delivery (`Guid.Empty` allowed for Dine-In/Takeout); `Subtotal >= 0` and `TotalAmount >= 0` allow comped/free items; `BillingAddress`, `DeliveryAddress`, and `Payment` required only for Delivery; `OrderItemDtoValidator` relaxes `UnitPrice >= 0` and `TotalPrice >= 0` for comped items and validates `CourseNumber in 1..9` when present.
+- [x] **Task 1.1**: Add `CourseNumber` (`int?`) to `OrderItemDto`, `OrderItem`, `OrderItemConfiguration` (+ SQL Server migration) and the event `OrderItemSeed`. Confirm `OrderItemSeed` has a single definition (the event file vs `Kitchen.API/Domain/Events/OrderItemSeed.cs`) and remove the duplicate.
+  - `CourseNumber` added to `OrderItemDto`, `OrderItem` domain model, `Order.Add`, `OrderItemConfiguration`, and migration `20261105001551_AddCourseNumberToOrderItem` applied to model snapshot.
+  - `KitchenOrderItemPreview` on `OrderCreatedIntegrationEvent` and `OrderItemSeed` in `Kitchen.API` updated with `int? CourseNumber = null`. Confirmed `OrderItemSeed` definition is single (event uses `KitchenOrderItemPreview`; kitchen internal carrier is `OrderItemSeed`).
+- [x] **Task 1.2**: `OrderDtoValidator`: addresses required only for `Delivery`; `Payment` optional for non-Delivery; `CourseNumber` in `1..9` when present; `CustomerId` may be `Guid.Empty` for non-Delivery. Spike nullable address persistence (nullable owned types vs `Address.None`).
+- [x] **Task 1.3**: `CreateOrderHandler`: map `CourseNumber`, substitute walk-in customer, create pending payment when `Payment` is absent.
+  - Implemented `WalkInCustomer.IdFor(restaurantId)` to deterministically resolve customer ID for walk-in orders and ensure customer entity exists in `dbContext.Customers`.
+  - Maps `CourseNumber` to domain entity and `OrderCreatedIntegrationEvent`.
+  - Substitutes `Payment.Pending` and `Address.None` when omitted for non-Delivery.
+- [x] **Verification**: `dotnet test Services/Ordering/Ordering.Application.Tests`. All 135 unit tests pass.
 
 ### Phase 2: Table & Seat Association Enforcement
 - **Task 2.1**: Require `TableId` when `OrderType == DineIn`; forbid it for `Delivery`.

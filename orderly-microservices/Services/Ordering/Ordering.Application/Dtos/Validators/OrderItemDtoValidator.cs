@@ -14,12 +14,17 @@ public class OrderItemDtoValidator : AbstractValidator<OrderItemDto>
             .GreaterThan(0).WithMessage("Quantity must be greater than zero.");
 
         RuleFor(x => x.UnitPrice)
-            .GreaterThan(0).WithMessage("UnitPrice must be greater than zero.");
+            .GreaterThanOrEqualTo(0).WithMessage("UnitPrice must be non-negative.");
 
         RuleFor(x => x.TotalPrice)
-            .GreaterThan(0).WithMessage("TotalPrice must be greater than zero.");
+            .GreaterThanOrEqualTo(0).WithMessage("TotalPrice must be non-negative.");
 
         RuleFor(x => x.PrepStatus)
             .IsInEnum().WithMessage("PrepStatus is not a valid PrepStatus value.");
+
+        RuleFor(x => x.CourseNumber)
+            .InclusiveBetween(1, 9)
+            .When(x => x.CourseNumber.HasValue)
+            .WithMessage("CourseNumber must be between 1 and 9.");
     }
 }

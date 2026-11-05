@@ -20,15 +20,15 @@ public record OrderDto(
     OrderType OrderType,
 
     // Delivery
-    AddressDto BillingAddress,
-    AddressDto DeliveryAddress,
+    AddressDto? BillingAddress,
+    AddressDto? DeliveryAddress,
     string DeliveryNotes,
     DeliveryStatus? DeliveryStatus,
     decimal? DeliveryLatitude,
     decimal? DeliveryLongitude,
 
     // Payment
-    PaymentDto Payment,
+    PaymentDto? Payment,
 
     // Prep timing
     int EstimatedPrepTimeMinutes,

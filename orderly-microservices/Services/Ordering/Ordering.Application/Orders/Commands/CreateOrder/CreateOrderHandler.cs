@@ -12,24 +12,52 @@ public class CreateOrderHandler(
     {
         OrderDto? dto = command.Order;
 
-        Address? billingAddress = Address.Of(
-            dto.BillingAddress.Street,
-            dto.BillingAddress.City,
-            dto.BillingAddress.State,
-            dto.BillingAddress.ZipCode,
-            dto.BillingAddress.Country);
+        Address billingAddress = dto.BillingAddress is not null
+            ? Address.Of(
+                dto.BillingAddress.Street,
+                dto.BillingAddress.City,
+                dto.BillingAddress.State,
+                dto.BillingAddress.ZipCode,
+                dto.BillingAddress.Country)
+            : Address.None;
 
-        Address? deliveryAddress = Address.Of(
-            dto.DeliveryAddress.Street,
-            dto.DeliveryAddress.City,
-            dto.DeliveryAddress.State,
-            dto.DeliveryAddress.ZipCode,
-            dto.DeliveryAddress.Country);
+        Address deliveryAddress = dto.DeliveryAddress is not null
+            ? Address.Of(
+                dto.DeliveryAddress.Street,
+                dto.DeliveryAddress.City,
+                dto.DeliveryAddress.State,
+                dto.DeliveryAddress.ZipCode,
+                dto.DeliveryAddress.Country)
+            : Address.None;
 
-        Payment? payment = Payment.Of(
-            dto.Payment.Method,
-            dto.Payment.Brand,
-            dto.Payment.LastFour);
+        Payment payment = dto.Payment is not null
+            ? Payment.Of(
+                dto.Payment.Method,
+                dto.Payment.Brand,
+                dto.Payment.LastFour)
+            : Payment.Pending;
+
+        CustomerId customerId;
+        if (dto.CustomerId == Guid.Empty && dto.OrderType != OrderType.Delivery)
+        {
+            Guid walkInId = WalkInCustomer.IdFor(dto.RestaurantId);
+            customerId = CustomerId.Of(walkInId);
+
+            Customer? existingCustomer = await dbContext.Customers.FindAsync([customerId], cancellationToken);
+            if (existingCustomer is null)
+            {
+                Customer walkInCustomer = Customer.Create(
+                    customerId,
+                    $"walkin-{dto.RestaurantId:N}@orderly.internal",
+                    "Walk-in Customer",
+                    string.Empty);
+                dbContext.Customers.Add(walkInCustomer);
+            }
+        }
+        else
+        {
+            customerId = CustomerId.Of(dto.CustomerId);
+        }
 
         OrderId? orderId = OrderId.Of(Guid.NewGuid());
 
@@ -45,7 +73,7 @@ public class CreateOrderHandler(
 
         Order? order = Order.Create(
             orderId,
-            CustomerId.Of(dto.CustomerId),
+            customerId,
             orderNumber,
             dto.RestaurantId,
             billingAddress,
@@ -89,7 +117,8 @@ public class CreateOrderHandler(
                 item.SpecialInstructions,
                 item.Customizations,
                 item.SelectedVariations,
-                item.SeatNumber);
+                item.SeatNumber,
+                item.CourseNumber);
         }
 
         // Append the OrderCreated activity row. Order.Create cannot call

@@ -23,13 +23,19 @@ public static class OrderExtensions
             TotalAmount: order.TotalAmount,
             Status: order.Status,
             OrderType: order.OrderType,
-            BillingAddress: new AddressDto(order.BillingAddress.Street, order.BillingAddress.City, order.BillingAddress.State, order.BillingAddress.ZipCode, order.BillingAddress.Country),
-            DeliveryAddress: new AddressDto(order.DeliveryAddress.Street, order.DeliveryAddress.City, order.DeliveryAddress.State, order.DeliveryAddress.ZipCode, order.DeliveryAddress.Country),
+            BillingAddress: order.BillingAddress.IsNone
+                ? null
+                : new AddressDto(order.BillingAddress.Street, order.BillingAddress.City, order.BillingAddress.State, order.BillingAddress.ZipCode, order.BillingAddress.Country),
+            DeliveryAddress: order.DeliveryAddress.IsNone
+                ? null
+                : new AddressDto(order.DeliveryAddress.Street, order.DeliveryAddress.City, order.DeliveryAddress.State, order.DeliveryAddress.ZipCode, order.DeliveryAddress.Country),
             DeliveryNotes: order.DeliveryNotes,
             DeliveryStatus: order.DeliveryStatus,
             DeliveryLatitude: order.DeliveryLatitude,
             DeliveryLongitude: order.DeliveryLongitude,
-            Payment: new PaymentDto(order.Payment.Method, order.Payment.Brand, order.Payment.LastFour),
+            Payment: order.Payment.IsPending
+                ? null
+                : new PaymentDto(order.Payment.Method, order.Payment.Brand, order.Payment.LastFour),
             EstimatedPrepTimeMinutes: order.EstimatedPrepTimeMinutes,
             ActualPrepTimeMinutes: order.ActualPrepTimeMinutes,
             IsModified: order.IsModified,
@@ -65,7 +71,8 @@ public static class OrderExtensions
                 PrepStatus: oi.PrepStatus,
                 CreatedAt: oi.CreatedAt,
                 PrepStartedAt: oi.PrepStartedAt,
-                PrepCompletedAt: oi.PrepCompletedAt
+                PrepCompletedAt: oi.PrepCompletedAt,
+                CourseNumber: oi.CourseNumber
             ))],
             Activities: [.. order.Activities
                 .OrderBy(a => a.OccurredAt)
@@ -109,7 +116,7 @@ public static class OrderExtensions
                     PrepStatus: i.PrepStatus))
         ];
 
-        string? deliveryStreet = order.OrderType == OrderType.Delivery
+        string? deliveryStreet = order.OrderType == OrderType.Delivery && !order.DeliveryAddress.IsNone
             ? order.DeliveryAddress.Street.NullIfEmpty()
             : null;
 
@@ -215,8 +222,10 @@ public static class OrderExtensions
             DiscountAmount = order.DiscountAmount,
             Currency = order.Currency,
             DiscountCode = order.DiscountCode.NullIfEmpty(),
-            BillingAddress = MapAddress(order.BillingAddress),
-            DeliveryAddress = order.OrderType == OrderType.Delivery
+            BillingAddress = order.BillingAddress.IsNone
+                ? null
+                : MapAddress(order.BillingAddress),
+            DeliveryAddress = order.OrderType == OrderType.Delivery && !order.DeliveryAddress.IsNone
                 ? MapAddress(order.DeliveryAddress)
                 : null,
             Items = order.OrderItems.Select(MapItem).ToList(),
@@ -238,7 +247,8 @@ public static class OrderExtensions
             SelectedVariations: oi.SelectedVariations,
             Customizations: oi.Customizations,
             SpecialInstructions: oi.SpecialInstructions.NullIfEmpty(),
-            SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null);
+            SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null,
+            CourseNumber: oi.CourseNumber);
 
     /// <summary>
     /// Coerces <c>null</c> or empty-string to <c>null</c>; otherwise returns

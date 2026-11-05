@@ -8,6 +8,10 @@ public record Address
     public string ZipCode { get; } = default!;
     public string Country { get; } = default!;
 
+    public static readonly Address None = new(string.Empty, string.Empty, string.Empty, "00000", string.Empty);
+
+    public bool IsNone => ReferenceEquals(this, None) || (Street == string.Empty && City == string.Empty && ZipCode == "00000");
+
     protected Address() { }
 
     private Address(string street, string city, string state, string zipCode, string country)

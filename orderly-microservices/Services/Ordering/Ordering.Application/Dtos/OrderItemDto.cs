@@ -20,5 +20,6 @@ public record OrderItemDto(
     PrepStatus PrepStatus,
     Instant CreatedAt,
     Instant? PrepStartedAt,
-    Instant? PrepCompletedAt
+    Instant? PrepCompletedAt,
+    int? CourseNumber = null
 );

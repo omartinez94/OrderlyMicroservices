@@ -15,6 +15,14 @@ public record Payment
     public string Brand { get; }
     public string LastFour { get; }
 
+    /// <summary>
+    /// Sentinel instance representing deferred / unpaid orders (e.g. POS Dine-In/Takeout).
+    /// Persisted with Unspecified method and "Pending" brand to satisfy non-null column constraints.
+    /// </summary>
+    public static readonly Payment Pending = new(PaymentMethod.Unspecified, "Pending", "0000");
+
+    public bool IsPending => ReferenceEquals(this, Pending) || (Method == PaymentMethod.Unspecified && Brand == "Pending");
+
     private Payment(PaymentMethod method, string brand, string lastFour)
     {
         Method = method;

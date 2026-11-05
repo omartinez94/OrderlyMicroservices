@@ -39,6 +39,9 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(oi => oi.TotalPrice)
             .HasPrecision(18, 2);
 
+        builder.Property(oi => oi.CourseNumber)
+            .IsRequired(false);
+
         builder.Property(oi => oi.PrepStatus)
             .HasDefaultValue(PrepStatus.Pending)
             .HasConversion(

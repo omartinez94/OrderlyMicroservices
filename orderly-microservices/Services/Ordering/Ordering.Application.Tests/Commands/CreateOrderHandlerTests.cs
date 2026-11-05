@@ -284,4 +284,99 @@ public sealed class CreateOrderHandlerTests
         itemPreview.Customizations.Should().ContainSingle().Which.Should().BeEquivalentTo(customization);
         itemPreview.SelectedVariations.Should().ContainSingle().Which.Should().BeEquivalentTo(variation);
     }
+
+    [Fact]
+    public async Task Handle_PosDineInWithEmptyCustomerAndNullPayment_SubstitutesWalkInAndPendingPayment()
+    {
+        Guid restaurantId = Guid.NewGuid();
+        Guid expectedWalkInId = WalkInCustomer.IdFor(restaurantId);
+
+        OrderItemDto itemDto = new(
+            Id: Guid.NewGuid(),
+            OrderId: Guid.NewGuid(),
+            MenuItemId: Guid.NewGuid(),
+            MenuItemName: "Burger",
+            MenuItemDescription: "Tasty",
+            MenuItemImageUrl: "https://example.test/burger.png",
+            Quantity: 1,
+            UnitPrice: 10m,
+            BasePrice: 10m,
+            TotalPrice: 10m,
+            SeatNumber: 2,
+            SpecialInstructions: string.Empty,
+            Customizations: [],
+            SelectedVariations: [],
+            PrepStatus: PrepStatus.Pending,
+            CreatedAt: SystemClock.Instance.GetCurrentInstant(),
+            PrepStartedAt: null,
+            PrepCompletedAt: null,
+            CourseNumber: 2);
+
+        OrderDto dto = new(
+            Id: Guid.NewGuid(),
+            CustomerId: Guid.Empty,
+            OrderNumber: "ORD-POS-1",
+            RestaurantId: restaurantId,
+            Currency: "USD",
+            Subtotal: 10m,
+            TaxRate: 0.1m,
+            TaxAmount: 1m,
+            DiscountAmount: 0m,
+            DiscountCode: string.Empty,
+            TotalAmount: 11m,
+            Status: OrderStatus.Pending,
+            OrderType: OrderType.DineIn,
+            BillingAddress: null,
+            DeliveryAddress: null,
+            DeliveryNotes: string.Empty,
+            DeliveryStatus: null,
+            DeliveryLatitude: null,
+            DeliveryLongitude: null,
+            Payment: null,
+            EstimatedPrepTimeMinutes: 10,
+            ActualPrepTimeMinutes: 0,
+            IsModified: false,
+            RequiresAdminApproval: false,
+            TableId: Guid.NewGuid(),
+            CreatedByUserId: Guid.NewGuid(),
+            ApprovedByAdminId: null,
+            ConfirmedByUserId: null,
+            CompletedByUserId: null,
+            ApprovedAt: null,
+            CancelledAt: null,
+            CompletedAt: null,
+            ConfirmedAt: null,
+            DeliveredAt: null,
+            PreparingStartedAt: null,
+            ReadyAt: null,
+            Notes: string.Empty,
+            OrderItems: [itemDto],
+            Activities: []);
+
+        IApplicationDbContext dbContext = Substitute.For<IApplicationDbContext>();
+        IOrderNumberGenerator orderNumberGenerator = Substitute.For<IOrderNumberGenerator>();
+        IOutboxPublisher outbox = Substitute.For<IOutboxPublisher>();
+        Order? captured = null;
+        dbContext.Orders.Add(Arg.Do<Order>(o => captured = o));
+        OrderCreatedIntegrationEvent? publishedEvent = null;
+        await outbox.PublishAsync(Arg.Do<OrderCreatedIntegrationEvent>(e => publishedEvent = e), Arg.Any<CancellationToken>());
+
+        CreateOrderHandler handler = new(dbContext, orderNumberGenerator, outbox);
+        CreateOrderResult result = await handler.Handle(new CreateOrderCommand(dto), CancellationToken.None);
+
+        result.Id.Should().NotBe(Guid.Empty);
+        captured.Should().NotBeNull();
+        captured!.CustomerId.Value.Should().Be(expectedWalkInId);
+        captured.BillingAddress.IsNone.Should().BeTrue();
+        captured.DeliveryAddress.IsNone.Should().BeTrue();
+        captured.Payment.IsPending.Should().BeTrue();
+
+        OrderItem capturedItem = captured.OrderItems.Single();
+        capturedItem.CourseNumber.Should().Be(2);
+
+        publishedEvent.Should().NotBeNull();
+        publishedEvent!.BillingAddress.Should().BeNull();
+        publishedEvent.DeliveryAddress.Should().BeNull();
+        publishedEvent.Items.Single().CourseNumber.Should().Be(2);
+    }
 }

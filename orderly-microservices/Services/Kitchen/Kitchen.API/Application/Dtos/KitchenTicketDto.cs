@@ -39,7 +39,8 @@ public record KitchenTicketItemDto(
     KitchenItemStatus Status,
     Instant? StartedAt,
     Instant? ReadyAt,
-    Guid? StationId);
+    Guid? StationId,
+    int? CourseNumber = null);
 
 public record KitchenStationDto(
     Guid Id,

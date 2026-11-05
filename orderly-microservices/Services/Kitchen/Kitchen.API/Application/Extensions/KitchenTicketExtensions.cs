@@ -48,7 +48,8 @@ public static class KitchenTicketExtensions
             Status: item.Status,
             StartedAt: item.StartedAt,
             ReadyAt: item.ReadyAt,
-            StationId: item.StationId);
+            StationId: item.StationId,
+            CourseNumber: item.CourseNumber);
     }
 
     public static KitchenStationDto ToDto(this KitchenStation station)

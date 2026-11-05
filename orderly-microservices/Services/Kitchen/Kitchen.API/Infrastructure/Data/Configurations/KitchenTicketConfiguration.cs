@@ -87,6 +87,7 @@ public class KitchenTicketConfiguration : IEntityTypeConfiguration<KitchenTicket
                     v => (IReadOnlyList<string>)v.ToList()));
             item.Property(i => i.SpecialInstructions).HasColumnName("SpecialInstructions").HasMaxLength(1000);
             item.Property(i => i.SeatNumber).HasColumnName("SeatNumber");
+            item.Property(i => i.CourseNumber).HasColumnName("CourseNumber");
             item.Property(i => i.Status)
                 .HasColumnName("Status")
                 .HasConversion<int>()

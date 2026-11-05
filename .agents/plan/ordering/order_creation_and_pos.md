@@ -16,8 +16,8 @@
 | 1 | POS Contract & Validation Refinement | ✅ Done |
 | 2 | Table & Seat Association Enforcement | ✅ Done |
 | 3 | Server-Side Tenant, Price, Availability & Idempotency | ✅ Done |
-| 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | ⏸ Pending |
-| 5 | Integration Tests & Phase Guard Validation | 🔒 Blocked |
+| 4 | Kitchen Persistence & SignalR Payload (CourseNumber) | ✅ Done |
+| 5 | Integration Tests & Phase Guard Validation | ⏸ Pending |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -161,10 +161,23 @@ OrderlyMicroservices/orderly-microservices/
 - [x] **Verification**: Added comprehensive unit tests in `CreateOrderHandlerTests` covering unknown items (422), unavailable items (409), seat capacity limits (422), price tampering overwrite, and idempotency replay. All 149 unit tests pass in `Ordering.Application.Tests`, and `orderly-microservices.slnx` builds with 0 errors.
 
 ### Phase 4: Kitchen Persistence & SignalR Payload
-- **Task 4.1**: Event serializes `CourseNumber` (nullable) and `SeatNumber`.
-- **Task 4.2**: Kitchen: add `CourseNumber` to `KitchenTicketItem`, `KitchenTicketConfiguration`, **PostgreSQL migration**, `KitchenTicketItemDto`/`KitchenTicketDto`, `KitchenTicket.CreateFromOrder`, `KitchenTicketExtensions`.
-- **Task 4.3**: `KitchenHub` `OrderReceived` payload includes seat and course; update the frontend Kitchen DTO types (coordinate with `order_creation_pos.md`).
-- **Verification**: `dotnet test Services/Kitchen/Kitchen.API.Tests`.
+- [x] **Task 4.1**: Event serializes `CourseNumber` (nullable) and `SeatNumber`.
+  - Verified `OrderCreatedIntegrationEvent` and `KitchenOrderItemPreview` contain `CourseNumber` (nullable `int?`) and `SeatNumber`.
+  - In `KitchenTicketExtensions.ToOrderItemSeeds`, mapped `CourseNumber` and `SeatNumber` into `OrderItemSeed`.
+- [x] **Task 4.2**: Kitchen: add `CourseNumber` to `KitchenTicketItem`, `KitchenTicketConfiguration`, **PostgreSQL migration**, `KitchenTicketItemDto`/`KitchenTicketDto`, `KitchenTicket.CreateFromOrder`, `KitchenTicketExtensions`.
+  - In `KitchenTicketItem.cs`: added `public int? CourseNumber { get; private set; }` and updated internal constructor.
+  - In `KitchenTicket.CreateFromOrder`: passed `seed.CourseNumber` to `KitchenTicketItem` creation.
+  - In `KitchenTicketConfiguration.cs`: configured `item.Property(i => i.CourseNumber).HasColumnName("CourseNumber")`.
+  - Added PostgreSQL EF Core migration `20261105012043_AddCourseNumberToKitchenTicketItem` and updated `KitchenDbContextModelSnapshot.cs`.
+  - In `KitchenTicketDto.cs`: added `int? CourseNumber = null` to `KitchenTicketItemDto`.
+  - In `KitchenTicketExtensions.ToDto(KitchenTicketItem)`: mapped `CourseNumber: item.CourseNumber`.
+- [x] **Task 4.3**: `KitchenHub` `OrderReceived` payload includes seat and course.
+  - Verified `KitchenHub` client broadcast `OrderReceived(ticket.ToDto())` and `TicketUpdated(ticket.ToDto())` serialize `CourseNumber` on each ticket item to connected clients.
+- [x] **Verification**:
+  - Added unit test `CreateFromOrder_PreservesCourseNumberAndSeatNumber` in `KitchenTicketTests.cs`.
+  - Added unit tests in `KitchenTicketExtensionsTests.cs` verifying `ToDto()` and `ToOrderItemSeeds()` preserve `CourseNumber`.
+  - Added unit tests in `OrderCreatedIntegrationEventHandlerTests.cs` verifying ticket persistence and SignalR broadcast include `CourseNumber`.
+  - All unit tests pass and `orderly-microservices.slnx` builds cleanly with 0 errors.
 
 ### Phase 5: Integration Tests & Phase Guard Validation
 - **Task 5.1**: `CreatePosOrderTests.cs` in `Ordering.API.Tests/Integration`: Dine-in with seats/courses/deferred payment → `201`; Takeout walk-in → `201`; foreign restaurant → `403`; unavailable item → `409`; tampered total overwritten; duplicate `Idempotency-Key` → same order; missing table on DineIn → `400`.

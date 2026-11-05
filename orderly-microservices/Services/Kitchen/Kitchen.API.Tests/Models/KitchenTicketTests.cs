@@ -58,6 +58,51 @@ public sealed class KitchenTicketTests
     }
 
     [Fact]
+    public void CreateFromOrder_PreservesCourseNumberAndSeatNumber()
+    {
+        var seedWithCourse = new OrderItemSeed(
+            OrderItemId: Guid.NewGuid(),
+            MenuItemId: Guid.NewGuid(),
+            MenuItemName: "Soup",
+            Quantity: 1,
+            UnitPrice: 5.50m,
+            SelectedVariations: [],
+            Customizations: [],
+            SpecialInstructions: null,
+            SeatNumber: 2,
+            CourseNumber: 1);
+
+        var seedWithoutCourse = new OrderItemSeed(
+            OrderItemId: Guid.NewGuid(),
+            MenuItemId: Guid.NewGuid(),
+            MenuItemName: "Steak",
+            Quantity: 1,
+            UnitPrice: 25.00m,
+            SelectedVariations: [],
+            Customizations: [],
+            SpecialInstructions: null,
+            SeatNumber: 2,
+            CourseNumber: null);
+
+        var ticket = KitchenTicket.CreateFromOrder(
+            orderId: Guid.NewGuid(),
+            restaurantId: Guid.NewGuid(),
+            customerId: Guid.NewGuid(),
+            orderNumber: "ORD-2026-0002",
+            itemSeeds: [seedWithCourse, seedWithoutCourse],
+            notes: string.Empty,
+            receivedAt: Now);
+
+        var firstItem = ticket.Items.First(i => i.OrderItemId == seedWithCourse.OrderItemId);
+        firstItem.CourseNumber.Should().Be(1);
+        firstItem.SeatNumber.Should().Be(2);
+
+        var secondItem = ticket.Items.First(i => i.OrderItemId == seedWithoutCourse.OrderItemId);
+        secondItem.CourseNumber.Should().BeNull();
+        secondItem.SeatNumber.Should().Be(2);
+    }
+
+    [Fact]
     public void CreateFromOrder_WithEmptyOrderId_Throws()
     {
         Action act = () => KitchenTicket.CreateFromOrder(

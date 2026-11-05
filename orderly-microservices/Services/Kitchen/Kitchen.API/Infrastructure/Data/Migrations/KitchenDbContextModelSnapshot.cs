@@ -228,6 +228,10 @@ namespace Kitchen.API.Infrastructure.Data.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("Id");
 
+                            b1.Property<int?>("CourseNumber")
+                                .HasColumnType("integer")
+                                .HasColumnName("CourseNumber");
+
                             b1.Property<string[]>("Customizations")
                                 .IsRequired()
                                 .HasColumnType("text[]")

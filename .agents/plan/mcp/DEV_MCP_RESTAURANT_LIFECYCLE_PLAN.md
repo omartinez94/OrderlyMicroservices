@@ -6,17 +6,17 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-11-06) — updated with verified codebase facts, OpenIddict login bridge, Redis "N"-format cache keys, and relational cascade deletion order.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.2` (2026-11-06) — all 6 phases complete. 28 tools registered and verified.
+> **Current state**: ✅ Done on 2026-11-06
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Core Profile & Operational Settings CRUD | ⏸ Pending |
-| 2 | Floorplan & Table Management | ⏸ Pending |
-| 3 | Menu Hierarchy, Items, Variations & Inventory CRUD | ⏸ Pending |
-| 4 | Staff Provisioning Bridge via Identity Login | ⏸ Pending |
-| 5 | Composite Scaffolding & Multi-DB Cascading Purge | ⏸ Pending |
-| 6 | Wire Testing, OpenAPI Sync & Tool Registration | ⏸ Pending |
+| 1 | Core Profile & Operational Settings CRUD | ✅ Done (2026-11-06) |
+| 2 | Floorplan & Table Management | ✅ Done (2026-11-06) |
+| 3 | Menu Hierarchy, Items, Variations & Inventory CRUD | ✅ Done (2026-11-06) |
+| 4 | Staff Provisioning Bridge via Identity Login | ✅ Done (2026-11-06) |
+| 5 | Composite Scaffolding & Multi-DB Cascading Purge | ✅ Done (2026-11-06) |
+| 6 | Wire Testing, OpenAPI Sync & Tool Registration | ✅ Done (2026-11-06) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -401,9 +401,9 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 1 — Core Profile & Settings
 **Goal**: Allow creating, updating, and querying restaurant metadata and operational settings.
 **Deliverables**:
-- [ ] Implement `src/util/cache-invalidation.ts` with "N" format helper.
-- [ ] Implement `src/tools/restaurant-lifecycle.ts` with `create_restaurant`, `update_restaurant`, and `get_restaurant`.
-- [ ] Support custom ShortId generation with `rst_` prefix (capped at 16 chars).
+- [x] Implement `src/util/cache-invalidation.ts` with "N" format helper.
+- [x] Implement `src/tools/restaurant-lifecycle.ts` with `create_restaurant`, `update_restaurant`, and `get_restaurant`.
+- [x] Support custom ShortId generation with `rst_` prefix (capped at 16 chars).
 **Exit criteria**: Running `create_restaurant` returns valid UUID and ShortId; `get_restaurant` reflects persisted changes in `catalogdb`.
 
 ---
@@ -411,9 +411,9 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 2 — Floorplan & Tables
 **Goal**: Enable dynamic floorplan creation and table status management.
 **Deliverables**:
-- [ ] Implement `src/tools/restaurant-tables.ts` (`manage_restaurant_tables`).
-- [ ] Support individual table CRUD and `bulk_layout` batch insert.
-- [ ] Enforce unique constraint `(RestaurantId, TableNumber)` and handle `MergedTables` dependencies.
+- [x] Implement `src/tools/restaurant-tables.ts` (`manage_restaurant_tables`).
+- [x] Support individual table CRUD and `bulk_layout` batch insert.
+- [x] Enforce unique constraint `(RestaurantId, TableNumber)` and handle `MergedTables` dependencies.
 **Exit criteria**: Executing `manage_restaurant_tables(action='bulk_layout')` creates 12 tables with unique `tbl_` ShortIds and coordinate positions.
 
 ---
@@ -421,10 +421,10 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 3 — Menu Hierarchy, Items, Variations & Inventory
 **Goal**: Deliver full CRUD capabilities for menu engineering with coursing and Redis eviction.
 **Deliverables**:
-- [ ] Implement `src/tools/restaurant-menu.ts` (`manage_restaurant_menu`).
-- [ ] Support category hierarchy, item creation with `default_course_number`, base prices, images, and variation options.
-- [ ] Implement ingredient stock adjustments and availability toggles.
-- [ ] Invalidate Redis `catalog:menu:{id:N}` on every modification.
+- [x] Implement `src/tools/restaurant-menu.ts` (`manage_restaurant_menu`).
+- [x] Support category hierarchy, item creation with `default_course_number`, base prices, images, and variation options.
+- [x] Implement ingredient stock adjustments and availability toggles.
+- [x] Invalidate Redis `catalog:menu:{id:N}` on every modification.
 **Exit criteria**: Can create a Category, add a MenuItem with 2 variations and course number, and verify the Redis cache key is cleared.
 
 ---
@@ -432,9 +432,9 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 4 — Staff Provisioning Bridge via Identity Login
 **Goal**: Bridge DevMCP to `Identity.API` for secure staff onboarding and restaurant binding.
 **Deliverables**:
-- [ ] Implement `src/util/identity-api-client.ts` with auto-login via `admin@orderly.com / Admin@123456` to acquire and cache an OpenIddict bearer token.
-- [ ] Implement `src/tools/restaurant-staff.ts` (`manage_restaurant_staff`).
-- [ ] Support user creation, role assignment (including `KitchenManager`), and `UserRestaurants` default mapping.
+- [x] Implement `src/util/identity-api-client.ts` with auto-login via `admin@orderly.com / Admin@123456` to acquire and cache an OpenIddict bearer token.
+- [x] Implement `src/tools/restaurant-staff.ts` (`manage_restaurant_staff`).
+- [x] Support user creation, role assignment (including `KitchenManager`), and `UserRestaurants` default mapping.
 **Exit criteria**: `manage_restaurant_staff` successfully creates a new user, assigns `KitchenManager` role, and verifies the user in `identitydb`.
 
 ---
@@ -442,9 +442,9 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 5 — Composite Scaffolding & Multi-DB Cascading Purge
 **Goal**: Provide one-shot instant restaurant setup and clean reverse-topological tenant obliteration.
 **Deliverables**:
-- [ ] Add seed presets (`bistro`, `pizzeria`, `taqueria`) in `resources/seeds/presets/`.
-- [ ] Implement `src/tools/restaurant-scaffold.ts` (`scaffold_restaurant`).
-- [ ] Implement `purge_restaurant` in `src/tools/restaurant-lifecycle.ts` reusing `flush_orders` and executing reverse-topological SQL deletion.
+- [x] Add seed presets (`bistro`, `pizzeria`, `taqueria`) in `resources/seeds/presets/`.
+- [x] Implement `src/tools/restaurant-scaffold.ts` (`scaffold_restaurant`).
+- [x] Implement `purge_restaurant` in `src/tools/restaurant-lifecycle.ts` reusing `flush_orders` and executing reverse-topological SQL deletion.
 **Exit criteria**: Running `scaffold_restaurant` produces a ready-to-use restaurant in <1 second; `purge_restaurant` cleanly removes all tenant records without foreign key errors.
 
 ---
@@ -452,10 +452,10 @@ OrderlyMicroservices/orderly-microservices/Orderly.DevMCP.Server/
 ### Phase 6 — Wire Testing, Tool Registration & Verification
 **Goal**: Complete end-to-end integration and MCP protocol verification.
 **Deliverables**:
-- [ ] Register all new tools in `src/index.ts`.
-- [ ] Author wire tests in `test/wire/restaurant-lifecycle.wire.test.ts`.
-- [ ] Update `Orderly.DevMCP.Server/README.md` documentation.
-- [ ] Run `pnpm typecheck` and `pnpm test`.
+- [x] Register all new tools in `src/index.ts`.
+- [x] Author wire tests in `test/wire/restaurant-lifecycle.wire.test.ts`.
+- [x] Update `Orderly.DevMCP.Server/README.md` documentation.
+- [x] Run `pnpm typecheck` and `pnpm test`.
 **Exit criteria**: All wire tests pass and the server boot log reports the expanded tool count over Streamable HTTP.
 
 ---

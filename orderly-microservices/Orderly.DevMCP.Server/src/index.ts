@@ -56,6 +56,11 @@ import { registerEventBusTools } from './tools/event-bus.ts';
 import { registerInfrastructureTools } from './tools/infrastructure.ts';
 import { registerJobsTools } from './tools/jobs.ts';
 import { registerFlowTracingTools } from './tools/flow-tracing.ts';
+import { registerRestaurantLifecycleTools } from './tools/restaurant-lifecycle.ts';
+import { registerRestaurantTablesTools } from './tools/restaurant-tables.ts';
+import { registerRestaurantMenuTools } from './tools/restaurant-menu.ts';
+import { registerRestaurantStaffTools } from './tools/restaurant-staff.ts';
+import { registerRestaurantScaffoldTools } from './tools/restaurant-scaffold.ts';
 
 // ─── Step 1: Banner log (logger is initialised above) ─────────────────────────
 
@@ -125,10 +130,11 @@ function createMcpInstance(): { mcp: McpServer; transport: StreamableHTTPServerT
       capabilities: {},
       instructions:
         'Local-only MCP server for the Orderly backend. Refuses to run unless NODE_ENV=development. ' +
-        'Ships 20 tools across 10 modules: API discovery, auth (HS256 dev tokens), state inspection, ' +
-        'system snapshot + watcher, log tracing, data seeding (catalog menu + mock orders), event bus ' +
-        '(publish + DLQ inspection), infrastructure (DB reset + flush orders + outage simulation), and jobs ' +
-        '(historical sales + scheduled triggers).',
+        'Ships 28 tools across 14 modules: restaurant lifecycle (scaffolding + profile CRUD + cascading purge), ' +
+        'tables/floorplans, menu hierarchy + items + variations, staff provisioning + role binding, ' +
+        'API discovery, auth (HS256 dev tokens), state inspection, system snapshot + watcher, log tracing, ' +
+        'data seeding (catalog menu + mock orders), event bus (publish + DLQ inspection), ' +
+        'infrastructure (DB reset + flush orders + outage simulation), and jobs (historical sales + scheduled triggers).',
     },
   );
 
@@ -142,6 +148,11 @@ function createMcpInstance(): { mcp: McpServer; transport: StreamableHTTPServerT
   registerInfrastructureTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
   registerJobsTools(mcp, { logger, mssql: toolCtx.mssql });
   registerFlowTracingTools(mcp, { logger, ctx: toolCtx });
+  registerRestaurantLifecycleTools(mcp, { logger, pg: toolCtx.pg, mssql: toolCtx.mssql, redis: toolCtx.redis });
+  registerRestaurantTablesTools(mcp, { logger, pg: toolCtx.pg });
+  registerRestaurantMenuTools(mcp, { logger, pg: toolCtx.pg, redis: toolCtx.redis });
+  registerRestaurantStaffTools(mcp, { logger, pg: toolCtx.pg });
+  registerRestaurantScaffoldTools(mcp, { logger, pg: toolCtx.pg, redis: toolCtx.redis });
 
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
@@ -174,7 +185,7 @@ function createMcpInstance(): { mcp: McpServer; transport: StreamableHTTPServerT
   return { mcp, transport };
 }
 
-logger.info({ tools: 20 }, 'phase 4 ready — 20 tools registered across modular sessions');
+logger.info({ tools: 28 }, 'ready — 28 tools registered across modular sessions');
 
 // ─── Step 5: HTTP server ─────────────────────────────────────────────────────
 

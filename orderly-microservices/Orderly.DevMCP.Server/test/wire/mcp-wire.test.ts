@@ -60,7 +60,7 @@ function requireServer(t: { skip: (msg: string) => void }): McpTestClient {
     t.skip(
       `No MCP server reachable at ${DEFAULT_MCP_URL}. Start it with \`pnpm dev\` (and the dev stack via \`docker compose up -d\`) to run the wire tests.`,
     );
-    throw new Error('skipped');
+    return null as unknown as McpTestClient;
   }
   return client;
 }
@@ -92,7 +92,7 @@ function assertGraceful(tool: string, result: { text: string; data: unknown; isE
 
 describe('MCP protocol surface', () => {
   test('server completes the MCP handshake and lists every tool', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const names = await c.toolNames();
     assert.ok(names.length > 0, 'server advertised no tools');
@@ -105,7 +105,7 @@ describe('MCP protocol surface', () => {
   });
 
   test('every tool advertises a usable input schema', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     for (const tool of await c.toolDescriptors()) {
       const schema = tool.inputSchema as { type?: string; properties?: Record<string, unknown> };
@@ -120,7 +120,7 @@ describe('MCP protocol surface', () => {
   });
 
   test('calling an unknown tool returns an error, not a crash', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     // The MCP SDK surfaces an unknown tool as an error RESULT
     // (`isError: true`) rather than a thrown protocol error, so
@@ -147,7 +147,7 @@ describe('MCP protocol surface', () => {
 
 describe('read-only tools return real data over the wire', () => {
   test('get_system_snapshot returns every section populated', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('get_system_snapshot', {});
     assertGraceful('get_system_snapshot', res);
@@ -165,7 +165,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('get_api_schema resolves a schema for every service', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     for (const service of ['catalog', 'basket', 'ordering', 'kitchen', 'identity', 'discount']) {
       const res = await c.callTool('get_api_schema', { serviceName: service });
@@ -181,7 +181,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('generate_dev_token and verify_token round-trip', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const gen = await c.callTool('generate_dev_token', {
       role: 'Manager',
@@ -204,7 +204,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('verify_token rejects a tampered token without crashing', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const gen = await c.callTool('generate_dev_token', { role: 'Staff' });
     const token = (gen.data as { token?: string }).token ?? '';
@@ -220,7 +220,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('get_recent_logs returns container output', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('get_recent_logs', { serviceName: 'catalog', lines: 5 });
     assertGraceful('get_recent_logs', res);
@@ -229,7 +229,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('inspect_dead_letters returns the broker queue state', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('inspect_dead_letters', { limitPerQueue: 1 });
     assertGraceful('inspect_dead_letters', res);
@@ -238,7 +238,7 @@ describe('read-only tools return real data over the wire', () => {
   });
 
   test('get_flow_architecture returns a diagram for every flow', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     for (const flowName of ['checkout', 'kitchen-order-lifecycle', 'discount-application']) {
       const res = await c.callTool('get_flow_architecture', { flowName });
@@ -253,7 +253,7 @@ describe('read-only tools return real data over the wire', () => {
 
 describe('mutating tools are safe and well-behaved over the wire', () => {
   test('seed_test_menu is idempotent', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const first = await c.callTool('seed_test_menu', {});
     assertGraceful('seed_test_menu', first);
@@ -265,7 +265,7 @@ describe('mutating tools are safe and well-behaved over the wire', () => {
   });
 
   test('seed_historical_sales is idempotent', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const args = { restaurantId: SEEDED_RESTAURANT_ID, daysBack: 2, ordersPerDay: 2 };
     const first = await c.callTool('seed_historical_sales', args);
@@ -281,7 +281,7 @@ describe('mutating tools are safe and well-behaved over the wire', () => {
   });
 
   test('publish_integration_event accepts a valid event', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('publish_integration_event', {
       eventName: 'KitchenOrderAcceptedIntegrationEvent',
@@ -292,7 +292,7 @@ describe('mutating tools are safe and well-behaved over the wire', () => {
   });
 
   test('an unknown event type is rejected gracefully', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('publish_integration_event', {
       eventName: 'NoSuchIntegrationEvent',
@@ -303,7 +303,7 @@ describe('mutating tools are safe and well-behaved over the wire', () => {
   });
 
   test('trigger_scheduled_jobs reaches the dev trigger endpoint', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('trigger_scheduled_jobs', { jobName: 'outbox-relay' });
     assertGraceful('trigger_scheduled_jobs', res);
@@ -313,7 +313,7 @@ describe('mutating tools are safe and well-behaved over the wire', () => {
 
 describe('destructive tools refuse without proper confirmation', () => {
   test('reset_databases refuses a partial confirmation', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     // `targets` defaults to ALL five databases. Confirming a single
     // one must NOT be enough — that would wipe the whole stack on a
@@ -328,7 +328,7 @@ describe('destructive tools refuse without proper confirmation', () => {
   });
 
   test('reset_databases refuses a missing confirmation', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('reset_databases', { targets: ['catalog'] });
     assertGraceful('reset_databases(no-confirm)', res);
@@ -336,7 +336,7 @@ describe('destructive tools refuse without proper confirmation', () => {
   });
 
   test('simulate_service_outage refuses a non-allowlisted container', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     // The broker and the databases must never be stoppable.
     for (const container of ['messagebroker', 'catalogdb', 'orderdb']) {
@@ -352,7 +352,7 @@ describe('destructive tools refuse without proper confirmation', () => {
 
 describe('argument validation happens server-side, not as a crash', () => {
   test('invalid arguments produce a validation error, not a stack trace', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const cases: Array<{ tool: string; args: Record<string, unknown> }> = [
       { tool: 'get_api_schema', args: { serviceName: 'not-a-service' } },
@@ -382,7 +382,7 @@ describe('argument validation happens server-side, not as a crash', () => {
   });
 
   test('a tool called with no arguments still answers', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     // Every tool must either succeed or return a structured error —
     // never hang, never crash the transport.
@@ -393,7 +393,7 @@ describe('argument validation happens server-side, not as a crash', () => {
 
 describe('the checkout flow runs end-to-end and reports honestly', () => {
   test('trace_business_flow(checkout) completes and reports a truthful verdict', async (t) => {
-    const c = requireServer(t);
+    const c = requireServer(t); if (!c) return; if (!c) return;
 
     const res = await c.callTool('trace_business_flow', { flowName: 'checkout' });
     assertGraceful('trace_business_flow(checkout)', res);

@@ -11,7 +11,7 @@
 
 ## 1. What it does
 
-20 tools across 10 modules (Phase 1 + 2 + 3 + 4 complete):
+28 tools across 15 modules:
 
 | Module | Tools |
 |---|---|

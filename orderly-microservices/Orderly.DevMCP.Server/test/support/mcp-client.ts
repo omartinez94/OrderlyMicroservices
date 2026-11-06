@@ -46,6 +46,14 @@ export const EXPECTED_TOOLS = [
   'trace_business_flow',
   'get_flow_architecture',
   'verify_flow_state',
+  'create_restaurant',
+  'update_restaurant',
+  'get_restaurant',
+  'purge_restaurant',
+  'manage_restaurant_tables',
+  'manage_restaurant_menu',
+  'manage_restaurant_staff',
+  'scaffold_restaurant',
 ] as const;
 
 export interface CallResult {

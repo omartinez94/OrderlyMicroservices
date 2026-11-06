@@ -1,0 +1,54 @@
+{
+  "name": "Taqueria Archetype",
+  "categories": [
+    { "name": "Entradas", "displayOrder": 1 },
+    { "name": "Tacos & Especialidades", "displayOrder": 2 },
+    { "name": "Postres", "displayOrder": 3 },
+    { "name": "Aguas Frescas & Cervezas", "displayOrder": 4 }
+  ],
+  "items": [
+    {
+      "name": "Guacamole Tradicional",
+      "categoryName": "Entradas",
+      "description": "Aguacate machacado con pico de gallo, cilantro, lima y totopos de maíz.",
+      "basePrice": 95.00,
+      "prepTimeMinutes": 5,
+      "defaultCourseNumber": 1,
+      "imageUrl": "https://images.unsplash.com/photo-1541288097308-7b8e3f58c4c6",
+      "variations": []
+    },
+    {
+      "name": "Tacos al Pastor (Orden de 4)",
+      "categoryName": "Tacos & Especialidades",
+      "description": "Cerdo marinado al trompo, piña asada, cebolla y cilantro en tortilla de maíz.",
+      "basePrice": 160.00,
+      "prepTimeMinutes": 10,
+      "defaultCourseNumber": 2,
+      "imageUrl": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b",
+      "variations": [
+        { "name": "Tortilla", "variationValue": "Maiz", "priceModifier": 0.00, "isDefault": true },
+        { "name": "Tortilla", "variationValue": "Harina con Queso", "priceModifier": 35.00, "isDefault": false }
+      ]
+    },
+    {
+      "name": "Churros con Cajeta",
+      "categoryName": "Postres",
+      "description": "Churros crujientes espolvoreados con azúcar y canela, acompañados de cajeta.",
+      "basePrice": 85.00,
+      "prepTimeMinutes": 6,
+      "defaultCourseNumber": 3,
+      "imageUrl": "https://images.unsplash.com/photo-1624300629298-e9de39c13be5",
+      "variations": []
+    },
+    {
+      "name": "Agua de Horchata (1L)",
+      "categoryName": "Aguas Frescas & Cervezas",
+      "description": "Bebida artesanal de arroz con leche, canela y vainilla.",
+      "basePrice": 50.00,
+      "prepTimeMinutes": 3,
+      "defaultCourseNumber": 1,
+      "imageUrl": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd",
+      "variations": []
+    }
+  ]
+}

@@ -6,16 +6,16 @@
 
 ## Status
 
-> **Plan version**: `v1.0` (2026-11-06) — initial plan drafted after security audit.
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.1` (2026-11-06) — all phases implemented, verified, and merged.
+> **Current state**: ✅ Complete
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | DevMCP Transport Hardening & Secret Guard | ⏸ Pending |
-| 2 | Restaurant Lifecycle RBAC & Tenant Boundary Isolation | ⏸ Pending |
-| 3 | Identity.API Privilege Escalation & Role Assignment Guard | ⏸ Pending |
-| 4 | Catalog Tables, Floorplan & Reservations Authorization | ⏸ Pending |
-| 5 | Cross-Service Verification & Security Test Suite | ⏸ Pending |
+| 1 | DevMCP Transport Hardening & Secret Guard | ✅ Done (2026-11-06) |
+| 2 | Restaurant Lifecycle RBAC & Tenant Boundary Isolation | ✅ Done (2026-11-06) |
+| 3 | Identity.API Privilege Escalation & Role Assignment Guard | ✅ Done (2026-11-06) |
+| 4 | Catalog Tables, Floorplan & Reservations Authorization | ✅ Done (2026-11-06) |
+| 5 | Cross-Service Verification & Security Test Suite | ✅ Done (2026-11-06) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -175,18 +175,18 @@ flowchart TD
 ## 7. Plan Verification Checklists
 
 ### Phase 1 Check
-- [ ] DevMCP refuses connections missing `x-dev-secret`.
-- [ ] DevMCP defaults to `127.0.0.1`.
+- [x] DevMCP refuses connections missing `x-dev-secret`.
+- [x] DevMCP defaults to `127.0.0.1`.
 
 ### Phase 2 Check
-- [ ] Non-SuperAdmin cannot create or delete restaurants.
-- [ ] RestaurantAdmin cannot update another restaurant's configuration.
+- [x] Non-SuperAdmin cannot create or delete restaurants.
+- [x] RestaurantAdmin cannot update another restaurant's configuration.
 
 ### Phase 3 Check
-- [ ] RestaurantAdmin cannot assign `SuperAdmin` role to any account.
+- [x] RestaurantAdmin cannot assign `SuperAdmin` role to any account.
 
 ### Phase 4 Check
-- [ ] Anonymous clients receive 401 on Table and Reservation mutation routes.
+- [x] Anonymous clients receive 401 on Table and Reservation mutation routes.
 
 ### Phase 5 Check
-- [ ] All automated tests pass across Catalog.API, Identity.API, and DevMCP.
+- [x] All automated tests pass across Catalog.API, Identity.API, and DevMCP.

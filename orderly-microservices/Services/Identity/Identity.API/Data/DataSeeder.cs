@@ -120,6 +120,14 @@ public static class DataSeeder
 
             // Dashboard
             new() { Id = Guid.NewGuid(), Name = "dashboard:view", Description = "View restaurant operations live dashboard", Resource = "dashboard", Action = "view" },
+
+            // Restaurants & Tenant Provisioning
+            new() { Id = Guid.NewGuid(), Name = "restaurants:create", Description = "Create new restaurant tenant", Resource = "restaurants", Action = "create" },
+            new() { Id = Guid.NewGuid(), Name = "restaurants:edit", Description = "Edit restaurant configuration", Resource = "restaurants", Action = "edit" },
+            new() { Id = Guid.NewGuid(), Name = "restaurants:delete", Description = "Delete restaurant tenant", Resource = "restaurants", Action = "delete" },
+
+            // Catalog & Brand Administration
+            new() { Id = Guid.NewGuid(), Name = "catalog:menu_update", Description = "Catalog and Brand management", Resource = "catalog", Action = "menu_update" },
         };
 
         bool hasNewPermissions = false;
@@ -148,8 +156,9 @@ public static class DataSeeder
             ["RestaurantAdmin"] = new()
             {
                 "users:view_all", "users:create", "users:edit", "users:assign_roles", "users:assign_restaurants",
-                "roles:view", "roles:edit", "roles:edit_permissions",
+                "roles:view",
                 "permissions:view",
+                "restaurants:edit",
                 "orders:view_all", "orders:modify_confirmed", "orders:modify_ready", "orders:admin",
                 "orders:write", "orders:cancel", "orders:request_cancel", "orders:approve_cancel",
                 "menu:view", "menu:toggle", "menu:edit",
@@ -277,10 +286,11 @@ public static class DataSeeder
 
         ApplicationUser? admin = new ApplicationUser
         {
+            Id = Guid.Parse("2a8c3d7e-9f14-4b5a-8c62-1d3e5f7a9b0c"),
             UserName = adminEmail,
             Email = adminEmail,
-            FirstName = "System",
-            LastName = "Administrator",
+            FirstName = "Sofía",
+            LastName = "Mendoza",
             CreatedAt = DateTimeOffset.UtcNow,
             IsActive = true,
             EmailConfirmed = true,
@@ -311,12 +321,40 @@ public static class DataSeeder
 
         var users = new[]
         {
-            new { Email = "admin@acme.com", FirstName = "Acme", LastName = "Admin", Role = "RestaurantAdmin" },
-            new { Email = "manager@acme.com", FirstName = "Acme", LastName = "Manager", Role = "Manager" },
-            new { Email = "kitchen@acme.com", FirstName = "Acme", LastName = "Kitchen", Role = "KitchenManager" },
+            // RestaurantAdmin - Carlos Valenzuela
+            new { Id = Guid.Parse("3b9d4e8f-0a25-4c6b-9d73-2e4f6a8b0c1d"), Email = "carlos.valenzuela@acme.com", FirstName = "Carlos", LastName = "Valenzuela", Role = "RestaurantAdmin" },
+            new { Id = Guid.NewGuid(), Email = "admin@acme.com", FirstName = "Carlos", LastName = "Valenzuela", Role = "RestaurantAdmin" },
+
+            // Manager - Valeria Treviño
+            new { Id = Guid.Parse("4c0e5f9a-1b36-4d7c-0e84-3f5a7b9c1d2e"), Email = "valeria.trevino@acme.com", FirstName = "Valeria", LastName = "Treviño", Role = "Manager" },
+            new { Id = Guid.NewGuid(), Email = "manager@acme.com", FirstName = "Valeria", LastName = "Treviño", Role = "Manager" },
+
+            // KitchenManager - Chef Mateo Benítez
+            new { Id = Guid.Parse("5d1f6a0b-2c47-4e8d-1f95-4a6b8c0d2e3f"), Email = "mateo.benitez@acme.com", FirstName = "Mateo", LastName = "Benítez", Role = "KitchenManager" },
+            new { Id = Guid.NewGuid(), Email = "kitchen@acme.com", FirstName = "Mateo", LastName = "Benítez", Role = "KitchenManager" },
+
+            // Waiter - Diego Garza
+            new { Id = Guid.Parse("6e2a7b1c-3d58-4f9e-2a06-5b7c9d1e3f4a"), Email = "diego.garza@acme.com", FirstName = "Diego", LastName = "Garza", Role = "Waiter" },
+            new { Id = Guid.NewGuid(), Email = "waiter@acme.com", FirstName = "Diego", LastName = "Garza", Role = "Waiter" },
+
+            // KitchenStaff - Rodrigo Morales
+            new { Id = Guid.Parse("7f3b8c2d-4e69-4a0f-3b17-6c8d0e2f4a5b"), Email = "rodrigo.morales@acme.com", FirstName = "Rodrigo", LastName = "Morales", Role = "KitchenStaff" },
+            new { Id = Guid.NewGuid(), Email = "staff@acme.com", FirstName = "Rodrigo", LastName = "Morales", Role = "KitchenStaff" },
+
+            // Host - Camila Herrera
+            new { Id = Guid.Parse("8a4c9d3e-5f70-4b1a-4c28-7d9e1f3a5b6c"), Email = "camila.herrera@acme.com", FirstName = "Camila", LastName = "Herrera", Role = "Host" },
+            new { Id = Guid.NewGuid(), Email = "host@acme.com", FirstName = "Camila", LastName = "Herrera", Role = "Host" },
+
+            // Cashier - Mariana Salinas
+            new { Id = Guid.Parse("9b5d0e4f-6a81-4c2b-5d39-8e0f2a4b6c7d"), Email = "mariana.salinas@acme.com", FirstName = "Mariana", LastName = "Salinas", Role = "Cashier" },
+            new { Id = Guid.NewGuid(), Email = "cashier@acme.com", FirstName = "Mariana", LastName = "Salinas", Role = "Cashier" },
         };
 
-        Guid restaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        Guid romaNorteId = Guid.Parse("e8d2a1b5-9c4f-4e7a-8f1d-2b3c4d5e6a7b");
+        Guid sanPedroId = Guid.Parse("c5b1e9a4-3f7d-4a8e-9c2b-6d7e8f1a2b3c");
+        Guid legacyRestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
+
+        Guid[] assignedRestaurants = [romaNorteId, sanPedroId, legacyRestaurantId];
 
         foreach (var u in users)
         {
@@ -325,6 +363,7 @@ public static class DataSeeder
             {
                 user = new ApplicationUser
                 {
+                    Id = u.Id,
                     UserName = u.Email,
                     Email = u.Email,
                     FirstName = u.FirstName,
@@ -341,15 +380,21 @@ public static class DataSeeder
                 }
             }
 
-            if (user is not null && !await dbContext.UserRestaurants.AnyAsync(ur => ur.UserId == user.Id && ur.RestaurantId == restaurantId, ct))
+            if (user is not null)
             {
-                dbContext.UserRestaurants.Add(new Models.UserRestaurant
+                foreach (Guid restaurantId in assignedRestaurants)
                 {
-                    UserId = user.Id,
-                    User = user,
-                    RestaurantId = restaurantId,
-                    IsDefault = true,
-                });
+                    if (!await dbContext.UserRestaurants.AnyAsync(ur => ur.UserId == user.Id && ur.RestaurantId == restaurantId, ct))
+                    {
+                        dbContext.UserRestaurants.Add(new Models.UserRestaurant
+                        {
+                            UserId = user.Id,
+                            User = user,
+                            RestaurantId = restaurantId,
+                            IsDefault = (restaurantId == romaNorteId),
+                        });
+                    }
+                }
             }
         }
 

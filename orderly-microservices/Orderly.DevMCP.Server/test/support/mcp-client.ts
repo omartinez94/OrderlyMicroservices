@@ -96,9 +96,18 @@ export class McpTestClient {
    * Connect to a running MCP server and complete the handshake.
    * Throws if the server is unreachable or does not speak MCP.
    */
-  static async connect(url: string = DEFAULT_MCP_URL): Promise<McpTestClient> {
+  static async connect(
+    url: string = DEFAULT_MCP_URL,
+    secret: string = process.env.DEV_TRIGGER_SECRET || 'dev-trigger-secret',
+  ): Promise<McpTestClient> {
     const client = new Client({ name: 'devmcp-wire-test', version: '1.0.0' });
-    const transport = new StreamableHTTPClientTransport(new URL(url));
+    const transport = new StreamableHTTPClientTransport(new URL(url), {
+      requestInit: {
+        headers: {
+          'x-dev-secret': secret,
+        },
+      },
+    });
     // The SDK's `Transport` interface declares `sessionId?: string`, but
     // `exactOptionalPropertyTypes` is on in this project, so the
     // transport's `string | undefined` is not assignable. The two

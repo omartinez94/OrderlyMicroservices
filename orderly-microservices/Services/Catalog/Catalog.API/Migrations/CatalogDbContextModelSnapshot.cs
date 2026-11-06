@@ -174,20 +174,37 @@ namespace Catalog.API.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("11111111-1111-1111-1111-111111111111"),
-                            ContactEmail = "",
-                            ContactPhone = "",
+                            Id = new Guid("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
+                            ContactEmail = "contacto@acme.mx",
+                            ContactPhone = "+52 55 5584 9231",
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
                             CreatedBy = "system",
-                            CuisineType = 16,
-                            Description = "",
+                            CuisineType = 2,
+                            Description = "Cantina tradicional y cocina mexicana contemporánea.",
                             IsActive = false,
                             LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
                             LastModifiedBy = "system",
                             LogoUrl = "https://placehold.co/100x100/png?text=Acme",
                             Name = "Acme",
-                            ShortId = "brd11111111",
-                            WebsiteUrl = ""
+                            ShortId = "brdm7k8x9pq",
+                            WebsiteUrl = "https://acme.mx"
+                        },
+                        new
+                        {
+                            Id = new Guid("f2c9e1b4-7a5d-4c8e-8b3f-1d4e5a6b7c8d"),
+                            ContactEmail = "contacto@kalaa.mx",
+                            ContactPhone = "+52 55 5280 4421",
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            CreatedBy = "system",
+                            CuisineType = 2,
+                            Description = "Alta gastronomía mexicana de raíz con técnicas ancestrales.",
+                            IsActive = false,
+                            LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            LastModifiedBy = "system",
+                            LogoUrl = "https://placehold.co/100x100/png?text=Kalaa",
+                            Name = "Kalaa",
+                            ShortId = "brdp3w4e6tr",
+                            WebsiteUrl = "https://kalaa.mx"
                         });
                 });
 
@@ -1228,25 +1245,69 @@ namespace Catalog.API.Migrations
                     b.HasData(
                         new
                         {
-                            Id = new Guid("22222222-2222-2222-2222-222222222222"),
-                            Address = "123 Acme St",
+                            Id = new Guid("e8d2a1b5-9c4f-4e7a-8f1d-2b3c4d5e6a7b"),
+                            Address = "Colima 168, Roma Norte, Cuauhtémoc, 06700 Ciudad de México, CDMX",
                             AllowAutoSubstitute = false,
                             AutoConfirmOrders = false,
                             AutoConfirmReservations = false,
-                            BrandId = new Guid("11111111-1111-1111-1111-111111111111"),
+                            BrandId = new Guid("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
                             CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
                             CreatedBy = "system",
                             Currency = "MXN",
-                            Email = "",
+                            Email = "romanorte@acme.mx",
                             EstimatedTurnoverMinutes = 30,
                             IsActive = false,
                             LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
                             LastModifiedBy = "system",
-                            Name = "Acme",
-                            PhoneNumber = "",
-                            ShortId = "rst22222222",
+                            Name = "Acme Cantina Tradicional - Roma Norte",
+                            PhoneNumber = "+52 55 5584 9231",
+                            ShortId = "rstv8n2k5mx",
+                            TaxRate = 0.16m,
+                            TimeZone = "America/Mexico_City"
+                        },
+                        new
+                        {
+                            Id = new Guid("c5b1e9a4-3f7d-4a8e-9c2b-6d7e8f1a2b3c"),
+                            Address = "Av. Vasconcelos 345, Del Valle, 66220 San Pedro Garza García, N.L.",
+                            AllowAutoSubstitute = false,
+                            AutoConfirmOrders = false,
+                            AutoConfirmReservations = false,
+                            BrandId = new Guid("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            CreatedBy = "system",
+                            Currency = "MXN",
+                            Email = "sanpedro@acme.mx",
+                            EstimatedTurnoverMinutes = 30,
+                            IsActive = false,
+                            LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            LastModifiedBy = "system",
+                            Name = "Acme Grill & Bar - San Pedro",
+                            PhoneNumber = "+52 81 8356 7410",
+                            ShortId = "rstc9h4w7tz",
                             TaxRate = 0.16m,
                             TimeZone = "America/Monterrey"
+                        },
+                        new
+                        {
+                            Id = new Guid("d1a7f3e5-8c2b-4e9d-9a4f-5b6c7d8e9f0a"),
+                            Address = "Campos Elíseos 204, Polanco, Miguel Hidalgo, 11560 Ciudad de México, CDMX",
+                            AllowAutoSubstitute = false,
+                            AutoConfirmOrders = false,
+                            AutoConfirmReservations = false,
+                            BrandId = new Guid("f2c9e1b4-7a5d-4c8e-8b3f-1d4e5a6b7c8d"),
+                            CreatedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            CreatedBy = "system",
+                            Currency = "MXN",
+                            Email = "polanco@kalaa.mx",
+                            EstimatedTurnoverMinutes = 30,
+                            IsActive = false,
+                            LastModifiedAt = NodaTime.Instant.FromUnixTimeTicks(17672256000000000L),
+                            LastModifiedBy = "system",
+                            Name = "Kalaa Cocina Raíz - Polanco",
+                            PhoneNumber = "+52 55 5280 4421",
+                            ShortId = "rstk2m8b4qy",
+                            TaxRate = 0.16m,
+                            TimeZone = "America/Mexico_City"
                         });
                 });
 

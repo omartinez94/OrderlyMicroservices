@@ -19,6 +19,7 @@ public class MergeTablesEndpoint : ICarterModule
 
             return Results.Created($"/v1/restaurants/{restaurantId}/merged-tables/{response.Id}", response);
         })
+        .RequirePermission("menu:edit")
         .WithDescription("Merges two tables.")
         .WithName("MergeTables")
         .Produces<MergeTablesResponse>(StatusCodes.Status201Created)

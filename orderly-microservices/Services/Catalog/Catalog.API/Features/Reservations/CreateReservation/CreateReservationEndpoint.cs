@@ -27,6 +27,7 @@ public class CreateReservationEndpoint : ICarterModule
 
             return Results.Created($"/v1/restaurants/{restaurantId}/reservations/{response.Id}", response);
         })
+        .RequirePermission("reservations:create")
         .WithDescription("Creates a new reservation.")
         .WithName("CreateReservation")
         .Produces<CreateReservationResponse>(StatusCodes.Status201Created)

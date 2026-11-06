@@ -17,6 +17,7 @@ public class GetMergedTablesEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:view")
         .WithDescription("Gets merged tables for a restaurant.")
         .WithName("GetMergedTables")
         .Produces<GetMergedTablesResponse>(StatusCodes.Status200OK)

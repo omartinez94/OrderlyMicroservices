@@ -180,19 +180,52 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
                 .IsUnique();
 
             // Seed
-            Restaurant? acmeRestaurant = new Restaurant
+            Restaurant? acmeRomaNorte = new Restaurant
             {
-                Id = Guid.Parse("22222222-2222-2222-2222-222222222222"),
-                ShortId = "rst22222222",
-                BrandId = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                Name = "Acme",
-                Address = "123 Acme St",
+                Id = Guid.Parse("e8d2a1b5-9c4f-4e7a-8f1d-2b3c4d5e6a7b"),
+                ShortId = "rstv8n2k5mx",
+                BrandId = Guid.Parse("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
+                Name = "Acme Cantina Tradicional - Roma Norte",
+                Address = "Colima 168, Roma Norte, Cuauhtémoc, 06700 Ciudad de México, CDMX",
+                PhoneNumber = "+52 55 5584 9231",
+                Email = "romanorte@acme.mx",
+                TaxRate = 0.16m,
+                Currency = "MXN",
+                TimeZone = "America/Mexico_City"
+            };
+            ((IAuditableEntity)acmeRomaNorte).CreatedFrom("system", SeedTimestamp);
+
+            Restaurant? acmeSanPedro = new Restaurant
+            {
+                Id = Guid.Parse("c5b1e9a4-3f7d-4a8e-9c2b-6d7e8f1a2b3c"),
+                ShortId = "rstc9h4w7tz",
+                BrandId = Guid.Parse("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
+                Name = "Acme Grill & Bar - San Pedro",
+                Address = "Av. Vasconcelos 345, Del Valle, 66220 San Pedro Garza García, N.L.",
+                PhoneNumber = "+52 81 8356 7410",
+                Email = "sanpedro@acme.mx",
                 TaxRate = 0.16m,
                 Currency = "MXN",
                 TimeZone = "America/Monterrey"
             };
-            ((IAuditableEntity)acmeRestaurant).CreatedFrom("system", SeedTimestamp);
-            entity.HasData(acmeRestaurant);
+            ((IAuditableEntity)acmeSanPedro).CreatedFrom("system", SeedTimestamp);
+
+            Restaurant? kalaaPolanco = new Restaurant
+            {
+                Id = Guid.Parse("d1a7f3e5-8c2b-4e9d-9a4f-5b6c7d8e9f0a"),
+                ShortId = "rstk2m8b4qy",
+                BrandId = Guid.Parse("f2c9e1b4-7a5d-4c8e-8b3f-1d4e5a6b7c8d"),
+                Name = "Kalaa Cocina Raíz - Polanco",
+                Address = "Campos Elíseos 204, Polanco, Miguel Hidalgo, 11560 Ciudad de México, CDMX",
+                PhoneNumber = "+52 55 5280 4421",
+                Email = "polanco@kalaa.mx",
+                TaxRate = 0.16m,
+                Currency = "MXN",
+                TimeZone = "America/Mexico_City"
+            };
+            ((IAuditableEntity)kalaaPolanco).CreatedFrom("system", SeedTimestamp);
+
+            entity.HasData(acmeRomaNorte, acmeSanPedro, kalaaPolanco);
         });
 
         // ═══════════════════════════════════════════════════
@@ -247,13 +280,33 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             // Seed
             Brand? acmeBrand = new Brand
             {
-                Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                ShortId = "brd11111111",
+                Id = Guid.Parse("a4f1c8e2-6b3d-4e9a-9f5c-8d1e2a3b4c5d"),
+                ShortId = "brdm7k8x9pq",
                 Name = "Acme",
-                LogoUrl = "https://placehold.co/100x100/png?text=Acme"
+                Description = "Cantina tradicional y cocina mexicana contemporánea.",
+                LogoUrl = "https://placehold.co/100x100/png?text=Acme",
+                ContactEmail = "contacto@acme.mx",
+                ContactPhone = "+52 55 5584 9231",
+                WebsiteUrl = "https://acme.mx",
+                CuisineType = BuildingBlocks.Enums.CuisineType.Mexican
             };
             ((IAuditableEntity)acmeBrand).CreatedFrom("system", SeedTimestamp);
-            entity.HasData(acmeBrand);
+
+            Brand? kalaaBrand = new Brand
+            {
+                Id = Guid.Parse("f2c9e1b4-7a5d-4c8e-8b3f-1d4e5a6b7c8d"),
+                ShortId = "brdp3w4e6tr",
+                Name = "Kalaa",
+                Description = "Alta gastronomía mexicana de raíz con técnicas ancestrales.",
+                LogoUrl = "https://placehold.co/100x100/png?text=Kalaa",
+                ContactEmail = "contacto@kalaa.mx",
+                ContactPhone = "+52 55 5280 4421",
+                WebsiteUrl = "https://kalaa.mx",
+                CuisineType = BuildingBlocks.Enums.CuisineType.Mexican
+            };
+            ((IAuditableEntity)kalaaBrand).CreatedFrom("system", SeedTimestamp);
+
+            entity.HasData(acmeBrand, kalaaBrand);
         });
 
         // ═══════════════════════════════════════════════════

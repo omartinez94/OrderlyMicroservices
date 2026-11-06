@@ -16,6 +16,7 @@ public class GetTableByIdEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:view")
         .WithDescription("Gets a table by id or short id.")
         .WithName("GetTableById")
         .Produces<GetTableByIdResponse>(StatusCodes.Status200OK)

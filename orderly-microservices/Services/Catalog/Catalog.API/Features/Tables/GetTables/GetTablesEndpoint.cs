@@ -18,6 +18,7 @@ public class GetTablesEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:view")
         .WithDescription("Gets a list of tables for a restaurant, optionally filtered by status.")
         .WithName("GetTables")
         .Produces<GetTablesResponse>(StatusCodes.Status200OK)

@@ -33,7 +33,10 @@ verb granularity at seed time).
 
 | Permission | Domain | Service | Method / endpoint guarded | Notes |
 |---|---|---|---|---|
-| `catalog:menu_update` | Restaurant menu (write) | Catalog.API | `POST/PUT/DELETE /v1/restaurants/*`, `POST/PUT/DELETE /v1/brands/*`, `POST/PUT/DELETE /v1/menu-categories/*`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/approve`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/reject` | Coarse "menu write" permission. Read endpoints (GET /restaurants, GET /brands, GET /menu-categories) remain anonymous. |
+| `restaurants:create` | Restaurant tenant creation | Catalog.API | `POST /v1/restaurants` | Platform root tenant creation. Strictly SuperAdmin only. |
+| `restaurants:edit` | Restaurant profile & settings | Catalog.API | `PUT /v1/restaurants/{id}` | Granted to SuperAdmin and RestaurantAdmin. Handlers enforce tenant isolation (`currentUser.RestaurantId == id`). |
+| `restaurants:delete` | Restaurant tenant deletion | Catalog.API | `DELETE /v1/restaurants/{id}` | Platform root tenant deletion. Strictly SuperAdmin only. |
+| `catalog:menu_update` | Brand & Bulk order management | Catalog.API | `POST/PUT/DELETE /v1/brands/*`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/approve`, `POST /v1/restaurants/{id}/bulk-order-uploads/{id}/reject` | Brand and bulk upload write permission. |
 | `orders:write` | Order lifecycle (create / mutate) | Ordering.API | `POST /v1/orders`, `PUT /v1/orders`, `DELETE /v1/orders/{id}` | Mirrors the kitchen `update_prep_status` shape. Granted to Waiter, Cashier, Manager, RestaurantAdmin via `RolePermissions`. Tenant-scoped via `ICurrentRestaurantProvider` global query filter on `ApplicationDBContext`. |
 | `orders:cancel` | Order lifecycle (cancel directly) | Ordering.API + Kitchen.API | `POST /v1/orders/{id}/cancel`, `POST /v1/kitchen/tickets/{id}/cancel` | Granted to Waiter, Cashier, Manager, RestaurantAdmin, KitchenManager, KitchenStaff (Waiter/Cashier restricted in handler to Pending orders; Manager/Admin/Kitchen allowed on any pre-Delivered state). |
 | `orders:request_cancel` | Order lifecycle (request cancel) | Ordering.API | `POST /v1/orders/{id}/request-cancel` | Granted to Waiter, Cashier, Host. Transition to `CancelRequested` when order has reached Confirmed, Preparing, or Ready. |

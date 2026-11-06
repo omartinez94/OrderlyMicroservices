@@ -18,6 +18,7 @@ public class GetWalkInQueueEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:view")
         .WithDescription("Gets the walk-in queue for a restaurant, optionally filtered by status.")
         .WithName("GetWalkInQueue")
         .Produces<GetWalkInQueueResponse>(StatusCodes.Status200OK)

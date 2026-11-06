@@ -18,6 +18,7 @@ public class SeatWalkInCustomerEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Seats a walk-in customer and assigns a table.")
         .WithName("SeatWalkInCustomer")
         .Produces<SeatWalkInCustomerResponse>(StatusCodes.Status200OK)

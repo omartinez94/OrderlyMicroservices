@@ -16,6 +16,7 @@ public class RemoveFromQueueEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Removes a customer from the walk-in queue (cancelled).")
         .WithName("RemoveFromQueue")
         .Produces<RemoveFromQueueResponse>(StatusCodes.Status200OK)

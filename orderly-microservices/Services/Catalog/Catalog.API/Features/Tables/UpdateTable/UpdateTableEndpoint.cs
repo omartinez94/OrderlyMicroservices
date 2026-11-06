@@ -25,6 +25,7 @@ public class UpdateTableEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:edit")
         .WithDescription("Updates a table.")
         .WithName("UpdateTable")
         .Produces<UpdateTableResponse>(StatusCodes.Status200OK)

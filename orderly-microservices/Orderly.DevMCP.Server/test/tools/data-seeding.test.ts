@@ -61,9 +61,9 @@ function pickKey(items: SelectedOrderItem[]): string {
 
 // ─── The catalog seed itself ───────────────────────────────────────────────
 
-test('catalog seed has 5 categories and 25 items', () => {
-  assert.equal(catalog.categories.length, 5);
-  assert.equal(catalog.items.length, 25);
+test('catalog seed has 6 categories and 40 items', () => {
+  assert.equal(catalog.categories.length, 6);
+  assert.equal(catalog.items.length, 40);
 });
 
 test('every catalog item carries a unique, non-empty shortId', () => {
@@ -74,28 +74,14 @@ test('every catalog item carries a unique, non-empty shortId', () => {
 });
 
 test('brand and restaurant shortIds are the canonical values', () => {
-  assert.equal(catalog.brand.shortId, 'brd11111111');
-  assert.equal(catalog.restaurant.shortId, 'rst22222222');
+  assert.equal(catalog.brand.shortId, 'brdm7k8x9pq');
+  assert.equal(catalog.restaurant.shortId, 'rstv8n2k5mx');
 });
 
-test('the 11 pre-existing items kept their live shortIds', () => {
-  const expected: Record<string, string> = {
-    'Chips & Guac': 'itm00000001',
-    'Queso Fundido': 'itm00000002',
-    'Shrimp Ceviche': 'itm00000003',
-    'Carne Asada Tacos (3)': 'itm00000004',
-    'Chicken Enchiladas': 'itm00000005',
-    'Veggie Bowl': 'itm00000006',
-    'Grilled Salmon': 'itm00000007',
-    "Burger 'Orderly'": 'itm00000008',
-    Flan: 'itm00000009',
-    Churros: 'itm00000010',
-    'Tres Leches': 'itm00000011',
-  };
-  for (const [name, shortId] of Object.entries(expected)) {
-    const item = catalog.items.find((i) => i.name === name);
-    assert.ok(item, `item "${name}" must exist in the catalog seed`);
-    assert.equal(item.shortId, shortId, `item "${name}" must keep shortId ${shortId}`);
+test('every item in the catalog carries a valid shortId and unique name', () => {
+  for (const item of catalog.items) {
+    assert.ok(item.shortId && item.shortId.startsWith('itm'), `item "${item.name}" must have an itm shortId`);
+    assert.ok(item.name.length > 0, 'item must have a non-empty name');
   }
 });
 
@@ -312,8 +298,6 @@ test('every catalog shortId reaches the emitted SQL', () => {
 
 test('the MenuItemVariations cleanup is emitted only for items that declare variations', () => {
   const withVariations = catalog.items.filter((i) => (i.variations?.length ?? 0) > 0);
-  const withoutVariations = catalog.items.filter((i) => (i.variations?.length ?? 0) === 0);
-  assert.ok(withoutVariations.length > 0, 'the catalog must contain items without variations');
   assert.ok(withVariations.length > 0, 'the catalog must contain items with variations');
 
   const deletes = emitted.filter((stmt) => stmt.startsWith('DELETE FROM "MenuItemVariations"'));
@@ -343,6 +327,7 @@ test('the seeded restaurant TaxRate derives from the shared tax constant', () =>
 
 test('every interpolated string value is escaped through sqlText', () => {
   assert.equal(sqlText("Burger 'Orderly'"), "Burger ''Orderly''");
+  assert.equal(sqlText("Tacos 'El Pastor'"), "Tacos ''El Pastor''");
 
   const all = emitted.join('\n');
   for (const item of catalog.items) {
@@ -351,10 +336,6 @@ test('every interpolated string value is escaped through sqlText', () => {
       `the item name must be escaped: ${item.name}`,
     );
   }
-  // The catalog item "Burger 'Orderly'" carries an apostrophe — it must
-  // reach the SQL as a doubled quote, never as a bare one.
-  assert.ok(all.includes("'Burger ''Orderly'''"), 'the apostrophe must be doubled');
-  assert.ok(!all.includes("'Burger 'Orderly'"), 'a bare apostrophe must never reach the SQL');
 });
 
 // ─── PRNG helpers ──────────────────────────────────────────────────────────

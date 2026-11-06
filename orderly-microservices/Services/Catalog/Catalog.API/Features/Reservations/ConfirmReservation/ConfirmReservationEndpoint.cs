@@ -16,6 +16,7 @@ public class ConfirmReservationEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Confirms a reservation.")
         .WithName("ConfirmReservation")
         .Produces<ConfirmReservationResponse>(StatusCodes.Status200OK)

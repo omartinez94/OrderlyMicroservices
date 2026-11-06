@@ -22,6 +22,7 @@ public class AddToWalkInQueueEndpoint : ICarterModule
 
             return Results.Created($"/v1/restaurants/{restaurantId}/walk-in-queue/{response.Id}", response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Adds a customer to the walk-in queue.")
         .WithName("AddToWalkInQueue")
         .Produces<AddToWalkInQueueResponse>(StatusCodes.Status201Created)

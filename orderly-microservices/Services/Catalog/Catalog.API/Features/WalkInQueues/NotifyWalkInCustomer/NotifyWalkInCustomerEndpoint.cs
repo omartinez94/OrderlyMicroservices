@@ -16,6 +16,7 @@ public class NotifyWalkInCustomerEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Notifies a walk-in customer that their table is ready.")
         .WithName("NotifyWalkInCustomer")
         .Produces<NotifyWalkInCustomerResponse>(StatusCodes.Status200OK)

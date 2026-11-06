@@ -69,6 +69,7 @@ builder.Services.Decorate<IMenuReader, CachedMenuReader>();
 builder.Services.Configure<MigratorHostedServiceOptions>(
     builder.Configuration.GetSection(MigratorHostedServiceOptions.SectionName));
 builder.Services.AddHostedService<CatalogMigratorHostedService>();
+builder.Services.AddHostedService<CatalogDataSeederHostedService>();
 
 // Drift-repair hosted service. The tick logic self-gates on the
 // CatalogRedisCache feature flag, so the service can be registered

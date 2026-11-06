@@ -36,7 +36,7 @@ public class UpdateRestaurantEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
-        .RequirePermission("catalog:menu_update")
+        .RequirePermission("restaurants:edit")
         .WithDescription("Updates a restaurant.")
         .WithName("UpdateRestaurant")
         .Produces<UpdateRestaurantResponse>(StatusCodes.Status200OK)

@@ -60,6 +60,8 @@ internal class UpdateRestaurantCommandHandler(
 {
     public async Task<UpdateRestaurantResult> Handle(UpdateRestaurantCommand command, CancellationToken cancellationToken)
     {
+        currentUser.EnsureTenantAccess(command.Id);
+
         Restaurant? restaurant = await dbContext.Restaurants.FindAsync([command.Id], cancellationToken) ?? throw new RestaurantNotFoundException(command.Id);
 
         // Track which configuration columns actually changed so the

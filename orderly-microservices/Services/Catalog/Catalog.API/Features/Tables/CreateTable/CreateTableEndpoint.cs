@@ -24,6 +24,7 @@ public class CreateTableEndpoint : ICarterModule
 
             return Results.Created($"/v1/restaurants/{restaurantId}/tables/{response.Id}", response);
         })
+        .RequirePermission("menu:edit")
         .WithDescription("Creates a new table for a restaurant.")
         .WithName("CreateTable")
         .Produces<CreateTableResponse>(StatusCodes.Status201Created)

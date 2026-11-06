@@ -1,0 +1,3158 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Entradas y Antojitos",
+      "description": "Botanas tradicionales, antojitos de maíz nixtamalizado, guacamoles de molcajete y ceviches frescos de costa.",
+      "displayOrder": 1,
+      "subCategories": [
+        {
+          "id": 101,
+          "name": "Botanas y Guacamoles",
+          "description": "Guacamoles en molcajete y chicharrones artesanales",
+          "displayOrder": 1
+        },
+        {
+          "id": 102,
+          "name": "Mariscos y Ceviches",
+          "description": "Tostadas de atún, ceviches costeños y aguachiles",
+          "displayOrder": 2
+        },
+        {
+          "id": 103,
+          "name": "Antojitos de Maíz y Cazuelas",
+          "description": "Esquites con tuétano, sopes pellizcados y quesos fundidos en hierro",
+          "displayOrder": 3
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Tacos y Especialidades",
+      "description": "Tacos tradicionales de trompo y cazuela, cortes finos a las brasas de mezquite y tacos de mar estilo Ensenada.",
+      "displayOrder": 2,
+      "subCategories": [
+        {
+          "id": 201,
+          "name": "Tacos Tradicionales de Cazuela y Trompo",
+          "description": "Pastor al carbón, carnitas en cobre, barbacoa de pozo y suadero confitado",
+          "displayOrder": 1
+        },
+        {
+          "id": 202,
+          "name": "Tacos de Cortes Finos y Brasas",
+          "description": "Rib eye prime, arrachera angus y costras de queso",
+          "displayOrder": 2
+        },
+        {
+          "id": 203,
+          "name": "Tacos de Mar",
+          "description": "Pescado rebosado estilo Ensenada y mariscos al ajillo",
+          "displayOrder": 3
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Platos Fuertes",
+      "description": "Platos emblemáticos de la gastronomía mexicana: moles artesanales, cortes norteños a la leña y pesca a la talla.",
+      "displayOrder": 3,
+      "subCategories": [
+        {
+          "id": 301,
+          "name": "Tradiciones y Moles",
+          "description": "Mole poblano de providencia, chiles en nogada y enchiladas suizas",
+          "displayOrder": 1
+        },
+        {
+          "id": 302,
+          "name": "Cortes y Carnes a la Leña",
+          "description": "Arrachera norteña, chamorros confitados y filetes en salsa de chiles secos",
+          "displayOrder": 2
+        },
+        {
+          "id": 303,
+          "name": "Del Mar y Costas",
+          "description": "Pescado a la talla estilo Barra Vieja y mariscos al comal",
+          "displayOrder": 3
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Postres",
+      "description": "Dulcería típica mexicana, churrería artesanal, pastelería tradicional y nieves de garrafa batidas a mano.",
+      "displayOrder": 4,
+      "subCategories": [
+        {
+          "id": 401,
+          "name": "Clásicos Dulces Mexicanos",
+          "description": "Churros con cajeta, tres leches de vainilla de Papantla y pan de elote",
+          "displayOrder": 1
+        },
+        {
+          "id": 402,
+          "name": "Nieves y Helados Artesanales",
+          "description": "Nieves de garrafa de frutas de temporada y helado de canela criolla",
+          "displayOrder": 2
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Bebidas sin Alcohol y Aguas Frescas",
+      "description": "Aguas frescas de frutas naturales, cafecito de olla con canela y piloncillo, chocolate oaxaqueño y refrescos tradicionales.",
+      "displayOrder": 5,
+      "subCategories": [
+        {
+          "id": 501,
+          "name": "Aguas Frescas de Estación",
+          "description": "Horchata con almendras, jamaica con romero y limonadas con chía",
+          "displayOrder": 1
+        },
+        {
+          "id": 502,
+          "name": "Cafetería y Chocolatería Mexicana",
+          "description": "Café de olla de Coatepec y chocolate de agua de metate",
+          "displayOrder": 2
+        },
+        {
+          "id": 503,
+          "name": "Embotellados Tradicionales",
+          "description": "Refrescos de vidrio mexicanos, sidral y agua de manantial",
+          "displayOrder": 3
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Coctelería y Cantina",
+      "description": "Mixología mexicana de autor con tequila y mezcal, digestivos clásicos de cantina y cervezas artesanales nacionales.",
+      "displayOrder": 6,
+      "subCategories": [
+        {
+          "id": 601,
+          "name": "Tragos de la Casa y Mixología con Agave",
+          "description": "Margaritas de la casa y mezcalitas con frutas y chiles frescos",
+          "displayOrder": 1
+        },
+        {
+          "id": 602,
+          "name": "Cantina Clásica y Digestivos",
+          "description": "Palomas cantineras, cantaritos de barro y carajillos shakeados",
+          "displayOrder": 2
+        },
+        {
+          "id": 603,
+          "name": "Cervezas y Cerveza Preparada",
+          "description": "Cervecerías artesanales mexicanas y micheladas preparadas con limón y salsas",
+          "displayOrder": 3
+        }
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "d0706bd6-2977-40eb-aeab-e28927bcb5b2",
+      "shortId": "itmcd67fgkk",
+      "name": "Guacamole Artesanal con Totopos Criollos",
+      "englishName": "Handcrafted Guacamole with Heirloom Corn Chips",
+      "description": "Aguacate Hass michoacano martajado al momento en molcajete de piedra volcánica con cilantro criollo, cebolla morada, chile serrano tatemado, limón colima y sal de grano de Celestún. Servido con totopos de maíz azul y amarillo nixtamalizado.",
+      "englishDescription": "Hand-mashed Michoacán Hass avocado in a volcanic stone molcajete with fresh cilantro, red onion, charred serrano peppers, Colima lime, and sea salt. Served with heirloom blue and yellow corn chips.",
+      "categoryId": 1,
+      "subCategoryId": 101,
+      "basePrice": 175,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo",
+          "variationValue": "Tradicional",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Chicharrón Norteño Crujiente",
+          "priceModifier": 65,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Chapulines Oaxaqueños al Ajillo",
+          "priceModifier": 75,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Queso Cotija Añejo",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Aguacate Hass",
+          "isOptional": false,
+          "quantity": 0.25,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebolla Morada",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Cilantro Criollo",
+          "isOptional": true,
+          "quantity": 0.015,
+          "unit": "kg"
+        },
+        {
+          "name": "Chile Serrano Tatemado",
+          "isOptional": true,
+          "quantity": 0.02,
+          "unit": "kg"
+        },
+        {
+          "name": "Totopos de Maíz Nixtamalizado",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin cebolla",
+        "Sin cilantro",
+        "Sin picante (chile aparte)",
+        "Extra totopos (+25 MXN)"
+      ]
+    },
+    {
+      "id": "4e2072a4-1b2c-4850-b9ea-7c97cbdd0908",
+      "shortId": "itmptg8q8s7",
+      "name": "Chicharrón de Rib Eye sobre Cama de Guacamole",
+      "englishName": "Crispy Prime Rib Eye Cracklings over Guacamole",
+      "description": "Dados crujientes de Rib Eye Prime (250g) fritos en su propia grasa a fuego alto, sazonados con sal marina de Colima, servidos sobre cama de guacamole cremoso y acompañados de tortillas de maíz recién hechas y salsa borracha con pulque.",
+      "englishDescription": "Crispy Prime Rib Eye chunks fried golden in their own drippings, seasoned with Colima sea salt and served over silky guacamole with warm corn tortillas and pulque drunken salsa.",
+      "categoryId": 1,
+      "subCategoryId": 101,
+      "basePrice": 345,
+      "prepTimeMinutes": 12,
+      "prepTimeMaxMinutes": 18,
+      "defaultCourseNumber": 2,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Porción",
+          "variationValue": "Individual 250g",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Porción",
+          "variationValue": "Para Compartir 400g",
+          "priceModifier": 180,
+          "isDefault": false,
+          "displayOrder": 2
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Rib Eye Prime",
+          "isOptional": false,
+          "quantity": 0.25,
+          "unit": "kg"
+        },
+        {
+          "name": "Guacamole de la Casa",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Borracha de Pulque",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "liters"
+        },
+        {
+          "name": "Tortillas de Maíz Azul",
+          "isOptional": false,
+          "quantity": 4,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Guacamole aparte",
+        "Salsa borracha aparte",
+        "Cambiar tortillas por tortillas de harina"
+      ]
+    },
+    {
+      "id": "be4634a4-efae-4c5e-9778-b2bf2e8f38bd",
+      "shortId": "itmude7ysxu",
+      "name": "Queso Fundido Cantinero con Chorizo Artesanal",
+      "englishName": "Melted Oaxaca & Chihuahua Cheese with Artisanal Chorizo",
+      "description": "Mezcla fundida al horno en cazuela de hierro de quesos Oaxaca y Menonita de Chihuahua, con costra dorada por encima, coronado con chorizo rojo estilo Toluca doradito, servido con chiles toreados y tortillas calientes.",
+      "englishDescription": "Cast-iron baked blend of artisanal Oaxaca string cheese and Chihuahua Menonita cheese, bubbling and golden-crusted, topped with crispy Toluca red chorizo. Served with blistered chiles and warm tortillas.",
+      "categoryId": 1,
+      "subCategoryId": 103,
+      "basePrice": 195,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "defaultCourseNumber": 2,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Ingrediente Principal",
+          "variationValue": "Con Chorizo Rojo de Toluca",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Ingrediente Principal",
+          "variationValue": "Con Champiñones al Ajillo y Epazote",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Ingrediente Principal",
+          "variationValue": "Con Rajas Poblanas y Elote",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Ingrediente Principal",
+          "variationValue": "Con Chistorra a la Plancha",
+          "priceModifier": 45,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Ingrediente Principal",
+          "variationValue": "Mixto (Chorizo y Champiñones)",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Queso Oaxaca y Menonita",
+          "isOptional": false,
+          "quantity": 0.22,
+          "unit": "kg"
+        },
+        {
+          "name": "Chorizo de Toluca",
+          "isOptional": false,
+          "quantity": 0.08,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Harina de Trigo",
+          "isOptional": false,
+          "quantity": 5,
+          "unit": "units"
+        },
+        {
+          "name": "Chiles Toreados",
+          "isOptional": true,
+          "quantity": 2,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Tortillas de maíz en lugar de harina",
+        "Sin chiles toreados",
+        "Costra extra dorada"
+      ]
+    },
+    {
+      "id": "15deb1d5-ca9e-4e3a-ad53-7da83ffc0de4",
+      "shortId": "itm43ty6ers",
+      "name": "Esquites Tatemados con Tuétano a la Leña",
+      "englishName": "Charred Street Corn Esquites with Roasted Bone Marrow",
+      "description": "Granos de elote tierno blanco y amarillo tatemados a la leña, cocinados con caldo de tuétano, epazote morado y chile de árbol; servidos en copa de barro con canoa de tuétano rostizado al carbón, mayonesa de chile manzano, queso Cotija y tajín artesanal.",
+      "englishDescription": "Wood-charred tender sweet corn cooked in rich bone broth with purple epazote and chile de árbol. Served in a clay cup topped with a roasted marrow canoe, manzano chili aioli, crumbled Cotija cheese, and artisanal tajín.",
+      "categoryId": 1,
+      "subCategoryId": 103,
+      "basePrice": 215,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "defaultCourseNumber": 2,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Presentación",
+          "variationValue": "Con Canoa de Tuétano al Carbón",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Tradicional Callejero (Sin Tuétano)",
+          "priceModifier": -50,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Doble Canoa de Tuétano",
+          "priceModifier": 95,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Elote Tierno Tatemado",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Tuétano de Res en Canoa",
+          "isOptional": true,
+          "quantity": 1,
+          "unit": "units"
+        },
+        {
+          "name": "Mayonesa de Chile Manzano",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Queso Cotija Añejo",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        },
+        {
+          "name": "Tajín Casero de Chiles Secos",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin mayonesa",
+        "Mayonesa y queso aparte",
+        "Sin chile en polvo",
+        "Extra limón"
+      ]
+    },
+    {
+      "id": "ccc39c1a-b731-4c99-adc4-d2492f6fcd08",
+      "shortId": "itme2gmke8t",
+      "name": "Tostadas de Atún Aleta Amarilla estilo Costeño (3 pzas)",
+      "englishName": "Fresh Yellowfin Tuna Tostadas - 3 pcs",
+      "description": "Tres tostadas de maíz azul horneadas, untadas con emulsión de chipotle y ajo negro, cubiertas con cubos de atún fresco aleta amarilla marinado en ponzu cítrico con aceite de ajonjolí tostado, aguacate laminado, poro frito crujiente y ajonjolí mixto.",
+      "englishDescription": "Three crispy heirloom blue corn tostadas layered with chipotle and black garlic emulsion, fresh yellowfin tuna tossed in citrus ponzu and toasted sesame oil, sliced avocado, and crispy fried leeks.",
+      "categoryId": 1,
+      "subCategoryId": 102,
+      "basePrice": 240,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Proteína",
+          "variationValue": "Atún Aleta Amarilla",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Proteína",
+          "variationValue": "Salmón Fresco Marinado",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Atún Aleta Amarilla Fresco",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Tostadas de Maíz Azul",
+          "isOptional": false,
+          "quantity": 3,
+          "unit": "units"
+        },
+        {
+          "name": "Aguacate Hass",
+          "isOptional": true,
+          "quantity": 0.08,
+          "unit": "kg"
+        },
+        {
+          "name": "Poro Frito Crujiente",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        },
+        {
+          "name": "Mayonesa de Chipotle y Ajo Negro",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin aderezo de chipotle",
+        "Sin poro frito",
+        "Extra aguacate (+35 MXN)"
+      ]
+    },
+    {
+      "id": "e112cd60-26c0-447c-b64c-36bc0287ec5c",
+      "shortId": "itmp8m3pn9h",
+      "name": "Ceviche de Camarón y Pulpo estilo Acapulco",
+      "englishName": "Shrimp & Octopus Acapulco-Style Coastal Ceviche",
+      "description": "Camarón pacífico cocido al punto y pulpo de roca suave en trozos, marinados en salsa bruja cantinera con clamato preparado, jitomate bola, cebolla morada picada, pepino persa, cilantro, aguacate hass y aceite de oliva virgen extra. Acompañado de totopos y galletas saladas.",
+      "englishDescription": "Tender Pacific shrimp and octopus steeped in a seasoned clamato and spiced vinegar broth with diced tomato, red onion, Persian cucumber, cilantro, fresh avocado, and extra virgin olive oil. Served with totopos and saltines.",
+      "categoryId": 1,
+      "subCategoryId": 102,
+      "basePrice": 285,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 14,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Selección de Mariscos",
+          "variationValue": "Mixto Pulpo y Camarón",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Selección de Mariscos",
+          "variationValue": "Solo Camarón Pacífico",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Selección de Mariscos",
+          "variationValue": "Solo Pulpo de Roca",
+          "priceModifier": 40,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Camarón del Pacífico y Pulpo",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Acapulco Preparada",
+          "isOptional": false,
+          "quantity": 0.12,
+          "unit": "liters"
+        },
+        {
+          "name": "Aguacate Hass",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebolla Morada y Cilantro",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Pepino Persa",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin cebolla",
+        "Sin cilantro",
+        "Poco picante",
+        "Salsa habanero aparte"
+      ]
+    },
+    {
+      "id": "5a784267-da86-4055-b970-c72e6669629f",
+      "shortId": "itmvkbkjfcc",
+      "name": "Sopes de Cochinita Pibil y Frijol Negro (3 pzas)",
+      "englishName": "Handmade Sopes with Cochinita Pibil - 3 pcs",
+      "description": "Tres sopesitos de maíz criollo pellizcados a mano en comal, fritos ligeramente en manteca, untados con frijoles negros refritos con hoja de aguacate, copeteados con cochinita pibil horneada en hoja de plátano, cebolla morada encurtida con naranja agria, queso fresco y crema de rancho.",
+      "englishDescription": "Three handcrafted pinched corn sopes lightly fried, spread with refried black beans scented with avocado leaf, heaped with slow-roasted Yucatán cochinita pibil, pickled red onion with bitter orange, queso fresco, and farm sour cream.",
+      "categoryId": 1,
+      "subCategoryId": 103,
+      "basePrice": 190,
+      "prepTimeMinutes": 12,
+      "prepTimeMaxMinutes": 16,
+      "defaultCourseNumber": 2,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Guisado",
+          "variationValue": "Con Cochinita Pibil Yucateca",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Guisado",
+          "variationValue": "Con Barbacoa de Res al Chile Ancho",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Guisado",
+          "variationValue": "Con Tinga de Pollo Criollo",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Guisado",
+          "variationValue": "Vegetarianos con Champiñones al Epazote",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Masa de Maíz Nixtamalizado",
+          "isOptional": false,
+          "quantity": 0.18,
+          "unit": "kg"
+        },
+        {
+          "name": "Cochinita Pibil Horneada",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "kg"
+        },
+        {
+          "name": "Frijoles Negros Refritos",
+          "isOptional": false,
+          "quantity": 0.08,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebolla Morada Encurtida",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Crema de Rancho y Queso Fresco",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin crema",
+        "Sin queso",
+        "Cebolla encurtida con habanero aparte"
+      ]
+    },
+    {
+      "id": "e50e4a09-8f6f-48d9-a8f8-e19a6b58fc1f",
+      "shortId": "itmrrb4cruc",
+      "name": "Tacos al Pastor Tradicionales con Piña a la Brasa (Orden de 3)",
+      "englishName": "Classic Trompo Pork Tacos with Charcoal-Grilled Pineapple - 3 pcs",
+      "description": "Finas rebanadas de cerdo marinadas en adobo casero de achiote yucateco, chiles guajillo y especias criollas, asadas al carbón en trompo vertical. Servidos en doble tortilla taquera de maíz recién hecha con cilantro fresco, cebolla blanca picada y piña miel asada al carbón. Acompañados de salsa verde cruda.",
+      "englishDescription": "Thin slices of tender pork marinated in Yucatecan achiote and guajillo adobo, slow-roasted on a vertical charcoal trompo. Served on double soft corn tortillas with fresh cilantro, diced onion, and sweet grilled pineapple.",
+      "categoryId": 2,
+      "subCategoryId": 201,
+      "basePrice": 195,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tortilla / Estilo",
+          "variationValue": "Tortilla de Maíz Nixtamalizado",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tortilla / Estilo",
+          "variationValue": "Con Costra de Queso Gouda (Gringa)",
+          "priceModifier": 60,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tortilla / Estilo",
+          "variationValue": "En Tortilla de Nopal Asada",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Tortilla / Estilo",
+          "variationValue": "Doble Carne de Pastor",
+          "priceModifier": 75,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Carne de Cerdo al Pastor",
+          "isOptional": false,
+          "quantity": 0.18,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz Taqueras",
+          "isOptional": false,
+          "quantity": 6,
+          "unit": "units"
+        },
+        {
+          "name": "Piña Miel Asada al Carbón",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "kg"
+        },
+        {
+          "name": "Cilantro y Cebolla Picada",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Verde de Tomatillo",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Sin verdura",
+        "Solo cilantro",
+        "Solo cebolla",
+        "Sin piña",
+        "Extra piña asada (+15 MXN)"
+      ]
+    },
+    {
+      "id": "70211880-51f0-4973-abf9-d8b0f0e572ca",
+      "shortId": "itmdrmewrd6",
+      "name": "Tacos de Rib Eye Prime a las Brasas con Cebollitas Cambray (Orden de 3)",
+      "englishName": "Grilled Prime Rib Eye Tacos with Caramelized Cambray Onions - 3 pcs",
+      "description": "Jugosos trozos de Rib Eye Prime calidad de exportación asados a la parrilla de leña de mezquite, servidos en tortillas de maíz azul hechas a mano con sal de Colima y costra ligera opcional. Acompañados de cebollitas cambray glaseadas al carbón, aguacate fresco y salsa martajada de molcajete.",
+      "englishDescription": "Succulent chunks of Prime Rib Eye grilled over aromatic mesquite wood coals, piled on handcrafted blue corn tortillas with Colima sea salt. Accompanied by charred cambray onions, sliced avocado, and volcanic molcajete salsa.",
+      "categoryId": 2,
+      "subCategoryId": 202,
+      "basePrice": 360,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tortilla / Costra",
+          "variationValue": "En Tortilla de Maíz Azul",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tortilla / Costra",
+          "variationValue": "Con Costra de Queso Asadero",
+          "priceModifier": 45,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tortilla / Costra",
+          "variationValue": "En Tortilla de Harina Sonorense de Manteca",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Tortilla / Costra",
+          "variationValue": "Con Tuétano Rostizado Encima",
+          "priceModifier": 85,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Rib Eye Prime",
+          "isOptional": false,
+          "quantity": 0.22,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz Azul",
+          "isOptional": false,
+          "quantity": 3,
+          "unit": "units"
+        },
+        {
+          "name": "Cebollitas Cambray Asadas",
+          "isOptional": true,
+          "quantity": 3,
+          "unit": "units"
+        },
+        {
+          "name": "Aguacate Hass",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Roja Martajada",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Término de la carne: Medio / Tres Cuartos / Bien Cocido",
+        "Sin cebollitas cambray",
+        "Salsa aparte"
+      ]
+    },
+    {
+      "id": "99a5ca4d-8266-4056-9e18-1c7c27bd96ac",
+      "shortId": "itmdyktdh23",
+      "name": "Tacos de Carnitas Estilo Michoacán en Cobre (Orden de 3)",
+      "englishName": "Michoacán-Style Confit Pork Tacos - 3 pcs",
+      "description": "Selección de carne de cerdo confitada lentamente en cazo de cobre tradicional con naranja, leche, especias y manteca durante 4 horas. Servidos jugosos en tortillas de maíz amarillo con cebolla blanca picada, cilantro, chicharrón crujiente espolvoreado y salsa verde tatemada.",
+      "englishDescription": "Traditional copper-cauldron pork confit slow-cooked for 4 hours with orange and spices. Served juicy on soft yellow corn tortillas with chopped white onion, cilantro, sprinkled cracklings, and fire-roasted salsa verde.",
+      "categoryId": 2,
+      "subCategoryId": 201,
+      "basePrice": 210,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tipo de Carne",
+          "variationValue": "Surtida Tradicional (Maciza, Costilla y Cuerito)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tipo de Carne",
+          "variationValue": "Solo Maciza Magra",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tipo de Carne",
+          "variationValue": "Solo Costilla y Chamorro",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Carnitas Estilo Michoacán",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz Amarillo",
+          "isOptional": false,
+          "quantity": 6,
+          "unit": "units"
+        },
+        {
+          "name": "Cebolla y Cilantro",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Chicharrón de Cerdo Molido",
+          "isOptional": true,
+          "quantity": 0.02,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Verde Tatemada",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Sin verdura",
+        "Sin cuerito",
+        "Con cuerito extra",
+        "Limones extra"
+      ]
+    },
+    {
+      "id": "1cd20073-bd29-4b17-852b-a132c536f253",
+      "shortId": "itmt4nfdbvu",
+      "name": "Tacos de Barbacoa de Borrego en Hoja de Maguey (Orden de 3)",
+      "englishName": "Hidalgo-Style Lamb Barbacoa Tacos in Maguey Leaves - 3 pcs",
+      "description": "Borrego tierno cocinado a fuego lento en pozo bajo tierra envuelto en pencas de maguey tostado por 12 horas. Carne suave y deshebrada servida con consomé caliente con garbanzos y arroz, tortillas de maíz azul, cebolla, cilantro y salsa borracha de chile pasilla y pulque.",
+      "englishDescription": "Pit-roasted lamb barbacoa slow-cooked for 12 hours wrapped in roasted maguey agave leaves. Fall-apart tender, served on heirloom blue corn tortillas with rich lamb broth (consomé), diced onion, cilantro, and pasilla-pulque salsa.",
+      "categoryId": 2,
+      "subCategoryId": 201,
+      "basePrice": 265,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 14,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Corte de Borrego",
+          "variationValue": "Espaldilla y Falda Mixta",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Corte de Borrego",
+          "variationValue": "Solo Pierna Magra",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Complemento",
+          "variationValue": "Con Tazón Grande de Consomé con Garbanzos",
+          "priceModifier": 45,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Barbacoa de Borrego de Pozo",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz Azul",
+          "isOptional": false,
+          "quantity": 6,
+          "unit": "units"
+        },
+        {
+          "name": "Consomé de Borrego con Garbanzos",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "liters"
+        },
+        {
+          "name": "Cebolla y Cilantro",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Borracha de Pulque y Pasilla",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Sin verdura",
+        "Salsa borracha aparte",
+        "Consomé sin garbanzos"
+      ]
+    },
+    {
+      "id": "1bbc17fb-4309-4eb9-bd2f-696c8e20861f",
+      "shortId": "itmpywq7kj9",
+      "name": "Tacos de Pescado Rebosado Estilo Ensenada / Baja Fish Tacos (Orden de 3)",
+      "englishName": "Crispy Baja-Style Beer Battered Fish Tacos - 3 pcs",
+      "description": "Filete de pescado blanco de temporada capeado en tempura ligera de cerveza clara mexicana y orégano, frito hasta quedar dorado y crujiente. Servido en tortillas calientes de maíz con ensalada de col rayada, aderezo cremoso de mayonesa de chipotle, pico de gallo y aguacate.",
+      "englishDescription": "Fresh white fish fillets dipped in a light Mexican lager batter and fried golden-crisp. Served on warm corn tortillas with shredded cabbage slaw, creamy chipotle aioli, pico de gallo, and fresh avocado.",
+      "categoryId": 2,
+      "subCategoryId": 203,
+      "basePrice": 250,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Proteína / Cocción",
+          "variationValue": "Pescado Blanco del Día Capeado",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Proteína / Cocción",
+          "variationValue": "Camarón del Pacífico Capeado",
+          "priceModifier": 30,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Proteína / Cocción",
+          "variationValue": "Pescado a la Plancha al Ajillo (Sin Capear)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Pescado Blanco Fresco",
+          "isOptional": false,
+          "quantity": 0.18,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz",
+          "isOptional": false,
+          "quantity": 3,
+          "unit": "units"
+        },
+        {
+          "name": "Ensalada de Col y Limón",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "kg"
+        },
+        {
+          "name": "Mayonesa de Chipotle",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Aguacate Hass y Pico de Gallo",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Col y aderezo aparte",
+        "Sin pico de gallo",
+        "Extra aderezo de chipotle (+15 MXN)"
+      ]
+    },
+    {
+      "id": "0837d06d-c2cb-4b94-8dd9-d433686b006d",
+      "shortId": "itmzxfu96py",
+      "name": "Tacos de Suadero Confitado en Manteca y Chiles Secos (Orden de 3)",
+      "englishName": "Slow-Confit Beef Suadero Tacos - 3 pcs",
+      "description": "Falda de res suave y marmoleada cocinada despacio en comal bola tradicional con manteca, jugo de naranja y especias hasta quedar tierna por dentro y sellada en la plancha al dorar. Servidos en tortillas taqueras con cebolla blanca, cilantro, salsa verde cruda y rábanos.",
+      "englishDescription": "Marbled beef brisket slowly confited in traditional comal broth with citrus juices and spices, finished crisp on the flat-top. Served on warm soft corn tortillas with white onion, cilantro, fresh tomatillo salsa, and radishes.",
+      "categoryId": 2,
+      "subCategoryId": 201,
+      "basePrice": 220,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Término / Estilo",
+          "variationValue": "Suadero Tradicional Bien Picadito",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Término / Estilo",
+          "variationValue": "Suadero Dorado Extra Crujiente",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Término / Estilo",
+          "variationValue": "Con Costra de Queso Manchego",
+          "priceModifier": 50,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Suadero de Res Confitado",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz Taqueras",
+          "isOptional": false,
+          "quantity": 6,
+          "unit": "units"
+        },
+        {
+          "name": "Cebolla y Cilantro Picado",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Rábanos y Limón",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Verde de Tomatillo y Serrano",
+          "isOptional": true,
+          "quantity": 0.05,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Sin verdura",
+        "Solo carne bien dorada",
+        "Salsa verde aparte",
+        "Tortillas bien calientes"
+      ]
+    },
+    {
+      "id": "38d2b57f-04a6-4ea4-965a-5577a08e1c58",
+      "shortId": "itmrw5w6kpa",
+      "name": "Costras de Arrachera Marinada con Queso Menonita (Orden de 2)",
+      "englishName": "Grilled Flank Steak in Crispy Golden Cheese Crusts - 2 pcs",
+      "description": "Plancha caliente con costra extendida de quesos Menonita y Chihuahua dorado hasta un punto crujiente y flexible, rellena con tiras jugosas de arrachera Angus marinada en cítricos y cerveza negra a la leña, envuelta en tortilla de harina norteña con guacamole y salsa de chile morita.",
+      "englishDescription": "Flat-top grilled crispy golden Menonita and Chihuahua cheese blankets wrapped around juicy strips of mesquite-marinated Angus flank steak. Rolled inside handmade Sonoran flour tortillas with fresh guacamole and smoky morita salsa.",
+      "categoryId": 2,
+      "subCategoryId": 202,
+      "basePrice": 290,
+      "prepTimeMinutes": 12,
+      "prepTimeMaxMinutes": 16,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Presentación",
+          "variationValue": "En Tortilla de Harina Sonorense",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "En Tortilla de Maíz Nixtamalizado",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Keto / Solo Costra de Queso (Sin Tortilla)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Con Champiñones Salteados al Ajo",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Arrachera Angus Marinada",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Queso Menonita y Chihuahua",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Harina Sonorenses",
+          "isOptional": false,
+          "quantity": 2,
+          "unit": "units"
+        },
+        {
+          "name": "Guacamole de la Casa",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa de Chile Morita",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "liters"
+        }
+      ],
+      "customizations": [
+        "Guacamole aparte",
+        "Salsa morita aparte",
+        "Término medio de la arrachera"
+      ]
+    },
+    {
+      "id": "66aa83e4-4563-430d-880b-c988740e5521",
+      "shortId": "itmzmupgdx8",
+      "name": "Mole Poblano Tradicional con Pollo de Granjeo",
+      "englishName": "Artisanal Poblano Mole with Farm-Raised Chicken",
+      "description": "Receta centenaria con más de 28 ingredientes: chiles mulato, ancho y pasilla tostados al comal, chocolate amargo con canela, plátano macho frito, almendras, pasas y especias de providencia. Servido sobre pechuga de pollo de libre pastoreo jugosa, decorado con ajonjolí blanco tostado y acompañado de arroz rojo a la mexicana con chícharos y plátano macho frito.",
+      "englishDescription": "Century-old artisanal mole prepared from 28 ingredients including toasted mulato, ancho, and pasilla chiles, Mexican dark chocolate, plantains, almonds, and spices. Ladled over tender farm-raised chicken breast, sprinkled with toasted sesame seeds and served with Mexican red rice.",
+      "categoryId": 3,
+      "subCategoryId": 301,
+      "basePrice": 310,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 20,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Pieza de Pollo / Proteína",
+          "variationValue": "Pechuga de Pollo Jugosa",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Pieza de Pollo / Proteína",
+          "variationValue": "Pierna y Muslo con Hueso",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Pieza de Pollo / Proteína",
+          "variationValue": "Con Chamorro de Cerdo Braseado",
+          "priceModifier": 95,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Pieza de Pollo / Proteína",
+          "variationValue": "Con Medallón de Filete de Res 220g",
+          "priceModifier": 140,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Pollo de Granjeo",
+          "isOptional": false,
+          "quantity": 0.28,
+          "unit": "kg"
+        },
+        {
+          "name": "Pasta y Caldo de Mole Poblano",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "liters"
+        },
+        {
+          "name": "Arroz Rojo a la Mexicana",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "kg"
+        },
+        {
+          "name": "Ajonjolí Blanco Tostado",
+          "isOptional": true,
+          "quantity": 0.015,
+          "unit": "kg"
+        },
+        {
+          "name": "Plátano Macho Frito",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin ajonjolí",
+        "Cambiar arroz por frijoles negros",
+        "Sin plátano macho",
+        "Tortillas de maíz adicionales (+20 MXN)"
+      ]
+    },
+    {
+      "id": "0ab5053d-dc0b-4fc2-b912-ce8e35f82c83",
+      "shortId": "itmc3bjuvm5",
+      "name": "Arrachera Norteña a las Brasas 350g con Guarnición Campirana",
+      "englishName": "Charcoal-Grilled Northern Flank Steak 350g with Traditional Sides",
+      "description": "Corte de arrachera Angus de 350g marinado con jugo de limón colima, salsa inglesa y cerveza, asado al carbón de mezquite al término deseado. Se acompaña de una enchilada verde rellena de queso fresco, frijoles charros norteños con tocino y salchicha, guacamole rústico, chiles toreados y cebolla cambray asada.",
+      "englishDescription": "350g premium Angus flank steak marinated in citrus and Mexican beer, flame-broiled over mesquite coals. Accompanied by a verde cheese enchilada, bacon and sausage northern charro beans, rustic guacamole, blistered chiles, and sweet grilled cambray onions.",
+      "categoryId": 3,
+      "subCategoryId": 302,
+      "basePrice": 460,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 22,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Término de Carne",
+          "variationValue": "Término Medio (Medium)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Término de Carne",
+          "variationValue": "Término Tres Cuartos (Medium Well)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Término de Carne",
+          "variationValue": "Término Bien Cocido (Well Done)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Término de Carne",
+          "variationValue": "Término Rojo Inglés (Rare / Medium Rare)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Tamaño de Porción",
+          "variationValue": "Porción Extra Grande 500g",
+          "priceModifier": 160,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Arrachera Angus 350g",
+          "isOptional": false,
+          "quantity": 0.35,
+          "unit": "kg"
+        },
+        {
+          "name": "Frijoles Charros con Tocino",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Enchilada Verde de Queso",
+          "isOptional": true,
+          "quantity": 1,
+          "unit": "units"
+        },
+        {
+          "name": "Guacamole de la Casa",
+          "isOptional": true,
+          "quantity": 0.08,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebollas Cambray y Chiles Toreados",
+          "isOptional": true,
+          "quantity": 2,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Cambiar frijoles charros por frijoles refritos",
+        "Sin toreados",
+        "Tortillas de harina o maíz"
+      ]
+    },
+    {
+      "id": "06328242-470e-4f13-bd0e-fda4ac55a7ae",
+      "shortId": "itmupv8bsgr",
+      "name": "Pescado a la Talla Estilo Barra Vieja (Filete 300g)",
+      "englishName": "Barra Vieja-Style Charcoal Snapper Fillet with Red & Green Adobo",
+      "description": "Filete fresco de Huachinango del Pacífico abierto en mariposa y asado a las brasas de leña sobre parrilla de alambre, untado por un lado con adobo tradicional rojo de chiles guajillo y ancho y por el otro con adobo verde de hierbas y epazote con mayonesa casera y ajo tatemado. Acompañado de frijoles refritos, totopos y ensalada fresca con aguacate.",
+      "englishDescription": "Fresh Pacific red snapper fillet butterflied and grilled over hardwood embers, basted split-half with fiery guajillo-ancho red adobo on one side and fresh herb-epazote green adobo on the other. Served with refried beans, avocado salad, and fresh tortillas.",
+      "categoryId": 3,
+      "subCategoryId": 303,
+      "basePrice": 440,
+      "prepTimeMinutes": 18,
+      "prepTimeMaxMinutes": 25,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Pescado / Corte",
+          "variationValue": "Filete de Huachinango 300g",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Pescado / Corte",
+          "variationValue": "Filete de Robalo Fresco 300g",
+          "priceModifier": 45,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Pescado / Corte",
+          "variationValue": "Huachinango Entero al Peso (~800g para compartir)",
+          "priceModifier": 280,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Huachinango Fresco",
+          "isOptional": false,
+          "quantity": 0.3,
+          "unit": "kg"
+        },
+        {
+          "name": "Adobo Rojo de Guajillo y Adobo Verde",
+          "isOptional": false,
+          "quantity": 0.08,
+          "unit": "kg"
+        },
+        {
+          "name": "Frijoles Refritos",
+          "isOptional": false,
+          "quantity": 0.12,
+          "unit": "kg"
+        },
+        {
+          "name": "Ensalada Verde Mixta con Aguacate",
+          "isOptional": true,
+          "quantity": 0.1,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Solo adobo rojo",
+        "Solo adobo verde",
+        "Aderezos y adobos menos picantes",
+        "Tortillas recién hechas"
+      ]
+    },
+    {
+      "id": "05d980e2-772e-40f9-9e00-db962062bf67",
+      "shortId": "itmdyf85ft8",
+      "name": "Enchiladas Suizas Tradicionales con Pollo Gratinadas (3 pzas)",
+      "englishName": "Traditional Swiss Enchiladas with Melted Manchego & Tomatillo Cream Sauce - 3 pcs",
+      "description": "Tres tortillas de maíz rellenas de pechuga de pollo deshebrada tierna, bañadas con generosa salsa verde de tomatillo cocido con chile serrano, crema fresca de rancho y queso manchego artesanal gratinado en horno de piedra con aros de cebolla morada y cilantro fresco.",
+      "englishDescription": "Three corn tortillas rolled around shredded chicken breast, blanketed in a roasted green tomatillo cream sauce and gratineed in a stone oven under bubbly melted Mexican Manchego cheese. Garnished with red onion and cilantro.",
+      "categoryId": 3,
+      "subCategoryId": 301,
+      "basePrice": 265,
+      "prepTimeMinutes": 12,
+      "prepTimeMaxMinutes": 16,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Relleno",
+          "variationValue": "Pollo Deshebrado Jugoso",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Relleno",
+          "variationValue": "Arrachera Angus Picada",
+          "priceModifier": 55,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Relleno",
+          "variationValue": "Queso Panela y Espinacas Salteadas",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Queso",
+          "variationValue": "Gratinado Doble Queso Manchego",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Pechuga de Pollo Deshebrada",
+          "isOptional": false,
+          "quantity": 0.18,
+          "unit": "kg"
+        },
+        {
+          "name": "Tortillas de Maíz",
+          "isOptional": false,
+          "quantity": 3,
+          "unit": "units"
+        },
+        {
+          "name": "Salsa Suiza de Tomatillo y Crema",
+          "isOptional": false,
+          "quantity": 0.22,
+          "unit": "liters"
+        },
+        {
+          "name": "Queso Manchego para Gratinar",
+          "isOptional": false,
+          "quantity": 0.1,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebolla Morada y Cilantro",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin cebolla",
+        "Sin cilantro",
+        "Poco picante",
+        "Extra crema fresca"
+      ]
+    },
+    {
+      "id": "2cfc8cb9-e531-4bae-bf4c-ef09bffe4fd8",
+      "shortId": "itmksfejq9x",
+      "name": "Chamorro de Cerdo Confitado al Mezcal y Naranja Agria (600g)",
+      "englishName": "Slow-Roasted Confit Pork Shank in Mezcal & Bitter Orange Glaze - 600g",
+      "description": "Chamorro entero con hueso de 600g braseado a fuego lento durante 6 horas con adobo de chile ancho, jugo de naranja agria, jugo de piña y un toque de mezcal espadín artesanal. La carne se desprende sola del hueso; servido con su propio jugo espeso de cocción, frijoles de la olla negros, tortillas de maíz calientes y escabeche de habanero con cebolla morada.",
+      "englishDescription": "600g bone-in pork shank braised for 6 hours in an ancho chile, bitter orange, and artisanal espadín mezcal marinade until fork-tender. Glazed in its savory cooking reduction, served with black pot beans, warm tortillas, and pickled habanero onions.",
+      "categoryId": 3,
+      "subCategoryId": 302,
+      "basePrice": 420,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 20,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo",
+          "variationValue": "Preparación Tradicional al Horno",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Nopalitos Asados al Carbón",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Chamorro de Cerdo 600g",
+          "isOptional": false,
+          "quantity": 0.6,
+          "unit": "kg"
+        },
+        {
+          "name": "Jugo Reducido de Mezcal y Adobo",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "liters"
+        },
+        {
+          "name": "Frijoles Negros de la Olla",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Cebolla Morada Encurtida con Habanero",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Cebolla con habanero aparte",
+        "Cambiar frijoles de la olla por refritos",
+        "Tortillas extra"
+      ]
+    },
+    {
+      "id": "883d4c96-5f60-41c0-be48-829a5cd6ef23",
+      "shortId": "itmxhuskvcv",
+      "name": "Chile en Nogada Tradicional Poblano (Clásico de Temporada)",
+      "englishName": "Traditional Stuffed Poblano Chile with Creamy Walnut Sauce & Pomegranate",
+      "description": "Auténtico chile poblano asado y pelado a mano, relleno con picadillo artesanal de carne mixta de cerdo y res picada a cuchillo con manzana panochera, pera lechera, durazno criollo, piñón rosa y almendras tostadas con un toque de jerez. Cubierto con salsa nogada fresca a base de nuez de Castilla recién pelada y queso de cabra suave, decorado con granos de granada roja fresca y perejil plano.",
+      "englishDescription": "Roasted poblano chile stuffed with artisanal hand-diced pork and beef picadillo simmered with heirloom apples, pears, peaches, pine nuts, and spices. Bathed in chilled walnut nogada cream sauce made with fresh peeled Castilla walnuts and goat cheese, garnished with ruby pomegranate seeds and flat-leaf parsley.",
+      "categoryId": 3,
+      "subCategoryId": 301,
+      "basePrice": 395,
+      "prepTimeMinutes": 12,
+      "prepTimeMaxMinutes": 18,
+      "defaultCourseNumber": 3,
+      "itemType": "Seasonal",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Presentación",
+          "variationValue": "Sin Capear (Ligero y Tradicional Moderno)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Capeado Clásico Dorado en Huevo",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Presentación",
+          "variationValue": "Relleno Vegetariano de Frutas y Hongos",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Chile Poblano Fresco",
+          "isOptional": false,
+          "quantity": 1,
+          "unit": "units"
+        },
+        {
+          "name": "Picadillo Tradicional de Carne y Frutas",
+          "isOptional": false,
+          "quantity": 0.22,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa Nogada de Nuez de Castilla",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "liters"
+        },
+        {
+          "name": "Granada Roja Fresca",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Perejil Plano",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Nogada a temperatura ambiente",
+        "Extra granada roja",
+        "Contiene nueces de castilla y piñones"
+      ]
+    },
+    {
+      "id": "be332fad-9d4a-4cbb-8891-dc4662b6508b",
+      "shortId": "itmer8wnf9k",
+      "name": "Filete de Res en Salsa de Chile Morita y Tuétano a la Plancha (250g)",
+      "englishName": "Tenderloin Medallions in Smoky Morita Chile & Bone Marrow Sauce - 250g",
+      "description": "Medallón grueso de centro de filete de res suave (250g) sellado a la plancha de hierro fundido con mantequilla de ajo, bañado en reducción profunda de chile morita ahumado, piloncillo y tuétano de res asado. Servido sobre puré de papa rústico al epazote con espárragos asados y elotitos tiernos.",
+      "englishDescription": "250g center-cut prime beef tenderloin medallion pan-seared in garlic butter, smothered in a rich reduction of smoky morita chile, caramelized piloncillo, and roasted marrow. Plated over rustic epazote potato mash and fire-grilled asparagus.",
+      "categoryId": 3,
+      "subCategoryId": 302,
+      "basePrice": 540,
+      "prepTimeMinutes": 15,
+      "prepTimeMaxMinutes": 22,
+      "defaultCourseNumber": 3,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Término de Cocción",
+          "variationValue": "Término Medio (Medium)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Término de Cocción",
+          "variationValue": "Término Medio Rojo (Medium Rare)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Término de Cocción",
+          "variationValue": "Término Tres Cuartos (Medium Well)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Término de Cocción",
+          "variationValue": "Término Bien Cocido (Well Done)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Porción",
+          "variationValue": "Porción Grande 350g",
+          "priceModifier": 145,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Centro de Filete de Res 250g",
+          "isOptional": false,
+          "quantity": 0.25,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa de Morita y Tuétano",
+          "isOptional": false,
+          "quantity": 0.1,
+          "unit": "liters"
+        },
+        {
+          "name": "Puré de Papa al Epazote",
+          "isOptional": false,
+          "quantity": 0.15,
+          "unit": "kg"
+        },
+        {
+          "name": "Espárragos Asados a la Mantequilla",
+          "isOptional": true,
+          "quantity": 0.06,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Salsa morita aparte",
+        "Sin espárragos",
+        "Cambiar puré por verduras salteadas"
+      ]
+    },
+    {
+      "id": "4b631204-96bf-48e4-b6ac-dc0185799177",
+      "shortId": "itmrz275345",
+      "name": "Churros Tradicionales con Cajeta de Celaya y Chocolate Oaxaqueño (4 pzas)",
+      "englishName": "Crispy Mexican Churros with Cajeta & Dark Hot Chocolate - 4 pcs",
+      "description": "Cuatro churros alargados elaborados al momento con masa tradicional, fritos hasta quedar dorados y espolvoreados con azúcar y canela molida de Ceilán. Servidos con cazuelitas de cajeta quemada de leche de cabra de Celaya, chocolate oscuro oaxaqueño derretido y mermelada tibia de guayaba.",
+      "englishDescription": "Four freshly pressed Mexican churros fried crisp and rolled in Ceylon cinnamon sugar. Served with warm dipping pots of burnt goat's milk cajeta from Celaya, melted Oaxacan dark chocolate, and guava compote.",
+      "categoryId": 4,
+      "subCategoryId": 401,
+      "basePrice": 160,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 15,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Acompañamiento",
+          "variationValue": "Tradicionales con Dips (Cajeta y Chocolate)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Acompañamiento",
+          "variationValue": "Con Bola de Helado de Vainilla de Papantla",
+          "priceModifier": 45,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Acompañamiento",
+          "variationValue": "Rellenos de Cajeta y Nutella",
+          "priceModifier": 30,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Masa de Churro Tradicional",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Azúcar y Canela de Ceilán",
+          "isOptional": false,
+          "quantity": 0.03,
+          "unit": "kg"
+        },
+        {
+          "name": "Cajeta Quemada de Celaya",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "kg"
+        },
+        {
+          "name": "Chocolate Oscuro de Oaxaca",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Poca azúcar",
+        "Solo dip de cajeta",
+        "Solo dip de chocolate",
+        "Extra dip de cajeta (+25 MXN)"
+      ]
+    },
+    {
+      "id": "58cc8bda-e9d4-4bf7-a0e4-3a9408af2980",
+      "shortId": "itm8cm2z4ar",
+      "name": "Pastel Tres Leches Tradicional con Vainilla de Papantla",
+      "englishName": "Classic Three Milks Sponge Cake with Papantla Vanilla & Berries",
+      "description": "Bizcocho esponjoso ligero embebido generosamente en infusión casera de tres leches (leche condensada, evaporada y crema de rancho) aromatizada con vaina de vainilla natural de Papantla y toque tenue de ron añejo mexicano. Coronado con merengue suizo tostado y frutos rojos frescos.",
+      "englishDescription": "Light airy sponge soaked overnight in three milks infused with real Veracruz Papantla vanilla bean and a touch of Mexican aged rum. Topped with toasted Italian meringue and fresh seasonal berries.",
+      "categoryId": 4,
+      "subCategoryId": 401,
+      "basePrice": 155,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo",
+          "variationValue": "Clásico Vainilla de Papantla",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Cajeta y Nuez Tostada",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Tres Leches con Café de Olla (Moka)",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Bizcocho Tres Leches de Vainilla",
+          "isOptional": false,
+          "quantity": 0.18,
+          "unit": "kg"
+        },
+        {
+          "name": "Merengue Tostado",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "kg"
+        },
+        {
+          "name": "Fresas y Zarzamoras Frescas",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin frutos rojos",
+        "Extra salsa tres leches"
+      ]
+    },
+    {
+      "id": "947fe76e-6da4-4f5a-9ff2-bd533cf9a86e",
+      "shortId": "itm3ftyxv54",
+      "name": "Flan Napolitano de Queso y Caramelo Quemado",
+      "englishName": "Rich Cream Cheese Neapolitan Custard with Burnt Caramel",
+      "description": "Receta clásica de cantina con leche condensada, crema y queso crema horneado a baño maría lentamente para lograr textura densa y aterciopelada. Bañado en caramelo oscuro brillante con notas tostadas de café y decorado con fresa y ramita de menta fresca.",
+      "englishDescription": "Velvety Mexican cream cheese custard baked in water bath with rich dark caramel glaze infused with subtle toasted coffee notes. Garnished with fresh strawberry and mint.",
+      "categoryId": 4,
+      "subCategoryId": 401,
+      "basePrice": 140,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo",
+          "variationValue": "Tradicional de Queso Crema",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Licor 43 y Nuez Garapiñada",
+          "priceModifier": 40,
+          "isDefault": false,
+          "displayOrder": 2
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Flan de Queso Horneado",
+          "isOptional": false,
+          "quantity": 0.17,
+          "unit": "kg"
+        },
+        {
+          "name": "Caramelo Oscuro Líquido",
+          "isOptional": false,
+          "quantity": 0.04,
+          "unit": "kg"
+        },
+        {
+          "name": "Fresa y Menta",
+          "isOptional": true,
+          "quantity": 0.02,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin frutos decorativos",
+        "Extra caramelo"
+      ]
+    },
+    {
+      "id": "cf26a2e0-5e4b-4200-8096-2df65090b265",
+      "shortId": "itm76gwafdv",
+      "name": "Pan de Elote Tibio con Nieve de Rompope Artesanal",
+      "englishName": "Warm Sweet Corn Cake with Rompope Mexican Eggnog Gelato",
+      "description": "Pastel rústico horneado hecho con granos frescos de elote dulce tierno, leche condensada y mantequilla pura de rancho (sin harina de trigo). Servido calientito recién salido del horno, bañado con salsa tibia de cajeta y acompañado de una bola de nieve artesanal de rompope de convento con nuez tostada.",
+      "englishDescription": "Warm artisanal sweet corn cake baked without wheat flour from fresh tender kernels, condensed milk, and farm butter. Drizzled with warm goat's milk cajeta and paired with artisanal Mexican rompope (eggnog) gelato and toasted pecans.",
+      "categoryId": 4,
+      "subCategoryId": 401,
+      "basePrice": 175,
+      "prepTimeMinutes": 8,
+      "prepTimeMaxMinutes": 12,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Helado",
+          "variationValue": "Con Nieve de Rompope Tradicional",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Helado",
+          "variationValue": "Con Nieve de Vainilla de Papantla",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Helado",
+          "variationValue": "Con Nieve de Canela Criolla",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Pan de Elote Natural Sin Harina",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Nieve Artesanal de Rompope",
+          "isOptional": false,
+          "quantity": 0.09,
+          "unit": "kg"
+        },
+        {
+          "name": "Salsa de Cajeta Quemada",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        },
+        {
+          "name": "Nuez Pecana Tostada",
+          "isOptional": true,
+          "quantity": 0.015,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin nueces",
+        "Cajeta aparte",
+        "Nieve aparte"
+      ]
+    },
+    {
+      "id": "c4f66227-144b-4800-a021-5544770c1026",
+      "shortId": "itms3q2d6uj",
+      "name": "Plátanos Machos Flameados al Tequila Reposado con Helado de Canela",
+      "englishName": "Tequila-Flambéed Plantains with Mexican Cinnamon Ice Cream",
+      "description": "Rebanadas gruesas de plátano macho maduro doradas en mantequilla de rancho con azúcar mascabado, canela y jugo de naranja fresca, flameadas en sartén al momento con tequila reposado 100% de agave. Servidos con helado artesanal de canela y lluvia de almendras tostadas fileteadas.",
+      "englishDescription": "Caramelized ripe plantain slices seared in farm butter, dark unrefined sugar, cinnamon, and fresh orange juice, flambéed table-side with 100% blue agave reposado tequila. Served with artisanal cinnamon ice cream and toasted shaved almonds.",
+      "categoryId": 4,
+      "subCategoryId": 401,
+      "basePrice": 165,
+      "prepTimeMinutes": 10,
+      "prepTimeMaxMinutes": 14,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Licor de Flameado",
+          "variationValue": "Flameados con Tequila Reposado",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Licor de Flameado",
+          "variationValue": "Flameados con Mezcal Espadín Ahumado",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Licor de Flameado",
+          "variationValue": "Sin Alcohol (Caramelizados únicamente)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Plátano Macho Maduro",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "kg"
+        },
+        {
+          "name": "Tequila Reposado 100% Agave",
+          "isOptional": false,
+          "quantity": 0.03,
+          "unit": "liters"
+        },
+        {
+          "name": "Helado Artesanal de Canela",
+          "isOptional": false,
+          "quantity": 0.09,
+          "unit": "kg"
+        },
+        {
+          "name": "Almendras Tostadas Fileteadas",
+          "isOptional": true,
+          "quantity": 0.015,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin almendras",
+        "Helado aparte",
+        "Poco dulce"
+      ]
+    },
+    {
+      "id": "48488c81-ff4d-402f-8ef6-7e2606faced4",
+      "shortId": "itm7qtnq3en",
+      "name": "Nieve de Garrafa Tradicional (2 bolas a elegir)",
+      "englishName": "Artisanal Mexican Churned Sorbet / Ice Cream - 2 scoops",
+      "description": "Auténtica nieve mexicana batida a mano en cubeta de madera con hielo y sal en grano. Textura fresca y natural, libre de colorantes artificiales. Sabores rotativos de temporada con fruta natural.",
+      "englishDescription": "Traditional Mexican artisanal sorbet churned by hand in a salt-iced cedar barrel. All-natural fresh fruit purees with zero artificial colorings. Choice of two generous scoops.",
+      "categoryId": 4,
+      "subCategoryId": 402,
+      "basePrice": 110,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 5,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Limón con Chía y Menta (Agua)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Mango con Chile Tajín (Agua)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Guanábana Silvestre (Agua)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Zapote Negro con Naranja (Agua)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Vainilla de Papantla (Leche)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 5
+        },
+        {
+          "name": "Sabores a Elegir",
+          "variationValue": "Chocolate Oaxaqueño (Leche)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 6
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Nieve de Garrafa de Fruta Natural",
+          "isOptional": false,
+          "quantity": 0.16,
+          "unit": "kg"
+        },
+        {
+          "name": "Galleta / Barquillo Tradicional",
+          "isOptional": true,
+          "quantity": 1,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Con chilito en polvo Tajín",
+        "Sin barquillo de galleta",
+        "En vaso o en copa"
+      ]
+    },
+    {
+      "id": "7ac86606-cfeb-4390-8a74-b518999a18d5",
+      "shortId": "itm95f2ngdy",
+      "name": "Agua Fresca de Horchata Artesanal con Almendra y Canela (500 ml)",
+      "englishName": "Handcrafted Rice, Almond & Mexican Cinnamon Horchata - 500 ml",
+      "description": "Elaborada desde cero remojando arroz morelense con canela de Ceilán entera, almendras tostadas y leche evaporada. Licuada y colada finamente con azúcar morena y vainilla natural. Servida en vaso de vidrio con hielo y canela molida espolvoreada.",
+      "englishDescription": "Handcrafted Mexican horchata made from scratch by soaking Morelense rice with Ceylon cinnamon, roasted almonds, and milk. Finely strained and finished with unrefined sugar and real vanilla, dusted with ground cinnamon.",
+      "categoryId": 5,
+      "subCategoryId": 501,
+      "basePrice": 75,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 6,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tamaño / Preparación",
+          "variationValue": "Vaso 500 ml Tradicional",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tamaño / Preparación",
+          "variationValue": "Jarra 1.5 Litros para Compartir",
+          "priceModifier": 120,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tamaño / Preparación",
+          "variationValue": "Con Leche de Almendras (100% Vegana)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Concentrado de Horchata de Arroz y Almendra",
+          "isOptional": false,
+          "quantity": 0.35,
+          "unit": "liters"
+        },
+        {
+          "name": "Hielo y Canela en Polvo",
+          "isOptional": true,
+          "quantity": 0.15,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin hielo",
+        "Poco hielo",
+        "Sin canela en polvo",
+        "Menos dulce"
+      ]
+    },
+    {
+      "id": "642e4a2a-9fc5-4bca-b378-d5d59a15d392",
+      "shortId": "itms7y695yx",
+      "name": "Agua de Jamaica Silvestre con Romero e Infusión Cítrica (500 ml)",
+      "englishName": "Wild Hibiscus Flower Agua Fresca with Rosemary Infusion - 500 ml",
+      "description": "Flor de jamaica de la sierra de Guerrero hervida lentamente con una ramita fresca de romero y piel de naranja agria, endulzada ligeramente con jarabe de agave orgánico. Una bebida refrescante, aromática y antioxidante con un toque herbal único.",
+      "englishDescription": "Wild Guerrero hibiscus flowers slow-simmered with fresh rosemary sprigs and bitter orange peel, lightly sweetened with organic blue agave nectar. Refreshing, tart, and deeply aromatic.",
+      "categoryId": 5,
+      "subCategoryId": 501,
+      "basePrice": 70,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 6,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tamaño / Presentación",
+          "variationValue": "Vaso 500 ml",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tamaño / Presentación",
+          "variationValue": "Jarra 1.5 Litros para Compartir",
+          "priceModifier": 110,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tamaño / Presentación",
+          "variationValue": "Con Agua Mineral Gasificada (Spritzer de Jamaica)",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Infusión de Jamaica y Romero",
+          "isOptional": false,
+          "quantity": 0.4,
+          "unit": "liters"
+        },
+        {
+          "name": "Jarabe de Miel de Agave",
+          "isOptional": false,
+          "quantity": 0.03,
+          "unit": "liters"
+        },
+        {
+          "name": "Romero Fresco y Rodaja de Naranja",
+          "isOptional": true,
+          "quantity": 0.02,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin azúcar añadida (bien ácida)",
+        "Sin romero",
+        "Poco hielo"
+      ]
+    },
+    {
+      "id": "a3b4967b-dbc9-4b3d-a0b5-52a3f16a348d",
+      "shortId": "itmx25vzvqz",
+      "name": "Limonada Mineral con Semillas de Chía y Menta Fresca (500 ml)",
+      "englishName": "Sparkling Limeade with Chia Seeds & Fresh Mint - 500 ml",
+      "description": "Jugo de limones verdes colima recién exprimidos, combinado con semillas hidratadas de chía orgánica, hojas de menta fresca machacadas suavemente y agua mineral de manantial Peñafiel. Endulzada al gusto con jarabe natural.",
+      "englishDescription": "Freshly squeezed Mexican Colima limes muddled with aromatic mint leaves and organic chia seeds, topped with sparkling Peñafiel mineral water and pure cane syrup.",
+      "categoryId": 5,
+      "subCategoryId": 501,
+      "basePrice": 75,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 7,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tipo de Agua",
+          "variationValue": "Con Agua Mineral con Gas",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tipo de Agua",
+          "variationValue": "Con Agua Natural sin Gas",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Endulzante",
+          "variationValue": "Endulzada con Miel de Agave Orgánico",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Endulzante",
+          "variationValue": "Sin Azúcar / Endulzante sin Calorías",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Jugo de Limón Colima Fresco",
+          "isOptional": false,
+          "quantity": 0.06,
+          "unit": "liters"
+        },
+        {
+          "name": "Agua Mineral Peñafiel",
+          "isOptional": false,
+          "quantity": 0.35,
+          "unit": "liters"
+        },
+        {
+          "name": "Semillas de Chía Hidratadas",
+          "isOptional": true,
+          "quantity": 0.03,
+          "unit": "kg"
+        },
+        {
+          "name": "Hojas de Menta Fresca",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Sin chía",
+        "Sin menta",
+        "Muy ácida / Poco jarabe",
+        "Extra hielo"
+      ]
+    },
+    {
+      "id": "ae35f9a1-5857-4ba5-b980-f91c2aace025",
+      "shortId": "itmxbvxqbn4",
+      "name": "Café de Olla Tradicional con Canela y Piloncillo (300 ml)",
+      "englishName": "Clay-Pot Mexican Spiced Coffee with Cinnamon & Piloncillo - 300 ml",
+      "description": "Granos de café arábica de altura de Coatepec, Veracruz de tueste medio, infusionado a fuego lento en olla de barro tradicional con rajas de canela criolla, clavo de olor, cáscara de naranja tatemada y piloncillo oscuro sin refinar. Servido humeante en jarro artesanal.",
+      "englishDescription": "Veracruz high-altitude Arabica coffee slow-brewed in a traditional clay pot with Ceylon cinnamon bark, cloves, toasted orange peel, and raw piloncillo cane sugar. Served steaming hot in a glazed clay mug.",
+      "categoryId": 5,
+      "subCategoryId": 502,
+      "basePrice": 65,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 6,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Preparación",
+          "variationValue": "Café de Olla Negro Tradicional",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Con Nube de Leche Entera Caliente",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Con Leche de Almendras o Avena",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Con Piquete de Licor 43 o Tequila (45ml)",
+          "priceModifier": 55,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Café Arábica de Coatepec Infusionado",
+          "isOptional": false,
+          "quantity": 0.28,
+          "unit": "liters"
+        },
+        {
+          "name": "Piloncillo y Canela Criolla",
+          "isOptional": false,
+          "quantity": 0.02,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Servido bien caliente",
+        "Leche fría aparte",
+        "Con canela en rama"
+      ]
+    },
+    {
+      "id": "dd441cde-4d07-45a3-864f-c301d4b73e6d",
+      "shortId": "itmsfczr5hf",
+      "name": "Chocolate Caliente Oaxaqueño (300 ml)",
+      "englishName": "Traditional Oaxacan Hot Chocolate - Water or Milk",
+      "description": "Tablilla artesanal de cacao criollo oaxaqueño molido en metate de piedra con almendras y canela, disuelto y batido vigorosamente con molinillo de madera tradicional hasta obtener una corona densa de espuma aromática. Servido con una concha de vainilla tierna.",
+      "englishDescription": "Artisanal Oaxacan stone-ground cacao tablet blended with almonds and cinnamon, whisked vigorously with a carved wooden molinillo to create a frothy crown. Served with a warm vanilla concha pastry.",
+      "categoryId": 5,
+      "subCategoryId": 502,
+      "basePrice": 80,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Base Líquida",
+          "variationValue": "En Agua (Estilo Oaxaqueño Intenso)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Base Líquida",
+          "variationValue": "En Leche Entera de Vaca (Cremoso)",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Base Líquida",
+          "variationValue": "En Leche de Avena o Almendras",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Pan Dulce",
+          "variationValue": "Con Pan de Yema Artesanal Tradicional",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Cacao de Metate Oaxaqueño",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "kg"
+        },
+        {
+          "name": "Leche o Agua Purificada",
+          "isOptional": false,
+          "quantity": 0.25,
+          "unit": "liters"
+        },
+        {
+          "name": "Canela Molida",
+          "isOptional": true,
+          "quantity": 0.005,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Con mucha espuma",
+        "Extra caliente",
+        "Canela extra espolvoreada"
+      ]
+    },
+    {
+      "id": "39c27924-4956-4721-96df-71e4c79399ac",
+      "shortId": "itmx7v9drx8",
+      "name": "Refrescos Mexicanos en Botella de Vidrio y Agua Mineral (355 ml)",
+      "englishName": "Classic Mexican Bottled Glass Sodas & Spring Water - 355 ml",
+      "description": "Selección de refrescos tradicionales embotellados en vidrio elaborados con azúcar de caña 100% natural (Coca-Cola de vidrio mexicana, Sidral Mundet de manzana, Jarritos de mandarina o tamarindo) o Agua Mineral Peñafiel en botella de vidrio bien fría.",
+      "englishDescription": "Classic vintage glass-bottled Mexican sodas sweetened with 100% pure cane sugar (Mexican Coca-Cola, Sidral Mundet apple soda, Jarritos mandarin or tamarind) or cold Peñafiel sparkling spring water.",
+      "categoryId": 5,
+      "subCategoryId": 503,
+      "basePrice": 55,
+      "prepTimeMinutes": 2,
+      "prepTimeMaxMinutes": 4,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Coca-Cola Mexicana Vidrio 355ml",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Coca-Cola Sin Azúcar Vidrio 355ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Sidral Mundet Manzana 355ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Jarritos de Mandarina o Tamarindo 370ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Agua Mineral Peñafiel Vidrio 355ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 5
+        },
+        {
+          "name": "Refresco / Marca",
+          "variationValue": "Agua Mineral Topo Chico Vidrio 355ml",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 6
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Refresco / Agua Embotellada en Vidrio",
+          "isOptional": false,
+          "quantity": 1,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Vaso con hielo y limón",
+        "Directo de la botella con popote biodegradable",
+        "Vaso escarchado con sal"
+      ]
+    },
+    {
+      "id": "0bcac79c-dd8c-4b65-9de8-127b8b814d0f",
+      "shortId": "itmuwyqhuh9",
+      "name": "Margarita Tradicional de la Casa al Tequila Blanco",
+      "englishName": "Handcrafted Classic Lime Margarita with 100% Blue Agave Tequila",
+      "description": "Tequila 100% agave azul blanco (45ml), licor de naranja Cointreau francés, jugo fresco de limones verdes colima y miel de agave orgánico. Agitada en coctelera con hielo y servida en copa coctelera escarchada con sal de mar de Colima o sal de gusano y rodaja de limón deshidratado.",
+      "englishDescription": "Handcrafted shaken margarita featuring 100% blue agave tequila blanco (45ml), Cointreau orange liqueur, fresh Colima lime juice, and organic agave nectar. Served in a salt-rimmed coupe with dehydrated lime wheel.",
+      "categoryId": 6,
+      "subCategoryId": 601,
+      "basePrice": 220,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Sabor / Estilo",
+          "variationValue": "Clásica de Limón en las Rocas",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Sabor / Estilo",
+          "variationValue": "Clásica de Limón Frappé",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Sabor / Estilo",
+          "variationValue": "De Tamarindo con Escarcha de Tajín",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Sabor / Estilo",
+          "variationValue": "De Maracuyá con Sal de Gusano",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Sabor / Estilo",
+          "variationValue": "Con Tequila Don Julio Reposado",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Tequila Blanco 100% Agave",
+          "isOptional": false,
+          "quantity": 0.045,
+          "unit": "liters"
+        },
+        {
+          "name": "Licor Cointreau de Naranja",
+          "isOptional": false,
+          "quantity": 0.025,
+          "unit": "liters"
+        },
+        {
+          "name": "Jugo de Limón Colima y Miel de Agave",
+          "isOptional": false,
+          "quantity": 0.04,
+          "unit": "liters"
+        },
+        {
+          "name": "Sal de Mar de Colima para Escarchar",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Escarchado: Sal de mar / Sal de gusano / Tajín / Sin escarchar",
+        "Poco dulce",
+        "Sin hielo (up)"
+      ]
+    },
+    {
+      "id": "76c93215-6090-4490-aef7-70df8e6f9dd3",
+      "shortId": "itmyq2wkn8z",
+      "name": "Mezcalita Ahumada de Maracuyá y Chile Serrano",
+      "englishName": "Smoky Mezcalita with Passion Fruit & Roasted Serrano Pepper",
+      "description": "Mezcal artesanal Espadín joven de Oaxaca (45ml), pulpa natural de maracuyá ácido, jugo fresco de limón colima, néctar de agave y rodajas finas de chile serrano tatemado al comal. Servida en vaso old fashioned escarchado con sal de gusano de maguey y chipotle en polvo.",
+      "englishDescription": "Artisanal Oaxacan young Espadín mezcal (45ml), fresh passion fruit puree, Colima lime, agave nectar, and flame-blistered serrano chile rings. Served over a crystal ice cube with maguey worm salt rim.",
+      "categoryId": 6,
+      "subCategoryId": 601,
+      "basePrice": 240,
+      "prepTimeMinutes": 6,
+      "prepTimeMaxMinutes": 9,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Destilado Base",
+          "variationValue": "Con Mezcal Espadín Joven de Oaxaca",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Destilado Base",
+          "variationValue": "Con Mezcal Silvestre Tobalá",
+          "priceModifier": 65,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Nivel de Picante",
+          "variationValue": "Picor Suave (1 rodaja de serrano)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Nivel de Picante",
+          "variationValue": "Picor Intenso (3 rodajas de serrano)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Nivel de Picante",
+          "variationValue": "Sin Picante (Solo fruta y mezcal)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Mezcal Espadín de Oaxaca",
+          "isOptional": false,
+          "quantity": 0.045,
+          "unit": "liters"
+        },
+        {
+          "name": "Pulpa Natural de Maracuyá",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "liters"
+        },
+        {
+          "name": "Chile Serrano Tatemado",
+          "isOptional": true,
+          "quantity": 1,
+          "unit": "units"
+        },
+        {
+          "name": "Sal de Gusano Oaxaqueña",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Escarchado con sal de gusano o tajín",
+        "Hielo cubo grande",
+        "Menos dulce"
+      ]
+    },
+    {
+      "id": "b891d143-d844-4ce0-b552-e487eaeb2b6d",
+      "shortId": "itmjd7f224w",
+      "name": "Paloma Cantinera Tradicional con Tequila y Toronja",
+      "englishName": "Traditional Cantina Paloma with Grapefruit Soda, Lime & Sal de Gusano",
+      "description": "Tequila blanco o reposado 100% agave (50ml), jugo recién exprimido de toronja rosa y limón colima, pizca de sal marina y refresco de toronja Squirt bien frío. Servida en vaso jaibolero alto escarchado con sal gruesa y rodaja fresca de toronja.",
+      "englishDescription": "Cantina classic featuring 100% agave tequila (50ml), freshly pressed ruby red grapefruit juice, lime juice, a pinch of sea salt, and ice-cold Mexican Squirt grapefruit soda in a sea salt-rimmed highball.",
+      "categoryId": 6,
+      "subCategoryId": 602,
+      "basePrice": 210,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 7,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Destilado / Tequila",
+          "variationValue": "Con Tequila Blanco Tradicional 100% Agave",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Destilado / Tequila",
+          "variationValue": "Con Mezcal Espadín (Paloma Ahumada)",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Destilado / Tequila",
+          "variationValue": "Con Tequila Don Julio 70 Cristalino",
+          "priceModifier": 70,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Tequila 100% Agave",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "liters"
+        },
+        {
+          "name": "Jugo de Toronja Rosa y Limón",
+          "isOptional": false,
+          "quantity": 0.04,
+          "unit": "liters"
+        },
+        {
+          "name": "Refresco Squirt de Toronja",
+          "isOptional": false,
+          "quantity": 0.2,
+          "unit": "liters"
+        },
+        {
+          "name": "Sal de Mar para Escarchar",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Escarcha de sal de mar o tajín",
+        "Preparada con agua mineral en lugar de refresco",
+        "Extra limón"
+      ]
+    },
+    {
+      "id": "578866ed-97cd-4c5f-b1ed-ed22c5c1868a",
+      "shortId": "itmyy7dxmpj",
+      "name": "Carajillo Quemado Licor 43 con Doble Espresso",
+      "englishName": "Shaken Licor 43 Carajillo with Double Espresso",
+      "description": "El digestivo estrella de la cantina contemporánea: Licor 43 español (45ml) combinado con un shot doble de café espresso recién extraído de grano chiapaneco de altura. Shaken en coctelera para lograr una densa capa aterciopelada de crema en superficie. Servido en vaso old fashioned con hielo cristalino.",
+      "englishDescription": "The crown digestif of modern Mexican cantinas: Spanish Licor 43 (45ml) vigorously shaken with freshly pulled double espresso from Chiapas beans, yielding a silky, dense golden foam layer over ice.",
+      "categoryId": 6,
+      "subCategoryId": 602,
+      "basePrice": 235,
+      "prepTimeMinutes": 4,
+      "prepTimeMaxMinutes": 6,
+      "defaultCourseNumber": 4,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo",
+          "variationValue": "Shakeado Clásico Licor 43",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Carajillo Baileys y Licor 43",
+          "priceModifier": 25,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Carajillo con Mazapán de la Rosa",
+          "priceModifier": 30,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Estilo",
+          "variationValue": "Con Café Espresso Descafeinado",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Licor 43",
+          "isOptional": false,
+          "quantity": 0.045,
+          "unit": "liters"
+        },
+        {
+          "name": "Espresso Doble de Grano Chiapaneco",
+          "isOptional": false,
+          "quantity": 0.06,
+          "unit": "liters"
+        },
+        {
+          "name": "Hielo Cristalino",
+          "isOptional": false,
+          "quantity": 0.1,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Con twist de naranja flameado",
+        "Con canela quemada",
+        "Poco batido o muy batido (extra crema)"
+      ]
+    },
+    {
+      "id": "045aaa8a-6920-41d5-8f5e-239f7de29cfa",
+      "shortId": "itm55aahgss",
+      "name": "Cantarito Jalisciense de Barro con Cítricos y Tequila",
+      "englishName": "Traditional Jalisco Clay Jarrito Cocktail with Citrus & Tequila",
+      "description": "Servido en auténtico jarrito de barro curado de Tlaquepaque escarchado con chamoy y chilito tajín. Preparado con tequila reposado (50ml), gajos frescos exprimidos de naranja, toronja y limón colima, agua mineral con gas, refresco de toronja, abundante hielo frappé y sal de grano.",
+      "englishDescription": "Served in a rustic artisan glazed clay jar from Tlaquepaque rimmed with chamoy and tajín chile. Packed with reposado tequila (50ml), fresh crushed wedges of orange, grapefruit, and lime, sparkling water, grapefruit soda, and crushed ice.",
+      "categoryId": 6,
+      "subCategoryId": 602,
+      "basePrice": 230,
+      "prepTimeMinutes": 5,
+      "prepTimeMaxMinutes": 8,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Tamaño",
+          "variationValue": "Individual 500ml en Jarrito de Barro",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Tamaño",
+          "variationValue": "Con Shot Extra de Tequila (Doble)",
+          "priceModifier": 75,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Tamaño",
+          "variationValue": "Cantarito Gigante 1 Litro para Compartir",
+          "priceModifier": 160,
+          "isDefault": false,
+          "displayOrder": 3
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Tequila Reposado 100% Agave",
+          "isOptional": false,
+          "quantity": 0.05,
+          "unit": "liters"
+        },
+        {
+          "name": "Gajos de Naranja, Toronja y Limón",
+          "isOptional": false,
+          "quantity": 0.12,
+          "unit": "kg"
+        },
+        {
+          "name": "Refresco de Toronja y Agua Mineral",
+          "isOptional": false,
+          "quantity": 0.25,
+          "unit": "liters"
+        },
+        {
+          "name": "Chamoy y Tajín para Escarcha",
+          "isOptional": true,
+          "quantity": 0.02,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Escarchado solo con sal",
+        "Sin chamoy",
+        "Extra picante con chilito"
+      ]
+    },
+    {
+      "id": "2e52bd95-5853-4772-b556-a86144d0508f",
+      "shortId": "itm2guknkah",
+      "name": "Cerveza Artesanal Mexicana en Botella o Lata (355 ml)",
+      "englishName": "Mexican Craft Beer Selection - Colima, Minerva, Wendlandt",
+      "description": "Selección de destacadas cervecerías independientes de México: Cervecería de Colima (Piedra Lisa Session IPA o Colimita Lager), Cervecería Minerva de Guadalajara (Pale Ale o Stout Imperial), o Wendlandt de Ensenada (Foca Parlante Oatmeal Stout). Servida a temperatura óptima en copa cervecera fría.",
+      "englishDescription": "Curated selection of top independent Mexican craft brews: Cervecería de Colima (Piedra Lisa Session IPA or Colimita Lager), Minerva Guadalajara (Pale Ale or Imperial Stout), or Wendlandt Ensenada (Foca Parlante Oatmeal Stout). Served cold in branded glassware.",
+      "categoryId": 6,
+      "subCategoryId": 603,
+      "basePrice": 140,
+      "prepTimeMinutes": 2,
+      "prepTimeMaxMinutes": 4,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Estilo y Cervecería",
+          "variationValue": "Colimita Lager Tropical (Cervecería de Colima)",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Estilo y Cervecería",
+          "variationValue": "Piedra Lisa Session IPA (Cervecería de Colima)",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Estilo y Cervecería",
+          "variationValue": "Minerva Pale Ale Estilo Inglés",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Estilo y Cervecería",
+          "variationValue": "Foca Parlante Oatmeal Stout (Wendlandt)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Estilo y Cervecería",
+          "variationValue": "Cerveza de Línea en Pinta de Barril (473ml)",
+          "priceModifier": 20,
+          "isDefault": false,
+          "displayOrder": 5
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Cerveza Artesanal Mexicana 355ml",
+          "isOptional": false,
+          "quantity": 1,
+          "unit": "units"
+        }
+      ],
+      "customizations": [
+        "Servida en copa cervecera fría",
+        "Directo de la botella/lata",
+        "Con vaso y hielo"
+      ]
+    },
+    {
+      "id": "7714c8a7-07bd-4b0b-8fcd-15e60e0af341",
+      "shortId": "itmygjn4cp8",
+      "name": "Cerveza Nacional Mexicana Preparada / Michelada Tradicional",
+      "englishName": "Mexican Draft/Bottled Beer served as Michelada or Cubana",
+      "description": "Cerveza nacional fría (Corona Extra, Victoria, Modelo Especial, Negra Modelo o Pacífico) servida en tarro de 500 ml escarchado con sal de grano o tajín, acompañada de jugo de limón colima recién exprimido o mezcla cubana con salsas oscuras inglesas, salsa Maggi y gotas de tabasco.",
+      "englishDescription": "Classic cold Mexican beer (Corona Extra, Victoria, Modelo Especial, Negra Modelo, or Pacífico) poured in a chilled 500ml mug rimmed with sea salt or tajín. Choice of Chelada (pure lime and salt), traditional Michelada (spiced savory sauces and lime), or Clamato Cubana.",
+      "categoryId": 6,
+      "subCategoryId": 603,
+      "basePrice": 115,
+      "prepTimeMinutes": 3,
+      "prepTimeMaxMinutes": 5,
+      "defaultCourseNumber": 1,
+      "itemType": "Regular",
+      "availabilityStatus": "Available",
+      "variations": [
+        {
+          "name": "Marca de Cerveza",
+          "variationValue": "Corona Extra 355ml",
+          "priceModifier": 0,
+          "isDefault": true,
+          "displayOrder": 1
+        },
+        {
+          "name": "Marca de Cerveza",
+          "variationValue": "Victoria Vienna 355ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 2
+        },
+        {
+          "name": "Marca de Cerveza",
+          "variationValue": "Modelo Especial / Negra Modelo 355ml",
+          "priceModifier": 10,
+          "isDefault": false,
+          "displayOrder": 3
+        },
+        {
+          "name": "Marca de Cerveza",
+          "variationValue": "Pacífico Clara 355ml",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 4
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Chelada (Solo Jugo de Limón y Sal)",
+          "priceModifier": 0,
+          "isDefault": false,
+          "displayOrder": 5
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Michelada Cubana Tradicional (Salsas y Limón)",
+          "priceModifier": 15,
+          "isDefault": false,
+          "displayOrder": 6
+        },
+        {
+          "name": "Preparación",
+          "variationValue": "Ojo Rojo con Clamato Preparado y Apio",
+          "priceModifier": 35,
+          "isDefault": false,
+          "displayOrder": 7
+        }
+      ],
+      "ingredients": [
+        {
+          "name": "Cerveza Nacional 355ml",
+          "isOptional": false,
+          "quantity": 1,
+          "unit": "units"
+        },
+        {
+          "name": "Jugo de Limón Colima y Salsas Oscuras",
+          "isOptional": true,
+          "quantity": 0.04,
+          "unit": "liters"
+        },
+        {
+          "name": "Sal de Mar o Tajín para Escarcha",
+          "isOptional": true,
+          "quantity": 0.01,
+          "unit": "kg"
+        }
+      ],
+      "customizations": [
+        "Escarchado: Solo sal / Solo tajín / Chamoy con tajín",
+        "Sin hielo dentro del tarro",
+        "Extra picante"
+      ]
+    }
+  ]
+}

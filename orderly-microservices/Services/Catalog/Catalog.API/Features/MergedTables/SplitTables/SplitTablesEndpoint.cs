@@ -12,6 +12,7 @@ public class SplitTablesEndpoint : ICarterModule
 
             return Results.NoContent();
         })
+        .RequirePermission("menu:edit")
         .WithDescription("Splits previously merged tables.")
         .WithName("SplitTables")
         .Produces(StatusCodes.Status204NoContent)

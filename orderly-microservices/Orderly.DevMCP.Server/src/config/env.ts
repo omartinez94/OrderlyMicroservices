@@ -12,7 +12,7 @@ import { z } from 'zod';
 const EnvSchema = z.object({
   NODE_ENV: z.literal('development'),
 
-  HOST: z.string().default('0.0.0.0'),
+  HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(8080),
 
   LOG_LEVEL: z
@@ -20,6 +20,9 @@ const EnvSchema = z.object({
     .default('info'),
 
   DEV_HOST: z.string().default('localhost,127.0.0.1'),
+
+  // REQUIRED. Shared dev-secret header for MCP requests and /_dev/trigger/* calls.
+  DEV_TRIGGER_SECRET: z.string().min(8).default('dev-trigger-secret'),
 
   // Required. The server uses this for `generate_dev_token` in Phase 2.
   // We don't use it in Phase 1, but we validate it now so the server

@@ -7,7 +7,7 @@ namespace Catalog.API.Tests.Integration.Endpoints;
 [Collection(nameof(CatalogWebApplicationFactoryCollection))]
 public sealed class WalkInQueueEndpointTests(CatalogWebApplicationFactory factory)
 {
-    private const string Permission = "catalog:menu_update";
+    private const string Permission = "reservations:edit,reservations:view";
 
     private HttpClient AuthenticatedClient()
     {

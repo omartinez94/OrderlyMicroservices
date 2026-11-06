@@ -18,6 +18,7 @@ public class SeatReservationEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Seats a reservation and optionally assigns a table.")
         .WithName("SeatReservation")
         .Produces<SeatReservationResponse>(StatusCodes.Status200OK)

@@ -18,6 +18,7 @@ public class CancelReservationEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:edit")
         .WithDescription("Cancels a reservation.")
         .WithName("CancelReservation")
         .Produces<CancelReservationResponse>(StatusCodes.Status200OK)

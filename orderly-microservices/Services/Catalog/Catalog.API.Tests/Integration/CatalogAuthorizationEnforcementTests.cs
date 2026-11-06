@@ -41,6 +41,7 @@ namespace Catalog.API.Tests.Integration;
 public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFactory factory)
 {
     private const string CatalogMenuUpdatePermission = "catalog:menu_update";
+    private const string RestaurantsCreatePermission = "restaurants:create";
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -81,7 +82,7 @@ public sealed class CatalogAuthorizationEnforcementTests(CatalogWebApplicationFa
         // Status may be 201 (success), 400 (validation), or 500 (db
         // transient) — but NOT 401 / 403. The auth gate must let
         // the call through.
-        var client = AuthenticatedClient(CatalogMenuUpdatePermission);
+        var client = AuthenticatedClient(RestaurantsCreatePermission);
         var resp = await client.PostAsJsonAsync("/v1/restaurants",
             new
             {

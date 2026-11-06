@@ -41,6 +41,7 @@ public class GetReservationsEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:view")
         .WithDescription("Gets reservations for a restaurant, optionally filtered by date and status.")
         .WithName("GetReservations")
         .Produces<GetReservationsResponse>(StatusCodes.Status200OK)

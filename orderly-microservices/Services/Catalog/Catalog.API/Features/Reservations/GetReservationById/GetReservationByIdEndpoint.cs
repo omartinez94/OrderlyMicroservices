@@ -16,6 +16,7 @@ public class GetReservationByIdEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("reservations:view")
         .WithDescription("Gets a reservation by ID.")
         .WithName("GetReservationById")
         .Produces<GetReservationByIdResponse>(StatusCodes.Status200OK)

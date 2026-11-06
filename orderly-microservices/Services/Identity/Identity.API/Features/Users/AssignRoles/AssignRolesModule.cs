@@ -8,16 +8,18 @@ public class AssignRolesModule : ICarterModule
 
         group.MapPut("{id:guid}/roles", async (
                 Guid id,
+                ClaimsPrincipal user,
                 ISender sender,
                 AssignRolesRequest request,
                 CancellationToken ct) =>
             {
-                AssignRolesCommand? command = new AssignRolesCommand(id, request.Roles);
+                AssignRolesCommand? command = new AssignRolesCommand(id, request.Roles, user);
                 AssignRolesResponse? response = await sender.Send(command, ct);
 
                 return Results.Ok(response);
             }).RequirePermission("users:assign_roles").Accepts<AssignRolesRequest>("application/json")
             .Produces<AssignRolesResponse>(200)
+            .ProducesProblem(403)
             .ProducesProblem(404);
     }
 }

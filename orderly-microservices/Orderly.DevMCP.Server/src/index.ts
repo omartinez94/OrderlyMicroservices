@@ -190,6 +190,31 @@ logger.info({ tools: 28 }, 'ready — 28 tools registered across modular session
 // ─── Step 5: HTTP server ─────────────────────────────────────────────────────
 
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  if (req.method !== 'OPTIONS') {
+    const rawSecret =
+      (req.headers['x-dev-secret'] as string | undefined) ||
+      (req.headers['authorization']?.startsWith('Bearer ')
+        ? req.headers['authorization'].slice(7)
+        : undefined);
+
+    if (!rawSecret || rawSecret !== env.DEV_TRIGGER_SECRET) {
+      logger.warn(
+        { url: req.url, ip: req.socket.remoteAddress },
+        'unauthorized MCP request rejected — missing or invalid x-dev-secret header',
+      );
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized: missing or invalid x-dev-secret header',
+          },
+        }),
+      );
+      return;
+    }
+  }
+
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   let activeTransport: StreamableHTTPServerTransport;
 

@@ -16,6 +16,7 @@ public class DeleteTableEndpoint : ICarterModule
 
             return Results.Ok(response);
         })
+        .RequirePermission("menu:edit")
         .WithDescription("Deletes a table.")
         .WithName("DeleteTable")
         .Produces<DeleteTableResponse>(StatusCodes.Status200OK)

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using BuildingBlocks.Exceptions;
 using Identity.API.Features.Users.AssignRoles;
 using Identity.API.Tests.Abstractions;
 
@@ -106,5 +108,36 @@ public sealed class AssignRolesCommandHandlerTests
         var response = await _sut.Handle(new AssignRolesCommand(user.Id, ["Manager", "Waiter"]), CancellationToken.None);
 
         response.Roles.Should().BeEquivalentTo(new[] { "Manager", "Waiter" });
+    }
+
+    [Fact]
+    public async Task Handle_NonSuperAdmin_AssigningSuperAdmin_ThrowsForbidden()
+    {
+        var user = await SeedUserInRolesAsync();
+        await _roleManager.CreateAsync(IdentityTestData.NewRole("SuperAdmin"));
+
+        var callerIdentity = new ClaimsIdentity([new Claim(ClaimTypes.Role, "RestaurantAdmin")], "TestAuth");
+        var caller = new ClaimsPrincipal(callerIdentity);
+
+        var act = () => _sut.Handle(new AssignRolesCommand(user.Id, ["SuperAdmin"], caller), CancellationToken.None);
+
+        await act.Should().ThrowAsync<ForbiddenException>()
+            .WithMessage("*Only SuperAdmin can assign the SuperAdmin role.*");
+    }
+
+    [Fact]
+    public async Task Handle_SuperAdmin_AssigningSuperAdmin_Succeeds()
+    {
+        var user = await SeedUserInRolesAsync();
+        await _roleManager.CreateAsync(IdentityTestData.NewRole("SuperAdmin"));
+
+        var callerIdentity = new ClaimsIdentity([new Claim(ClaimTypes.Role, "SuperAdmin")], "TestAuth");
+        var caller = new ClaimsPrincipal(callerIdentity);
+
+        var response = await _sut.Handle(new AssignRolesCommand(user.Id, ["SuperAdmin"], caller), CancellationToken.None);
+
+        response.Roles.Should().Contain("SuperAdmin");
+        var roles = await _userManager.GetRolesAsync(user);
+        roles.Should().Contain("SuperAdmin");
     }
 }

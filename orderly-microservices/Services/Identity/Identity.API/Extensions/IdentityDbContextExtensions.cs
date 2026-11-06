@@ -23,7 +23,7 @@ public static class IdentityDbContextExtensions
                         maxRetryDelay: TimeSpan.FromSeconds(10),
                         errorCodesToAdd: null));
             options.UseOpenIddict();
-            options.UseModel(IdentityDbContextModel.Instance);
+            // options.UseModel(IdentityDbContextModel.Instance);
             options.AddInterceptors(new AuditableEntityInterceptor());
         });
 

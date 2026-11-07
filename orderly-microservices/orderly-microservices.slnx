@@ -19,6 +19,10 @@
     <Project Path="orderly-microservices.AppHost/orderly-microservices.AppHost.csproj" />
   </Folder>
   <Folder Name="/Services/" />
+  <Folder Name="/Services/Assistant/">
+    <Project Path="Services/Assistant/Assistant.API/Assistant.API.csproj" />
+    <Project Path="Services/Assistant/Assistant.API.Tests/Assistant.API.Tests.csproj" />
+  </Folder>
   <Folder Name="/Services/Basket/">
     <Project Path="Services/Basket/Basket.API/Basket.API.csproj" Id="b80b023f-45c1-49e5-b083-f2582de6e220" />
     <Project Path="Services/Basket/Basket.API.Tests/Basket.API.Tests.csproj" />

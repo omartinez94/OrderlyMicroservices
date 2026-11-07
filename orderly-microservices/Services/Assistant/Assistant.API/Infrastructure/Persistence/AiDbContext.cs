@@ -23,6 +23,8 @@ public sealed class AiDbContext : DbContext, IOutboxDbContext
         _restaurantProvider = restaurantProvider;
     }
 
+    public Guid CurrentRestaurantId => _restaurantProvider?.RestaurantId ?? Guid.Empty;
+
     public DbSet<RestaurantAiQuotaConfig> QuotaConfigs => Set<RestaurantAiQuotaConfig>();
     public DbSet<AiUsageLedger> UsageLedgers => Set<AiUsageLedger>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
@@ -36,11 +38,10 @@ public sealed class AiDbContext : DbContext, IOutboxDbContext
         modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
         modelBuilder.ApplyConfiguration(new OutboxDeadMessageConfiguration());
 
-        if (_restaurantProvider is not null)
-        {
-            modelBuilder.ApplyTenantFilter<RestaurantAiQuotaConfig>(() => _restaurantProvider.RestaurantId);
-            modelBuilder.ApplyTenantFilter<AiUsageLedger>(() => _restaurantProvider.RestaurantId);
-        }
+        modelBuilder.Entity<RestaurantAiQuotaConfig>()
+            .HasQueryFilter(e => CurrentRestaurantId == Guid.Empty || e.RestaurantId == CurrentRestaurantId);
+        modelBuilder.Entity<AiUsageLedger>()
+            .HasQueryFilter(e => CurrentRestaurantId == Guid.Empty || e.RestaurantId == CurrentRestaurantId);
 
         base.OnModelCreating(modelBuilder);
     }

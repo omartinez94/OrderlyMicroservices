@@ -7,14 +7,14 @@
 ## Status
 
 > **Plan version**: `v1.1` (2026-11-06) — upgraded with ZSET self-healing quota reservations, stateless Proposal-Only Write Tools, direct internal service discovery with JWT propagation, role-scoped tool pruning, cached-token weighted billing, event-driven Redis context snapshots, and detached background job execution.
-> **Current state**: 🚧 Phase 3 in progress
+> **Current state**: 🚧 Phase 4 in progress
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Domain Entities, PostgreSQL Persistence & Outbox Events | ✅ Done |
 | 2 | Redis ZSET Self-Healing Metering Engine & Weighted Lua Reservations | ✅ Done |
-| 3 | AI Assistant Orchestrator (.NET 10 / Semantic Kernel), Tiered Routing & Read/Proposal Tools | 🚧 In progress |
-| 4 | Event-Driven Context Snapshots & Detached Background AI Workers (MassTransit + SignalR) | 🔒 Blocked |
+| 3 | AI Assistant Orchestrator (.NET 10 / Semantic Kernel), Tiered Routing & Read/Proposal Tools | ✅ Done |
+| 4 | Event-Driven Context Snapshots & Detached Background AI Workers (MassTransit + SignalR) | 🚧 In progress |
 | 5 | Carter Minimal APIs, YARP Ingress Routing & Deterministic Action Execution | 🔒 Blocked |
 | 6 | OrderlyWeb UI Host, Responsive Sheet, Redux/RTK Query & SignalR Background Job Sync | 🔒 Blocked |
 | 7 | Quota Transparency Widget, Discovery Matrix, Tool Confirmation Cards & E2E Verification | 🔒 Blocked |

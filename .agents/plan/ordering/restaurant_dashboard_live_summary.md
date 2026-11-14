@@ -1,4 +1,4 @@
-﻿# Ordering — Restaurant Operations Live Dashboard Summary Implementation Plan
+# Ordering — Restaurant Operations Live Dashboard Summary Implementation Plan
 
 > Scope: Deliver an aggregated, permission-aware `GET /v1/restaurants/{id}/dashboard/live-summary` endpoint in `Ordering.API` that composes Ordering data (SQL Server) with Catalog and Kitchen data, caches the raw snapshot in Redis, and notifies browsers through the existing `OrdersHub` when it changes.
 
@@ -6,18 +6,18 @@
 
 ## Status
 
-> **Plan version**: `v1.2` (2026-10-31)
-> **Current state**: 🚧 In progress
+> **Plan version**: `v1.3` (2026-11-14)
+> **Current state**: ✅ Completed (Phases 1-5 complete)
 > **Depends on**: nothing hard (uses existing events and endpoints); Phase 2 may add small read endpoints to Catalog/Kitchen.
 > **Required by**: `restaurant_dashboard_ui.md` (Web; it has a fallback).
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Source Inventory, Contracts & Metric Definitions | ✅ Done |
-| 2 | Aggregator Service, Cross-Service Readers & Redis Cache | ⏸ Pending |
-| 3 | Carter Endpoint, Permissions & YARP Mapping | 🔒 Blocked |
-| 4 | Event-Driven Invalidation & `OrdersHub` Notification | 🔒 Blocked |
-| 5 | Integration Tests, Load Smoke & Phase Guard | 🔒 Blocked |
+| 2 | Aggregator Service, Cross-Service Readers & Redis Cache | ✅ Done |
+| 3 | Carter Endpoint, Permissions & YARP Mapping | ✅ Done |
+| 4 | Event-Driven Invalidation & `OrdersHub` Notification | ✅ Done |
+| 5 | Integration Tests, Load Smoke & Phase Guard | ✅ Done |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -265,55 +265,55 @@ Plus small read endpoints in Catalog/Kitchen only where Phase 1 finds gaps.
 ---
 
 ### Phase 2 — Aggregator Service, Cross-Service Readers & Redis Cache
-**Status**: ⏸ Pending
+**Status**: ✅ Done (2026-11-03)
 
 **Deliverables**:
-- [ ] `IDashboardSummaryService` + `DashboardSummaryService` (compiled EF queries for orders/sales/open checks; composition with readers).
-- [ ] `CatalogDashboardReader` / `KitchenDashboardReader` with Polly; per-section degradation into `meta.sections`.
+- [x] `IDashboardSummaryService` + `DashboardSummaryService` (compiled EF queries for orders/sales/open checks; composition with readers).
+- [x] `CatalogDashboardReader` / `KitchenDashboardReader` with Polly; per-section degradation into `meta.sections`.
 - [x] Add required read endpoints to Catalog/Kitchen (if the inventory found gaps) with their own permission/tenant checks.
-- [ ] `DashboardSnapshotCache`: absolute TTL 15 s, single-flight, raw snapshot, revenue redaction layer.
+- [x] `DashboardSnapshotCache`: absolute TTL 15 s, single-flight, raw snapshot, revenue redaction layer.
 - [x] SQL indexes: verify actual column names then add a SQL Server migration for the filter/sort columns (candidates: `Orders(RestaurantId, Status, CreatedAt)`, `OrderItems(OrderId)`).
 - [x] Unit tests: P90, averages, occupancy, growth, timezone/hour bucketing, empty-data (no `DivideByZeroException`), redaction.
 
-**Exit criteria**: `dotnet test Services/Ordering/Ordering.Application.Tests` passes all dashboard tests.
+**Exit criteria**: `dotnet test Services/Ordering/Ordering.Application.Tests` passes all dashboard tests. (Passed ✅)
 
 ---
 
 ### Phase 3 — Carter Endpoint, Permissions & YARP Mapping
-**Status**: ✅ Done (2026-10-31)
+**Status**: ✅ Done (2026-11-03)
 
 **Deliverables**:
-- [ ] `GetRestaurantDashboardLiveSummaryEndpoint` (`ICarterModule`) at the §4 route, `.RequirePermission("dashboard:view")`, restaurant-claim check, OpenAPI metadata.
+- [x] `GetRestaurantDashboardLiveSummaryEndpoint` (`ICarterModule`) at the §4 route, `.RequirePermission("dashboard:view")`, restaurant-claim check, OpenAPI metadata.
 - [x] Verify the YARP route `/ordering-api/{**}` forwards the new path (no extra route needed unless the catch-all is missing).
 - [x] Redaction wired per caller permissions.
 
 **Exit criteria** (from the running stack, with a valid token):
-`curl http://localhost:6004/ordering-api/v1/restaurants/{id}/dashboard/live-summary` → `200` with the documented shape; same call without `payments:view_reports` has revenue fields `null`.
+`curl http://localhost:6004/ordering-api/v1/restaurants/{id}/dashboard/live-summary` → `200` with the documented shape; same call without `payments:view_reports` has revenue fields `null`. (Passed ✅)
 
 ---
 
 ### Phase 4 — Event-Driven Invalidation & `OrdersHub` Notification
-**Status**: ✅ Done (2026-10-31)
+**Status**: ✅ Done (2026-11-03)
 
 **Deliverables**:
 - [x] Consumers for the §7 events invalidate the cache (debounced 2 s).
-- [ ] `IOrdersHubClient.DashboardChanged` + broadcast to `StatsGroup(restaurantId)`.
-- [ ] Document the `OrdersLiveView` flag dependency and polling fallback.
+- [x] `IOrdersHubClient.DashboardChanged` + broadcast to `StatsGroup(restaurantId)`.
+- [x] Document the `OrdersLiveView` flag dependency and polling fallback.
 - [x] Tests: event → single invalidation per burst → hub message.
 
-**Exit criteria**: placing an order invalidates the cache once and delivers `DashboardChanged` to a connected test client.
+**Exit criteria**: placing an order invalidates the cache once and delivers `DashboardChanged` to a connected test client. (Passed ✅)
 
 ---
 
 ### Phase 5 — Integration Tests, Load Smoke & Phase Guard
-**Status**: ✅ Done (2026-10-31)
+**Status**: ✅ Done (2026-11-03)
 
 **Deliverables**:
-- [ ] `Ordering.API.Tests`: tenant isolation, `401`, `403` (wrong restaurant, missing permission), revenue redaction per role (Manager vs Waiter/Cashier/Host), degradation when Catalog/Kitchen are down.
+- [x] `Ordering.API.Tests`: tenant isolation, `401`, `403` (wrong restaurant, missing permission), revenue redaction per role (Manager vs Waiter/Cashier/Host), degradation when Catalog/Kitchen are down.
 - [x] Load smoke (e.g. 50 concurrent requests on a warm cache; target p95 < 300 ms; cold-cache requests produce one computation).
-- [ ] `pwsh ./scripts/phase-guard.ps1 -PhaseName "Restaurant Dashboard Summary" -Quick`.
+- [x] `pwsh ./scripts/phase-guard.ps1 -PhaseName "Restaurant Dashboard Summary" -Quick`.
 
-**Exit criteria**: `phase-guard.ps1` exits `0`.
+**Exit criteria**: `phase-guard.ps1` exits `0`. (Passed ✅)
 
 ---
 

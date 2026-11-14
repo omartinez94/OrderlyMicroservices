@@ -137,7 +137,7 @@ public class TokenModule : ICarterModule
                 => [OpenIddictConstants.Destinations.AccessToken],
             ClaimTypes.Role
                 => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            "restaurantId" or "restaurant_ids"
+            "restaurantId" or "restaurant_ids" or "restaurantIds"
                 => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
             "permissions"
                 => [OpenIddictConstants.Destinations.AccessToken],

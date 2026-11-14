@@ -109,19 +109,7 @@ public sealed class OrdersHub(
             return [];
         }
 
-        List<Guid> ids = [];
-        foreach (Claim claim in principal.Claims)
-        {
-            if (claim.Type is "restaurantId" or "restaurantIds" &&
-                Guid.TryParse(claim.Value, out Guid parsed) &&
-                parsed != Guid.Empty &&
-                !ids.Contains(parsed))
-            {
-                ids.Add(parsed);
-            }
-        }
-
-        return ids;
+        return principal.GetRestaurantIds().ToList();
     }
 
     private static bool HasPermissionOrSuperAdmin(ClaimsPrincipal? principal, string permission)

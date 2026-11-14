@@ -77,6 +77,7 @@ builder.Services.AddScoped<ISaveChangesInterceptor, AuditableEntityInterceptor>(
 // supplies the global query filter's per-request tenant GUID.
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<ICurrentRestaurantProvider, ClaimsRestaurantProvider>();
+builder.Services.AddSingleton(TimeProvider.System);
 
 // PostgreSQL: build a single NpgsqlDataSource with the NodaTime plugin so
 // NodaTime.Instant maps natively to `timestamp with time zone`. The data
@@ -228,7 +229,8 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
     ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse,
 });
 
-app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909");
+app.MapGet("/", () => "Communication with gRPC endpoints must be made through a gRPC client. To learn how to create a client, visit: https://go.microsoft.com/fwlink/?linkid=2086909")
+    .WithTags("Discount", DiscountHealthCheckNames.Postgres);
 
 // OpenAPI document endpoint (HTTP surface only — see Program.cs comment
 // on `AddOpenApi()` above). Per plan §10.6, the gRPC contract is documented

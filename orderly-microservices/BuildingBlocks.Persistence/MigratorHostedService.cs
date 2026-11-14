@@ -139,18 +139,52 @@ public abstract class MigratorHostedService<TContext> : IHostedService
 
     /// <summary>
     /// Classifies an exception as transient (worth retrying) or fatal.
-    /// Postgres: any <see cref="PostgresException"/> with a transient
-    /// <c>SqlState</c> — the engine surface area is broad; we accept
-    /// any <c>PostgresException</c> here and let the timeout cap the
-    /// retry window.
-    /// SQL Server: <see cref="SqlException"/> numbers 1801 (database
-    /// copy error), 4060 (database unavailable), 40613 (server busy),
+    /// Postgres: any <see cref="NpgsqlException"/> (including <see cref="PostgresException"/>
+    /// and connection-refused socket errors) — the engine surface area is broad; we accept
+    /// any <c>NpgsqlException</c> here and let the timeout cap the retry window.
+    /// SQL Server: <see cref="SqlException"/> or <c>Microsoft.Data.SqlClient.SqlException</c>
+    /// numbers 1801 (database copy error), 4060 (database unavailable), 40613 (server busy),
     /// 233 (connection error), -2 (timeout).
+    /// Also unwraps <see cref="Exception.InnerException"/> recursively so EF Core's
+    /// <see cref="InvalidOperationException"/> retry wrapper does not mask transient errors.
     /// </summary>
-    protected static bool IsTransient(Exception ex) => ex switch
+    protected static bool IsTransient(Exception ex)
     {
-        PostgresException => true,
-        SqlException sql => sql.Number is 1801 or 4060 or 40613 or 233 or -2,
-        _ => false,
-    };
+        if (ex is NpgsqlException)
+        {
+            return true;
+        }
+
+        if (ex is SqlException sql)
+        {
+            return IsTransientSqlErrorNumber(sql.Number);
+        }
+
+        if (TryGetSqlErrorNumber(ex, out int errorNumber) && IsTransientSqlErrorNumber(errorNumber))
+        {
+            return true;
+        }
+
+        return ex.InnerException is not null && IsTransient(ex.InnerException);
+    }
+
+    private static bool IsTransientSqlErrorNumber(int number) =>
+        number is 1801 or 4060 or 40613 or 233 or -2;
+
+    private static bool TryGetSqlErrorNumber(Exception ex, out int errorNumber)
+    {
+        Type exType = ex.GetType();
+        if (string.Equals(exType.FullName, "Microsoft.Data.SqlClient.SqlException", StringComparison.Ordinal))
+        {
+            System.Reflection.PropertyInfo? numberProp = exType.GetProperty("Number");
+            if (numberProp?.GetValue(ex) is int num)
+            {
+                errorNumber = num;
+                return true;
+            }
+        }
+
+        errorNumber = 0;
+        return false;
+    }
 }

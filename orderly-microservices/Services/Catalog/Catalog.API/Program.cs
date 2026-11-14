@@ -42,6 +42,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, HttpContextCurrentUser>();
 builder.Services.AddScoped<ITenantAccessValidator, DefaultTenantAccessValidator>();
 builder.Services.AddSingleton<IClock>(SystemClock.Instance);
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Feature management — the CatalogRedisCache flag (env: FeatureManagement__CatalogRedisCache)
 // gates the cache drift-repair hosted service and lets ops disable the cache without
@@ -135,18 +136,22 @@ builder.Services.AddOptions<HangfireOptions>()
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
-builder.Services.AddHangfire(cfg => cfg
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(
-        builder.Configuration.GetConnectionString("CatalogDB")!)));
-
-builder.Services.AddHangfireServer(opts =>
+bool hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
+if (hangfireEnabled)
 {
-    HangfireOptions? hfOptions = builder.Configuration.GetSection(HangfireOptions.SectionName).Get<HangfireOptions>() ?? new HangfireOptions();
-    opts.WorkerCount = hfOptions.WorkerCount;
-});
+    builder.Services.AddHangfire(cfg => cfg
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UsePostgreSqlStorage(opts => opts.UseNpgsqlConnection(
+            builder.Configuration.GetConnectionString("CatalogDB")!)));
+
+    builder.Services.AddHangfireServer(opts =>
+    {
+        HangfireOptions? hfOptions = builder.Configuration.GetSection(HangfireOptions.SectionName).Get<HangfireOptions>() ?? new HangfireOptions();
+        opts.WorkerCount = hfOptions.WorkerCount;
+    });
+}
 
 // Job classes are resolved per-tick from the DI container, so each tick
 // opens its own scope and gets its own DbContext.
@@ -200,7 +205,7 @@ builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
     });
 });
 
-if (builder.Environment.IsDevelopment())
+if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue("Migrator:Enabled", defaultValue: true))
 {
     builder.Services.InitializeMartenWith<CatalogInitialData>();
 }
@@ -248,7 +253,6 @@ app.MapOpenApi();
 // `IRecurringJobManager` from the application services and call
 // `.AddOrUpdate<T>(...)` on the manager — same scheduling semantics, no
 // static JobStorage dependency.
-bool hangfireEnabled = builder.Configuration.GetValue("Catalog:Hangfire:Enabled", defaultValue: true);
 if (hangfireEnabled)
 {
     HangfireOptions? hfOptions = app.Services.GetRequiredService<IOptions<HangfireOptions>>().Value;
@@ -273,15 +277,15 @@ if (hangfireEnabled)
         "seasonal-availability",
         job => job.RunAsync(CancellationToken.None),
         hfOptions.SeasonalAvailabilityCron);
-}
 
-// Hangfire dashboard — admin-only (gated on the JWT role claim "Admin").
-// The dashboard is on the same /api path style as the rest of Catalog so
-// it goes through the gateway prefix /catalog-api/hangfire.
-app.MapHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = new[] { new HangfireAdminOnlyFilter() },
-});
+    // Hangfire dashboard — admin-only (gated on the JWT role claim "Admin").
+    // The dashboard is on the same /api path style as the rest of Catalog so
+    // it goes through the gateway prefix /catalog-api/hangfire.
+    app.MapHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireAdminOnlyFilter() },
+    });
+}
 
 app.UseExceptionHandler(options => { });
 

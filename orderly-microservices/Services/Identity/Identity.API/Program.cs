@@ -233,11 +233,22 @@ app.MapHealthChecks("/ready", new HealthCheckOptions
 
 app.Run();
 
-class DataSeederHostedService(IServiceProvider serviceProvider, IWebHostEnvironment environment) : IHostedService
+class DataSeederHostedService(
+    IServiceProvider serviceProvider,
+    IWebHostEnvironment environment,
+    IConfiguration configuration,
+    ILogger<DataSeederHostedService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!configuration.GetValue("Migrator:Enabled", defaultValue: true))
+        {
+            logger.LogInformation("Identity data seeder skipped because Migrator:Enabled is false.");
+            return;
+        }
+
         await DataSeeder.SeedDataAsync(serviceProvider, environment, cancellationToken);
     }
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

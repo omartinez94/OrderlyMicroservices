@@ -64,14 +64,23 @@ if (app.Environment.IsDevelopment())
 
 app.Run();
 
-class OrderingDataSeederHostedService(IServiceProvider serviceProvider, IWebHostEnvironment environment) : IHostedService
+class OrderingDataSeederHostedService(
+    IServiceProvider serviceProvider,
+    IWebHostEnvironment environment,
+    IConfiguration configuration) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!configuration.GetValue("Migrator:Enabled", defaultValue: true))
+        {
+            return;
+        }
+
         if (environment.IsDevelopment())
         {
             await DatabaseExtensions.InitializeDatabaseAsync(serviceProvider);
         }
     }
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -16,11 +16,20 @@ public sealed class BlobStorageContainerInitializer(
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!options.Value.EnsureContainerOnStartup)
+        {
+            logger.LogInformation("Blob storage container initialization skipped (EnsureContainerOnStartup = false).");
+            return;
+        }
+
         try
         {
+            using CancellationTokenSource timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(5));
+
             string containerName = options.Value.ContainerName;
             BlobContainerClient containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
+            await containerClient.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: timeoutCts.Token);
             logger.LogInformation("Blob storage container '{ContainerName}' ensured with public read access.", containerName);
         }
         catch (Exception ex)

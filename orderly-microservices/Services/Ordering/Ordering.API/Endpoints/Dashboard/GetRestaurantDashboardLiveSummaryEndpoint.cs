@@ -1,5 +1,6 @@
 namespace Ordering.API.Endpoints.Dashboard;
 
+using BuildingBlocks.Authorization;
 using Ordering.Application.Dashboard.Dtos;
 using Ordering.Application.Dashboard.Queries.GetRestaurantDashboardLiveSummary;
 
@@ -21,13 +22,8 @@ public class GetRestaurantDashboardLiveSummaryEndpoint : ICarterModule
                 return Results.NotFound();
             }
 
-            // Tenant claim check: caller must have restaurantId / restaurantIds claim matching route, or be SuperAdmin
-            bool isSuperAdmin = httpContext.User.IsInRole("SuperAdmin");
-            bool hasRestaurantAccess = isSuperAdmin || httpContext.User.Claims.Any(c =>
-                (c.Type == "restaurantId" || c.Type == "restaurantIds") &&
-                Guid.TryParse(c.Value, out Guid id) && id == restaurantId);
-
-            if (!hasRestaurantAccess)
+            // Tenant claim check: caller must have access to restaurantId (matching restaurantId, restaurant_ids, or SuperAdmin)
+            if (!httpContext.User.HasRestaurantAccess(restaurantId))
             {
                 return Results.Forbid();
             }

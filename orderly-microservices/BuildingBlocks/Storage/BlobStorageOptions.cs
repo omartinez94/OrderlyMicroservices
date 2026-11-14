@@ -33,4 +33,9 @@ public sealed class BlobStorageOptions
     /// </summary>
     [Required(AllowEmptyStrings = false)]
     public string ContainerName { get; set; } = "menu-assets";
+
+    /// <summary>
+    /// Whether to ensure the blob container exists at host startup. Default: true.
+    /// </summary>
+    public bool EnsureContainerOnStartup { get; set; } = true;
 }

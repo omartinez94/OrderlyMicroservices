@@ -9,10 +9,17 @@ namespace Catalog.API.Data;
 public class CatalogDataSeederHostedService(
     IServiceProvider serviceProvider,
     IWebHostEnvironment environment,
+    IConfiguration configuration,
     ILogger<CatalogDataSeederHostedService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        if (!configuration.GetValue("Migrator:Enabled", defaultValue: true))
+        {
+            logger.LogInformation("Catalog data seeder skipped because Migrator:Enabled is false.");
+            return;
+        }
+
         try
         {
             using var scope = serviceProvider.CreateScope();

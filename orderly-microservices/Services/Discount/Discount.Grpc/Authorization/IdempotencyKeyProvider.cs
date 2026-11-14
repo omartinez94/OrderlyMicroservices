@@ -67,6 +67,20 @@ public sealed class IdempotencyKeyProvider : IIdempotencyKeyProvider
     }
 
     /// <summary>
+    /// DI constructor. Reads
+    /// <c>IConfiguration["Discount:IdempotencyKey"]</c> at startup.
+    /// Hard-fails in non-Development environments when the value is missing or shorter than
+    /// <see cref="MinKeyBytes"/>.
+    /// </summary>
+    public IdempotencyKeyProvider(
+        IConfiguration config,
+        ILogger<IdempotencyKeyProvider> logger,
+        IHostEnvironment env)
+        : this(config, logger, isDevelopment: env?.IsDevelopment() ?? false)
+    {
+    }
+
+    /// <summary>
     /// Dev-friendly constructor that picks the fallback path when
     /// <paramref name="isDevelopment"/> is true and the config value
     /// is missing. The test factory uses this overload to avoid the

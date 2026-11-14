@@ -68,7 +68,7 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddOpenBehavior(typeof(LoggingBehavior<,>));
 });
 string? connectionString = builder.Configuration.GetConnectionString("BasketDB")!;
-builder.Services.AddMarten(opt =>
+MartenServiceCollectionExtensions.MartenConfigurationExpression martenConfig = builder.Services.AddMarten(opt =>
 {
     // NodaTime plugin (from the `Marten.NodaTime` 8.37.4 package).
     // Registers custom value comparers + `[DuplicateField]` mappers
@@ -113,8 +113,14 @@ builder.Services.AddMarten(opt =>
     // supports the paged audit query on `GET /v1/admin/audit`
     // (planned; not part of the Phase 4 admin-carts surface).
     opt.Schema.For<BasketAuditLogEntry>().MultiTenanted();
-})
-    .ApplyAllDatabaseChangesOnStartup()
+});
+
+if (builder.Configuration.GetValue("Migrator:Enabled", defaultValue: true))
+{
+    martenConfig.ApplyAllDatabaseChangesOnStartup();
+}
+
+martenConfig
     .UseLightweightSessions()
     // Custom session factory that sets `TenantId` from the ambient
     // `restaurantId` claim on every opened `IDocumentSession`. Closes
@@ -133,9 +139,10 @@ builder.Services.AddMarten(opt =>
 // ConnectionMultiplexerFactory (the factory is a Func<Task<...>> with
 // no DI access, so capturing the multiplexer at registration time is
 // the idiomatic pattern).
-StackExchange.Redis.ConnectionMultiplexer? redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(
-    StackExchange.Redis.ConfigurationOptions.Parse(
-        builder.Configuration.GetConnectionString("Redis")!));
+StackExchange.Redis.ConfigurationOptions redisOptions = StackExchange.Redis.ConfigurationOptions.Parse(
+    builder.Configuration.GetConnectionString("Redis")!);
+redisOptions.AbortOnConnectFail = false;
+StackExchange.Redis.ConnectionMultiplexer? redisMultiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisOptions);
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(redisMultiplexer);
 
 builder.Services.AddStackExchangeRedisCache(rediscache =>
@@ -494,7 +501,7 @@ app.UseAuthorization();
 // deployments don't expose the schema surface. The generated
 // `swagger.json` is committed under `docs/api/basket-api-v1.json`
 // on every phase commit that changes an endpoint
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || builder.Configuration.GetValue("OpenApi:Enabled", defaultValue: false))
 {
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Basket API v1"));

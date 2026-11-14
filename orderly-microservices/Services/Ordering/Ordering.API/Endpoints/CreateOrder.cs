@@ -1,3 +1,4 @@
+using BuildingBlocks.Authorization;
 using BuildingBlocks.Exceptions;
 using Ordering.Application.Orders.Commands.CreateOrder;
 
@@ -22,13 +23,7 @@ public class CreateOrder : ICarterModule
             Guid restaurantId = request.Order.RestaurantId;
 
             // Task 3.1: Tenant Validation
-            // Caller must have restaurantId claim matching request, or be SuperAdmin
-            bool isSuperAdmin = httpContext.User.IsInRole("SuperAdmin");
-            bool hasRestaurantAccess = isSuperAdmin || httpContext.User.Claims.Any(c =>
-                (c.Type == "restaurantId" || c.Type == "restaurantIds") &&
-                Guid.TryParse(c.Value, out Guid id) && id == restaurantId);
-
-            if (!hasRestaurantAccess)
+            if (!httpContext.User.HasRestaurantAccess(restaurantId))
             {
                 throw new ForbiddenException($"Forbidden: User does not have access to restaurant '{restaurantId}'.");
             }

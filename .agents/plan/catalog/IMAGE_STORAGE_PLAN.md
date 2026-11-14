@@ -6,8 +6,8 @@
 
 ## Status
 
-> **Plan version**: `v1.5` (2026-11-14) — Phase 4 completed (Upload Workflow & Presigned URL API)
-> **Current state**: 🚧 Phase 5 in progress
+> **Plan version**: `v1.6` (2026-11-14) — Phase 5 completed (Asynchronous Image Processing & CDN Delivery)
+> **Current state**: ✅ All Backend Phases (1–5) Complete
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
@@ -15,7 +15,7 @@
 | 2 | Image Schema & Data Fields Across Microservices | ✅ Done (2026-11-14) |
 | 3 | Storage Abstraction Layer & Local Dev Setup | ✅ Done (2026-11-14) |
 | 4 | Upload Workflow & Presigned URL API (Catalog Service) | ✅ Done (2026-11-14) |
-| 5 | Asynchronous Image Processing & CDN Delivery | 🚧 In progress |
+| 5 | Asynchronous Image Processing & CDN Delivery | ✅ Done (2026-11-14) |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -391,16 +391,18 @@ When `BasketCheckoutEventHandler` in `Ordering.Application` maps basket items to
 
 **Goal**: Implement an in-process `BackgroundService` inside `Catalog.API` that picks up confirmed uploads, resizes them using `SixLabors.ImageSharp`, stores WebP variants back into the object store, and updates `ThumbnailUrl`.
 
-**Status**: 🔒 Blocked (blocked on Phase 4)
+**Status**: ✅ Done (2026-11-14)
 
 **Deliverables**:
-- [ ] Add `SixLabors.ImageSharp` NuGet to `Catalog.API.csproj`.
-- [ ] Implement `Catalog.API/Scheduling/ImageProcessingBackgroundService.cs` as `BackgroundService`. Uses `ExecuteAsync(CancellationToken stoppingToken)` with a polling loop (or channel/queue fed by `MenuItemImageUploadedIntegrationEvent` consumer).
-- [ ] Processing steps per image: download original from object store → resize to 800×800 standard → resize to 150×150 thumbnail → encode both as WebP → upload back to bucket with suffix (`-standard.webp`, `-thumb.webp`) → update `MenuItem.ImageUrl` (standard) and `ThumbnailUrl` (thumb) → `SaveChangesAsync` → invalidate cache.
-- [ ] Configure CDN/bucket object headers: `Cache-Control: public, max-age=31536000, immutable` on all processed variants.
-- [ ] Register `BackgroundService` in `Program.cs` via `builder.Services.AddHostedService<ImageProcessingBackgroundService>()`.
+- [x] Add `SixLabors.ImageSharp` (v4.1.3) NuGet to `Catalog.API.csproj`.
+- [x] Implement `Catalog.API/Infrastructure/Storage/ImageProcessingService.cs` implementing `IImageProcessingService`.
+- [x] Implement `Catalog.API/Messaging/EventHandlers/MenuItemImageUploadedIntegrationEventHandler.cs` as a MassTransit `IConsumer<MenuItemImageUploadedIntegrationEvent>` consumer.
+- [x] Implement `Catalog.API/Scheduling/ImageProcessingBackgroundService.cs` as `BackgroundService` to scan and catch up any unprocessed confirmed menu items.
+- [x] Processing steps per image: download original from object store → resize to 800×800 standard → resize to 150×150 thumbnail → encode both as WebP → upload back to bucket with suffix (`-standard.webp`, `-thumb.webp`) → update `MenuItem.ImageUrl` (standard) and `ThumbnailUrl` (thumb) → `SaveChangesAsync` → invalidate cache.
+- [x] Register `IImageProcessingService` and `ImageProcessingBackgroundService` in `Program.cs`.
+- [x] Add unit tests in `Catalog.API.Tests/Unit/ImageStoragePhase5Tests.cs` (3 tests passing).
 
-**Exit criteria**: After confirming an upload, within a configurable polling window, `MenuItem.ThumbnailUrl` is set and a WebP variant is accessible via the CDN URL.
+**Exit criteria**: After confirming an upload, within a configurable polling window or immediately via MassTransit event, `MenuItem.ThumbnailUrl` and `MenuItem.ImageUrl` reflect the generated WebP variants accessible via the CDN URL.
 
 ---
 

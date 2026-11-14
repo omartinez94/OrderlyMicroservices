@@ -4,7 +4,7 @@ public sealed class GetMenuEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("/v1/restaurants/{restaurantId:guid}/menu", async (Guid restaurantId, ISender sender, CancellationToken cancellationToken) =>
+        app.MapGet("/v1/restaurants/{restaurantId}/menu", async (string restaurantId, ISender sender, CancellationToken cancellationToken) =>
         {
             GetMenuQuery query = new(restaurantId);
             GetMenuResult result = await sender.Send(query, cancellationToken);
@@ -13,7 +13,7 @@ public sealed class GetMenuEndpoint : ICarterModule
         })
         .RequirePermission("menu:view")
         .WithTags("Menu")
-        .WithDescription("Gets the cached full menu tree snapshot for a restaurant.")
+        .WithDescription("Gets the cached full menu tree snapshot for a restaurant by ID or short ID.")
         .WithName("GetMenu")
         .Produces<MenuSnapshot>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status400BadRequest)

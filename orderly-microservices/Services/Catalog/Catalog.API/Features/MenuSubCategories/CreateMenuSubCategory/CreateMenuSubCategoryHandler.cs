@@ -7,7 +7,8 @@ public record CreateMenuSubCategoryCommand(
     string Name,
     string Description,
     int DisplayOrder,
-    bool IsActive) : ICommand<CreateMenuSubCategoryResult>;
+    bool IsActive,
+    string? Icon = null) : ICommand<CreateMenuSubCategoryResult>;
 
 public record CreateMenuSubCategoryResult(int Id);
 
@@ -20,6 +21,8 @@ public class CreateMenuSubCategoryCommandValidator : AbstractValidator<CreateMen
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("Name is required")
             .MaximumLength(255).WithMessage("Name must not exceed 255 characters");
+        RuleFor(x => x.Icon)
+            .MaximumLength(64).WithMessage("Icon must not exceed 64 characters");
     }
 }
 
@@ -48,6 +51,7 @@ internal class CreateMenuSubCategoryCommandHandler(
             Description = command.Description ?? string.Empty,
             DisplayOrder = command.DisplayOrder,
             IsActive = command.IsActive,
+            Icon = command.Icon,
             IsDeleted = false
         };
 

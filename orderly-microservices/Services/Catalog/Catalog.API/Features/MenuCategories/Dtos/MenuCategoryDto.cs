@@ -5,4 +5,5 @@ public record MenuCategoryDto(
     string Name,
     string Description,
     int DisplayOrder,
-    Guid RestaurantId);
+    Guid RestaurantId,
+    string? Icon = null);

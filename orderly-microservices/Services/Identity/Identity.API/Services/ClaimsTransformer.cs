@@ -64,6 +64,11 @@ public class ClaimsTransformer(IdentityDbContext dbContext)
             claims.Add(new Claim("restaurantId", defaultRestaurant.RestaurantId.ToString()));
         }
 
+        foreach (UserRestaurant ur in userRestaurants)
+        {
+            claims.Add(new Claim("restaurant_ids", ur.RestaurantId.ToString()));
+        }
+
         List<string> permissions = await dbContext.RolePermissions
             .Where(rp => roleNames.Contains(rp.Role.Name))
             .Join(dbContext.Permissions, rp => rp.PermissionId, p => p.Id, (rp, p) => p.Name)

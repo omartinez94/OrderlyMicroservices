@@ -4,7 +4,8 @@ public record CreateMenuCategoryCommand(
     Guid RestaurantId,
     string Name,
     string Description,
-    int DisplayOrder) : ICommand<CreateMenuCategoryResult>;
+    int DisplayOrder,
+    string? Icon = null) : ICommand<CreateMenuCategoryResult>;
 
 public record CreateMenuCategoryResult(int Id);
 
@@ -14,6 +15,7 @@ public class CreateMenuCategoryCommandValidator : AbstractValidator<CreateMenuCa
     {
         RuleFor(x => x.RestaurantId).NotEmpty().WithMessage("RestaurantId is required");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required").MaximumLength(255).WithMessage("Name must not exceed 255 characters");
+        RuleFor(x => x.Icon).MaximumLength(64).WithMessage("Icon must not exceed 64 characters");
     }
 }
 
@@ -32,6 +34,7 @@ internal class CreateMenuCategoryCommandHandler(
             Name = command.Name,
             Description = command.Description,
             DisplayOrder = command.DisplayOrder,
+            Icon = command.Icon,
             IsDeleted = false
         };
 

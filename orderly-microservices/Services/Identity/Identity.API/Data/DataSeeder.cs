@@ -352,9 +352,9 @@ public static class DataSeeder
 
         Guid romaNorteId = Guid.Parse("e8d2a1b5-9c4f-4e7a-8f1d-2b3c4d5e6a7b");
         Guid sanPedroId = Guid.Parse("c5b1e9a4-3f7d-4a8e-9c2b-6d7e8f1a2b3c");
-        Guid legacyRestaurantId = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
-        Guid[] assignedRestaurants = [romaNorteId, sanPedroId, legacyRestaurantId];
+        // Roles that belong strictly to a single restaurant location (San Pedro)
+        HashSet<string> singleRestaurantRoles = ["KitchenManager", "Waiter", "KitchenStaff", "Host", "Cashier"];
 
         foreach (var u in users)
         {
@@ -382,17 +382,43 @@ public static class DataSeeder
 
             if (user is not null)
             {
-                foreach (Guid restaurantId in assignedRestaurants)
+                Guid[] userRestaurants = singleRestaurantRoles.Contains(u.Role)
+                    ? [sanPedroId]
+                    : [romaNorteId, sanPedroId];
+
+                // Remove any unauthorized restaurants that might have been previously seeded
+                List<Models.UserRestaurant> existing = await dbContext.UserRestaurants
+                    .Where(ur => ur.UserId == user.Id)
+                    .ToListAsync(ct);
+
+                foreach (Models.UserRestaurant ex in existing)
                 {
-                    if (!await dbContext.UserRestaurants.AnyAsync(ur => ur.UserId == user.Id && ur.RestaurantId == restaurantId, ct))
+                    if (!userRestaurants.Contains(ex.RestaurantId))
+                    {
+                        dbContext.UserRestaurants.Remove(ex);
+                    }
+                }
+
+                foreach (Guid restaurantId in userRestaurants)
+                {
+                    Models.UserRestaurant? existingRecord = existing.FirstOrDefault(ur => ur.RestaurantId == restaurantId);
+                    bool isDefault = singleRestaurantRoles.Contains(u.Role)
+                        ? (restaurantId == sanPedroId)
+                        : (restaurantId == romaNorteId);
+
+                    if (existingRecord is null)
                     {
                         dbContext.UserRestaurants.Add(new Models.UserRestaurant
                         {
                             UserId = user.Id,
                             User = user,
                             RestaurantId = restaurantId,
-                            IsDefault = (restaurantId == romaNorteId),
+                            IsDefault = isDefault,
                         });
+                    }
+                    else if (existingRecord.IsDefault != isDefault)
+                    {
+                        existingRecord.IsDefault = isDefault;
                     }
                 }
             }

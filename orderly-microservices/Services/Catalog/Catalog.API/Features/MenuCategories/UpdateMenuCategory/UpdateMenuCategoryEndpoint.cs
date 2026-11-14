@@ -3,7 +3,8 @@ namespace Catalog.API.Features.MenuCategories.UpdateMenuCategory;
 public record UpdateMenuCategoryRequest(
     string Name,
     string Description,
-    int DisplayOrder);
+    int DisplayOrder,
+    string? Icon = null);
 
 public record UpdateMenuCategoryResponse(bool IsSuccess);
 
@@ -15,7 +16,7 @@ public class UpdateMenuCategoryEndpoint : ICarterModule
 
         group.MapPut("/menu-categories/{id:int}", async (int id, UpdateMenuCategoryRequest request, ISender sender) =>
         {
-            UpdateMenuCategoryCommand? command = new UpdateMenuCategoryCommand(id, request.Name, request.Description, request.DisplayOrder);
+            UpdateMenuCategoryCommand? command = new UpdateMenuCategoryCommand(id, request.Name, request.Description, request.DisplayOrder, request.Icon);
 
             UpdateMenuCategoryResult? result = await sender.Send(command);
             UpdateMenuCategoryResponse? response = result.Adapt<UpdateMenuCategoryResponse>();

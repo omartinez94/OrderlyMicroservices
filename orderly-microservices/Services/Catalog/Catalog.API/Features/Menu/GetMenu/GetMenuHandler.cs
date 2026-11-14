@@ -6,7 +6,7 @@ public sealed class GetMenuQueryValidator : AbstractValidator<GetMenuQuery>
 {
     public GetMenuQueryValidator()
     {
-        RuleFor(x => x.RestaurantId).NotEmpty().WithMessage("RestaurantId is required");
+        RuleFor(x => x.Identifier).NotEmpty().WithMessage("Restaurant identifier is required");
     }
 }
 
@@ -17,10 +17,30 @@ internal sealed class GetMenuQueryHandler(
 {
     public async Task<GetMenuResult> Handle(GetMenuQuery query, CancellationToken cancellationToken)
     {
-        currentUser.EnsureTenantAccess(query.RestaurantId);
+        Guid restaurantId;
+        if (Guid.TryParse(query.Identifier, out Guid parsedId))
+        {
+            restaurantId = parsedId;
+        }
+        else
+        {
+            Restaurant? restaurant = await dbContext.Restaurants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(r => r.ShortId == query.Identifier, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (restaurant is null)
+            {
+                throw new NotFoundException(nameof(Restaurant), query.Identifier);
+            }
+
+            restaurantId = restaurant.Id;
+        }
+
+        currentUser.EnsureTenantAccess(restaurantId);
 
         MenuSnapshot? snapshot = await menuReader
-            .GetByRestaurantAsync(query.RestaurantId, cancellationToken)
+            .GetByRestaurantAsync(restaurantId, cancellationToken)
             .ConfigureAwait(false);
 
         if (snapshot is not null)
@@ -30,16 +50,16 @@ internal sealed class GetMenuQueryHandler(
 
         bool restaurantExists = await dbContext.Restaurants
             .AsNoTracking()
-            .AnyAsync(r => r.Id == query.RestaurantId, cancellationToken)
+            .AnyAsync(r => r.Id == restaurantId, cancellationToken)
             .ConfigureAwait(false);
 
         if (!restaurantExists)
         {
-            throw new NotFoundException(nameof(Restaurant), query.RestaurantId);
+            throw new NotFoundException(nameof(Restaurant), restaurantId);
         }
 
         MenuSnapshot emptySnapshot = new(
-            RestaurantId: query.RestaurantId,
+            RestaurantId: restaurantId,
             SnapshotAt: SystemClock.Instance.GetCurrentInstant(),
             Categories: []);
 

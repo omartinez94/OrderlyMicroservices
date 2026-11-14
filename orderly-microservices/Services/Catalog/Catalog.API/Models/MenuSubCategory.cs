@@ -9,4 +9,5 @@ public class MenuSubCategory : Entity<int>
     public bool IsDeleted { get; set; }
     public string Name { get; set; } = string.Empty;
     public Instant? DeletedAt { get; set; }
+    public string? Icon { get; set; }
 }

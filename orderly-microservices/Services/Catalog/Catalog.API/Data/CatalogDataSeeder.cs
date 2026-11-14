@@ -204,11 +204,6 @@ public static class CatalogDataSeeder
         ILogger logger,
         CancellationToken ct)
     {
-        if (await dbContext.MenuItems.AnyAsync(ct))
-        {
-            return;
-        }
-
         string seedPath = Path.Combine(AppContext.BaseDirectory, "Data", "mexican_menu_seed_data.json");
         if (!File.Exists(seedPath))
         {
@@ -225,21 +220,27 @@ public static class CatalogDataSeeder
         using JsonDocument doc = JsonDocument.Parse(jsonContent);
         JsonElement root = doc.RootElement;
 
-        // 1. Seed Categories & SubCategories
-        Dictionary<int, int> categoryIdMap = new();
-        Dictionary<int, int> subCategoryIdMap = new();
+        Guid[] targetRestaurants = [AcmeRomaNorteId, AcmeSanPedroId];
 
-        if (root.TryGetProperty("categories", out JsonElement categoriesElem))
+        if (!root.TryGetProperty("categories", out JsonElement categoriesElem) ||
+            !root.TryGetProperty("items", out JsonElement itemsElem))
         {
+            return;
+        }
+
+        foreach (Guid restaurantId in targetRestaurants)
+        {
+            // 1. Seed Categories & SubCategories per restaurant
+            Dictionary<int, int> subCategoryIdMap = new();
+
             foreach (JsonElement catElem in categoriesElem.EnumerateArray())
             {
-                int jsonCatId = catElem.GetProperty("id").GetInt32();
                 string name = catElem.GetProperty("name").GetString() ?? string.Empty;
                 string description = catElem.GetProperty("description").GetString() ?? string.Empty;
                 int displayOrder = catElem.GetProperty("displayOrder").GetInt32();
 
                 MenuCategory? existingCat = await dbContext.MenuCategories
-                    .FirstOrDefaultAsync(c => c.Name == name && c.RestaurantId == AcmeRomaNorteId, ct);
+                    .FirstOrDefaultAsync(c => c.Name == name && c.RestaurantId == restaurantId, ct);
 
                 if (existingCat is null)
                 {
@@ -248,14 +249,12 @@ public static class CatalogDataSeeder
                         Name = name,
                         Description = description,
                         DisplayOrder = displayOrder,
-                        RestaurantId = AcmeRomaNorteId
+                        RestaurantId = restaurantId
                     };
                     ((IAuditableEntity)existingCat).CreatedFrom("system", SeedTimestamp);
                     dbContext.MenuCategories.Add(existingCat);
                     await dbContext.SaveChangesAsync(ct);
                 }
-
-                categoryIdMap[jsonCatId] = existingCat.Id;
 
                 if (catElem.TryGetProperty("subCategories", out JsonElement subCatsElem))
                 {
@@ -287,117 +286,141 @@ public static class CatalogDataSeeder
                     }
                 }
             }
-        }
 
-        // 2. Seed Items, Variations, Ingredients for Acme Restaurants
-        Guid[] targetRestaurants = [AcmeRomaNorteId, AcmeSanPedroId];
-
-        if (root.TryGetProperty("items", out JsonElement itemsElem))
-        {
-            foreach (Guid restaurantId in targetRestaurants)
+            // 2. Seed Items, Variations, Ingredients for restaurant if not already present
+            bool hasItems = await dbContext.MenuItems.AnyAsync(mi => mi.RestaurantId == restaurantId, ct);
+            if (hasItems)
             {
-                int displayOrder = 1;
+                // Ensure subcategory links point to this restaurant's subcategories
+                List<MenuItem> existingItems = await dbContext.MenuItems
+                    .Where(mi => mi.RestaurantId == restaurantId)
+                    .ToListAsync(ct);
+
+                bool itemsUpdated = false;
                 foreach (JsonElement itemElem in itemsElem.EnumerateArray())
                 {
-                    string name = itemElem.GetProperty("name").GetString() ?? string.Empty;
-                    string description = itemElem.GetProperty("description").GetString() ?? string.Empty;
-                    decimal basePrice = itemElem.GetProperty("basePrice").GetDecimal();
-                    int prepMin = itemElem.GetProperty("prepTimeMinutes").GetInt32();
-                    int prepMax = itemElem.GetProperty("prepTimeMaxMinutes").GetInt32();
-                    int course = itemElem.TryGetProperty("defaultCourseNumber", out var cElem) ? cElem.GetInt32() : 1;
+                    string itemName = itemElem.GetProperty("name").GetString() ?? string.Empty;
                     int jsonSubCatId = itemElem.GetProperty("subCategoryId").GetInt32();
-                    int? mappedSubCatId = subCategoryIdMap.TryGetValue(jsonSubCatId, out int dbSubId) ? dbSubId : null;
-
-                    Guid itemId = (restaurantId == AcmeRomaNorteId && itemElem.TryGetProperty("id", out var idElem))
-                        ? Guid.Parse(idElem.GetString()!)
-                        : Guid.NewGuid();
-
-                    string shortId = (restaurantId == AcmeRomaNorteId && itemElem.TryGetProperty("shortId", out var sElem))
-                        ? sElem.GetString()!
-                        : ShortIdGenerator.Generate(EntityPrefix.MenuItem);
-
-                    MenuItem menuItem = new MenuItem
+                    if (subCategoryIdMap.TryGetValue(jsonSubCatId, out int correctSubCatId))
                     {
-                        Id = itemId,
-                        RestaurantId = restaurantId,
-                        SubCategoryId = mappedSubCatId,
-                        Name = name,
-                        Description = description,
-                        BasePrice = basePrice,
-                        PrepTimeMinutes = prepMin,
-                        PrepTimeMaxMinutes = prepMax,
-                        DefaultCourseNumber = course,
-                        ShortId = shortId,
-                        ItemType = ItemType.Regular,
-                        AvailabilityStatus = AvailabilityStatus.Available,
-                        IsAvailable = true,
-                        DisplayOrder = displayOrder++
-                    };
-                    ((IAuditableEntity)menuItem).CreatedFrom("system", SeedTimestamp);
-                    dbContext.MenuItems.Add(menuItem);
-
-                    // Variations
-                    if (itemElem.TryGetProperty("variations", out JsonElement varsElem))
-                    {
-                        foreach (JsonElement vElem in varsElem.EnumerateArray())
+                        MenuItem? item = existingItems.FirstOrDefault(i => i.Name == itemName);
+                        if (item is not null && item.SubCategoryId != correctSubCatId)
                         {
-                            MenuItemVariation variation = new MenuItemVariation
-                            {
-                                MenuItemId = menuItem.Id,
-                                Name = vElem.GetProperty("name").GetString() ?? "Opción",
-                                VariationValue = vElem.GetProperty("variationValue").GetString() ?? string.Empty,
-                                PriceModifier = vElem.GetProperty("priceModifier").GetDecimal(),
-                                IsDefault = vElem.GetProperty("isDefault").GetBoolean(),
-                                DisplayOrder = vElem.GetProperty("displayOrder").GetInt32()
-                            };
-                            dbContext.MenuItemVariations.Add(variation);
-                        }
-                    }
-
-                    // Ingredients
-                    if (itemElem.TryGetProperty("ingredients", out JsonElement ingsElem))
-                    {
-                        foreach (JsonElement ingElem in ingsElem.EnumerateArray())
-                        {
-                            string ingName = ingElem.GetProperty("name").GetString() ?? string.Empty;
-                            string unit = ingElem.GetProperty("unit").GetString() ?? "unidad";
-                            decimal qty = ingElem.GetProperty("quantity").GetDecimal();
-                            bool isOptional = ingElem.GetProperty("isOptional").GetBoolean();
-
-                            Ingredient? ingredient = await dbContext.Ingredients
-                                .FirstOrDefaultAsync(i => i.Name == ingName && i.RestaurantId == restaurantId, ct);
-
-                            if (ingredient is null)
-                            {
-                                ingredient = new Ingredient
-                                {
-                                    RestaurantId = restaurantId,
-                                    Name = ingName,
-                                    Unit = unit,
-                                    CurrentStock = 100m,
-                                    MinimumStock = 10m,
-                                    IsAvailable = true
-                                };
-                                ((IAuditableEntity)ingredient).CreatedFrom("system", SeedTimestamp);
-                                dbContext.Ingredients.Add(ingredient);
-                                await dbContext.SaveChangesAsync(ct);
-                            }
-
-                            MenuItemIngredient recipeLine = new MenuItemIngredient
-                            {
-                                MenuItemId = menuItem.Id,
-                                IngredientId = ingredient.Id,
-                                QuantityRequired = qty,
-                                IsOptional = isOptional
-                            };
-                            dbContext.MenuItemIngredients.Add(recipeLine);
+                            item.SubCategoryId = correctSubCatId;
+                            itemsUpdated = true;
                         }
                     }
                 }
+
+                if (itemsUpdated)
+                {
+                    await dbContext.SaveChangesAsync(ct);
+                }
+
+                continue;
             }
 
-            await dbContext.SaveChangesAsync(ct);
-            logger.LogInformation("Successfully seeded 40 authentic Mexican menu items into CatalogDb");
+            int itemDisplayOrder = 1;
+            foreach (JsonElement itemElem in itemsElem.EnumerateArray())
+            {
+                string name = itemElem.GetProperty("name").GetString() ?? string.Empty;
+                string description = itemElem.GetProperty("description").GetString() ?? string.Empty;
+                decimal basePrice = itemElem.GetProperty("basePrice").GetDecimal();
+                int prepMin = itemElem.GetProperty("prepTimeMinutes").GetInt32();
+                int prepMax = itemElem.GetProperty("prepTimeMaxMinutes").GetInt32();
+                int course = itemElem.TryGetProperty("defaultCourseNumber", out var cElem) ? cElem.GetInt32() : 1;
+                int jsonSubCatId = itemElem.GetProperty("subCategoryId").GetInt32();
+                int? mappedSubCatId = subCategoryIdMap.TryGetValue(jsonSubCatId, out int dbSubId) ? dbSubId : null;
+
+                Guid itemId = (restaurantId == AcmeRomaNorteId && itemElem.TryGetProperty("id", out var idElem))
+                    ? Guid.Parse(idElem.GetString()!)
+                    : Guid.NewGuid();
+
+                string shortId = (restaurantId == AcmeRomaNorteId && itemElem.TryGetProperty("shortId", out var sElem))
+                    ? sElem.GetString()!
+                    : ShortIdGenerator.Generate(EntityPrefix.MenuItem);
+
+                MenuItem menuItem = new MenuItem
+                {
+                    Id = itemId,
+                    RestaurantId = restaurantId,
+                    SubCategoryId = mappedSubCatId,
+                    Name = name,
+                    Description = description,
+                    BasePrice = basePrice,
+                    PrepTimeMinutes = prepMin,
+                    PrepTimeMaxMinutes = prepMax,
+                    DefaultCourseNumber = course,
+                    ShortId = shortId,
+                    ItemType = ItemType.Regular,
+                    AvailabilityStatus = AvailabilityStatus.Available,
+                    IsAvailable = true,
+                    DisplayOrder = itemDisplayOrder++
+                };
+                ((IAuditableEntity)menuItem).CreatedFrom("system", SeedTimestamp);
+                dbContext.MenuItems.Add(menuItem);
+
+                // Variations
+                if (itemElem.TryGetProperty("variations", out JsonElement varsElem))
+                {
+                    foreach (JsonElement vElem in varsElem.EnumerateArray())
+                    {
+                        MenuItemVariation variation = new MenuItemVariation
+                        {
+                            MenuItemId = menuItem.Id,
+                            Name = vElem.GetProperty("name").GetString() ?? "Opción",
+                            VariationValue = vElem.GetProperty("variationValue").GetString() ?? string.Empty,
+                            PriceModifier = vElem.GetProperty("priceModifier").GetDecimal(),
+                            IsDefault = vElem.GetProperty("isDefault").GetBoolean(),
+                            DisplayOrder = vElem.GetProperty("displayOrder").GetInt32()
+                        };
+                        dbContext.MenuItemVariations.Add(variation);
+                    }
+                }
+
+                // Ingredients
+                if (itemElem.TryGetProperty("ingredients", out JsonElement ingsElem))
+                {
+                    foreach (JsonElement ingElem in ingsElem.EnumerateArray())
+                    {
+                        string ingName = ingElem.GetProperty("name").GetString() ?? string.Empty;
+                        string unit = ingElem.GetProperty("unit").GetString() ?? "unidad";
+                        decimal qty = ingElem.GetProperty("quantity").GetDecimal();
+                        bool isOptional = ingElem.GetProperty("isOptional").GetBoolean();
+
+                        Ingredient? ingredient = await dbContext.Ingredients
+                            .FirstOrDefaultAsync(i => i.Name == ingName && i.RestaurantId == restaurantId, ct);
+
+                        if (ingredient is null)
+                        {
+                            ingredient = new Ingredient
+                            {
+                                RestaurantId = restaurantId,
+                                Name = ingName,
+                                Unit = unit,
+                                CurrentStock = 100m,
+                                MinimumStock = 10m,
+                                IsAvailable = true
+                            };
+                            ((IAuditableEntity)ingredient).CreatedFrom("system", SeedTimestamp);
+                            dbContext.Ingredients.Add(ingredient);
+                            await dbContext.SaveChangesAsync(ct);
+                        }
+
+                        MenuItemIngredient recipeLine = new MenuItemIngredient
+                        {
+                            MenuItemId = menuItem.Id,
+                            IngredientId = ingredient.Id,
+                            QuantityRequired = qty,
+                            IsOptional = isOptional
+                        };
+                        dbContext.MenuItemIngredients.Add(recipeLine);
+                    }
+                }
+            }
         }
+
+        await dbContext.SaveChangesAsync(ct);
+        logger.LogInformation("Successfully seeded 40 authentic Mexican menu items into CatalogDb");
     }
 }

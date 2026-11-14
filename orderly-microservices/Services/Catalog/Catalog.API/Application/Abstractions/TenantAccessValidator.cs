@@ -43,7 +43,10 @@ public static class TenantAccessValidator
             return;
         }
 
-        if (currentUser.RestaurantId is null || currentUser.RestaurantId.Value != restaurantId)
+        bool hasAccess = (currentUser.RestaurantId.HasValue && currentUser.RestaurantId.Value == restaurantId)
+            || (currentUser.RestaurantIds is not null && currentUser.RestaurantIds.Contains(restaurantId));
+
+        if (!hasAccess)
         {
             throw new ForbiddenException("Caller is not authorized to access resources for this restaurant.");
         }

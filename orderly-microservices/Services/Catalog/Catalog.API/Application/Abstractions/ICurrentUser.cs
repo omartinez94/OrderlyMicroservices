@@ -18,6 +18,9 @@ public interface ICurrentUser
     /// <summary>The tenant <c>restaurantId</c> claim from the caller's JWT, or <c>null</c> if absent/unparseable.</summary>
     Guid? RestaurantId => null;
 
+    /// <summary>The tenant <c>restaurant_ids</c> claims from the caller's JWT, or empty list if absent.</summary>
+    IReadOnlyList<Guid> RestaurantIds => [];
+
     /// <summary>The caller's role claims from the JWT.</summary>
     IReadOnlyList<string> Roles => [];
 }

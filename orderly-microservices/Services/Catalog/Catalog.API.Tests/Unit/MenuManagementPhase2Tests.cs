@@ -13,6 +13,8 @@ public sealed class MenuManagementPhase2Tests
 
         public Guid? RestaurantId { get; set; }
 
+        public IReadOnlyList<Guid> RestaurantIds { get; set; } = [];
+
         public IReadOnlyList<string> Roles { get; set; } = [];
     }
 
@@ -74,6 +76,25 @@ public sealed class MenuManagementPhase2Tests
         };
 
         Action act = () => user.EnsureTenantAccess(restaurantId);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void EnsureTenantAccess_WhenUserHasTargetInRestaurantIdsList_AllowsAccess()
+    {
+        Guid defaultRestaurantId = Guid.NewGuid();
+        Guid targetRestaurantId = Guid.NewGuid();
+        StubCurrentUser user = new()
+        {
+            IsAuthenticated = true,
+            UserId = Guid.NewGuid(),
+            RestaurantId = defaultRestaurantId,
+            RestaurantIds = [defaultRestaurantId, targetRestaurantId],
+            Roles = ["RestaurantAdmin"],
+        };
+
+        Action act = () => user.EnsureTenantAccess(targetRestaurantId);
 
         act.Should().NotThrow();
     }

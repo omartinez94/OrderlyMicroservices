@@ -8,7 +8,8 @@ public record MenuSubCategoryDto(
     string Name,
     string Description,
     int DisplayOrder,
-    bool IsActive);
+    bool IsActive,
+    string? Icon = null);
 
 public class GetMenuSubCategoryByIdEndpoint : ICarterModule
 {

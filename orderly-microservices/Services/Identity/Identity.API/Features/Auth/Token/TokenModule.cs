@@ -137,8 +137,8 @@ public class TokenModule : ICarterModule
                 => [OpenIddictConstants.Destinations.AccessToken],
             ClaimTypes.Role
                 => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
-            "restaurantId"
-                => [OpenIddictConstants.Destinations.AccessToken],
+            "restaurantId" or "restaurant_ids"
+                => [OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken],
             "permissions"
                 => [OpenIddictConstants.Destinations.AccessToken],
             _ => [OpenIddictConstants.Destinations.AccessToken],
@@ -155,6 +155,8 @@ public class TokenModule : ICarterModule
 
         string[] roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).Distinct().ToArray();
         string[] permissions = principal.FindAll("permissions").Select(c => c.Value).Distinct().ToArray();
+        string? defaultRestaurantId = principal.FindFirstValue("restaurantId");
+        string[] restaurantIds = principal.FindAll("restaurant_ids").Select(c => c.Value).Distinct().ToArray();
 
         context.Items["AuthResponse_User"] = JsonSerializer.SerializeToElement(new
         {
@@ -162,7 +164,9 @@ public class TokenModule : ICarterModule
             name = name,
             email = email,
             initials = initials,
-            isActive = !string.Equals(isActive, "False", StringComparison.OrdinalIgnoreCase)
+            isActive = !string.Equals(isActive, "False", StringComparison.OrdinalIgnoreCase),
+            restaurantId = defaultRestaurantId,
+            restaurantIds = restaurantIds
         });
         context.Items["AuthResponse_Roles"] = JsonSerializer.SerializeToElement(roles);
         context.Items["AuthResponse_Permissions"] = JsonSerializer.SerializeToElement(permissions);

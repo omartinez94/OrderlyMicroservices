@@ -3,7 +3,8 @@ namespace Catalog.API.Features.MenuCategories.CreateMenuCategory;
 public record CreateMenuCategoryRequest(
     string Name,
     string Description,
-    int DisplayOrder);
+    int DisplayOrder,
+    string? Icon = null);
 
 public record CreateMenuCategoryResponse(int Id);
 
@@ -15,7 +16,7 @@ public class CreateMenuCategoryEndpoint : ICarterModule
 
         group.MapPost("/restaurants/{restaurantId:guid}/menu-categories", async (Guid restaurantId, CreateMenuCategoryRequest request, ClaimsPrincipal user, ISender sender) =>
         {
-            CreateMenuCategoryCommand? command = new CreateMenuCategoryCommand(restaurantId, request.Name, request.Description, request.DisplayOrder);
+            CreateMenuCategoryCommand? command = new CreateMenuCategoryCommand(restaurantId, request.Name, request.Description, request.DisplayOrder, request.Icon);
 
             CreateMenuCategoryResult? result = await sender.Send(command);
             CreateMenuCategoryResponse? response = result.Adapt<CreateMenuCategoryResponse>();

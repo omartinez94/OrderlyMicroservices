@@ -6,7 +6,8 @@ public record UpdateMenuCategoryCommand(
     int Id,
     string Name,
     string Description,
-    int DisplayOrder) : ICommand<UpdateMenuCategoryResult>;
+    int DisplayOrder,
+    string? Icon = null) : ICommand<UpdateMenuCategoryResult>;
 
 public record UpdateMenuCategoryResult(bool IsSuccess);
 
@@ -16,6 +17,7 @@ public class UpdateMenuCategoryCommandValidator : AbstractValidator<UpdateMenuCa
     {
         RuleFor(x => x.Id).GreaterThan(0).WithMessage("Id must be greater than 0");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required").MaximumLength(255).WithMessage("Name must not exceed 255 characters");
+        RuleFor(x => x.Icon).MaximumLength(64).WithMessage("Icon must not exceed 64 characters");
     }
 }
 
@@ -39,6 +41,7 @@ internal class UpdateMenuCategoryCommandHandler(
         category.Name = command.Name;
         category.Description = command.Description;
         category.DisplayOrder = command.DisplayOrder;
+        category.Icon = command.Icon;
 
         dbContext.MenuCategories.Update(category);
         await dbContext.SaveChangesAsync(cancellationToken);

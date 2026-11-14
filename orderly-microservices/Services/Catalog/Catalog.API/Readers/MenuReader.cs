@@ -86,7 +86,8 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
             Name: c.Name,
             Description: c.Description,
             DisplayOrder: c.DisplayOrder,
-            SubCategories: BuildSubCategoryNodes(c.Id, subCategories, items, variations, ingredientLinks))).ToList();
+            SubCategories: BuildSubCategoryNodes(c.Id, subCategories, items, variations, ingredientLinks),
+            Icon: c.Icon)).ToList();
 
         return new MenuSnapshot(
             RestaurantId: restaurantId,
@@ -109,7 +110,8 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 Description: msc.Description,
                 DisplayOrder: msc.DisplayOrder,
                 IsActive: msc.IsActive,
-                Items: BuildItemNodes(msc.Id, items, variations, ingredientLinks)))
+                Items: BuildItemNodes(msc.Id, items, variations, ingredientLinks),
+                Icon: msc.Icon))
             .ToList();
     }
 

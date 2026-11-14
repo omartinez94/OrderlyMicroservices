@@ -5,7 +5,8 @@ public record UpdateMenuSubCategoryRequest(
     string Name,
     string Description,
     int DisplayOrder,
-    bool IsActive);
+    bool IsActive,
+    string? Icon = null);
 
 public record UpdateMenuSubCategoryResponse(bool Success);
 

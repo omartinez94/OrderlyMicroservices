@@ -33,7 +33,8 @@ public sealed record MenuCategoryNode(
     string Name,
     string Description,
     int DisplayOrder,
-    IReadOnlyList<MenuSubCategoryNode> SubCategories);
+    IReadOnlyList<MenuSubCategoryNode> SubCategories,
+    string? Icon = null);
 
 /// <summary>
 /// A menu sub-category with its items inlined.
@@ -44,7 +45,8 @@ public sealed record MenuSubCategoryNode(
     string Description,
     int DisplayOrder,
     bool IsActive,
-    IReadOnlyList<MenuItemNode> Items);
+    IReadOnlyList<MenuItemNode> Items,
+    string? Icon = null);
 
 /// <summary>
 /// A menu item with its variations and ingredient requirements inlined.

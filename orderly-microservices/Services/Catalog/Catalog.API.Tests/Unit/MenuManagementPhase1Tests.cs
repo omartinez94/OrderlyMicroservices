@@ -115,6 +115,40 @@ public sealed class MenuManagementPhase1Tests
     }
 
     [Fact]
+    public async Task GetMenuHandler_WhenIdentifierIsShortId_ResolvesRestaurantAndReturnsMenu()
+    {
+        await using CatalogDbContext dbContext = CreateInMemoryDbContext();
+        Guid restaurantId = Guid.NewGuid();
+        string shortId = "rstc9h4w7tz";
+        dbContext.Restaurants.Add(new Restaurant
+        {
+            Id = restaurantId,
+            ShortId = shortId,
+            BrandId = Guid.NewGuid(),
+            Name = "Acme San Pedro",
+            Address = "Calzada del Valle 400",
+            TaxRate = 0.16m
+        });
+        await dbContext.SaveChangesAsync();
+
+        MenuSnapshot expectedSnapshot = new(
+            RestaurantId: restaurantId,
+            SnapshotAt: NodaTime.SystemClock.Instance.GetCurrentInstant(),
+            Categories: [new MenuCategoryNode(1, "Tacos", "Tacos desc", 1, [])]);
+
+        IMenuReader menuReader = Substitute.For<IMenuReader>();
+        menuReader.GetByRestaurantAsync(restaurantId, Arg.Any<CancellationToken>())
+            .Returns(expectedSnapshot);
+
+        GetMenuQueryHandler sut = new(menuReader, dbContext);
+
+        GetMenuResult result = await sut.Handle(new GetMenuQuery(shortId), CancellationToken.None);
+
+        result.Snapshot.Should().BeSameAs(expectedSnapshot);
+        result.Snapshot.RestaurantId.Should().Be(restaurantId);
+    }
+
+    [Fact]
     public async Task MenuReader_IncludesDefaultCourseNumberInSnapshot()
     {
         await using CatalogDbContext dbContext = CreateInMemoryDbContext();

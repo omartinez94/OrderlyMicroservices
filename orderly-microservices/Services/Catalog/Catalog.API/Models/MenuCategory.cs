@@ -8,4 +8,5 @@ public class MenuCategory : AuditableEntity<int>
     public string Name { get; set; } = string.Empty;
     public Guid RestaurantId { get; set; }
     public Instant? DeletedAt { get; set; }
+    public string? Icon { get; set; }
 }

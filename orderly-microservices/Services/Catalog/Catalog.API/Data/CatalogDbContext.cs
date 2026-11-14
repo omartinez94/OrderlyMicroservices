@@ -417,6 +417,9 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.Property(mc => mc.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.Property(mc => mc.Icon)
+                .HasMaxLength(64);
+
             // Relationships
             entity.HasOne<Restaurant>()
                 .WithMany()
@@ -449,6 +452,9 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
             entity.Property(msc => msc.IsDeleted)
                 .HasDefaultValue(false);
+
+            entity.Property(msc => msc.Icon)
+                .HasMaxLength(64);
 
             // Relationships
             entity.HasOne<MenuCategory>()

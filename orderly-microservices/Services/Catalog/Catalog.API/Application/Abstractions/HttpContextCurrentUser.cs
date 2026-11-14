@@ -45,6 +45,33 @@ public sealed class HttpContextCurrentUser(IHttpContextAccessor httpContextAcces
     }
 
     /// <inheritdoc />
+    public IReadOnlyList<Guid> RestaurantIds
+    {
+        get
+        {
+            ClaimsPrincipal? user = httpContextAccessor.HttpContext?.User;
+            if (user?.Identity is null || !user.Identity.IsAuthenticated)
+            {
+                return [];
+            }
+
+            List<Guid> ids = [];
+            foreach (Claim claim in user.Claims)
+            {
+                if ((claim.Type == "restaurant_ids" || claim.Type == "restaurantId") &&
+                    Guid.TryParse(claim.Value, out Guid id) &&
+                    id != Guid.Empty &&
+                    !ids.Contains(id))
+                {
+                    ids.Add(id);
+                }
+            }
+
+            return ids;
+        }
+    }
+
+    /// <inheritdoc />
     public IReadOnlyList<string> Roles
     {
         get

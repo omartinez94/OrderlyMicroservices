@@ -73,7 +73,8 @@ public sealed record MenuItemNode(
     string ImageUrl,
     IReadOnlyList<MenuItemVariationNode> Variations,
     IReadOnlyList<MenuItemIngredientNode> Ingredients,
-    int? DefaultCourseNumber = null);
+    int? DefaultCourseNumber = null,
+    string? ThumbnailUrl = null);
 
 /// <summary>
 /// A menu item variation (e.g. "Large", "Extra Spicy") with its price modifier.

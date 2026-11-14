@@ -15,6 +15,8 @@ public class Restaurant : AuditableEntity<Guid>, IShortIdentifiable
     public int EstimatedTurnoverMinutes { get; set; } = 30;
     public string Name { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
+    public string? BannerUrl { get; set; }
     public decimal TaxRate { get; set; } = 0.0m;
     public string TimeZone { get; set; } = "UTC";
 }

@@ -23,7 +23,7 @@ public class OrderlyTestFactory<TProgram> : WebApplicationFactory<TProgram>, IAs
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment("Development");
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>

@@ -44,6 +44,7 @@ public class BasketCheckoutItem
     public string Name { get; init; } = default!;
     public int Quantity { get; init; }
     public decimal UnitPrice { get; init; }
+    public string MenuItemImageUrl { get; init; } = string.Empty;
     public List<BasketItemVariationDto> Variations { get; init; } = [];
     public List<BasketItemCustomizationDto> Customizations { get; init; } = [];
     public decimal TotalPrice { get; init; }

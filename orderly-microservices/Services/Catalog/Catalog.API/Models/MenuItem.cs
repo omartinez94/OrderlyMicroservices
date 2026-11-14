@@ -9,6 +9,9 @@ public class MenuItem : AuditableEntity<Guid>, IShortIdentifiable
     public string Description { get; set; } = string.Empty;
     public int DisplayOrder { get; set; }
     public string ImageUrl { get; set; } = string.Empty;
+    public string? ThumbnailUrl { get; set; }
+    public string? PendingImageKey { get; set; }
+    public ImageUploadStatus ImageUploadStatus { get; set; } = ImageUploadStatus.None;
     public bool IsAvailable { get; set; }
     public bool IsDeleted { get; set; }
     /// <summary>Type of item: regular, combo, promo, seasonal</summary>

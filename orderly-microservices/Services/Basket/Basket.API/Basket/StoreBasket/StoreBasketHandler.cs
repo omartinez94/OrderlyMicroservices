@@ -37,6 +37,8 @@ public class StoreBasketCommandValidator : AbstractValidator<StoreBasketCommand>
                 .WithMessage("BasketItem.Quantity must be in [1, 99] (per §0.4.10).");
             item.RuleFor(x => x.UnitPrice).GreaterThan(0)
                 .WithMessage("BasketItem.UnitPrice must be > 0.");
+            item.RuleFor(x => x.MenuItemImageUrl).MaximumLength(500)
+                .WithMessage("BasketItem.MenuItemImageUrl must be <= 500 characters.");
             item.RuleFor(x => x.Variations.Count).LessThanOrEqualTo(10)
                 .WithMessage("BasketItem.Variations.Count must be <= 10 (per §0.4.10).");
             item.RuleForEach(x => x.Variations).ChildRules(v =>

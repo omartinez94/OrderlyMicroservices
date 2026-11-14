@@ -124,6 +124,7 @@ public class CheckoutBasketCommandHandler(
                 Quantity = item.Quantity,
                 UnitPrice = item.UnitPrice,
                 TotalPrice = item.TotalPrice,
+                MenuItemImageUrl = item.MenuItemImageUrl,
                 Variations = [.. item.Variations.Select(v => new BasketItemVariationDto
                 {
                     Name = v.Name,

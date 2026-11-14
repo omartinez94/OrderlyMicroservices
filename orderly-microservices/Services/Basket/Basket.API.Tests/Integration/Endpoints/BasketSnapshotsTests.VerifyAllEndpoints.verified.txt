@@ -582,6 +582,10 @@
             "type": "number",
             "format": "double"
           },
+          "menuItemImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "variations": {
             "type": "array",
             "items": {

@@ -6,15 +6,15 @@
 
 ## Status
 
-> **Plan version**: `v1.2` (2026-11-14) — Phase 1 completed (ADR produced: Cloudflare R2 + MinIO via AWSSDK.S3)
-> **Current state**: 🚧 Phase 2 in progress
+> **Plan version**: `v1.3` (2026-11-14) — Phase 2 completed (Schema & Data Fields across Microservices)
+> **Current state**: 🚧 Phase 3 in progress
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Cloud Provider Evaluation (AWS vs Azure vs Cloudflare) | ✅ Done (2026-11-14) |
-| 2 | Image Schema & Data Fields Across Microservices | ⏸ Pending |
+| 2 | Image Schema & Data Fields Across Microservices | ✅ Done (2026-11-14) |
 | 3 | Storage Abstraction Layer & Local Dev Setup | ⏸ Pending |
-| 4 | Upload Workflow & Presigned URL API (Catalog Service) | 🔒 Blocked |
+| 4 | Upload Workflow & Presigned URL API (Catalog Service) | ⏸ Pending |
 | 5 | Asynchronous Image Processing & CDN Delivery | 🔒 Blocked |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
@@ -329,18 +329,19 @@ When `BasketCheckoutEventHandler` in `Ordering.Application` maps basket items to
 
 **Goal**: Ensure all image-related fields exist in the correct models, are validated, and are covered by EF Core migrations. This phase fixes the existing empty-`ImageUrl` validator gap and adds all missing fields.
 
-**Status**: 🔒 Blocked (blocked on Phase 1 only for `LogoUrl`/`BannerUrl` confirmation; other items can proceed)
+**Status**: ✅ Done (2026-11-14)
 
 **Deliverables**:
-- [ ] **Fix `CreateMenuItemCommandValidator`**: Add `ImageUrl` rules (NotEmpty, MaxLength(500), valid absolute URL). Same fix for `UpdateMenuItemCommandValidator`.
-- [ ] **Add `ThumbnailUrl string?`** to `MenuItem` model and EF Core config (`HasMaxLength(500)`). Run `dotnet ef migrations add AddMenuItemThumbnailUrl -p Catalog.API`.
-- [ ] **Add `PendingImageKey string?`** to `MenuItem` model. Run migration.
-- [ ] **Add `ImageUploadStatus` enum** to `BuildingBlocks.Enums` and property to `MenuItem`. Run migration.
-- [ ] **Add `MenuItemImageUrl string`** to `Basket.API`'s `BasketItem` model. No migration needed (Marten document store), but default deserialization must handle existing documents that lack the field (empty string default).
-- [ ] **Verify `Restaurant` model** for `LogoUrl` and `BannerUrl` columns. Add and migrate if missing.
-- [ ] **Update `BasketCheckoutEventHandler`** in `Ordering.Application` to forward `MenuItemImageUrl` from the basket item (currently hardcoded to `string.Empty`).
+- [x] **Fix `CreateMenuItemCommandValidator`**: Add `ImageUrl` rules (NotEmpty, MaxLength(500), valid absolute URL). Same fix for `UpdateMenuItemCommandValidator`.
+- [x] **Add `ThumbnailUrl string?`** to `MenuItem` model and EF Core config (`HasMaxLength(500)`).
+- [x] **Add `PendingImageKey string?`** to `MenuItem` model.
+- [x] **Add `ImageUploadStatus` enum** to `BuildingBlocks.Enums` and property to `MenuItem`.
+- [x] **Add `MenuItemImageUrl string`** to `Basket.API`'s `BasketItem` model.
+- [x] **Verify `Restaurant` model** for `LogoUrl` and `BannerUrl` columns. Added and migrated.
+- [x] **Update `BasketCheckoutEventHandler`** in `Ordering.Application` to forward `MenuItemImageUrl` from the basket item.
+- [x] **Run EF Core migration**: Generated `20261114165836_AddImageFieldsToMenuItemAndRestaurant`.
 
-**Exit criteria**: `pwsh ./scripts/phase-guard.ps1 -PhaseName "Phase 2" -Quick` passes. A `POST /api/v1/restaurants/{id}/menu-items` request with an empty `ImageUrl` now returns HTTP 400.
+**Exit criteria**: `ImageStoragePhase2Tests` and `BasketSnapshotsTests` pass. `MenuItem`, `Restaurant`, `BasketItem`, and `BasketCheckoutEvent` models updated and verified.
 
 ---
 

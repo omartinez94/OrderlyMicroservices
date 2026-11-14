@@ -35,7 +35,7 @@ public class BasketCheckoutEventHandler(
                 MenuItemId: Guid.TryParse(item.MenuItemId.ToString(), out Guid menuItemGuid) ? menuItemGuid : Guid.Empty,
                 MenuItemName: item.Name,
                 MenuItemDescription: string.Empty,
-                MenuItemImageUrl: string.Empty,
+                MenuItemImageUrl: item.MenuItemImageUrl ?? string.Empty,
                 Quantity: item.Quantity,
                 UnitPrice: item.UnitPrice,
                 BasePrice: item.UnitPrice,

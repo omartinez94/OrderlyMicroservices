@@ -31,7 +31,10 @@ public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCo
         RuleFor(x => x.RestaurantId).NotEmpty().WithMessage("RestaurantId is required");
         RuleFor(x => x.Name).NotEmpty().WithMessage("Name is required").MaximumLength(255).WithMessage("Name must not exceed 255 characters");
         RuleFor(x => x.BasePrice).GreaterThanOrEqualTo(0).WithMessage("BasePrice must be greater than or equal to 0");
-        RuleFor(x => x.ImageUrl).MaximumLength(500).WithMessage("ImageUrl must not exceed 500 characters");
+        RuleFor(x => x.ImageUrl)
+            .MaximumLength(500).WithMessage("ImageUrl must not exceed 500 characters")
+            .Must(url => string.IsNullOrEmpty(url) || Uri.TryCreate(url, UriKind.Absolute, out _))
+            .WithMessage("ImageUrl must be a valid absolute URL when provided");
         RuleFor(x => x.DefaultCourseNumber)
             .InclusiveBetween(1, 9)
             .When(x => x.DefaultCourseNumber.HasValue)

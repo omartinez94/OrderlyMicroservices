@@ -152,6 +152,12 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.Property(r => r.PhoneNumber)
                 .HasMaxLength(20);
 
+            entity.Property(r => r.LogoUrl)
+                .HasMaxLength(500);
+
+            entity.Property(r => r.BannerUrl)
+                .HasMaxLength(500);
+
             entity.Property(r => r.TaxRate)
                 .HasColumnType("decimal(5,2)")
                 .IsRequired();
@@ -491,6 +497,15 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.Property(mi => mi.ImageUrl)
                 .IsRequired()
                 .HasMaxLength(500);
+
+            entity.Property(mi => mi.ThumbnailUrl)
+                .HasMaxLength(500);
+
+            entity.Property(mi => mi.PendingImageKey)
+                .HasMaxLength(500);
+
+            entity.Property(mi => mi.ImageUploadStatus)
+                .HasDefaultValue(BuildingBlocks.Enums.ImageUploadStatus.None);
 
             entity.Property(mi => mi.ItemType)
                 .HasMaxLength(20)

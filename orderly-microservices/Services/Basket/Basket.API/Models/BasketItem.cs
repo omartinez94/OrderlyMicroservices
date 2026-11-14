@@ -5,6 +5,7 @@ public class BasketItem
     public int MenuItemId { get; set; }
     public int Quantity { get; set; }
     public decimal UnitPrice { get; set; }
+    public string MenuItemImageUrl { get; set; } = string.Empty;
     public List<BasketItemVariation> Variations { get; set; } = [];
     public List<BasketItemCustomization> Customizations { get; set; } = [];
 

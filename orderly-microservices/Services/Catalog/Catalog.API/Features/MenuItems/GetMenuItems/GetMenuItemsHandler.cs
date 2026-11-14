@@ -33,7 +33,9 @@ public record MenuItemDto(
     Instant? PromoEndDate,
     int DisplayOrder,
     string ShortId = "",
-    int? DefaultCourseNumber = null);
+    int? DefaultCourseNumber = null,
+    string? ThumbnailUrl = null,
+    ImageUploadStatus ImageUploadStatus = ImageUploadStatus.None);
 
 public class GetMenuItemsQueryValidator : AbstractValidator<GetMenuItemsQuery>
 {

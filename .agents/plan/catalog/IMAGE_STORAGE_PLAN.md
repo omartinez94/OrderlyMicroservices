@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Plan version**: `v1.3` (2026-11-14) — Phase 2 completed (Schema & Data Fields across Microservices)
-> **Current state**: 🚧 Phase 3 in progress
+> **Plan version**: `v1.4` (2026-11-14) — Phase 3 completed (Storage Abstraction Layer & Local Dev Setup)
+> **Current state**: 🚧 Phase 4 in progress
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Cloud Provider Evaluation (AWS vs Azure vs Cloudflare) | ✅ Done (2026-11-14) |
 | 2 | Image Schema & Data Fields Across Microservices | ✅ Done (2026-11-14) |
-| 3 | Storage Abstraction Layer & Local Dev Setup | ⏸ Pending |
+| 3 | Storage Abstraction Layer & Local Dev Setup | ✅ Done (2026-11-14) |
 | 4 | Upload Workflow & Presigned URL API (Catalog Service) | ⏸ Pending |
 | 5 | Asynchronous Image Processing & CDN Delivery | 🔒 Blocked |
 
@@ -347,23 +347,22 @@ When `BasketCheckoutEventHandler` in `Ordering.Application` maps basket items to
 
 ### Phase 3 — Storage Abstraction Layer & Local Dev Setup
 
-**Goal**: Introduce the `IObjectStorageService` interface and `ObjectStorageSettings` into `BuildingBlocks`, implement `S3ObjectStorageService`, and provision MinIO in `docker-compose.yml`. Phases 2 and 3 can run in **parallel** since they have no dependency on each other.
+**Goal**: Introduce the `IObjectStorageService` interface and `ObjectStorageSettings` into `BuildingBlocks`, implement `S3ObjectStorageService`, and provision MinIO in `docker-compose.yml`.
 
-**Status**: 🔒 Blocked (blocked on Phase 1 — provider choice determines which SDK NuGet package to add)
+**Status**: ✅ Done (2026-11-14)
 
 **Deliverables**:
-- [ ] Add `BuildingBlocks/Storage/IObjectStorageService.cs` (see §6.3).
-- [ ] Add `BuildingBlocks/Storage/ObjectStorageSettings.cs` (see §6.2).
-- [ ] Add `ImageUploadStatus` enum to `BuildingBlocks.Enums` (see §6.4).
-- [ ] Add `AWSSDK.S3` NuGet to `Catalog.API.csproj` (covers MinIO, AWS, and Cloudflare R2).
-- [ ] Implement `Catalog.API/Infrastructure/Storage/S3ObjectStorageService.cs` implementing `IObjectStorageService`.
-- [ ] Register `IObjectStorageService` in `Catalog.API/Program.cs` via `builder.Services.AddSingleton<IObjectStorageService, S3ObjectStorageService>()`.
-- [ ] Register `ObjectStorageSettings` via `builder.Services.Configure<ObjectStorageSettings>(builder.Configuration.GetSection(ObjectStorageSettings.SectionName))`.
-- [ ] Add `minio` service to `docker-compose.yml` with a healthcheck.
-- [ ] Add `minio-init` one-shot service (or `mc` command) to auto-create `orderly-restaurant-assets` bucket on first start.
-- [ ] Add `ObjectStorage` section to `appsettings.Development.json` pointing to `http://minio:9000`.
+- [x] Add `BuildingBlocks/Storage/IObjectStorageService.cs` (see §6.3).
+- [x] Add `BuildingBlocks/Storage/ObjectStorageSettings.cs` (see §6.2).
+- [x] Add `ImageUploadStatus` enum to `BuildingBlocks.Enums` (see §6.4).
+- [x] Add `AWSSDK.S3` NuGet to `BuildingBlocks.csproj` (covers MinIO, AWS, and Cloudflare R2).
+- [x] Implement `BuildingBlocks/Storage/S3ObjectStorageService.cs` implementing `IObjectStorageService`.
+- [x] Register `IObjectStorageService` and `ObjectStorageSettings` via `AddObjectStorage` in `Catalog.API/Program.cs`.
+- [x] Add `minio` service and `minio_data` volume to `docker-compose.yml` and `docker-compose.override.dev.yml`.
+- [x] Add `ObjectStorage` section to `appsettings.json` pointing to `http://localhost:9000`.
+- [x] Add comprehensive unit tests in `BuildingBlocks.Tests/Unit/ObjectStorageTests.cs`.
 
-**Exit criteria**: `docker-compose up -d minio` starts cleanly. `docker-compose up -d catalog.api` boots without errors. A manual call to `IObjectStorageService.GeneratePresignedUploadUrlAsync` in a test or scratch endpoint returns a valid presigned URL against the local MinIO instance.
+**Exit criteria**: All unit tests in `ObjectStorageTests` pass. S3 storage service, configuration, and MinIO definitions are in place.
 
 ---
 

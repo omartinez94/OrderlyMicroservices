@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="AWSSDK.S3" Version="4.1.0" />
     <!--
       Phase 3 (DOCKER_BUILD_PERFORMANCE_PLAN): Directory.Packages.props
       ships as a future-state document but CPM is NOT activated (see

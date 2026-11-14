@@ -38,4 +38,16 @@ public static class BlobStorageServiceExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers S3-compatible object storage service (MinIO, Cloudflare R2, AWS S3).
+    /// </summary>
+    public static IServiceCollection AddObjectStorage(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<ObjectStorageSettings>(configuration.GetSection(ObjectStorageSettings.SectionName));
+        services.AddSingleton<IObjectStorageService, S3ObjectStorageService>();
+        return services;
+    }
 }

@@ -120,6 +120,7 @@ builder.Services.AddScoped<IMenuItemMutationNotifier, MenuItemMutationNotifier>(
 
 // Provider-agnostic blob storage layer (Azure Blob Storage / Azurite)
 builder.Services.AddBlobStorage(builder.Configuration);
+builder.Services.AddObjectStorage(builder.Configuration);
 builder.Services.AddHostedService<Catalog.API.Features.MenuItems.UploadMenuItemImage.MenuItemImageOrphanSweepHostedService>();
 
 // Hangfire + recurring jobs. Jobs self-gate on the

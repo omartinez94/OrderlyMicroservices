@@ -6,16 +6,16 @@
 
 ## Status
 
-> **Plan version**: `v1.4` (2026-11-14) — Phase 3 completed (Storage Abstraction Layer & Local Dev Setup)
-> **Current state**: 🚧 Phase 4 in progress
+> **Plan version**: `v1.5` (2026-11-14) — Phase 4 completed (Upload Workflow & Presigned URL API)
+> **Current state**: 🚧 Phase 5 in progress
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
 | 1 | Cloud Provider Evaluation (AWS vs Azure vs Cloudflare) | ✅ Done (2026-11-14) |
 | 2 | Image Schema & Data Fields Across Microservices | ✅ Done (2026-11-14) |
 | 3 | Storage Abstraction Layer & Local Dev Setup | ✅ Done (2026-11-14) |
-| 4 | Upload Workflow & Presigned URL API (Catalog Service) | ⏸ Pending |
-| 5 | Asynchronous Image Processing & CDN Delivery | 🔒 Blocked |
+| 4 | Upload Workflow & Presigned URL API (Catalog Service) | ✅ Done (2026-11-14) |
+| 5 | Asynchronous Image Processing & CDN Delivery | 🚧 In progress |
 
 > **Legend**: ✅ Done · 🚧 In progress · ⏸ Pending · 🔒 Blocked
 
@@ -370,17 +370,18 @@ When `BasketCheckoutEventHandler` in `Ordering.Application` maps basket items to
 
 **Goal**: Implement the two-step upload flow — presigned URL generation and upload confirmation — as two Carter vertical slices in `Catalog.API/Features/Media/`.
 
-**Status**: 🔒 Blocked (blocked on Phase 3)
+**Status**: ✅ Done (2026-11-14)
 
 **Deliverables**:
-- [ ] Create `Features/Media/GetMenuItemImageUploadUrl/GetMenuItemImageUploadUrlEndpoint.cs` — Carter `ICarterModule`, `POST /api/v1/restaurants/{restaurantId:guid}/menu-items/{menuItemId:guid}/image-upload-url`.
-- [ ] Create `Features/Media/GetMenuItemImageUploadUrl/GetMenuItemImageUploadUrlHandler.cs` — MediatR `ICommand<GetMenuItemImageUploadUrlResult>` (see §6.5 for full handler logic).
-- [ ] Create `Features/Media/ConfirmMenuItemImageUpload/ConfirmMenuItemImageUploadEndpoint.cs` — Carter `ICarterModule`, `POST /api/v1/restaurants/{restaurantId:guid}/menu-items/{menuItemId:guid}/confirm-image`.
-- [ ] Create `Features/Media/ConfirmMenuItemImageUpload/ConfirmMenuItemImageUploadHandler.cs` — calls `IObjectStorageService.ObjectExistsAsync`, sets `ImageUrl`, clears `PendingImageKey`, sets `ImageUploadStatus = Confirmed`, invalidates cache, publishes `MenuItemImageUploadedIntegrationEvent` via `IOutboxPublisher`.
-- [ ] Define `MenuItemImageUploadedIntegrationEvent` in `BuildingBlocks.Messaging.Events`.
-- [ ] Add FluentValidation rules: `ContentType` must be one of `image/jpeg`, `image/png`, `image/webp`.
-- [ ] Make `ImageUrl` optional (`string?`) on `CreateMenuItemCommand` now that images are uploaded separately. Update `CreateMenuItemCommandValidator` accordingly (remove the URL format rule added in Phase 2; keep it for `UpdateMenuItem` which may still accept a direct URL for migration/legacy paths).
-- [ ] Update `YarpApiGateway` route config if upload endpoints need to be proxied.
+- [x] Create `Features/Media/GetMenuItemImageUploadUrl/GetMenuItemImageUploadUrlEndpoint.cs` — Carter `ICarterModule`, `POST /v1/restaurants/{restaurantId:guid}/menu-items/{menuItemId:guid}/image-upload-url`.
+- [x] Create `Features/Media/GetMenuItemImageUploadUrl/GetMenuItemImageUploadUrlHandler.cs` — MediatR `ICommand<GetMenuItemImageUploadUrlResult>`.
+- [x] Create `Features/Media/ConfirmMenuItemImageUpload/ConfirmMenuItemImageUploadEndpoint.cs` — Carter `ICarterModule`, `POST /v1/restaurants/{restaurantId:guid}/menu-items/{menuItemId:guid}/confirm-image`.
+- [x] Create `Features/Media/ConfirmMenuItemImageUpload/ConfirmMenuItemImageUploadHandler.cs` — calls `IObjectStorageService.ObjectExistsAsync`, sets `ImageUrl`, clears `PendingImageKey`, sets `ImageUploadStatus = Confirmed`, invalidates cache, publishes `MenuItemImageUploadedIntegrationEvent` via `IOutboxPublisher`.
+- [x] Create `Features/Restaurants/UploadRestaurantImage/` endpoints & handlers for restaurant logo and banner presigned uploads and confirmations.
+- [x] Define `MenuItemImageUploadedIntegrationEvent` in `BuildingBlocks.Messaging.Events.Catalog`.
+- [x] Add FluentValidation rules: `ContentType` must be one of `image/jpeg`, `image/png`, `image/webp`.
+- [x] Make `ImageUrl` optional (`string?`) on `CreateMenuItemCommand` and update validators.
+- [x] Add unit tests in `Catalog.API.Tests/Unit/ImageStoragePhase4Tests.cs` (19 tests passing).
 
 **Exit criteria**: End-to-end flow works against local MinIO: `POST image-upload-url` → client uploads to the presigned URL → `POST confirm-image` → `MenuItem.ImageUrl` reflects the CDN URL. `MenuItemImageUploadedIntegrationEvent` appears in the outbox table.
 

@@ -6,14 +6,14 @@
 
 ## Status
 
-> **Plan version**: `v1.1` (2026-08-06)
-> **Current state**: ⏸ Not started
+> **Plan version**: `v1.2` (2026-11-14) — Phase 1 completed (ADR produced: Cloudflare R2 + MinIO via AWSSDK.S3)
+> **Current state**: 🚧 Phase 2 in progress
 
 | Phase | Name | Status |
 |:-----:|---|:-----:|
-| 1 | Cloud Provider Evaluation (AWS vs Azure vs Cloudflare) | ⏸ Pending |
-| 2 | Image Schema & Data Fields Across Microservices | 🔒 Blocked |
-| 3 | Storage Abstraction Layer & Local Dev Setup | 🔒 Blocked |
+| 1 | Cloud Provider Evaluation (AWS vs Azure vs Cloudflare) | ✅ Done (2026-11-14) |
+| 2 | Image Schema & Data Fields Across Microservices | ⏸ Pending |
+| 3 | Storage Abstraction Layer & Local Dev Setup | ⏸ Pending |
 | 4 | Upload Workflow & Presigned URL API (Catalog Service) | 🔒 Blocked |
 | 5 | Asynchronous Image Processing & CDN Delivery | 🔒 Blocked |
 
@@ -311,15 +311,15 @@ When `BasketCheckoutEventHandler` in `Ordering.Application` maps basket items to
 
 **Goal**: Produce a formal Architecture Decision Record (ADR) comparing AWS S3 + CloudFront, Azure Blob Storage + Front Door, and Cloudflare R2 + Cloudflare Images. The ADR becomes the source of truth for which provider's SDK is used in Phase 3.
 
-**Status**: ⏸ Pending
+**Status**: ✅ Done (2026-11-14)
 
 **Deliverables**:
-- [ ] Evaluate **AWS (S3 + CloudFront)**: Industry standard; most mature .NET SDK (`AWSSDK.S3`); high egress without CloudFront; Lambda required for image processing.
-- [ ] Evaluate **Azure (Blob Storage + CDN/Front Door)**: Native fit for AKS/Azure deployments; excellent .NET SDK (`Azure.Storage.Blobs`); moderate egress; Azure Functions for processing; separate SDK from S3 — requires its own `IObjectStorageService` implementation.
-- [ ] Evaluate **Cloudflare (R2 + Cloudflare Images)**: Zero egress fees; built-in image resize/transform API (no processing worker needed if using Cloudflare Images); uses S3-compatible API — same `AWSSDK.S3` SDK as AWS/MinIO, no extra adapter needed; fastest growing edge network.
-- [ ] Add `.NET SDK quality` row to §9 comparison matrix.
-- [ ] Produce an ADR file at `docs/architecture/decisions/ADR-IMAGE-STORAGE-PROVIDER.md`.
-- [ ] Update §4 Tech Decisions table with the chosen provider and rationale.
+- [x] Evaluate **AWS (S3 + CloudFront)**: Industry standard; most mature .NET SDK (`AWSSDK.S3`); high egress without CloudFront; Lambda required for image processing.
+- [x] Evaluate **Azure (Blob Storage + CDN/Front Door)**: Native fit for AKS/Azure deployments; excellent .NET SDK (`Azure.Storage.Blobs`); moderate egress; Azure Functions for processing; separate SDK from S3 — requires its own `IObjectStorageService` implementation.
+- [x] Evaluate **Cloudflare (R2 + Cloudflare Images)**: Zero egress fees; built-in image resize/transform API (no processing worker needed if using Cloudflare Images); uses S3-compatible API — same `AWSSDK.S3` SDK as AWS/MinIO, no extra adapter needed; fastest growing edge network.
+- [x] Add `.NET SDK quality` row to §9 comparison matrix.
+- [x] Produce an ADR file at [`docs/architecture/decisions/ADR-IMAGE-STORAGE-PROVIDER.md`](../../docs/architecture/decisions/ADR-IMAGE-STORAGE-PROVIDER.md).
+- [x] Update §4 Tech Decisions table with the chosen provider and rationale.
 
 **Exit criteria**: ADR file committed with a formal provider recommendation. §4 and §9 of this plan updated accordingly.
 

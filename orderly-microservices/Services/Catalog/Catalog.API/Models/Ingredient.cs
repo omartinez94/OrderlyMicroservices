@@ -23,4 +23,5 @@ public class Ingredient : AuditableAggregate<int>
     public Guid RestaurantId { get; set; }
     /// <summary>Unit of measurement: kg, liters, units, etc.</summary>
     public string Unit { get; set; } = string.Empty;
+    public string? Icon { get; set; }
 }

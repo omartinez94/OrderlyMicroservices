@@ -643,6 +643,9 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.Property(i => i.Unit)
                 .HasMaxLength(50);
 
+            entity.Property(i => i.Icon)
+                .HasMaxLength(64);
+
             entity.Property(i => i.CurrentStock)
                 .HasColumnType("decimal(10,2)");
 

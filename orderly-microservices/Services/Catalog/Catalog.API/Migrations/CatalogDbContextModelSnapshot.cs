@@ -386,6 +386,10 @@ namespace Catalog.API.Migrations
                     b.Property<decimal>("CurrentStock")
                         .HasColumnType("decimal(10,2)");
 
+                    b.Property<string>("Icon")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 

@@ -9,7 +9,8 @@ public record UpdateIngredientCommand(
     string Unit,
     decimal CurrentStock,
     decimal MinimumStock,
-    bool IsAvailable) : ICommand<UpdateIngredientResult>;
+    bool IsAvailable,
+    string? Icon = null) : ICommand<UpdateIngredientResult>;
 
 public record UpdateIngredientResult(bool IsSuccess);
 
@@ -23,6 +24,7 @@ public class UpdateIngredientCommandValidator : AbstractValidator<UpdateIngredie
         RuleFor(x => x.Unit).MaximumLength(50).WithMessage("Unit must not exceed 50 characters");
         RuleFor(x => x.CurrentStock).GreaterThanOrEqualTo(0).WithMessage("CurrentStock must be greater than or equal to 0");
         RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0).WithMessage("MinimumStock must be greater than or equal to 0");
+        RuleFor(x => x.Icon).MaximumLength(64).WithMessage("Icon must not exceed 64 characters");
     }
 }
 
@@ -43,6 +45,7 @@ internal class UpdateIngredientCommandHandler(
         ingredient.CurrentStock = command.CurrentStock;
         ingredient.MinimumStock = command.MinimumStock;
         ingredient.IsAvailable = command.IsAvailable;
+        ingredient.Icon = command.Icon;
 
         dbContext.Ingredients.Update(ingredient);
 

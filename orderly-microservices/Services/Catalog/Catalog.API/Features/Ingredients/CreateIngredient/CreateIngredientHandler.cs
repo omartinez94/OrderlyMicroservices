@@ -6,7 +6,8 @@ public record CreateIngredientCommand(
     string Unit,
     decimal CurrentStock,
     decimal MinimumStock,
-    bool IsAvailable) : ICommand<CreateIngredientResult>;
+    bool IsAvailable,
+    string? Icon = null) : ICommand<CreateIngredientResult>;
 
 public record CreateIngredientResult(int Id);
 
@@ -19,6 +20,7 @@ public class CreateIngredientCommandValidator : AbstractValidator<CreateIngredie
         RuleFor(x => x.Unit).MaximumLength(50).WithMessage("Unit must not exceed 50 characters");
         RuleFor(x => x.CurrentStock).GreaterThanOrEqualTo(0).WithMessage("CurrentStock must be greater than or equal to 0");
         RuleFor(x => x.MinimumStock).GreaterThanOrEqualTo(0).WithMessage("MinimumStock must be greater than or equal to 0");
+        RuleFor(x => x.Icon).MaximumLength(64).WithMessage("Icon must not exceed 64 characters");
     }
 }
 
@@ -38,7 +40,8 @@ internal class CreateIngredientCommandHandler(
             Unit = command.Unit,
             CurrentStock = command.CurrentStock,
             MinimumStock = command.MinimumStock,
-            IsAvailable = command.IsAvailable
+            IsAvailable = command.IsAvailable,
+            Icon = command.Icon
         };
 
         dbContext.Ingredients.Add(ingredient);

@@ -5,7 +5,8 @@ public record UpdateIngredientRequest(
     string Unit,
     decimal CurrentStock,
     decimal MinimumStock,
-    bool IsAvailable);
+    bool IsAvailable,
+    string? Icon = null);
 
 public record UpdateIngredientResponse(bool IsSuccess);
 

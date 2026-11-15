@@ -540,8 +540,7 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
         string? specialInstructions = null,
         IReadOnlyList<KitchenOrderItemCustomization>? customizations = null,
         IReadOnlyList<KitchenOrderItemVariation>? selectedVariations = null,
-        int seatNumber = 0,
-        int? courseNumber = null)
+        int seatNumber = 0)
     {
         ArgumentNullException.ThrowIfNull(menuItemId);
 
@@ -553,7 +552,6 @@ public class Order : Aggregate<OrderId>, IShortIdentifiable, ITenantEntity
             Customizations = customizations ?? Array.Empty<KitchenOrderItemCustomization>(),
             SelectedVariations = selectedVariations ?? Array.Empty<KitchenOrderItemVariation>(),
             SeatNumber = seatNumber,
-            CourseNumber = courseNumber,
             UnitPrice = price,
             TotalPrice = price * quantity
         };

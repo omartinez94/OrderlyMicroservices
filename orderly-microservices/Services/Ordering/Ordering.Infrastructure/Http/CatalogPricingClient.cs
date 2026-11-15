@@ -170,8 +170,7 @@ public class CatalogPricingClient(
                         item.PromoPrice,
                         item.IsAvailable,
                         item.AvailabilityStatus ?? "Available",
-                        variations,
-                        item.DefaultCourseNumber));
+                        variations));
                 }
             }
         }
@@ -198,8 +197,7 @@ public class CatalogPricingClient(
         decimal? PromoPrice,
         bool IsAvailable,
         string AvailabilityStatus,
-        IReadOnlyList<RawVariationNode> Variations,
-        int? DefaultCourseNumber);
+        IReadOnlyList<RawVariationNode> Variations);
     private sealed record RawVariationNode(
         int Id,
         string Name,

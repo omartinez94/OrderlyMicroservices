@@ -16,8 +16,7 @@ public record UpdateMenuItemRequest(
     Instant? PromoStartDate,
     Instant? PromoEndDate,
     int DisplayOrder,
-    string? ImageUrl = null,
-    int? DefaultCourseNumber = null);
+    string? ImageUrl = null);
 
 public record UpdateMenuItemResponse(bool Success);
 

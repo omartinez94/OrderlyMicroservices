@@ -9,5 +9,4 @@ public sealed record MenuItemChangedDto(
     bool? IsAvailable = null,
     string? AvailabilityStatus = null,
     string? ImageUrl = null,
-    int? DefaultCourseNumber = null,
     Instant OccurredAt = default);

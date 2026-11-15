@@ -48,8 +48,7 @@ public static class KitchenTicketExtensions
             Status: item.Status,
             StartedAt: item.StartedAt,
             ReadyAt: item.ReadyAt,
-            StationId: item.StationId,
-            CourseNumber: item.CourseNumber);
+            StationId: item.StationId);
     }
 
     public static KitchenStationDto ToDto(this KitchenStation station)
@@ -85,8 +84,7 @@ public static class KitchenTicketExtensions
                 SelectedVariations: FlattenVariations(i.SelectedVariations),
                 Customizations: FlattenCustomizations(i.Customizations),
                 SpecialInstructions: i.SpecialInstructions,
-                SeatNumber: i.SeatNumber,
-                CourseNumber: i.CourseNumber))
+                SeatNumber: i.SeatNumber))
             .ToList();
 
     /// <summary>

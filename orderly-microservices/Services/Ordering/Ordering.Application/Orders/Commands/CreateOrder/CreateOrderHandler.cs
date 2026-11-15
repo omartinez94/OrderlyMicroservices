@@ -29,7 +29,7 @@ public class CreateOrderHandler(
 
         Dictionary<Guid, CatalogMenuItemDto> catalogItems = await ValidateAndFetchCatalogItemsAsync(dto, cancellationToken);
 
-        (decimal computedSubtotal, decimal computedTaxAmount, decimal discountAmount, decimal computedTotalAmount, List<(OrderItemDto Item, decimal AuthoritativeUnitPrice, int? CourseNumber)> preparedItems) =
+        (decimal computedSubtotal, decimal computedTaxAmount, decimal discountAmount, decimal computedTotalAmount, List<(OrderItemDto Item, decimal AuthoritativeUnitPrice)> preparedItems) =
             ComputeFinancials(dto, catalogItems);
 
         Address billingAddress = BuildBillingAddress(dto);
@@ -65,7 +65,7 @@ public class CreateOrderHandler(
         order.DiscountCode = dto.DiscountCode ?? string.Empty;
         order.TotalAmount = computedTotalAmount;
 
-        foreach ((OrderItemDto item, decimal authoritativeUnitPrice, int? courseNum) in preparedItems)
+        foreach ((OrderItemDto item, decimal authoritativeUnitPrice) in preparedItems)
         {
             CatalogMenuItemDto catalogItem = catalogItems[item.MenuItemId];
             string itemName = !string.IsNullOrWhiteSpace(item.MenuItemName) ? item.MenuItemName : catalogItem.Name;
@@ -78,8 +78,7 @@ public class CreateOrderHandler(
                 item.SpecialInstructions,
                 item.Customizations,
                 item.SelectedVariations,
-                item.SeatNumber,
-                courseNum);
+                item.SeatNumber);
         }
 
         order.RecordActivity(
@@ -194,11 +193,11 @@ public class CreateOrderHandler(
         return catalogItems;
     }
 
-    private static (decimal Subtotal, decimal TaxAmount, decimal DiscountAmount, decimal TotalAmount, List<(OrderItemDto Item, decimal AuthoritativeUnitPrice, int? CourseNumber)> Items)
+    private static (decimal Subtotal, decimal TaxAmount, decimal DiscountAmount, decimal TotalAmount, List<(OrderItemDto Item, decimal AuthoritativeUnitPrice)> Items)
         ComputeFinancials(OrderDto dto, Dictionary<Guid, CatalogMenuItemDto> catalogItems)
     {
         decimal computedSubtotal = 0m;
-        List<(OrderItemDto Item, decimal AuthoritativeUnitPrice, int? CourseNumber)> preparedItems = [];
+        List<(OrderItemDto Item, decimal AuthoritativeUnitPrice)> preparedItems = [];
 
         foreach (OrderItemDto item in dto.OrderItems)
         {
@@ -220,9 +219,8 @@ public class CreateOrderHandler(
                 }
             }
 
-            int? courseNum = item.CourseNumber ?? catalogItem.DefaultCourseNumber;
             computedSubtotal += authoritativeUnitPrice * item.Quantity;
-            preparedItems.Add((item, authoritativeUnitPrice, courseNum));
+            preparedItems.Add((item, authoritativeUnitPrice));
         }
 
         decimal computedTaxAmount = Math.Round(computedSubtotal * dto.TaxRate, 2, MidpointRounding.AwayFromZero);

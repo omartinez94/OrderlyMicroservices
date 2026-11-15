@@ -13,7 +13,6 @@
       "description": "Aguacate machacado con pico de gallo, cilantro, lima y totopos de maíz.",
       "basePrice": 95.00,
       "prepTimeMinutes": 5,
-      "defaultCourseNumber": 1,
       "imageUrl": "https://images.unsplash.com/photo-1541288097308-7b8e3f58c4c6",
       "variations": []
     },
@@ -23,7 +22,6 @@
       "description": "Cerdo marinado al trompo, piña asada, cebolla y cilantro en tortilla de maíz.",
       "basePrice": 160.00,
       "prepTimeMinutes": 10,
-      "defaultCourseNumber": 2,
       "imageUrl": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b",
       "variations": [
         { "name": "Tortilla", "variationValue": "Maiz", "priceModifier": 0.00, "isDefault": true },
@@ -36,7 +34,6 @@
       "description": "Churros crujientes espolvoreados con azúcar y canela, acompañados de cajeta.",
       "basePrice": 85.00,
       "prepTimeMinutes": 6,
-      "defaultCourseNumber": 3,
       "imageUrl": "https://images.unsplash.com/photo-1624300629298-e9de39c13be5",
       "variations": []
     },
@@ -46,7 +43,6 @@
       "description": "Bebida artesanal de arroz con leche, canela y vainilla.",
       "basePrice": 50.00,
       "prepTimeMinutes": 3,
-      "defaultCourseNumber": 1,
       "imageUrl": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd",
       "variations": []
     }

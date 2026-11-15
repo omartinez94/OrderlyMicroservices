@@ -24,10 +24,5 @@ public class OrderItemDtoValidator : AbstractValidator<OrderItemDto>
 
         RuleFor(x => x.PrepStatus)
             .IsInEnum().WithMessage("PrepStatus is not a valid PrepStatus value.");
-
-        RuleFor(x => x.CourseNumber)
-            .InclusiveBetween(1, 9)
-            .When(x => x.CourseNumber.HasValue)
-            .WithMessage("CourseNumber must be between 1 and 9.");
     }
 }

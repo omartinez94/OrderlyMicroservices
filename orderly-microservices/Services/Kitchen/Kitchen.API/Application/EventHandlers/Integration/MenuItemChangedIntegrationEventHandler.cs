@@ -33,7 +33,6 @@ public class MenuItemChangedIntegrationEventHandler(
             IsAvailable: message.IsAvailable,
             AvailabilityStatus: message.AvailabilityStatus,
             ImageUrl: message.ImageUrl,
-            DefaultCourseNumber: message.DefaultCourseNumber,
             OccurredAt: message.OccurredOn);
 
         await hubContext.Clients

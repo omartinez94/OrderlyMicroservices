@@ -138,7 +138,7 @@ public sealed class MenuReader(CatalogDbContext dbContext) : IMenuReader
                 ImageUrl: mi.ImageUrl,
                 Variations: BuildVariationNodes(mi.Id, variations),
                 Ingredients: BuildIngredientNodes(mi.Id, ingredientLinks),
-                DefaultCourseNumber: mi.DefaultCourseNumber))
+                ThumbnailUrl: mi.ThumbnailUrl))
             .ToList();
     }
 

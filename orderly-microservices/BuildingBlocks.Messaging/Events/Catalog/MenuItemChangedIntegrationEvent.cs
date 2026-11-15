@@ -41,9 +41,6 @@ public record MenuItemChangedIntegrationEvent : IntegrationEvent
 
     /// <summary>Item image URL. <see langword="null"/> on Delete.</summary>
     public string? ImageUrl { get; init; }
-
-    /// <summary>Default course number (1–9) for POS auto-routing. <see langword="null"/> on Delete or when unset.</summary>
-    public int? DefaultCourseNumber { get; init; }
 }
 
 /// <summary>Discriminator for <see cref="MenuItemChangedIntegrationEvent"/>.</summary>

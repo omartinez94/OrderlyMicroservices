@@ -34,7 +34,6 @@ public sealed class MenuItemChangedIntegrationEventHandlerTests
             IsAvailable = true,
             AvailabilityStatus = "Available",
             ImageUrl = "http://blob.local/carbonara.png",
-            DefaultCourseNumber = 2,
         };
 
         ConsumeContext<MenuItemChangedIntegrationEvent> context = Substitute.For<ConsumeContext<MenuItemChangedIntegrationEvent>>();
@@ -51,7 +50,6 @@ public sealed class MenuItemChangedIntegrationEventHandlerTests
             dto.BasePrice == 16.50m &&
             dto.IsAvailable == true &&
             dto.AvailabilityStatus == "Available" &&
-            dto.ImageUrl == "http://blob.local/carbonara.png" &&
-            dto.DefaultCourseNumber == 2));
+            dto.ImageUrl == "http://blob.local/carbonara.png"));
     }
 }

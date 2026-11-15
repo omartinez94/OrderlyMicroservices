@@ -71,8 +71,7 @@ public static class OrderExtensions
                 PrepStatus: oi.PrepStatus,
                 CreatedAt: oi.CreatedAt,
                 PrepStartedAt: oi.PrepStartedAt,
-                PrepCompletedAt: oi.PrepCompletedAt,
-                CourseNumber: oi.CourseNumber
+                PrepCompletedAt: oi.PrepCompletedAt
             ))],
             Activities: [.. order.Activities
                 .OrderBy(a => a.OccurredAt)
@@ -247,8 +246,7 @@ public static class OrderExtensions
             SelectedVariations: oi.SelectedVariations,
             Customizations: oi.Customizations,
             SpecialInstructions: oi.SpecialInstructions.NullIfEmpty(),
-            SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null,
-            CourseNumber: oi.CourseNumber);
+            SeatNumber: oi.SeatNumber > 0 ? oi.SeatNumber : null);
 
     /// <summary>
     /// Coerces <c>null</c> or empty-string to <c>null</c>; otherwise returns

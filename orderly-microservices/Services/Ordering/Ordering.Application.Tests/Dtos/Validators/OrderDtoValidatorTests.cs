@@ -27,8 +27,7 @@ public class OrderDtoValidatorTests
         PrepStatus: PrepStatus.Pending,
         CreatedAt: SystemClock.Instance.GetCurrentInstant(),
         PrepStartedAt: null,
-        PrepCompletedAt: null,
-        CourseNumber: 1);
+        PrepCompletedAt: null);
 
     private static OrderDto CreateValidOrder(
         OrderType orderType = OrderType.DineIn,

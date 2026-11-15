@@ -13,7 +13,6 @@
       "description": "Wood-fired focaccia with roasted garlic, rosemary, and sea salt.",
       "basePrice": 95.00,
       "prepTimeMinutes": 8,
-      "defaultCourseNumber": 1,
       "imageUrl": "https://images.unsplash.com/photo-1579631542720-3a87824fff86",
       "variations": []
     },
@@ -23,7 +22,6 @@
       "description": "San Marzano tomatoes, fresh mozzarella, basil, extra virgin olive oil.",
       "basePrice": 220.00,
       "prepTimeMinutes": 12,
-      "defaultCourseNumber": 2,
       "imageUrl": "https://images.unsplash.com/photo-1604382354936-07c5d9983bd3",
       "variations": [
         { "name": "Size", "variationValue": "Individual 10\"", "priceModifier": 0.00, "isDefault": true },
@@ -36,7 +34,6 @@
       "description": "Spicy soppressata, crushed red pepper, mozzarella, tomato sauce.",
       "basePrice": 255.00,
       "prepTimeMinutes": 12,
-      "defaultCourseNumber": 2,
       "imageUrl": "https://images.unsplash.com/photo-1534308983496-4fabb1a015ee",
       "variations": [
         { "name": "Size", "variationValue": "Individual 10\"", "priceModifier": 0.00, "isDefault": true },
@@ -49,7 +46,6 @@
       "description": "Savoiardi dipped in espresso, layered with mascarpone cream and cocoa.",
       "basePrice": 110.00,
       "prepTimeMinutes": 5,
-      "defaultCourseNumber": 3,
       "imageUrl": "https://images.unsplash.com/photo-1571877227200-a0d98ea607e9",
       "variations": []
     }

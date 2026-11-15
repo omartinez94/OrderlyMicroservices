@@ -16,8 +16,7 @@ public record CreateMenuItemRequest(
     decimal? PromoPrice,
     Instant? PromoStartDate,
     Instant? PromoEndDate,
-    int DisplayOrder,
-    int? DefaultCourseNumber = null);
+    int DisplayOrder);
 
 public record CreateMenuItemResponse(Guid Id, string ShortId = "");
 

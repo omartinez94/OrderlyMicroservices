@@ -8,9 +8,9 @@ public sealed class KitchenTicketExtensionsTests
     private static readonly Instant Now = Instant.FromUtc(2026, 7, 4, 12, 0);
 
     [Fact]
-    public void ToDto_MapsCourseNumber_WhenItemHasCourseNumber()
+    public void ToDto_MapsSeatNumber_WhenItemHasSeatNumber()
     {
-        OrderItemSeed seedWithCourse = new OrderItemSeed(
+        OrderItemSeed seedWithSeat = new OrderItemSeed(
             OrderItemId: Guid.NewGuid(),
             MenuItemId: Guid.NewGuid(),
             MenuItemName: "Soup",
@@ -19,10 +19,9 @@ public sealed class KitchenTicketExtensionsTests
             SelectedVariations: [],
             Customizations: [],
             SpecialInstructions: null,
-            SeatNumber: 2,
-            CourseNumber: 1);
+            SeatNumber: 2);
 
-        OrderItemSeed seedWithoutCourse = new OrderItemSeed(
+        OrderItemSeed seedWithoutSeat = new OrderItemSeed(
             OrderItemId: Guid.NewGuid(),
             MenuItemId: Guid.NewGuid(),
             MenuItemName: "Steak",
@@ -31,15 +30,14 @@ public sealed class KitchenTicketExtensionsTests
             SelectedVariations: [],
             Customizations: [],
             SpecialInstructions: null,
-            SeatNumber: 2,
-            CourseNumber: null);
+            SeatNumber: null);
 
         KitchenTicket ticket = KitchenTicket.CreateFromOrder(
             orderId: Guid.NewGuid(),
             restaurantId: Guid.NewGuid(),
             customerId: Guid.NewGuid(),
             orderNumber: "ORD-2026-0003",
-            itemSeeds: [seedWithCourse, seedWithoutCourse],
+            itemSeeds: [seedWithSeat, seedWithoutSeat],
             notes: "Quick prep",
             receivedAt: Now);
 
@@ -47,17 +45,15 @@ public sealed class KitchenTicketExtensionsTests
 
         dto.Items.Should().HaveCount(2);
 
-        KitchenTicketItemDto item1 = dto.Items.First(i => i.OrderItemId == seedWithCourse.OrderItemId);
-        item1.CourseNumber.Should().Be(1);
+        KitchenTicketItemDto item1 = dto.Items.First(i => i.OrderItemId == seedWithSeat.OrderItemId);
         item1.SeatNumber.Should().Be(2);
 
-        KitchenTicketItemDto item2 = dto.Items.First(i => i.OrderItemId == seedWithoutCourse.OrderItemId);
-        item2.CourseNumber.Should().BeNull();
-        item2.SeatNumber.Should().Be(2);
+        KitchenTicketItemDto item2 = dto.Items.First(i => i.OrderItemId == seedWithoutSeat.OrderItemId);
+        item2.SeatNumber.Should().BeNull();
     }
 
     [Fact]
-    public void ToOrderItemSeeds_MapsCourseNumber_FromIntegrationEvent()
+    public void ToOrderItemSeeds_MapsSeatNumber_FromIntegrationEvent()
     {
         OrderCreatedIntegrationEvent evt = new OrderCreatedIntegrationEvent
         {
@@ -80,8 +76,7 @@ public sealed class KitchenTicketExtensionsTests
                     SelectedVariations: [],
                     Customizations: [],
                     SpecialInstructions: null,
-                    SeatNumber: 1,
-                    CourseNumber: 1),
+                    SeatNumber: 1),
                 new KitchenOrderItemPreview(
                     OrderItemId: Guid.NewGuid(),
                     MenuItemId: Guid.NewGuid(),
@@ -91,8 +86,7 @@ public sealed class KitchenTicketExtensionsTests
                     SelectedVariations: [],
                     Customizations: [],
                     SpecialInstructions: null,
-                    SeatNumber: 1,
-                    CourseNumber: 2),
+                    SeatNumber: 2),
                 new KitchenOrderItemPreview(
                     OrderItemId: Guid.NewGuid(),
                     MenuItemId: Guid.NewGuid(),
@@ -102,19 +96,15 @@ public sealed class KitchenTicketExtensionsTests
                     SelectedVariations: [],
                     Customizations: [],
                     SpecialInstructions: null,
-                    SeatNumber: null,
-                    CourseNumber: null)
+                    SeatNumber: null)
             ]
         };
 
         IReadOnlyList<OrderItemSeed> seeds = evt.ToOrderItemSeeds();
 
         seeds.Should().HaveCount(3);
-        seeds[0].CourseNumber.Should().Be(1);
         seeds[0].SeatNumber.Should().Be(1);
-        seeds[1].CourseNumber.Should().Be(2);
-        seeds[1].SeatNumber.Should().Be(1);
-        seeds[2].CourseNumber.Should().BeNull();
+        seeds[1].SeatNumber.Should().Be(2);
         seeds[2].SeatNumber.Should().BeNull();
     }
 }

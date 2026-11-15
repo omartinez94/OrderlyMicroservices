@@ -27,5 +27,4 @@ public class MenuItem : AuditableEntity<Guid>, IShortIdentifiable
     public LocalDate? SeasonEndDate { get; set; }
     public LocalDate? SeasonStartDate { get; set; }
     public int? SubCategoryId { get; set; }
-    public int? DefaultCourseNumber { get; set; }
 }

@@ -34,8 +34,6 @@ public class OrderItem : Abstractions::Entity<OrderItemId>
     public int Quantity { get; set; }
     /// <summary>Used for bill splitting by seat</summary>
     public int SeatNumber { get; set; }
-    /// <summary>Course sequencing: 1..9, or null if unassigned</summary>
-    public int? CourseNumber { get; set; }
     /// <summary>
     /// Typed variations carried on this item. Mirrors
     /// <see cref="Customizations"/>: aggregate owns the typed array, EF

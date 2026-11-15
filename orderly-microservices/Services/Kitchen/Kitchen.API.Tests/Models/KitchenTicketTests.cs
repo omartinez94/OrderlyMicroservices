@@ -58,9 +58,9 @@ public sealed class KitchenTicketTests
     }
 
     [Fact]
-    public void CreateFromOrder_PreservesCourseNumberAndSeatNumber()
+    public void CreateFromOrder_PreservesSeatNumber()
     {
-        var seedWithCourse = new OrderItemSeed(
+        var seedWithSeat = new OrderItemSeed(
             OrderItemId: Guid.NewGuid(),
             MenuItemId: Guid.NewGuid(),
             MenuItemName: "Soup",
@@ -69,10 +69,9 @@ public sealed class KitchenTicketTests
             SelectedVariations: [],
             Customizations: [],
             SpecialInstructions: null,
-            SeatNumber: 2,
-            CourseNumber: 1);
+            SeatNumber: 2);
 
-        var seedWithoutCourse = new OrderItemSeed(
+        var seedWithoutSeat = new OrderItemSeed(
             OrderItemId: Guid.NewGuid(),
             MenuItemId: Guid.NewGuid(),
             MenuItemName: "Steak",
@@ -81,25 +80,22 @@ public sealed class KitchenTicketTests
             SelectedVariations: [],
             Customizations: [],
             SpecialInstructions: null,
-            SeatNumber: 2,
-            CourseNumber: null);
+            SeatNumber: null);
 
         var ticket = KitchenTicket.CreateFromOrder(
             orderId: Guid.NewGuid(),
             restaurantId: Guid.NewGuid(),
             customerId: Guid.NewGuid(),
             orderNumber: "ORD-2026-0002",
-            itemSeeds: [seedWithCourse, seedWithoutCourse],
+            itemSeeds: [seedWithSeat, seedWithoutSeat],
             notes: string.Empty,
             receivedAt: Now);
 
-        var firstItem = ticket.Items.First(i => i.OrderItemId == seedWithCourse.OrderItemId);
-        firstItem.CourseNumber.Should().Be(1);
+        var firstItem = ticket.Items.First(i => i.OrderItemId == seedWithSeat.OrderItemId);
         firstItem.SeatNumber.Should().Be(2);
 
-        var secondItem = ticket.Items.First(i => i.OrderItemId == seedWithoutCourse.OrderItemId);
-        secondItem.CourseNumber.Should().BeNull();
-        secondItem.SeatNumber.Should().Be(2);
+        var secondItem = ticket.Items.First(i => i.OrderItemId == seedWithoutSeat.OrderItemId);
+        secondItem.SeatNumber.Should().BeNull();
     }
 
     [Fact]

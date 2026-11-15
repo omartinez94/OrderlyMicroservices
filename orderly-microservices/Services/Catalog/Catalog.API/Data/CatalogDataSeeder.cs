@@ -335,7 +335,6 @@ public static class CatalogDataSeeder
                 decimal basePrice = itemElem.GetProperty("basePrice").GetDecimal();
                 int prepMin = itemElem.GetProperty("prepTimeMinutes").GetInt32();
                 int prepMax = itemElem.GetProperty("prepTimeMaxMinutes").GetInt32();
-                int course = itemElem.TryGetProperty("defaultCourseNumber", out var cElem) ? cElem.GetInt32() : 1;
                 int jsonSubCatId = itemElem.GetProperty("subCategoryId").GetInt32();
                 int? mappedSubCatId = subCategoryIdMap.TryGetValue(jsonSubCatId, out int dbSubId) ? dbSubId : null;
 
@@ -357,7 +356,6 @@ public static class CatalogDataSeeder
                     BasePrice = basePrice,
                     PrepTimeMinutes = prepMin,
                     PrepTimeMaxMinutes = prepMax,
-                    DefaultCourseNumber = course,
                     ShortId = shortId,
                     ItemType = ItemType.Regular,
                     AvailabilityStatus = AvailabilityStatus.Available,

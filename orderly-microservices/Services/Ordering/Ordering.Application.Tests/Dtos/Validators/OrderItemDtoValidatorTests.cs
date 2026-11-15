@@ -10,7 +10,6 @@ public class OrderItemDtoValidatorTests
     private readonly OrderItemDtoValidator _validator = new();
 
     private static OrderItemDto CreateItem(
-        int? courseNumber = null,
         decimal unitPrice = 10m,
         decimal totalPrice = 10m,
         int seatNumber = 1) => new(
@@ -31,36 +30,7 @@ public class OrderItemDtoValidatorTests
         PrepStatus: PrepStatus.Pending,
         CreatedAt: SystemClock.Instance.GetCurrentInstant(),
         PrepStartedAt: null,
-        PrepCompletedAt: null,
-        CourseNumber: courseNumber);
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData(1)]
-    [InlineData(5)]
-    [InlineData(9)]
-    public void Validate_ValidCourseNumber_IsValid(int? courseNumber)
-    {
-        OrderItemDto item = CreateItem(courseNumber: courseNumber);
-
-        TestValidationResult<OrderItemDto> result = _validator.TestValidate(item);
-
-        result.ShouldNotHaveValidationErrorFor(x => x.CourseNumber);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(10)]
-    [InlineData(-1)]
-    public void Validate_InvalidCourseNumber_FailsValidation(int courseNumber)
-    {
-        OrderItemDto item = CreateItem(courseNumber: courseNumber);
-
-        TestValidationResult<OrderItemDto> result = _validator.TestValidate(item);
-
-        result.ShouldHaveValidationErrorFor(x => x.CourseNumber)
-            .WithErrorMessage("CourseNumber must be between 1 and 9.");
-    }
+        PrepCompletedAt: null);
 
     [Fact]
     public void Validate_ZeroUnitPriceAndTotalPrice_IsValid()

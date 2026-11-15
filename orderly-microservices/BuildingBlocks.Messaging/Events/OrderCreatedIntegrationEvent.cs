@@ -65,5 +65,4 @@ public record KitchenOrderItemPreview(
     IReadOnlyList<KitchenOrderItemVariation> SelectedVariations,
     IReadOnlyList<KitchenOrderItemCustomization> Customizations,
     string? SpecialInstructions,
-    int? SeatNumber,
-    int? CourseNumber = null);
+    int? SeatNumber);

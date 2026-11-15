@@ -21,7 +21,6 @@ public class UpdateMenuItemCommand : ICommand<UpdateMenuItemResult>
     public Instant? PromoStartDate { get; set; }
     public Instant? PromoEndDate { get; set; }
     public int DisplayOrder { get; set; }
-    public int? DefaultCourseNumber { get; set; }
 }
 
 public record UpdateMenuItemResult(bool Success);
@@ -37,10 +36,6 @@ public class UpdateMenuItemCommandValidator : AbstractValidator<UpdateMenuItemCo
             .MaximumLength(500).WithMessage("ImageUrl must not exceed 500 characters")
             .Must(url => string.IsNullOrEmpty(url) || Uri.TryCreate(url, UriKind.Absolute, out _))
             .WithMessage("ImageUrl must be a valid absolute URL when provided");
-        RuleFor(x => x.DefaultCourseNumber)
-            .InclusiveBetween(1, 9)
-            .When(x => x.DefaultCourseNumber.HasValue)
-            .WithMessage("DefaultCourseNumber must be between 1 and 9");
     }
 }
 
@@ -82,7 +77,6 @@ internal class UpdateMenuItemCommandHandler(
         menuItem.PromoStartDate = command.PromoStartDate;
         menuItem.PromoEndDate = command.PromoEndDate;
         menuItem.DisplayOrder = command.DisplayOrder;
-        menuItem.DefaultCourseNumber = command.DefaultCourseNumber;
 
         // Phase 4: append a PriceHistory row when the base price changed.
         // The recorder skips no-op writes internally.

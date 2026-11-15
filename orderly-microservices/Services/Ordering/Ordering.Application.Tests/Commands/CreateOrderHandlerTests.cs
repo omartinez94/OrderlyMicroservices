@@ -105,8 +105,7 @@ public sealed class CreateOrderHandlerTests
             null,
             isAvailable,
             availabilityStatus,
-            oi.SelectedVariations.Select(v => new CatalogMenuItemVariationDto(1, v.Name, v.Name, v.Price, false)).ToList(),
-            null
+            oi.SelectedVariations.Select(v => new CatalogMenuItemVariationDto(1, v.Name, v.Name, v.Price, false)).ToList()
         )).ToList();
 
         client.GetMenuSnapshotAsync(dto.RestaurantId, Arg.Any<CancellationToken>())
@@ -361,8 +360,7 @@ public sealed class CreateOrderHandlerTests
             PrepStatus: PrepStatus.Pending,
             CreatedAt: SystemClock.Instance.GetCurrentInstant(),
             PrepStartedAt: null,
-            PrepCompletedAt: null,
-            CourseNumber: 2);
+            PrepCompletedAt: null);
 
         OrderDto dto = new(
             Id: Guid.NewGuid(),
@@ -424,13 +422,9 @@ public sealed class CreateOrderHandlerTests
         captured.DeliveryAddress.IsNone.Should().BeTrue();
         captured.Payment.IsPending.Should().BeTrue();
 
-        OrderItem capturedItem = captured.OrderItems.Single();
-        capturedItem.CourseNumber.Should().Be(2);
-
         publishedEvent.Should().NotBeNull();
         publishedEvent!.BillingAddress.Should().BeNull();
         publishedEvent.DeliveryAddress.Should().BeNull();
-        publishedEvent.Items.Single().CourseNumber.Should().Be(2);
     }
 
     [Fact]

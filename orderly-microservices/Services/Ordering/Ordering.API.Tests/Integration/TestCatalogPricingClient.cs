@@ -35,8 +35,7 @@ public class TestCatalogPricingClient(IServiceProvider serviceProvider) : ICatal
                 null,
                 true,
                 "Available",
-                [],
-                null))
+                []))
             .ToList();
 
         return new CatalogMenuSnapshot(restaurantId, items);

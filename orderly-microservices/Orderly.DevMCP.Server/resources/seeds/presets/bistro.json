@@ -13,7 +13,6 @@
       "description": "Caramelized onions, beef broth, toasted baguette, melted gruyere.",
       "basePrice": 140.00,
       "prepTimeMinutes": 10,
-      "defaultCourseNumber": 1,
       "imageUrl": "https://images.unsplash.com/photo-1547592166-23ac45744acd",
       "variations": [
         { "name": "Portion", "variationValue": "Cup", "priceModifier": 0.00, "isDefault": true },
@@ -26,7 +25,6 @@
       "description": "Grilled ribeye, herb butter, house-cut pommes frites.",
       "basePrice": 360.00,
       "prepTimeMinutes": 20,
-      "defaultCourseNumber": 2,
       "imageUrl": "https://images.unsplash.com/photo-1600891964599-f61ba0e24092",
       "variations": [
         { "name": "Cut", "variationValue": "8 oz", "priceModifier": 0.00, "isDefault": true },
@@ -39,7 +37,6 @@
       "description": "Rich vanilla custard with a brittle caramelized sugar crust.",
       "basePrice": 120.00,
       "prepTimeMinutes": 5,
-      "defaultCourseNumber": 3,
       "imageUrl": "https://images.unsplash.com/photo-1579954115545-a95591f28bfc",
       "variations": []
     },
@@ -49,7 +46,6 @@
       "description": "Red wine with aromas of cherry and earthy undertones.",
       "basePrice": 150.00,
       "prepTimeMinutes": 3,
-      "defaultCourseNumber": 1,
       "imageUrl": "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3",
       "variations": []
     }

@@ -106,8 +106,7 @@ public class KitchenTicket : Aggregate<KitchenTicketId>
                 selectedVariations: seed.SelectedVariations,
                 customizations: seed.Customizations,
                 specialInstructions: seed.SpecialInstructions,
-                seatNumber: seed.SeatNumber,
-                courseNumber: seed.CourseNumber));
+                seatNumber: seed.SeatNumber));
         }
 
         return ticket;

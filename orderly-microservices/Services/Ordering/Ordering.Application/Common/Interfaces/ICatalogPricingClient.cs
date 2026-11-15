@@ -11,8 +11,7 @@ public record CatalogMenuItemDto(
     decimal? PromoPrice,
     bool IsAvailable,
     string AvailabilityStatus,
-    IReadOnlyList<CatalogMenuItemVariationDto> Variations,
-    int? DefaultCourseNumber);
+    IReadOnlyList<CatalogMenuItemVariationDto> Variations);
 
 public record CatalogMenuItemVariationDto(
     int Id,

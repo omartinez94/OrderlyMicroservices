@@ -74,7 +74,6 @@ public sealed class CreatePosOrderTests : IDisposable
     private static OrderItemDto CreateItemDto(
         Guid menuItemId,
         int seatNumber = 1,
-        int? courseNumber = null,
         decimal unitPrice = 12.50m,
         int quantity = 1,
         decimal? totalPrice = null) => new(
@@ -95,8 +94,7 @@ public sealed class CreatePosOrderTests : IDisposable
         PrepStatus: PrepStatus.Pending,
         CreatedAt: SystemClock.Instance.GetCurrentInstant(),
         PrepStartedAt: null,
-        PrepCompletedAt: null,
-        CourseNumber: courseNumber);
+        PrepCompletedAt: null);
 
     private static OrderDto CreateOrderDto(
         Guid customerId,
@@ -185,8 +183,8 @@ public sealed class CreatePosOrderTests : IDisposable
 
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 2);
 
-        OrderItemDto item1 = CreateItemDto(menuItemIds[0], seatNumber: 1, courseNumber: 1, unitPrice: 12.50m);
-        OrderItemDto item2 = CreateItemDto(menuItemIds[1], seatNumber: 2, courseNumber: 2, unitPrice: 12.50m);
+        OrderItemDto item1 = CreateItemDto(menuItemIds[0], seatNumber: 1, unitPrice: 12.50m);
+        OrderItemDto item2 = CreateItemDto(menuItemIds[1], seatNumber: 2, unitPrice: 12.50m);
 
         OrderDto dto = CreateOrderDto(
             customerId: customerId,
@@ -226,17 +224,15 @@ public sealed class CreatePosOrderTests : IDisposable
         // Deferred payment should project to null in wire DTO
         order.GetProperty("payment").ValueKind.Should().Be(JsonValueKind.Null);
 
-        // Verify seats and course numbers persisted on items
+        // Verify seats persisted on items
         JsonElement items = order.GetProperty("orderItems");
         items.GetArrayLength().Should().Be(2);
 
         JsonElement readItem1 = items.EnumerateArray().First(i => i.GetProperty("menuItemId").GetGuid() == menuItemIds[0]);
         readItem1.GetProperty("seatNumber").GetInt32().Should().Be(1);
-        readItem1.GetProperty("courseNumber").GetInt32().Should().Be(1);
 
         JsonElement readItem2 = items.EnumerateArray().First(i => i.GetProperty("menuItemId").GetGuid() == menuItemIds[1]);
         readItem2.GetProperty("seatNumber").GetInt32().Should().Be(2);
-        readItem2.GetProperty("courseNumber").GetInt32().Should().Be(2);
     }
 
     [Fact]
@@ -249,7 +245,7 @@ public sealed class CreatePosOrderTests : IDisposable
 
         var (_, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
 
-        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 0, courseNumber: null);
+        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 0);
 
         OrderDto dto = CreateOrderDto(
             customerId: Guid.Empty, // Walk-in counter customer
@@ -323,13 +319,12 @@ public sealed class CreatePosOrderTests : IDisposable
                 null,
                 false, // 86'd
                 "SoldOut",
-                [],
-                null);
+                []);
 
             return Task.FromResult(new CatalogMenuSnapshot(rId, [item]));
         };
 
-        OrderItemDto itemDto = CreateItemDto(unavailableItemId, seatNumber: 1, courseNumber: 1);
+        OrderItemDto itemDto = CreateItemDto(unavailableItemId, seatNumber: 1);
 
         OrderDto dto = CreateOrderDto(
             customerId: customerId,
@@ -370,8 +365,7 @@ public sealed class CreatePosOrderTests : IDisposable
                 null,
                 true,
                 "Available",
-                [],
-                null);
+                []);
 
             return Task.FromResult(new CatalogMenuSnapshot(rId, [catalogItem]));
         };
@@ -380,7 +374,6 @@ public sealed class CreatePosOrderTests : IDisposable
         OrderItemDto tamperedItem = CreateItemDto(
             menuItemIds[0],
             seatNumber: 1,
-            courseNumber: 1,
             unitPrice: 1.00m,
             quantity: 1,
             totalPrice: 1.00m);
@@ -434,7 +427,7 @@ public sealed class CreatePosOrderTests : IDisposable
         HttpClient client = CreateWriteClient(restaurantId);
 
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
-        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 1, courseNumber: 1);
+        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 1);
 
         OrderDto dto = CreateOrderDto(
             customerId: customerId,
@@ -493,7 +486,7 @@ public sealed class CreatePosOrderTests : IDisposable
         HttpClient client = CreateWriteClient(restaurantId);
 
         var (customerId, menuItemIds) = await SeedOwnerAsync(menuItemCount: 1);
-        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 1, courseNumber: 1);
+        OrderItemDto item = CreateItemDto(menuItemIds[0], seatNumber: 1);
 
         OrderDto dto = CreateOrderDto(
             customerId: customerId,

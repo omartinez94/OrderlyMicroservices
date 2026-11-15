@@ -73,7 +73,6 @@ public sealed record MenuItemNode(
     string ImageUrl,
     IReadOnlyList<MenuItemVariationNode> Variations,
     IReadOnlyList<MenuItemIngredientNode> Ingredients,
-    int? DefaultCourseNumber = null,
     string? ThumbnailUrl = null);
 
 /// <summary>

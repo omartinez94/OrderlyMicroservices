@@ -8,7 +8,7 @@ public sealed class OrderCreatedIntegrationEventHandlerTests
     private static readonly Instant Now = Instant.FromUtc(2026, 11, 4, 18, 0);
 
     [Fact]
-    public async Task Consume_PersistsTicketItemsWithCourseNumber_AndBroadcastsSignalR()
+    public async Task Consume_PersistsTicketItems_AndBroadcastsSignalR()
     {
         IKitchenTicketRepository repository = Substitute.For<IKitchenTicketRepository>();
         IUnitOfWork unitOfWork = Substitute.For<IUnitOfWork>();
@@ -55,8 +55,7 @@ public sealed class OrderCreatedIntegrationEventHandlerTests
                     SelectedVariations: [],
                     Customizations: [],
                     SpecialInstructions: "Extra hot",
-                    SeatNumber: 1,
-                    CourseNumber: 1),
+                    SeatNumber: 1),
                 new KitchenOrderItemPreview(
                     OrderItemId: mainItemId,
                     MenuItemId: Guid.NewGuid(),
@@ -66,8 +65,7 @@ public sealed class OrderCreatedIntegrationEventHandlerTests
                     SelectedVariations: [],
                     Customizations: [],
                     SpecialInstructions: "Medium rare",
-                    SeatNumber: 1,
-                    CourseNumber: 2)
+                    SeatNumber: 1)
             ]
         };
 
@@ -77,31 +75,27 @@ public sealed class OrderCreatedIntegrationEventHandlerTests
 
         await handler.Consume(context);
 
-        // Verify repository received persisted ticket with CourseNumber preserved
+        // Verify repository received persisted ticket with SeatNumber preserved
         await repository.Received(1).AddAsync(
             Arg.Is<KitchenTicket>(t =>
                 t.Id.Value == orderId &&
                 t.RestaurantId == restaurantId &&
                 t.OrderNumber == "ORD-POS-1001" &&
                 t.Items.Count == 2 &&
-                t.Items.First(i => i.OrderItemId == starterItemId).CourseNumber == 1 &&
                 t.Items.First(i => i.OrderItemId == starterItemId).SeatNumber == 1 &&
-                t.Items.First(i => i.OrderItemId == mainItemId).CourseNumber == 2 &&
                 t.Items.First(i => i.OrderItemId == mainItemId).SeatNumber == 1),
             Arg.Any<CancellationToken>());
 
         await unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
-        // Verify SignalR broadcast includes the mapped CourseNumber on KitchenTicketDto items
+        // Verify SignalR broadcast includes the mapped SeatNumber on KitchenTicketDto items
         hubClients.Received(1).Group($"restaurant:{restaurantId}");
         await groupProxy.Received(1).OrderReceived(Arg.Is<KitchenTicketDto>(dto =>
             dto.Id == orderId &&
             dto.RestaurantId == restaurantId &&
             dto.OrderNumber == "ORD-POS-1001" &&
             dto.Items.Count == 2 &&
-            dto.Items.First(i => i.OrderItemId == starterItemId).CourseNumber == 1 &&
             dto.Items.First(i => i.OrderItemId == starterItemId).SeatNumber == 1 &&
-            dto.Items.First(i => i.OrderItemId == mainItemId).CourseNumber == 2 &&
             dto.Items.First(i => i.OrderItemId == mainItemId).SeatNumber == 1));
     }
 

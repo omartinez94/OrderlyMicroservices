@@ -521,9 +521,6 @@ public class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             entity.Property(mi => mi.DisplayOrder)
                 .HasDefaultValue(0);
 
-            entity.Property(mi => mi.DefaultCourseNumber)
-                .HasColumnName("default_course_number");
-
             entity.Property(mi => mi.IsAvailable)
                 .HasDefaultValue(true);
 

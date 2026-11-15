@@ -19,7 +19,6 @@ public class CreateMenuItemCommand : ICommand<CreateMenuItemResult>
     public Instant? PromoStartDate { get; set; }
     public Instant? PromoEndDate { get; set; }
     public int DisplayOrder { get; set; }
-    public int? DefaultCourseNumber { get; set; }
 }
 
 public record CreateMenuItemResult(Guid Id, string ShortId = "");
@@ -35,10 +34,6 @@ public class CreateMenuItemCommandValidator : AbstractValidator<CreateMenuItemCo
             .MaximumLength(500).WithMessage("ImageUrl must not exceed 500 characters")
             .Must(url => string.IsNullOrEmpty(url) || Uri.TryCreate(url, UriKind.Absolute, out _))
             .WithMessage("ImageUrl must be a valid absolute URL when provided");
-        RuleFor(x => x.DefaultCourseNumber)
-            .InclusiveBetween(1, 9)
-            .When(x => x.DefaultCourseNumber.HasValue)
-            .WithMessage("DefaultCourseNumber must be between 1 and 9");
     }
 }
 
@@ -72,7 +67,6 @@ internal class CreateMenuItemCommandHandler(
             PromoStartDate = command.PromoStartDate,
             PromoEndDate = command.PromoEndDate,
             DisplayOrder = command.DisplayOrder,
-            DefaultCourseNumber = command.DefaultCourseNumber,
             IsDeleted = false
         };
 

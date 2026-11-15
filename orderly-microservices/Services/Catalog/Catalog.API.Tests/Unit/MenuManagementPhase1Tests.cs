@@ -149,7 +149,7 @@ public sealed class MenuManagementPhase1Tests
     }
 
     [Fact]
-    public async Task MenuReader_IncludesDefaultCourseNumberInSnapshot()
+    public async Task MenuReader_IncludesThumbnailUrlInSnapshot()
     {
         await using CatalogDbContext dbContext = CreateInMemoryDbContext();
         Guid restaurantId = Guid.NewGuid();
@@ -180,9 +180,9 @@ public sealed class MenuManagementPhase1Tests
             Description = "Fresh fish",
             BasePrice = 180m,
             ImageUrl = "https://cdn.local/ceviche.jpg",
+            ThumbnailUrl = "https://cdn.local/ceviche-thumb.webp",
             AvailabilityStatus = AvailabilityStatus.Available,
-            IsAvailable = true,
-            DefaultCourseNumber = 2
+            IsAvailable = true
         };
 
         dbContext.MenuCategories.Add(category);
@@ -196,8 +196,8 @@ public sealed class MenuManagementPhase1Tests
 
         snapshot.Should().NotBeNull();
         MenuItemNode node = snapshot!.Categories.Single().SubCategories.Single().Items.Single();
-        node.DefaultCourseNumber.Should().Be(2);
         node.ImageUrl.Should().Be("https://cdn.local/ceviche.jpg");
+        node.ThumbnailUrl.Should().Be("https://cdn.local/ceviche-thumb.webp");
     }
 
     // ----------------------------------------------------------------
@@ -397,7 +397,7 @@ public sealed class MenuManagementPhase1Tests
     // ----------------------------------------------------------------
 
     [Fact]
-    public async Task MenuItemMutationNotifier_SaveAndNotifyAsync_StagesOutboxWithImageAndCourse_SavesDb_ThenInvalidatesCache()
+    public async Task MenuItemMutationNotifier_SaveAndNotifyAsync_StagesOutboxWithImage_SavesDb_ThenInvalidatesCache()
     {
         await using CatalogDbContext dbContext = CreateInMemoryDbContext();
         Guid restaurantId = Guid.NewGuid();
@@ -409,8 +409,7 @@ public sealed class MenuManagementPhase1Tests
             BasePrice = 450m,
             IsAvailable = true,
             AvailabilityStatus = AvailabilityStatus.Available,
-            ImageUrl = "https://cdn.local/ribeye.webp",
-            DefaultCourseNumber = 3
+            ImageUrl = "https://cdn.local/ribeye.webp"
         };
         dbContext.MenuItems.Add(item);
 
@@ -445,13 +444,12 @@ public sealed class MenuManagementPhase1Tests
                 e.BasePrice == 450m &&
                 e.IsAvailable == true &&
                 e.AvailabilityStatus == "Available" &&
-                e.ImageUrl == "https://cdn.local/ribeye.webp" &&
-                e.DefaultCourseNumber == 3),
+                e.ImageUrl == "https://cdn.local/ribeye.webp"),
             Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task MenuItemMutationNotifier_OnDelete_ClearsOptionalFieldsIncludingImageAndCourse()
+    public async Task MenuItemMutationNotifier_OnDelete_ClearsOptionalFieldsIncludingImage()
     {
         await using CatalogDbContext dbContext = CreateInMemoryDbContext();
         Guid restaurantId = Guid.NewGuid();
@@ -464,7 +462,6 @@ public sealed class MenuManagementPhase1Tests
             IsAvailable = false,
             AvailabilityStatus = AvailabilityStatus.Unavailable,
             ImageUrl = "https://cdn.local/old.png",
-            DefaultCourseNumber = 1,
             IsDeleted = true
         };
         dbContext.MenuItems.Add(item);
@@ -488,8 +485,7 @@ public sealed class MenuManagementPhase1Tests
                 e.BasePrice == null &&
                 e.IsAvailable == null &&
                 e.AvailabilityStatus == null &&
-                e.ImageUrl == null &&
-                e.DefaultCourseNumber == null),
+                e.ImageUrl == null),
             Arg.Any<CancellationToken>());
         await cache.Received(1).InvalidateMenuAsync(restaurantId, Arg.Any<CancellationToken>());
     }
@@ -499,7 +495,7 @@ public sealed class MenuManagementPhase1Tests
     // ----------------------------------------------------------------
 
     [Fact]
-    public async Task UpdateMenuItemHandler_PreservesExistingImageUrl_UpdatesDefaultCourseNumber_AndDerivesIsAvailable()
+    public async Task UpdateMenuItemHandler_PreservesExistingImageUrl_AndDerivesIsAvailable()
     {
         await using CatalogDbContext dbContext = CreateInMemoryDbContext();
         Guid restaurantId = Guid.NewGuid();
@@ -515,8 +511,7 @@ public sealed class MenuManagementPhase1Tests
             BasePrice = 120m,
             ImageUrl = originalImageUrl,
             AvailabilityStatus = AvailabilityStatus.Available,
-            IsAvailable = true,
-            DefaultCourseNumber = 1
+            IsAvailable = true
         };
         dbContext.MenuItems.Add(existing);
         await dbContext.SaveChangesAsync();
@@ -535,60 +530,16 @@ public sealed class MenuManagementPhase1Tests
             BasePrice = 145m,
             ImageUrl = "https://evil.local/overwrite.png",
             AvailabilityStatus = AvailabilityStatus.Unavailable,
-            IsAvailable = true, // Contradictory input — handler must derive false from Unavailable
-            DefaultCourseNumber = 2
+            IsAvailable = true // Contradictory input — handler must derive false from Unavailable
         };
 
         UpdateMenuItemResult result = await sut.Handle(command, CancellationToken.None);
 
         result.Success.Should().BeTrue();
         existing.ImageUrl.Should().Be(originalImageUrl, "PUT must never overwrite ImageUrl");
-        existing.DefaultCourseNumber.Should().Be(2);
         existing.AvailabilityStatus.Should().Be(AvailabilityStatus.Unavailable);
         existing.IsAvailable.Should().BeFalse("Unavailable status must derive IsAvailable = false");
         await notifier.Received(1).SaveAndNotifyAsync(existing, MenuItemChangeType.Updated, Arg.Any<CancellationToken>());
-    }
-
-    [Theory]
-    [InlineData(0, false)]
-    [InlineData(1, true)]
-    [InlineData(5, true)]
-    [InlineData(9, true)]
-    [InlineData(10, false)]
-    [InlineData(-1, false)]
-    public void CreateAndUpdateValidators_EnforceDefaultCourseNumberRange(int courseNumber, bool expectedValid)
-    {
-        CreateMenuItemCommandValidator createValidator = new();
-        UpdateMenuItemCommandValidator updateValidator = new();
-
-        CreateMenuItemCommand createCmd = new()
-        {
-            RestaurantId = Guid.NewGuid(),
-            Name = "Dish",
-            BasePrice = 50m,
-            DefaultCourseNumber = courseNumber
-        };
-        UpdateMenuItemCommand updateCmd = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "Dish",
-            BasePrice = 50m,
-            DefaultCourseNumber = courseNumber
-        };
-
-        TestValidationResult<CreateMenuItemCommand> createResult = createValidator.TestValidate(createCmd);
-        TestValidationResult<UpdateMenuItemCommand> updateResult = updateValidator.TestValidate(updateCmd);
-
-        if (expectedValid)
-        {
-            createResult.ShouldNotHaveValidationErrorFor(x => x.DefaultCourseNumber);
-            updateResult.ShouldNotHaveValidationErrorFor(x => x.DefaultCourseNumber);
-        }
-        else
-        {
-            createResult.ShouldHaveValidationErrorFor(x => x.DefaultCourseNumber);
-            updateResult.ShouldHaveValidationErrorFor(x => x.DefaultCourseNumber);
-        }
     }
 
     [Fact]
@@ -605,14 +556,12 @@ public sealed class MenuManagementPhase1Tests
             Name = "Flan",
             BasePrice = 65m,
             AvailabilityStatus = AvailabilityStatus.Limited,
-            IsAvailable = false, // Contradictory input — Limited must derive IsAvailable = true
-            DefaultCourseNumber = 3
+            IsAvailable = false // Contradictory input — Limited must derive IsAvailable = true
         }, CancellationToken.None);
 
         MenuItem? persisted = dbContext.MenuItems.Local.FirstOrDefault(m => m.Id == created.Id);
         persisted.Should().NotBeNull();
         persisted!.IsAvailable.Should().BeTrue();
-        persisted.DefaultCourseNumber.Should().Be(3);
         persisted.ImageUrl.Should().BeEmpty();
         await notifier.Received(1).SaveAndNotifyAsync(persisted, MenuItemChangeType.Created, Arg.Any<CancellationToken>());
 

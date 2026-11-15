@@ -19,8 +19,7 @@ public class KitchenTicketItem : Entity<KitchenItemId>
         IReadOnlyList<string> selectedVariations,
         IReadOnlyList<string> customizations,
         string? specialInstructions,
-        int? seatNumber,
-        int? courseNumber = null)
+        int? seatNumber)
     {
         Id = id;
         OrderItemId = orderItemId;
@@ -32,7 +31,6 @@ public class KitchenTicketItem : Entity<KitchenItemId>
         Customizations = customizations;
         SpecialInstructions = specialInstructions;
         SeatNumber = seatNumber;
-        CourseNumber = courseNumber;
         Status = KitchenItemStatus.Pending;
     }
 
@@ -45,7 +43,6 @@ public class KitchenTicketItem : Entity<KitchenItemId>
     public IReadOnlyList<string> Customizations { get; private set; } = [];
     public string? SpecialInstructions { get; private set; }
     public int? SeatNumber { get; private set; }
-    public int? CourseNumber { get; private set; }
     public KitchenItemStatus Status { get; private set; }
     public Instant? StartedAt { get; private set; }
     public Instant? ReadyAt { get; private set; }

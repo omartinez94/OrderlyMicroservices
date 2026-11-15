@@ -62,7 +62,6 @@ public sealed class MenuItemMutationNotifier(
                 IsAvailable = isDeleted ? null : menuItem.IsAvailable,
                 AvailabilityStatus = isDeleted ? null : menuItem.AvailabilityStatus.ToString(),
                 ImageUrl = isDeleted ? null : menuItem.ImageUrl,
-                DefaultCourseNumber = isDeleted ? null : menuItem.DefaultCourseNumber,
             };
 
             await outbox.PublishAsync(integrationEvent, cancellationToken).ConfigureAwait(false);

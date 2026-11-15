@@ -31,7 +31,7 @@ builder.Services.AddJwtAuthenticationWithDevFallback(
 
 builder.Services.AddAuthorizationServices();
 
-builder.Services.AddCarter();
+builder.Services.AddCarter(new DependencyContextAssemblyCatalog([typeof(Program).Assembly]));
 
 // OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built on
 // the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10 SDK —

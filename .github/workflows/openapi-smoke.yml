@@ -13,12 +13,10 @@ name: OpenAPI smoke
 # `discount-tests.yml` already covers the gRPC side). Both Basket + the
 # Discount OpenAPI stub are exercised by `openapi-strict.yml` below.
 #
-# Each job spins up its service's backing store(s) via Testcontainers
-# (running inside the runner), wires the connection string via the
-# `appsettings.Test.json` override, and uses `dotnet run --no-build` on
-# the service project. The runner needs Docker-in-Docker enabled
-# (per `phase-guard.ps1`'s README), and at least 8 GB of disk for the
-# Postgres + RabbitMQ + MSSQL images pulled on first run.
+# Each job boots the service process directly via `dotnet run --no-build`
+# with startup migrations, seeders, and outbox dispatchers disabled so
+# `/live` and the OpenAPI contract can be verified without provisioning
+# live database or broker containers.
 
 on:
   push:
@@ -84,9 +82,7 @@ jobs:
         # Run dotnet in the background, wait for `/live` to return 200, then
         # curl `/openapi/v1.json` and assert the response is valid JSON
         # containing at least one path. Kill the dotnet process at the end
-        # of the step. Service-specific env vars wire Testcontainers-style
-        # config; the WAF test fixtures in each service's `*.Tests` project
-        # use the same shape.
+        # of the step.
         shell: bash
         run: |
           set -euo pipefail
@@ -98,30 +94,33 @@ jobs:
           export ASPNETCORE_URLS="http://localhost:${SERVICE_PORT}"
           export ASPNETCORE_ENVIRONMENT=Production
           export OpenTelemetry__Enabled=false
+          export Migrator__Enabled=false
+          export Outbox__Enabled=false
 
-          # Service-specific backing-store wiring. Each service exposes a
-          # test appsettings override; we point it at the per-job port
-          # range so parallel matrix runs don't collide. Testcontainers
-          # picks ephemeral host ports on the runner.
+          # Service-specific configuration overrides so each host boots
+          # cleanly without backing stores. Only the OpenAPI document +
+          # /live are expected to succeed here.
           case "${{ matrix.service.name }}" in
             catalog.api)
-              # Catalog reads Postgres + Redis + RabbitMQ. The integration
-              # test WAF injects Testcontainers; for the smoke test we use
-              # localhost defaults and let the readiness probe fail
-              # loudly if the store is unreachable. Only the OpenAPI
-              # document + /live are expected to succeed here.
               export ConnectionStrings__CatalogDB="Host=localhost;Port=5432;Database=catalogdb;Username=postgres;Password=postgres"
               export ConnectionStrings__Redis="localhost:6379"
+              export Catalog__Hangfire__Enabled=false
+              export BlobStorage__EnsureContainerOnStartup=false
               ;;
             ordering.api)
               export ConnectionStrings__Database="Server=localhost,1433;Database=orderdb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true"
-              export MessageBroker__Host="amqp://guest:guest@localhost:5672"
+              export MessageBroker__Host="amqp://localhost:5672"
+              export MessageBroker__UserName="guest"
+              export MessageBroker__Password="guest"
               ;;
             kitchen.api)
               export ConnectionStrings__KitchenDB="Host=localhost;Port=5432;Database=kitchendb;Username=postgres;Password=postgres"
-              export MessageBroker__Host="amqp://guest:guest@localhost:5672"
+              export MessageBroker__Host="amqp://localhost:5672"
+              export MessageBroker__UserName="guest"
+              export MessageBroker__Password="guest"
               ;;
             identity.api)
+              export ASPNETCORE_ENVIRONMENT=Development
               export ConnectionStrings__IdentityDB="Host=localhost;Port=5432;Database=identitydb;Username=postgres;Password=postgres"
               ;;
           esac
@@ -179,10 +178,9 @@ jobs:
           echo "OK — ${{ matrix.service.name }} passed Phase 5 smoke checks"
 
   # ---------------------------------------------------------------------
-  # Job 2: OpenAPI strict — services that emit an OpenAPI doc with
-  # multiple path entries (Catalog + Ordering). Runs after the smoke
-  # job; asserts the document contains the expected tags so future
-  # renames that break the document trip the build.
+  # Job 2: OpenAPI strict — services that emit an OpenAPI doc. Runs after
+  # the smoke job; asserts the document contains the expected tags so
+  # future renames that break the document trip the build.
   # ---------------------------------------------------------------------
   openapi-strict:
     name: openapi-strict / ${{ matrix.service.name }}
@@ -197,7 +195,7 @@ jobs:
           - service: { name: kitchen.api, project: Services/Kitchen/Kitchen.API/Kitchen.API.csproj, port: 8083, expected_tag: Kitchen }
           - service: { name: identity.api, project: Services/Identity/Identity.API/Identity.API.csproj, port: 8084, expected_tag: Auth }
           - service: { name: basket.api, project: Services/Basket/Basket.API/Basket.API.csproj, port: 8085, expected_tag: Baskets }
-          - service: { name: discount.grpc, project: Services/Discount/Discount.Grpc/Discount.Grpc.csproj, port: 8086, expected_tag: discount-postgres }
+          - service: { name: discount.grpc, project: Services/Discount/Discount.Grpc/Discount.Grpc.csproj, port: 8086, expected_tag: Discount }
 
     steps:
       - uses: actions/checkout@v4
@@ -226,6 +224,8 @@ jobs:
           export ASPNETCORE_URLS="http://localhost:${SERVICE_PORT}"
           export ASPNETCORE_ENVIRONMENT=Production
           export OpenTelemetry__Enabled=false
+          export Migrator__Enabled=false
+          export Outbox__Enabled=false
 
           # Basket uses Swashbuckle → spec at /swagger/v1/swagger.json.
           # The other 5 services use Microsoft.AspNetCore.OpenApi →
@@ -236,30 +236,41 @@ jobs:
             SPEC_PATH="/openapi/v1.json"
           fi
 
-          # Per-service backing-store wiring. Test fixtures
-          # inject the same env vars via in-memory config.
+          # Per-service configuration overrides for store-less startup.
           case "${{ matrix.service.name }}" in
             catalog.api)
               export ConnectionStrings__CatalogDB="Host=localhost;Port=5432;Database=catalogdb;Username=postgres;Password=postgres"
               export ConnectionStrings__Redis="localhost:6379"
+              export Catalog__Hangfire__Enabled=false
+              export BlobStorage__EnsureContainerOnStartup=false
               ;;
             ordering.api)
               export ConnectionStrings__Database="Server=localhost,1433;Database=orderdb;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=true"
-              export MessageBroker__Host="amqp://guest:guest@localhost:5672"
+              export MessageBroker__Host="amqp://localhost:5672"
+              export MessageBroker__UserName="guest"
+              export MessageBroker__Password="guest"
               ;;
             kitchen.api)
               export ConnectionStrings__KitchenDB="Host=localhost;Port=5432;Database=kitchendb;Username=postgres;Password=postgres"
-              export MessageBroker__Host="amqp://guest:guest@localhost:5672"
+              export MessageBroker__Host="amqp://localhost:5672"
+              export MessageBroker__UserName="guest"
+              export MessageBroker__Password="guest"
               ;;
             identity.api)
+              export ASPNETCORE_ENVIRONMENT=Development
               export ConnectionStrings__IdentityDB="Host=localhost;Port=5432;Database=identitydb;Username=postgres;Password=postgres"
               ;;
             basket.api)
               export ConnectionStrings__BasketDB="Host=localhost;Port=5432;Database=basketdb;Username=postgres;Password=postgres"
-              export ConnectionStrings__Redis="localhost:6379"
+              export ConnectionStrings__Redis="localhost:6379,abortConnect=false"
+              export Basket__ExpirySweep__Enabled=false
+              export OpenApi__Enabled=true
               ;;
             discount.grpc)
               export ConnectionStrings__Database="Host=localhost;Port=5432;Database=discountdb;Username=postgres;Password=postgres"
+              export DiscountExpirySweep__Enabled=false
+              export Discount__IdempotencyKey="000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+              export Kestrel__EndpointDefaults__Protocols=Http1AndHttp2
               ;;
           esac
 

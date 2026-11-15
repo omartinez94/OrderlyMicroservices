@@ -29,7 +29,8 @@ builder.Services.AddOpenApi(options =>
 {
     options.AddOperationTransformer((operation, context, ct) =>
     {
-        if (operation.Tags is { Count: > 0 })
+        if (operation.Tags is { Count: > 0 } &&
+            !operation.Tags.All(t => string.Equals(t.Name, "Identity.API", StringComparison.OrdinalIgnoreCase)))
         {
             return Task.CompletedTask;
         }
@@ -44,6 +45,11 @@ builder.Services.AddOpenApi(options =>
         if (trimmed.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
         {
             trimmed = trimmed[4..];
+        }
+
+        if (trimmed.StartsWith("v1/", StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[3..];
         }
 
         string? firstSegment = trimmed
@@ -75,9 +81,49 @@ builder.Services.AddOpenApi(options =>
 
         return Task.CompletedTask;
     });
+
+    options.AddDocumentTransformer((document, context, ct) =>
+    {
+        if (document.Paths is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        HashSet<OpenApiTag> tags = new();
+        foreach (IOpenApiPathItem pathItem in document.Paths.Values)
+        {
+            if (pathItem.Operations is null)
+            {
+                continue;
+            }
+
+            foreach (OpenApiOperation op in pathItem.Operations.Values)
+            {
+                if (op.Tags is null)
+                {
+                    continue;
+                }
+
+                foreach (OpenApiTagReference tagRef in op.Tags)
+                {
+                    if (!string.IsNullOrEmpty(tagRef.Name))
+                    {
+                        tags.Add(new OpenApiTag { Name = tagRef.Name });
+                    }
+                }
+            }
+        }
+
+        if (tags.Count > 0)
+        {
+            document.Tags = tags;
+        }
+
+        return Task.CompletedTask;
+    });
 });
 
-builder.Services.AddCarter();
+builder.Services.AddCarter(new DependencyContextAssemblyCatalog([typeof(Program).Assembly]));
 
 builder.Services.AddIdentityDbContext(builder.Configuration);
 builder.Services.AddOpenIddictServer(builder.Configuration, builder.Environment);

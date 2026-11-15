@@ -42,7 +42,7 @@ public static class DependencyInjection
         services.AddSingleton<OrderingLiveMetrics>();
         services.AddScoped<IOrderNotifier, SignalROrderNotifier>();
         services.AddSingleton<IDashboardNotifier, SignalRDashboardNotifier>();
-        services.AddCarter();
+        services.AddCarter(new DependencyContextAssemblyCatalog([typeof(DependencyInjection).Assembly]));
 
         // OpenAPI: machine-readable contract served at `/openapi/v1.json`. Built
         // on the in-box `Microsoft.AspNetCore.OpenApi` (ships with the .NET 10

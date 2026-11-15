@@ -47,7 +47,7 @@ builder.Services.AddScoped<BuildingBlocks.Multitenancy.ICurrentRestaurantProvide
                           BuildingBlocks.Multitenancy.ClaimsRestaurantProvider>();
 
 // Add services to the container.
-builder.Services.AddCarter();
+builder.Services.AddCarter(new DependencyContextAssemblyCatalog([typeof(Program).Assembly]));
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

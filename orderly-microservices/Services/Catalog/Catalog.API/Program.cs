@@ -26,6 +26,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 {
     // Setting this to null makes it use the exact C# property names (PascalCase)
     options.SerializerOptions.PropertyNamingPolicy = null;
+    options.SerializerOptions.ConfigureForNodaTime(DateTimeZoneProviders.Tzdb);
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 });
 
 builder.Services.AddJwtAuthenticationWithDevFallback(

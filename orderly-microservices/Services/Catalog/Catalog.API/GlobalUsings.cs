@@ -36,5 +36,6 @@ global using Microsoft.Extensions.Caching.Distributed;
 global using Microsoft.Extensions.Options;
 global using Microsoft.FeatureManagement;
 global using NodaTime;
+global using NodaTime.Serialization.SystemTextJson;
 global using Npgsql;
 global using System.Security.Claims;
